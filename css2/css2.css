@@ -1,0 +1,31 @@
+/* CSS Document */
+.status_sc{
+padding:1px; 
+background-color: #339900; 
+color:#FFFFFF;  
+border-radius: 2px 2px 2px 2px;
+font-size:36px;
+}
+.status_wait{
+padding:-5px; 
+font-size:12px;  
+background-color: #666666; 
+color:#FFFFFF;  
+border-radius: 30px 5px 30px 5px;
+}
+.status_not{
+padding:-5px; 
+font-size:12px;  
+background-color: #FF3300; 
+color:#FFFFFF;  
+border-radius: 30px 5px 30px 5px;
+}
+.status_wait2{
+padding:-5px; 
+font-size:12px;  
+background-color: #ffaa00; 
+color:#FFFFFF;  
+border-radius: 30px 5px 30px 5px;
+}
+.f{
+font-size:12px; margin-top:-500px;}

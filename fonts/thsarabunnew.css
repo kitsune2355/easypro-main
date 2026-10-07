@@ -1,0 +1,123 @@
+@font-face {
+    font-family: 'THSarabunNew';
+    src: url('thsarabunnew-webfont.eot');
+    src: url('thsarabunnew-webfont.eot?#iefix') format('embedded-opentype'),
+         url('thsarabunnew-webfont.woff') format('woff'),
+         url('thsarabunnew-webfont.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+
+}
+
+@font-face {
+    font-family: 'THSarabunNew';
+    src: url('thsarabunnew_bolditalic-webfont.eot');
+    src: url('thsarabunnew_bolditalic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('thsarabunnew_bolditalic-webfont.woff') format('woff'),
+         url('thsarabunnew_bolditalic-webfont.ttf') format('truetype');
+    font-weight: bold;
+    font-style: italic;
+
+}
+
+@font-face {
+    font-family: 'THSarabunNew';
+    src: url('thsarabunnew_italic-webfont.eot');
+    src: url('thsarabunnew_italic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('thsarabunnew_italic-webfont.woff') format('woff'),
+         url('thsarabunnew_italic-webfont.ttf') format('truetype');
+    font-weight: normal;
+    font-style: italic;
+
+}
+
+@font-face {
+    font-family: 'THSarabunNew';
+    src: url('thsarabunnew_bold-webfont.eot');
+    src: url('thsarabunnew_bold-webfont.eot?#iefix') format('embedded-opentype'),
+         url('thsarabunnew_bold-webfont.woff') format('woff'),
+         url('thsarabunnew_bold-webfont.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+
+}
+
+@font-face {
+    font-family: 'SukhumvitSet';
+    src: url('sukhumvitset-thin-webfont.ttf');
+    src: url('sukhumvitset-medium-webfont.ttf') format('embedded-opentype'),
+         url('sukhumvitset-thin-webfont.ttf') format('woff'),
+         url('sukhumvitset-bold-webfont.ttf') format('woff') ;
+    font-weight: normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'SukhumvitSet';
+    src: url('sukhumvitset-bold-webfont.ttf');
+    src: url('sukhumvitset-bold-webfont.ttf') format('woff') ;
+    font-weight: bold;
+    font-style: normal;
+}
+
+.thsarabunnew13n{
+   font-family: 'THSarabunNew', sans-serif;
+   font-size:13px;
+}
+.thsarabunnew14n{
+   font-family: 'THSarabunNew', sans-serif;
+   font-size:14px;
+}
+.thsarabunnew14b{
+   font-family: 'THSarabunNew', sans-serif;
+   font-size:14px;
+   font-weight:bold;
+}
+.thsarabunnew16n{
+   font-family: 'THSarabunNew', sans-serif;
+   font-size:16px;
+}
+.thsarabunnew16b{
+   font-family: 'THSarabunNew', sans-serif;
+   font-size:16px;
+   font-weight:bold;
+}
+.thsarabunnew20b{
+   font-family: 'THSarabunNew', sans-serif;
+   font-size:20px;
+   font-weight:bold;
+}
+.thsarabunnew24b{
+   font-family: 'THSarabunNew', sans-serif;
+   font-size:24px;
+   font-weight:bold;
+} 
+.sukhumvitSet14n{
+   font-family: 'SukhumvitSet', sans-serif;
+   font-size:14px;
+   font-weight:normal;
+}  
+.sukhumvitSet14b{
+   font-family: 'SukhumvitSet', sans-serif;
+   font-size:14px;
+   font-weight:bold;
+}  
+.sukhumvitSet20n{
+   font-family: 'SukhumvitSet', sans-serif;
+   font-size:20px;
+   font-weight:normal;
+}  
+.sukhumvitSet16b{
+   font-family: 'SukhumvitSet', sans-serif;
+   font-size:16px;
+   font-weight:bold;
+}  
+.sukhumvitSet16n{
+   font-family: 'SukhumvitSet', sans-serif;
+   font-size:16px;
+   font-weight:normal;
+}  
+.sukhumvitSet20b{
+   font-family: 'SukhumvitSet', sans-serif;
+   font-size:20px;
+   font-weight:bold;
+}  

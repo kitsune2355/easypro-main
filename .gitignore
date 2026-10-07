@@ -1,0 +1,29 @@
+# Credentials / config
+config_ctrl/connect.php
+config_ctrl/config.inc.php
+config_ctrl/config2.inc.php
+inc/config.php
+
+# User uploads
+AttFile/
+upload/
+uploads/
+attach/
+
+# Logs / runtime
+logfile/
+last_pm_alert_run.txt
+*.log
+
+# Database dumps
+*.sql
+
+# Dependencies / OS / editor
+node_modules/
+vendor/
+_notes/
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
