@@ -160,6 +160,13 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                     <i data-lucide="star" class="w-4 h-4"></i> ประเมิน
                 </button>
             </li>
+            <?php if (in_array($sess_user_level, ['admin', 'super_admin'], true)) { ?>
+            <li>
+                <button onclick="switchTab('import')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
+                    <i data-lucide="file-up" class="w-4 h-4"></i> นำเข้าแผนจาก Excel
+                </button>
+            </li>
+            <?php } ?>
         </ul>
     </div>
 
@@ -172,6 +179,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
             <?php include 'pm_history.php'; ?>
             <?php include 'pm_holiday.php'; ?>
             <?php include 'pm_feedback.php'; ?>
+            <?php include 'pm_import.php'; ?>
         </main>
     </div>
 
