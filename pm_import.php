@@ -519,8 +519,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const dateCol = {
             data: 'start_date', type: 'date', dateFormat: 'YYYY-MM-DD', correctFormat: true, className: 'htCenter imp-input',
+            // ไม่กำหนด container: ให้ปฏิทินอยู่ในกล่องของ Handsontable ซึ่งจะเลื่อนไม่ให้ล้นขอบจอให้เอง
             datePickerConfig: {
-                container: document.body,
                 minDate: contract.start ? new Date(contract.start) : null,
                 maxDate: contract.end ? new Date(contract.end) : null
             }

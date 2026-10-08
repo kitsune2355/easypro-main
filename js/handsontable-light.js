@@ -30,6 +30,39 @@
     (document.head || document.documentElement).appendChild(style);
 
     var Original = window.Handsontable;
+
+    // 3) ตัวเลือกวันที่ (คอลัมน์ type: 'date') ล้นขอบจอ: Handsontable คำนวณตำแหน่งก่อนปฏิทินวาดเสร็จ (ได้ความกว้างผิด)
+    //    => หลังเปิดช่องวันที่ / เปลี่ยนเดือน วัดปฏิทินจริงแล้วเลื่อนกล่อง .htDatepickerHolder กลับเข้าจอ
+    function fitDatePickers() {
+        var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight, gap = 4;
+        document.querySelectorAll('.htDatepickerHolder').forEach(function (holder) {
+            var cal = holder.querySelector('.pika-single');
+            if (!cal || cal.classList.contains('is-hidden')) return;
+            var r = cal.getBoundingClientRect();
+            if (!r.width) return;
+            var dx = 0, dy = 0;
+            if (r.right > vw - gap) dx = (vw - gap) - r.right;
+            if (r.left + dx < gap) dx = gap - r.left;
+            if (r.bottom > vh - gap) {
+                // ด้านล่างไม่พอ => ย้ายไปไว้เหนือช่องที่กำลังแก้ (ไม่เลื่อนขึ้นมาทับช่อง) ถ้าด้านบนมีที่พอ
+                var input = [].slice.call(document.querySelectorAll('.handsontableInputHolder')).filter(function (el) {
+                    return el.getBoundingClientRect().width > 0 && getComputedStyle(el).display !== 'none';
+                })[0];
+                var cell = input ? input.getBoundingClientRect() : null;
+                dy = (cell && cell.top - r.height - 2 >= gap) ? (cell.top - r.height - 2) - r.top : (vh - gap) - r.bottom;
+            }
+            if (r.top + dy < gap) dy = gap - r.top;
+            if (dx) holder.style.left = ((parseFloat(holder.style.left) || 0) + dx) + 'px';
+            if (dy) holder.style.top = ((parseFloat(holder.style.top) || 0) + dy) + 'px';
+        });
+    }
+    Original.hooks.add('afterBeginEditing', function () {
+        setTimeout(fitDatePickers, 0);
+        setTimeout(fitDatePickers, 80);
+    });
+    document.addEventListener('click', function (e) {
+        if (e.target && e.target.closest && e.target.closest('.pika-single')) setTimeout(fitDatePickers, 0);
+    }, true);
     // Proxy ส่งต่อทุกอย่างไปที่ Handsontable ตัวจริง (renderers, hooks, plugins, instanceof ฯลฯ) — แก้แค่ตอน new
     window.Handsontable = new Proxy(Original, {
         construct: function (Target, args) {

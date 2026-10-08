@@ -1,15 +1,11 @@
 <?php
-//pm_schedule.php — แท็บตารางแผน PM รายปี: ดู/แก้แผน PM ที่บันทึกแล้ว (เฉพาะผู้ดูแลระบบ) ถูก include จาก pm.php
+//pm_schedule.php — แท็บตารางแผน PM รายปี: ดูแผน PM ที่บันทึกแล้ว + กำหนดการรายสัปดาห์ (อ่านอย่างเดียว, เฉพาะผู้ดูแลระบบ) ถูก include จาก pm.php
 @session_start();
 include_once "config_ctrl/checksession.php";
 if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
 ?>
 <style>
-    #sch-hot .htInvalid { background-color: #fee2e2 !important; }
-    #sch-hot .sch-input { background-color: #f0f9ff; }
-    #sch-hot .sch-disabled { background-color: #f1f5f9 !important; color: #94a3b8; }
-    #sch-hot td.sch-dirty { background-color: #fef9c3 !important; }
-    /* ช่องสัปดาห์ (อ่านอย่างเดียว): ใช้ !important เพราะธีม Handsontable บังคับสีพื้นของ .htDimmed ด้วย !important
+    /* ช่องสัปดาห์: ใช้ !important เพราะธีม Handsontable บังคับสีพื้นของ .htDimmed ด้วย !important
        ● รอดำเนินการ / ✓ ทำแล้ว / ! เลยกำหนด (ตัวเลข = มีหลายครั้งในสัปดาห์) */
     #sch-hot td.sch-week { padding: 0; text-align: center; font-size: 11px; font-weight: 600; }
     #sch-hot td.sch-pending { background-color: #e0f2fe !important; color: #0369a1; }
@@ -17,6 +13,7 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
     #sch-hot td.sch-overdue { background-color: #fef3c7 !important; color: #b45309; }
     #sch-hot td.sch-month-end { border-right: 2px solid #cbd5e1; }
     #sch-hot td.sch-now { box-shadow: inset 2px 0 0 #f43f5e, inset -2px 0 0 #f43f5e; }
+    #sch-hot td.sch-plan { color: #334155 !important; }
     .sch-legend { display: inline-flex; align-items: center; gap: .375rem; font-size: 12px; color: #475569; white-space: nowrap; }
     .sch-legend i { display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; border-radius: .25rem; font-style: normal; font-size: 11px; font-weight: 600; }
     .sch-chip { display: inline-flex; align-items: center; gap: .25rem; padding: .25rem .625rem; border-radius: 9999px; font-size: 12px; white-space: nowrap; border: 1px solid; }
@@ -36,15 +33,10 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
 </style>
 <div id="tab-schedule" class="tab-content hidden">
     <div id="sch-card" class="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200">
-        <!-- หัวเรื่อง + ปุ่มบันทึก -->
-        <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-                <h3 class="text-lg font-semibold text-slate-800 leading-tight">ตารางแผน PM รายปี</h3>
-                <p class="text-[12px] text-slate-500 mt-0.5">แผน PM ที่บันทึกแล้ว และกำหนดการรายสัปดาห์ของปีที่เลือก</p>
-            </div>
-            <button id="sch-save-btn" type="button" class="btn-gradient shrink-0 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
-                <i data-lucide="save" class="w-4 h-4"></i> <span id="sch-save-label">บันทึก</span>
-            </button>
+        <!-- หัวเรื่อง -->
+        <div class="min-w-0">
+            <h3 class="text-lg font-semibold text-slate-800 leading-tight">ตารางแผน PM รายปี</h3>
+            <p class="text-[12px] text-slate-500 mt-0.5">แผน PM ที่บันทึกแล้ว และกำหนดการรายสัปดาห์ของปีที่เลือก (ดูอย่างเดียว)</p>
         </div>
 
         <!-- แถบเครื่องมือ -->
@@ -58,7 +50,7 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
             <!-- มือถือ: ตัวเลขสรุปลงไปแถวล่าง ปุ่มอยู่แถวเดียวกับปี -->
             <div id="sch-summary" class="order-last sm:order-none w-full sm:w-auto flex flex-wrap items-center gap-1.5"></div>
             <div class="flex items-center gap-1.5 sm:gap-2 ml-auto">
-                <button id="sch-help-btn" type="button" title="วิธีใช้" aria-expanded="false" class="p-1.5 sm:p-2 rounded-lg text-slate-600 hover:bg-white border border-transparent hover:border-slate-200">
+                <button id="sch-help-btn" type="button" title="คำอธิบาย" aria-expanded="false" class="p-1.5 sm:p-2 rounded-lg text-slate-600 hover:bg-white border border-transparent hover:border-slate-200">
                     <i data-lucide="circle-help" class="w-4 h-4"></i>
                 </button>
                 <button id="sch-export-btn" type="button" title="Export Excel" class="bg-white border border-emerald-600 text-emerald-700 hover:bg-emerald-50 px-2 sm:px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors">
@@ -70,12 +62,11 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
             </div>
         </div>
 
-        <!-- คำอธิบายสี (มือถืออยู่ในกล่องวิธีใช้) + วิธีใช้ (พับเก็บ) -->
+        <!-- คำอธิบายสี (มือถืออยู่ในกล่องคำอธิบาย) + คำอธิบาย (พับเก็บ) -->
         <div class="mt-2.5 hidden sm:flex flex-wrap gap-x-4 gap-y-1">
             <span class="sch-legend"><i style="background:#e0f2fe;color:#0369a1">●</i>รอดำเนินการ</span>
             <span class="sch-legend"><i style="background:#dcfce7;color:#15803d">✓</i>ทำแล้ว</span>
             <span class="sch-legend"><i style="background:#fef3c7;color:#b45309">!</i>เลยกำหนด</span>
-            <span class="sch-legend"><i style="background:#fef9c3"></i>แก้ไขแล้ว ยังไม่บันทึก</span>
             <span class="sch-legend"><i style="box-shadow:inset 2px 0 0 #f43f5e,inset -2px 0 0 #f43f5e"></i>สัปดาห์นี้</span>
         </div>
         <div id="sch-help" class="hidden mt-2.5 rounded-lg bg-sky-50 border border-sky-100 p-3 text-[12px] text-slate-600">
@@ -83,14 +74,11 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
                 <span class="sch-legend"><i style="background:#e0f2fe;color:#0369a1">●</i>รอดำเนินการ</span>
                 <span class="sch-legend"><i style="background:#dcfce7;color:#15803d">✓</i>ทำแล้ว</span>
                 <span class="sch-legend"><i style="background:#fef3c7;color:#b45309">!</i>เลยกำหนด</span>
-                <span class="sch-legend"><i style="background:#fef9c3"></i>แก้ไขแล้ว ยังไม่บันทึก</span>
                 <span class="sch-legend"><i style="box-shadow:inset 2px 0 0 #f43f5e,inset -2px 0 0 #f43f5e"></i>สัปดาห์นี้</span>
             </div>
             <ul class="list-disc pl-4 space-y-1">
-                <li>แก้ <b>ความถี่ / แจ้งเตือนล่วงหน้า / ระบุวัน / รอบถัดไป</b> ในตาราง แล้วกด <b>บันทึกการแก้ไข</b> (บันทึกหลายแถวพร้อมกันได้)</li>
-                <li>ระบบจะสร้างกำหนดการที่ยังไม่ดำเนินการใหม่ ตั้งแต่วันรอบถัดไปจนสิ้นสุดสัญญา — งานที่ทำแล้วและงานค้างก่อนหน้านั้นไม่เปลี่ยน</li>
-                <li>ระบุวัน: วันในสัปดาห์ เช่น <b>จ., พฤ.</b> หรือวันที่ในเดือน เช่น <b>1, 15</b> (เฉพาะความถี่ที่ต้องระบุวัน)</li>
-                <li>ลากมุมขวาล่างของเซลล์เพื่อคัดลอกลงแถวถัดไป · กรองคอลัมน์ได้จากปุ่ม ▾ บนหัวคอลัมน์</li>
+                <li>ตัวเลขในช่องสัปดาห์ = จำนวนครั้งในสัปดาห์นั้น (เดือนละ 4 สัปดาห์: วันที่ 1-7, 8-14, 15-21, 22 ขึ้นไป)</li>
+                <li>ตารางนี้ใช้ดูอย่างเดียว — แก้ไขแผนได้ที่แท็บ <b>จัดการแผน PM</b></li>
                 <li>Export Excel ส่งออกตามลำดับและตัวกรองที่แสดงอยู่ในตาราง</li>
             </ul>
         </div>
@@ -103,9 +91,6 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const DAY_OPTIONS = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
-    const WEEKDAYS = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.'];
-    const EDIT_FIELDS = ['freq', 'alert', 'days', 'next_date'];
     const PLAN_FIRST_COL = 3 + 48;
 
     let freqOptions = [];
@@ -113,7 +98,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let contract = { start: '', end: '' };
     let agencyName = '';
     let hot = null;
-    let original = {};          // plan_id => ค่าเดิมของช่องที่แก้ได้ (ใช้หาแถวที่แก้ไข)
     let overduePlans = 0;
     let today = '';
     let shownYear = null;
@@ -121,11 +105,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let narrowLayout = null;    // จอแคบ (มือถือ) ใช้ความกว้างคอลัมน์ต่างกัน
 
     const $ = id => document.getElementById(id);
-    const freqByDesc = desc => freqOptions.find(o => o.desc === desc);
     const freqByValue = v => freqOptions.find(o => String(o.value) === String(v));
-    const alertByDesc = desc => alertOptions.find(a => a.desc === desc);
     const alertByValue = v => alertOptions.find(a => String(a.value) === String(v));
-    const escHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const isNarrow = () => window.innerWidth < 640;
 
     // เต็มจอทั้งเอกสาร => หน้าต่างแจ้งเตือน (z-index 1060) แสดงเหนือการ์ดเต็มจอ (1000) ได้ตามปกติ
@@ -133,17 +114,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const alertBox = opts => Swal.fire(opts);
     // เรียก showLoading ทันที (ไม่ใช้ didOpen: ถ้า Swal.close() ถูกเรียกก่อน popup เปิดเสร็จ didOpen จะสร้าง popup เปล่าค้างไว้)
     const loadingBox = (title, html = '') => { alertBox({ title, html, allowOutsideClick: false, showConfirmButton: false }); Swal.showLoading(); };
-
-    function alertsForFreq(freqDesc) {
-        const f = freqByDesc(freqDesc);
-        const max = f ? (parseInt(f.alertbeforeforrepeatconfig) || 0) : 0;
-        return alertOptions.filter(a => { const v = parseInt(a.value); return v === 0 || v === -1 || v <= max; });
-    }
-
-    function parseDays(text) {
-        return String(text || '').split(/[,\s]+/).map(s => s.trim()).filter(Boolean)
-            .map(s => (/^\d+$/.test(s) ? String(parseInt(s, 10)) : (DAY_OPTIONS.includes(s) ? s : (DAY_OPTIONS.includes(s + '.') ? s + '.' : s))));
-    }
 
     // ช่องสัปดาห์ของวันนี้ (เหมือน weekIndex ใน handle_pm_schedule.php)
     function weekIndexOf(ymd) {
@@ -170,19 +140,9 @@ document.addEventListener('DOMContentLoaded', function() {
         $('sch-year').value = years.includes(nowY) ? nowY : years[0];
     }
 
-    function changedRows() {
-        if (!hot) return [];
-        return hot.getSourceData().filter(r => EDIT_FIELDS.some(f => String(r[f] ?? '') !== String(original[r.plan_id]?.[f] ?? '')));
-    }
-
     let lastRows = [];
     async function loadSchedule() {
         const year = parseInt($('sch-year').value, 10);
-        if (changedRows().length) {
-            const ok = await alertBox({ icon: 'warning', title: 'มีการแก้ไขที่ยังไม่บันทึก', text: 'ถ้าโหลดข้อมูลใหม่ การแก้ไขจะหายไป',
-                showCancelButton: true, confirmButtonText: 'โหลดใหม่', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#006B9F' });
-            if (!ok.isConfirmed) { if (shownYear) $('sch-year').value = shownYear; return; }
-        }
         loadingBox('กำลังโหลดแผน PM...');
         try {
             const res = await axios.get('handle_pm_schedule.php', { params: { action: 'get_schedule', year } });
@@ -205,9 +165,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return { text, cls };
     }
 
-    function renderTable(rows, year, keepEdits) {
-        const edits = keepEdits && hot ? Object.fromEntries(hot.getSourceData().map(r => [r.plan_id, r])) : null;
-        if (!keepEdits) original = {};
+    function renderTable(rows, year) {
         const weekCls = {};   // plan_id => {k: class}
         overduePlans = 0;
         const data = rows.map(r => {
@@ -228,8 +186,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (w && w.overdue) overdue = true;
             }
             if (overdue) overduePlans++;
-            if (!keepEdits) original[r.plan_id] = Object.fromEntries(EDIT_FIELDS.map(fd => [fd, row[fd]]));
-            if (edits && edits[r.plan_id]) EDIT_FIELDS.forEach(fd => { row[fd] = edits[r.plan_id][fd]; });
             return row;
         });
 
@@ -240,74 +196,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
         narrowLayout = isNarrow();
         const nowIdx = String(year) === today.slice(0, 4) ? weekIndexOf(today) : -1;
-        const weekCols = Array.from({ length: 48 }, (_, k) => ({ data: 'w' + k, readOnly: true }));
+        const weekCols = Array.from({ length: 48 }, (_, k) => ({ data: 'w' + k }));
         // จอแคบ: ตรึงแค่คอลัมน์ Name และใช้คอลัมน์แคบลง
         const colWidths = narrowLayout
-            ? [130, 90, 120, ...Array(48).fill(40), 140, 140, 90, 100, 90]
-            : [180, 110, 150, ...Array(48).fill(45), 160, 170, 110, 110, 100];
+            ? [130, 90, 120, ...Array(48).fill(40), 140, 140, 90, 125, 90]
+            : [180, 110, 150, ...Array(48).fill(45), 160, 170, 110, 135, 100];
 
         hot = new Handsontable($('sch-hot'), {
             data: data,
             colorScheme: 'light',          // ไม่ใช้โหมดมืดตามเครื่อง (ทั้งหน้าเป็นธีมสว่าง)
+            readOnly: true,                // ดูอย่างเดียว — แก้แผนที่แท็บจัดการแผน PM
             nestedHeaders: [
-                ['Name', 'CODE', 'Location', ...MONTHS.map(m => ({ label: `${m} ${year}`, colspan: 4 })), { label: 'แผน PM (แก้ไขได้)', colspan: 4 }, ''],
+                ['Name', 'CODE', 'Location', ...MONTHS.map(m => ({ label: `${m} ${year}`, colspan: 4 })), { label: 'แผน PM', colspan: 4 }, ''],
                 ['', '', '', ...Array.from({ length: 48 }, (_, k) => String(k + 1)),
                  'ความถี่', 'แจ้งเตือนล่วงหน้า', 'ระบุวัน', 'รอบถัดไป', 'เริ่มแผน']
             ],
             columns: [
-                { data: 'checksheet', readOnly: true },
-                { data: 'code', readOnly: true },
-                { data: 'location', readOnly: true },
+                { data: 'checksheet' },
+                { data: 'code' },
+                { data: 'location' },
                 ...weekCols,
-                { data: 'freq', type: 'dropdown', source: freqOptions.map(o => o.desc), strict: true, allowInvalid: false },
-                { data: 'alert', type: 'dropdown', strict: true, allowInvalid: false,
-                  source: function(query, process) { process(alertsForFreq(this.instance.getDataAtRowProp(this.row, 'freq')).map(a => a.desc)); } },
-                { data: 'days' },
-                { data: 'next_date', type: 'date', dateFormat: 'YYYY-MM-DD', correctFormat: true, className: 'htCenter',
-                  datePickerConfig: { container: document.body,
-                                      minDate: contract.start ? new Date(contract.start) : null,
-                                      maxDate: contract.end ? new Date(contract.end) : null } },
-                { data: 'start_date', readOnly: true, className: 'htCenter text-slate-500' }
+                { data: 'freq', className: 'sch-plan' },
+                { data: 'alert', className: 'sch-plan' },
+                { data: 'days', className: 'sch-plan' },
+                { data: 'next_date', className: 'sch-plan htCenter' },
+                { data: 'start_date', className: 'htCenter text-slate-500' }
             ],
             cells: function(row, col, prop) {
+                if (typeof prop !== 'string' || !/^w\d+$/.test(prop)) return {};
                 // ใช้ this.instance (ตอนวาดครั้งแรกตัวแปร hot ยังไม่ถูกกำหนด)
-                const ht = this.instance;
-                const planId = ht.getDataAtRowProp(row, 'plan_id');
-                if (typeof prop === 'string' && /^w\d+$/.test(prop)) {
-                    const k = +prop.slice(1);
-                    let cls = 'sch-week ' + ((weekCls[planId] || {})[k] || '');
-                    if (k % 4 === 3) cls += ' sch-month-end';
-                    if (k === nowIdx) cls += ' sch-now';
-                    return { className: cls };
-                }
-                if (!EDIT_FIELDS.includes(prop)) return {};
-                const dirty = String(ht.getDataAtRowProp(row, prop) ?? '') !== String(original[planId]?.[prop] ?? '');
-                const meta = { className: (prop === 'next_date' ? 'htCenter ' : '') + (dirty ? 'sch-dirty' : 'sch-input') };
-                if (prop === 'days') {
-                    const f = freqByDesc(ht.getDataAtRowProp(row, 'freq'));
-                    const multi = f ? String(f.dropdownmultiselect ?? '') : '';
-                    if (!['2', '6', '31'].includes(multi)) return { readOnly: true, className: dirty ? 'sch-dirty' : 'sch-disabled' };
-                    meta.readOnly = false;
-                }
-                return meta;
-            },
-            afterChange: function(changes, source) {
-                if (!changes || source === 'loadData') return;
-                if (source !== 'schAuto') {
-                    // เปลี่ยนความถี่ => ล้างค่าที่ใช้ไม่ได้กับความถี่ใหม่ (เหมือนตารางนำเข้า)
-                    const updates = [];
-                    changes.forEach(([row, prop, oldVal, newVal]) => {
-                        if (prop !== 'freq' || oldVal === newVal) return;
-                        const f = freqByDesc(newVal);
-                        const multi = f ? String(f.dropdownmultiselect ?? '') : '';
-                        if (multi === '5') updates.push([row, 'days', WEEKDAYS.join(', ')]);
-                        else if (!['2', '6', '31'].includes(multi)) updates.push([row, 'days', '']);
-                        const a = alertByDesc(this.getDataAtRowProp(row, 'alert'));
-                        if (a && !alertsForFreq(newVal).includes(a)) updates.push([row, 'alert', '']);
-                    });
-                    if (updates.length) this.setDataAtRowProp(updates, null, null, 'schAuto');
-                }
-                updateCount();
+                const planId = this.instance.getDataAtRowProp(row, 'plan_id');
+                const k = +prop.slice(1);
+                let cls = 'sch-week ' + ((weekCls[planId] || {})[k] || '');
+                if (k % 4 === 3) cls += ' sch-month-end';
+                if (k === nowIdx) cls += ' sch-now';
+                return { className: cls };
             },
             rowHeaders: true,
             width: '100%',
@@ -318,11 +241,11 @@ document.addEventListener('DOMContentLoaded', function() {
             // ช่องสัปดาห์กว้างคงที่: ถ้าให้ Handsontable คำนวณเอง (ตามหัวคอลัมน์/ปุ่มเมนูกรอง) ความกว้างที่ใช้คำนวณพื้นที่เลื่อน
             // ไม่ตรงกับที่วาดจริง => เลื่อนสุดขวาแล้วมีพื้นที่ว่าง
             modifyColWidth: (width, col) => (col >= 3 && col < PLAN_FIRST_COL ? colWidths[col] : width),
-            fillHandle: { direction: 'vertical', autoInsertRow: false },
+            fillHandle: false,
             filters: true,
             dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
             columnSorting: true,
-            contextMenu: ['copy', 'cut'],
+            contextMenu: ['copy'],
             licenseKey: 'non-commercial-and-evaluation',
             afterGetColHeader: function(col, TH) {
                 const plan = col >= PLAN_FIRST_COL && col < PLAN_FIRST_COL + 4;
@@ -347,79 +270,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateCount() {
         const total = hot ? hot.getSourceData().length : 0;
-        const changed = changedRows().length;
         const chip = (text, cls) => `<span class="sch-chip ${cls}">${text}</span>`;
         $('sch-summary').innerHTML =
             chip(`แผน PM <b>${total.toLocaleString()}</b>`, 'bg-white border-slate-200 text-slate-600') +
-            (overduePlans ? chip(`เลยกำหนด <b>${overduePlans.toLocaleString()}</b> แผน`, 'bg-amber-50 border-amber-200 text-amber-700') : '') +
-            (changed ? chip(`แก้ไข <b>${changed.toLocaleString()}</b>`, 'bg-yellow-50 border-yellow-300 text-yellow-800') : '');
-        $('sch-save-label').innerText = changed ? `บันทึก (${changed.toLocaleString()})` : 'บันทึก';
-        $('sch-save-btn').title = changed ? `บันทึกการแก้ไข ${changed.toLocaleString()} รายการ` : 'บันทึกการแก้ไข';
+            (overduePlans ? chip(`เลยกำหนด <b>${overduePlans.toLocaleString()}</b> แผน`, 'bg-amber-50 border-amber-200 text-amber-700') : '');
     }
-
-    function markInvalid(planIds) {
-        const bad = new Set(planIds.map(String));
-        hot.getSourceData().forEach((r, pr) => {
-            const vr = hot.toVisualRow(pr);
-            if (vr === null || vr < 0) return;
-            EDIT_FIELDS.forEach(c => hot.setCellMeta(vr, hot.propToCol(c), 'valid', !bad.has(String(r.plan_id))));
-        });
-        hot.render();
-    }
-
-    // ---------- บันทึก ----------
-    $('sch-save-btn').addEventListener('click', async () => {
-        const rows = changedRows();
-        if (!rows.length) return alertBox({ icon: 'info', title: 'แจ้งเตือน', text: 'ยังไม่มีแผนที่แก้ไข' });
-
-        const toSave = rows.map(r => {
-            const f = freqByDesc(r.freq);
-            const multi = f ? String(f.dropdownmultiselect ?? '') : '';
-            return {
-                plan_id: r.plan_id,
-                row: `${r.code} · ${r.checksheet}`,
-                freq: f ? f.value : '',
-                alert: alertByDesc(r.alert)?.value ?? '',
-                days: multi === '5' ? WEEKDAYS : (['2', '6', '31'].includes(multi) ? parseDays(r.days) : []),
-                next_date: r.next_date
-            };
-        });
-
-        const ok = await alertBox({
-            title: `บันทึกการแก้ไขแผน PM ${toSave.length.toLocaleString()} รายการ?`,
-            html: 'กำหนดการที่ยังไม่ดำเนินการ ตั้งแต่วัน<b>รอบถัดไป</b>จะถูกสร้างใหม่ตามค่าที่แก้ไข จนถึงวันสิ้นสุดสัญญา',
-            icon: 'question', showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก',
-            confirmButtonColor: '#006B9F'
-        });
-        if (!ok.isConfirmed) return;
-
-        loadingBox('กำลังบันทึก...', 'อาจใช้เวลาสักครู่ กรุณาอย่าปิดหน้านี้');
-        try {
-            const res = await axios.post('handle_pm_schedule.php?action=update_plans', { plans: toSave });
-            if (!res.data.success) {
-                if (res.data.errors) markInvalid(res.data.errors.map(e => toSave[e.index].plan_id));
-                const list = (res.data.errors || []).slice(0, 50).map(e => `${escHtml(e.row)}: ${escHtml(e.error)}`).join('<br>');
-                throw new Error(escHtml(res.data.error) + (list ? `<div class="text-left text-sm mt-2 max-h-60 overflow-y-auto">${list}</div>` : ''));
-            }
-            const d = res.data.data;
-            await alertBox({ icon: 'success', title: 'บันทึกสำเร็จ', text: `แก้ไขแผน PM ${d.plans_updated.toLocaleString()} รายการ · สร้างกำหนดการใหม่ ${d.events_created.toLocaleString()} ครั้ง` });
-            original = {};   // บันทึกแล้ว ไม่ต้องถามยืนยันก่อนโหลดใหม่
-            hot.getSourceData().forEach(r => { original[r.plan_id] = Object.fromEntries(EDIT_FIELDS.map(f => [f, r[f]])); });
-            loadSchedule();
-        } catch (e) {
-            alertBox({ icon: 'error', title: 'บันทึกไม่สำเร็จ', html: e.message + '<br>(ไม่มีข้อมูลใดถูกบันทึก)' });
-        }
-    });
 
     // ---------- Export Excel: รูปแบบเดียวกับ Template นำเข้า (Name / CODE / Location + เดือนละ 4 สัปดาห์) ต่อด้วยข้อมูลแผน PM ----------
     // ส่งออกตามลำดับและตัวกรองที่แสดงอยู่ในตาราง (hot.getData() = ข้อมูลตามลำดับคอลัมน์ที่แสดง)
-    $('sch-export-btn').addEventListener('click', async () => {
+    $('sch-export-btn').addEventListener('click', () => {
         if (!hot || !hot.countRows()) return alertBox({ icon: 'info', title: 'แจ้งเตือน', text: 'ไม่มีแผน PM ให้ส่งออก' });
-        if (changedRows().length) {
-            const ok = await alertBox({ icon: 'warning', title: 'มีการแก้ไขที่ยังไม่บันทึก', text: 'ไฟล์จะใช้ค่าที่แสดงในตารางตอนนี้ (รวมค่าที่ยังไม่บันทึก)',
-                showCancelButton: true, confirmButtonText: 'ส่งออก', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#006B9F' });
-            if (!ok.isConfirmed) return;
-        }
 
         const year = shownYear;
         const PLAN_HEAD = ['ความถี่', 'แจ้งเตือนล่วงหน้า', 'ระบุวัน', 'รอบถัดไป', 'เริ่มแผน'];
@@ -464,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ---------- เต็มจอ ----------
     // การ์ดคลุมทั้งหน้า (.sch-fs) + ขอเต็มจอให้ "ทั้งเอกสาร" (ทะลุ iframe ของ main.php ที่มี allowfullscreen)
-    // ไม่ขอเต็มจอเฉพาะการ์ด: Handsontable วางเมนูกรอง/ตัวเลือกวันที่ไว้ใน <body> ซึ่งจะมองไม่เห็นถ้าเต็มจอแค่การ์ด
+    // ไม่ขอเต็มจอเฉพาะการ์ด: Handsontable วางเมนูกรองไว้ใน <body> ซึ่งจะมองไม่เห็นถ้าเต็มจอแค่การ์ด
     // เครื่องที่ไม่รองรับ (เช่น Safari บน iPhone) => การ์ดคลุมพื้นที่หน้าเว็บอย่างเดียว
     function setFsButton(on) {
         $('sch-fs-btn').innerHTML = on
@@ -502,12 +362,12 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
 
-    // หมุนจอ/เปลี่ยนขนาดข้ามจุดตัดมือถือ => สร้างตารางใหม่ด้วยความกว้างคอลัมน์ที่เหมาะสม (คงค่าที่แก้ไว้)
+    // หมุนจอ/เปลี่ยนขนาดข้ามจุดตัดมือถือ => สร้างตารางใหม่ด้วยความกว้างคอลัมน์ที่เหมาะสม
     let resizeTimer = null;
     window.addEventListener('resize', () => {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
-            if (hot && narrowLayout !== isNarrow()) renderTable(lastRows, shownYear, true);
+            if (hot && narrowLayout !== isNarrow()) renderTable(lastRows, shownYear);
             else if (hot) hot.refreshDimensions();
         }, 200);
     });
