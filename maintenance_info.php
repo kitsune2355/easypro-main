@@ -17,7 +17,8 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise/dist/ag-grid-enterprise.min.js"></script> 
-  <script src="js/img-carousel.js"></script>
+  <!-- ✅ ต่อท้ายด้วย filemtime กันเบราว์เซอร์ cache ไฟล์ตัวเก่า (แก้ไฟล์เมื่อไหร่ URL เปลี่ยนเอง) -->
+  <script src="js/img-carousel.js?v=<?php echo @filemtime(__DIR__ . '/js/img-carousel.js') ?: time(); ?>"></script>
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
 	<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
   
@@ -1196,24 +1197,113 @@ async function exportToExcelFull() {
 }
 
 // ===============================
+// 1.5) 🎬 รวมสื่อของแต่ละ row (วิดีโอ + รูปภาพ) ส่งให้ ImageCarousel
+//      (วิดีโอมาก่อนเสมอ ถ้ามี)
+// ===============================
+const VIDEO_EXT_RE = /\.(mp4|mov|m4v|webm|ogg|ogv|avi|mkv|3gp|quicktime)(\?.*)?$/i;
+
+// ดึง URL ออกมาให้ได้ ไม่ว่า API จะส่งมาเป็น string หรือ object
+// (กัน "[object Object]" กรณี field เป็น {url:...} / {src:...} / {path:...})
+function toMediaUrl(v){
+  if(v == null) return '';
+  if(typeof v === 'string') return v.trim();
+  if(typeof v === 'object'){
+    const key = ['url','src','path','file','link','image','img','video','full_url','file_url','filename']
+      .find(k => typeof v[k] === 'string' && v[k].trim());
+    return key ? v[key].trim() : '';
+  }
+  return String(v).trim();
+}
+
+// ✅ ต้อง "ดูเหมือน path/URL ไฟล์" จริง ๆ ถึงจะเอาเข้า carousel
+// กันค่าขยะจาก DB เช่น "1" / "true" / "-" ที่จะกลายเป็นสไลด์วิดีโอเปล่า ๆ
+function looksLikeMediaUrl(u){
+  if(!u) return false;
+  if(/^(null|undefined|0|1|true|false|-)$/i.test(u)) return false;
+  if(/^data:/i.test(u) || /^blob:/i.test(u)) return true;
+  return /^https?:\/\//i.test(u) || u.includes('/') || /\.[a-z0-9]{2,5}(\?.*)?$/i.test(u);
+}
+
+// ชื่อไฟล์ท้าย URL — ใช้กันไฟล์เดียวกันที่มาจากคนละ field (เช่น video กับ video_url)
+const mediaKey = (u) => String(u).split(/[?#]/)[0].split('/').pop().toLowerCase();
+
+// รวม media ของ row → [{type:'video'|'image', src}] โดยวิดีโออยู่หน้าสุด
+function collectRowMedia(row){
+  const push = (arr, v, type) => {
+    const url = toMediaUrl(v);
+    if(!looksLikeMediaUrl(url)) return;
+    const key = mediaKey(url);
+    const dup = arr.find(it => it.src === url || mediaKey(it.src) === key);
+    if(dup){
+      // ไฟล์เดียวกัน — เก็บตัวที่เป็น full URL ไว้ (โหลดได้ชัวร์กว่า relative path)
+      if(/^https?:\/\//i.test(url) && !/^https?:\/\//i.test(dup.src)) dup.src = url;
+      return;
+    }
+    arr.push({ type, src: url });
+  };
+
+  const videos = [];
+  const images = [];
+
+  // --- วิดีโอ: รองรับหลายชื่อ field / เป็น string หรือ array ---
+  const rawVideos = [
+    row?.video, row?.video_url, row?.videos,
+    row?.video_urls, row?.completed_video, row?.completed_videos
+  ];
+  rawVideos.forEach(v => {
+    if(Array.isArray(v)) v.forEach(x => push(videos, x, 'video'));
+    else push(videos, v, 'video');
+  });
+
+  // --- รูปภาพ (เผื่อมีไฟล์วิดีโอปนมาใน images ก็ย้ายไปกอง video) ---
+  const rawImages = [].concat(row?.images || [], row?.completed_images || []);
+  rawImages.forEach(u => {
+    const url = toMediaUrl(u);
+    if(VIDEO_EXT_RE.test(url)) push(videos, url, 'video');
+    else push(images, url, 'image');
+  });
+
+  return [...videos, ...images];   // ✅ วิดีโอก่อน แล้วค่อยรูป
+}
+
+
+// ===============================
 // 2) คอลัมน์ที่ใช้แสดงบนหน้าจอ (UI จริง)
 // ===============================
 const uiColumns = [
       {
-        headerName: "รูป",
+        headerName: "รูป/วิดีโอ",
         field: "images",
         width: 80,
         pinned: 'left',
         sortable: false,
         filter: false,
         cellRenderer: (p) => {
-          const imgs = p.value || [];
-          const first = imgs.length ? imgs[0] : null;
+          const media = collectRowMedia(p.data || {});
+          const first = media[0];
 
           if(first){
+            const payload = JSON.stringify(media).replaceAll("'", '&#039;');
+            const vids    = media.filter(m => m.type === 'video').length;
+
+            const thumb = first.type === 'video'
+              ? `<video src="${escapeHtml(first.src)}#t=0.1" muted playsinline preload="metadata"
+                    class="w-10 h-10 rounded-lg object-cover border border-slate-200 shadow-sm bg-black"></video>
+                 <span class="absolute inset-0 rounded-lg bg-slate-900/35 text-white flex items-center justify-center">
+                   <i data-lucide="play" class="w-3.5 h-3.5"></i>
+                 </span>`
+              : `<img src="${escapeHtml(first.src)}"
+                    class="w-10 h-10 rounded-lg object-cover border border-slate-200 shadow-sm" />`;
+
             return `
-              <div class="flex items-center h-full cursor-pointer group" onclick='ImageCarousel.open(${JSON.stringify(imgs)})'>
-                <img src="${first}" class="w-10 h-10 rounded-lg object-cover border border-slate-200 shadow-sm group-hover:scale-105 transition-transform" />
+              <div class="flex items-center h-full cursor-pointer group" title="${vids ? 'ดูวิดีโอ/รูป' : 'ดูรูป'}"
+                   onclick='ImageCarousel.open(${payload})'>
+                <div class="relative w-10 h-10 group-hover:scale-105 transition-transform">
+                  ${thumb}
+                  ${media.length > 1 ? `
+                    <span class="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-sky-600 text-white
+                                 text-[9px] font-extrabold flex items-center justify-center shadow">${media.length}</span>` : ''}
+                </div>
               </div>
             `;
           }

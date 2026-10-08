@@ -48,6 +48,13 @@ function build_base_url(){
   return $scheme . $host;
 }
 
+// path ไฟล์ใน API_es/uploads => URL เต็ม (ค่าว่างคืนค่าว่าง)
+function media_url($path){
+  $p = trim(str_replace('\\', '/', (string)$path));
+  if ($p === '') return '';
+  return is_absolute_url($p) ? $p : build_base_url() . '/API_es/uploads/' . ltrim($p, '/');
+}
+
 function is_absolute_url($url){
   return (bool)preg_match('/^https?:\/\//i', (string)$url);
 }
@@ -249,6 +256,7 @@ if ($action === 'get_one') {
       r.rp_format,
       r.machine_id,
       r.image_url,
+      r.video_url,
       r.has_feedback,
 
       -- ส่วนรับงาน / ดำเนินการ
@@ -318,6 +326,7 @@ if ($action === 'get_one') {
   $row['created_by_name'] = $row['user_name'] ?: ($row['user_fname'] ?? $row['created_by']);
 
   $uploadBaseUrl = build_base_url() . '/API_es/uploads/';
+  $row['video_url'] = media_url($row['video_url'] ?? '');
 
   // ===== รูปแจ้งซ่อม (repair_images) =====
   $images = [];
@@ -958,6 +967,7 @@ if ($action === 'get_all') {
       r.rp_format,
       r.machine_id,
       r.image_url,
+      r.video_url,
       r.has_feedback,
 
       -- ส่วนรับงาน / ดำเนินการ
@@ -1058,6 +1068,7 @@ if ($action === 'get_all') {
       'rp_format'       => $row['rp_format'],
       'machine_id'      => $row['machine_id'],
       'image_url'       => $row['image_url'],
+      'video_url'       => media_url($row['video_url'] ?? ''),
       'has_feedback'    => (int)$row['has_feedback'],
 
       'received_date'   => $row['received_date'],
