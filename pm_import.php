@@ -100,6 +100,9 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
             </div>
             <div class="flex items-center gap-2">
                 <span id="imp-plan-count" class="text-[12px] text-slate-500"></span>
+                <button id="imp-fs-btn" type="button" class="text-sky-600 hover:text-sky-800 bg-sky-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors border border-sky-200">
+                    <i data-lucide="maximize" class="w-4 h-4"></i> <span>ขยายเต็มจอ</span>
+                </button>
                 <button id="imp-save-btn" class="btn-gradient px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
                     <i data-lucide="save" class="w-4 h-4"></i> บันทึกแผน PM
                 </button>
@@ -601,6 +604,51 @@ document.addEventListener('DOMContentLoaded', function() {
         lucide.createIcons();
     }
 
+    // ---------- ย่อ/ขยายเต็มจอ (ขั้นที่ 2) — เหมือน toggleStep3Fullscreen ใน pm_plan.php ----------
+    const HOT_HEIGHT = '560px';
+    let impFullscreen = false;
+
+    function applyFullscreen(on) {
+        impFullscreen = on;
+        const card = $('imp-step2');
+        const box = $('imp-plan-hot');
+        card.classList.toggle('fixed', on);
+        card.classList.toggle('inset-0', on);
+        card.classList.toggle('z-[1000]', on);
+        card.classList.toggle('rounded-xl', !on);
+        card.classList.toggle('overflow-hidden', on);
+        $('imp-fs-btn').innerHTML = on
+            ? '<i data-lucide="minimize" class="w-4 h-4"></i> <span>ย่อหน้าจอกลับ</span>'
+            : '<i data-lucide="maximize" class="w-4 h-4"></i> <span>ขยายเต็มจอ</span>';
+        lucide.createIcons();
+        // ความสูงตาราง = พื้นที่ที่เหลือใต้หัวการ์ด
+        box.style.height = on ? `${Math.max(300, window.innerHeight - box.getBoundingClientRect().top - 20)}px` : HOT_HEIGHT;
+        if (hot) setTimeout(() => hot.refreshDimensions(), 50);
+    }
+
+    $('imp-fs-btn').addEventListener('click', () => {
+        const el = document.documentElement;
+        const isDocFs = document.fullscreenElement || document.webkitFullscreenElement;
+        if (!impFullscreen) {
+            applyFullscreen(true);
+            // ขยายทั้งหน้าต่างเบราว์เซอร์ (ทะลุ iframe) ถ้ารองรับ — ถ้าไม่รองรับก็ยังเต็มพื้นที่หน้าเว็บ
+            const req = el.requestFullscreen || el.webkitRequestFullscreen;
+            if (req && !isDocFs) Promise.resolve(req.call(el)).catch(() => {}).then(() => applyFullscreen(true));
+        } else {
+            applyFullscreen(false);
+            const exit = document.exitFullscreen || document.webkitExitFullscreen;
+            if (isDocFs && exit) exit.call(document);
+        }
+    });
+
+    // กด ESC ออกจากโหมดเต็มจอของเบราว์เซอร์ => ย่อการ์ดกลับด้วย
+    const onFsChange = () => {
+        if (impFullscreen && !(document.fullscreenElement || document.webkitFullscreenElement)) applyFullscreen(false);
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    window.addEventListener('resize', () => { if (impFullscreen) applyFullscreen(true); });
+
     // แถวที่กรอกครบ: ความถี่ + แจ้งเตือน + วันที่เริ่ม (ระบุวันตรวจใน validateRow)
     const isComplete = r => !!(r.freq && r.alert && r.start_date);
 
@@ -675,7 +723,10 @@ document.addEventListener('DOMContentLoaded', function() {
             hot.loadData(remaining);
             updateCount();
             await Swal.fire('บันทึกสำเร็จ', `สร้างแผน PM ${d.plans_created.toLocaleString()} แผน · กำหนดการ ${d.events_created.toLocaleString()} ครั้ง`, 'success');
-            if (!remaining.length) $('imp-step2').classList.add('hidden');
+            if (!remaining.length) {
+                if (impFullscreen) $('imp-fs-btn').click();
+                $('imp-step2').classList.add('hidden');
+            }
         } catch (e) {
             Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', html: e.message + '<br>(ไม่มีข้อมูลใดถูกบันทึก)' });
         }

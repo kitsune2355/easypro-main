@@ -41,15 +41,25 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             background-color: #f1f5f9; 
         }
         
+        /* หมายเหตุ: @apply ใช้ไม่ได้กับ Tailwind CDN ใน <style> ปกติ จึงเขียนเป็น CSS ตรง */
         .custom-file-upload {
-            @apply border border-dashed border-slate-300 inline-block p-2 cursor-pointer rounded-lg bg-slate-50 text-center w-full transition-all hover:border-primary hover:bg-blue-50;
+            display: flex; width: 100%; padding: .5rem; cursor: pointer; text-align: center;
+            border: 2px dashed #cbd5e1; border-radius: .75rem; background: #f8fafc; transition: all .2s;
         }
+        .custom-file-upload:hover { border-color: #006b9f; background: #eff6ff; }
+
+        /* รายการจุดตรวจสอบ: สถานะของแต่ละข้อ (แถบสีด้านซ้าย) */
+        .ws-item { border-left-width: 4px; border-left-color: #cbd5e1; }
+        .ws-item[data-state="Pass"] { border-left-color: #16a34a; }
+        .ws-item[data-state="Fail"] { border-left-color: #dc2626; }
+        .ws-item[data-state="N/A"]  { border-left-color: #64748b; }
+        .ws-choice { min-height: 52px; }
 
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
         
         input[type="radio"]:checked + span.radio-label {
-            @apply font-bold;
+            font-weight: 700;
         }
         
         /* สไตล์สำหรับ Canvas ลายเซ็น */
@@ -231,12 +241,13 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                 </div>
             </div>
 
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-                <div class="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center gap-2.5">
+            <!-- ไม่ใช้ overflow-hidden เพื่อให้แถบความคืบหน้า (sticky) ติดด้านบนขณะเลื่อน -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
+                <div class="bg-slate-50 border-b border-slate-200 px-4 sm:px-6 py-4 flex items-center gap-2.5 rounded-t-xl">
                     <i class="fa-solid fa-list-check text-primary text-lg"></i>
-                    <h2 class="text-lg font-semibold text-slate-800">รายการจุดตรวจสอบ <span class="text-sm font-normal text-slate-500 ml-2">(คลิกเพื่อกางรายละเอียด)</span></h2>
+                    <h2 class="text-base sm:text-lg font-semibold text-slate-800">รายการจุดตรวจสอบ <span class="text-xs sm:text-sm font-normal text-slate-500 ml-1 sm:ml-2">(แตะหัวข้อเพื่อกาง/ยุบ)</span></h2>
                 </div>
-                <div id="items-list" class="p-4 sm:p-6 bg-slate-50/50"></div>
+                <div id="items-list" class="p-4 sm:p-6 bg-slate-50/50 rounded-b-xl"></div>
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
@@ -870,200 +881,244 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             tbody.innerHTML = html;
         }
 
+        // ---------- รายการจุดตรวจสอบ (โหมดบันทึก) ----------
+        // หมายเหตุ: name/id ที่ validation และการบันทึกใช้ (status_, val_, item_id[], photo_*, req_star_, data-item-id,
+        // .mb-5 รอบตัวเลือกผล, .bg-blue-50/50 รอบส่วนบันทึกผล) ต้องคงไว้เหมือนเดิม
+        const WS_STATE = {
+            '':    { text: 'ยังไม่ตรวจ', cls: 'bg-slate-100 text-slate-500 border-slate-200', icon: 'fa-regular fa-circle' },
+            'Pass':{ text: 'ปกติ',       cls: 'bg-green-100 text-green-700 border-green-200', icon: 'fa-solid fa-circle-check' },
+            'Fail':{ text: 'ผิดปกติ',    cls: 'bg-red-100 text-red-700 border-red-200',       icon: 'fa-solid fa-circle-xmark' },
+            'N/A': { text: 'N/A',        cls: 'bg-slate-200 text-slate-700 border-slate-300', icon: 'fa-solid fa-ban' }
+        };
+        let wsFilter = 'all';
+
         function renderItems(items) {
             const container = document.getElementById('items-list');
-            let html = '';
+
+            // ปุ่มเลือกผล: radio ซ่อน (peer) + ปุ่มใหญ่กดง่ายบนมือถือ เปลี่ยนสีชัดเจนเมื่อเลือก
+            const choice = (item, photoReqId, value, label, icon, onCls) => `
+                <label class="flex-1 min-w-[30%] cursor-pointer">
+                    <input type="radio" name="status_${item.id}" value="${value}" required
+                           onchange="handleStatusChange(${item.id}, '${photoReqId}')" class="peer sr-only">
+                    <span class="ws-choice radio-label flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 text-sm font-medium transition
+                                 bg-white text-slate-600 border-slate-200 hover:border-slate-300 peer-focus-visible:ring-2 peer-focus-visible:ring-primary ${onCls}">
+                        <i class="${icon}"></i> ${label}
+                    </span>
+                </label>`;
+
+            let html = `
+                <div id="ws-toolbar" class="sticky top-0 z-20 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-4 px-4 sm:px-6 py-3 bg-white/95 backdrop-blur border-b border-slate-200">
+                    <div class="flex items-center justify-between gap-3 mb-2">
+                        <div class="text-sm text-slate-700">ตรวจแล้ว <b id="ws-done">0</b> / ${items.length} ข้อ
+                            <span id="ws-fail-wrap" class="hidden ml-2 text-red-600">· ผิดปกติ <b id="ws-fail">0</b></span></div>
+                        <button type="button" onclick="wsToggleAll()" id="ws-toggle-all"
+                                class="text-xs text-primary hover:underline whitespace-nowrap"><i class="fa-solid fa-up-down mr-1"></i>กางทั้งหมด</button>
+                    </div>
+                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden mb-2.5">
+                        <div id="ws-progress" class="h-full bg-primary rounded-full transition-all duration-300" style="width:0%"></div>
+                    </div>
+                    <div class="flex gap-2 overflow-x-auto">
+                        <button type="button" data-ws-filter="all"     class="ws-filter-btn px-3 py-1 rounded-full text-xs border whitespace-nowrap">ทั้งหมด</button>
+                        <button type="button" data-ws-filter="pending" class="ws-filter-btn px-3 py-1 rounded-full text-xs border whitespace-nowrap">ยังไม่ตรวจ</button>
+                        <button type="button" data-ws-filter="Fail"    class="ws-filter-btn px-3 py-1 rounded-full text-xs border whitespace-nowrap">ผิดปกติ</button>
+                    </div>
+                </div>`;
 
             items.forEach((item, index) => {
                 // เงื่อนไข Photo Required (1 = บังคับ, 2 = ไม่บังคับ, 3 = บังคับเฉพาะเมื่อไม่ผ่าน)
                 const photoReqId = String(item.photo_required_id);
                 const isPhotoRequiredAlways = (photoReqId === '1');
-                
-                // ฟังก์ชันสร้าง Badge สำหรับเงื่อนไขรูปถ่าย
+
                 let requirePhotoBadge = '';
-                let photoLabelText = 'คลิกเพื่ออัปโหลดรูปภาพ';
-                
+                let photoLabelText = 'แตะเพื่อถ่าย/เลือกรูป (ไม่บังคับ)';
                 if (photoReqId === '1') {
-                    requirePhotoBadge = '<span class="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-semibold border border-red-200 flex-shrink-0 whitespace-nowrap"><i class="fa-solid fa-camera mr-1"></i> บังคับถ่ายรูป</span>';
-                    photoLabelText = 'คลิกเพื่อถ่ายรูป (บังคับ)';
+                    requirePhotoBadge = '<span class="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-semibold border border-red-200 whitespace-nowrap"><i class="fa-solid fa-camera mr-1"></i>บังคับถ่ายรูป</span>';
+                    photoLabelText = 'แตะเพื่อถ่าย/เลือกรูป (บังคับ)';
                 } else if (photoReqId === '3') {
-                    requirePhotoBadge = '<span class="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-semibold border border-amber-200 flex-shrink-0 whitespace-nowrap"><i class="fa-solid fa-camera mr-1"></i> ถ่ายรูปเมื่อผิดปกติ</span>';
-                    photoLabelText = 'คลิกเพื่อถ่ายรูป (เมื่อผิดปกติ)';
-                } else {
-                    photoLabelText = 'คลิกเพื่ออัปโหลดรูปภาพ (ไม่บังคับ)';
+                    requirePhotoBadge = '<span class="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-semibold border border-amber-200 whitespace-nowrap"><i class="fa-solid fa-camera mr-1"></i>ถ่ายรูปเมื่อผิดปกติ</span>';
+                    photoLabelText = 'แตะเพื่อถ่าย/เลือกรูป (บังคับเมื่อผิดปกติ)';
                 }
-                
-                const illustrationHtml = item.reference_image 
-                    ? `<div class="mt-2.5"><a href="${item.reference_image}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-primary hover:bg-blue-100 rounded-md text-xs font-medium transition-colors border border-blue-100"><i class="fa-regular fa-image"></i> ดูรูปประกอบมาตรฐาน</a></div>` 
+                const measureBadge = hasMeasurementConfig(item)
+                    ? `<span class="text-[10px] bg-blue-50 text-primary px-2 py-0.5 rounded-full font-semibold border border-blue-200 whitespace-nowrap"><i class="fa-solid fa-ruler mr-1"></i>ต้องวัดค่า</span>` : '';
+
+                const illustrationHtml = item.reference_image
+                    ? `<a href="${item.reference_image}" target="_blank" class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-primary hover:bg-blue-100 rounded-md text-xs font-medium transition-colors border border-blue-100"><i class="fa-regular fa-image"></i> ดูรูปประกอบมาตรฐาน</a>`
                     : '';
 
-                const isOpen = index === 0 ? 'open' : '';
+                const isNA = String(item.check_type_id) === '2';
+                const choicesHtml = `
+                    <div class="flex flex-wrap gap-2.5">
+                        ${choice(item, photoReqId, 'Pass', 'ปกติ', 'fa-solid fa-check', 'peer-checked:bg-green-600 peer-checked:border-green-600 peer-checked:text-white')}
+                        ${choice(item, photoReqId, 'Fail', 'ผิดปกติ', 'fa-solid fa-xmark', 'peer-checked:bg-red-600 peer-checked:border-red-600 peer-checked:text-white')}
+                        ${isNA ? choice(item, photoReqId, 'N/A', 'ไม่เกี่ยวข้อง', 'fa-solid fa-ban', 'peer-checked:bg-slate-600 peer-checked:border-slate-600 peer-checked:text-white') : ''}
+                    </div>`;
 
-                // 1. จัดการตัวเลือก Radio ตาม check_type_id
-                let radioOptionsHtml = '';
-                if (String(item.check_type_id) === '1') {
-                    radioOptionsHtml = `
-                        <div class="flex gap-3">
-                            <label class="flex-1 flex items-center justify-center gap-2 cursor-pointer bg-green-50 text-green-700 px-4 py-3 rounded-lg border border-green-200 hover:bg-green-100 transition group shadow-sm">
-                                <input type="radio" name="status_${item.id}" value="Pass" required onchange="handleStatusChange(${item.id}, '${photoReqId}')" class="w-5 h-5 text-green-600 focus:ring-green-500 border-green-300">
-                                <span class="font-medium text-sm radio-label">ปกติ (Pass)</span>
-                            </label>
-                            <label class="flex-1 flex items-center justify-center gap-2 cursor-pointer bg-red-50 text-red-700 px-4 py-3 rounded-lg border border-red-200 hover:bg-red-100 transition group shadow-sm">
-                                <input type="radio" name="status_${item.id}" value="Fail" required onchange="handleStatusChange(${item.id}, '${photoReqId}')" class="w-5 h-5 text-red-600 focus:ring-red-500 border-red-300">
-                                <span class="font-medium text-sm radio-label">ผิดปกติ (Fail)</span>
-                            </label>
+                const measurementHtml = hasMeasurementConfig(item) ? `
+                    <div class="mb-5 bg-white p-4 rounded-xl border border-slate-200">
+                        <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-2">
+                            <span class="font-semibold text-slate-800 text-sm">${item.measurement_name || 'ค่าที่ต้องตรวจวัด'}</span>
+                            <span class="text-xs text-slate-500">ค่ามาตรฐาน <b class="text-primary text-sm">${item.expected_value || '-'}</b> ${item.unit || ''}</span>
                         </div>
-                    `;
-                } else if (String(item.check_type_id) === '2') {
-                    radioOptionsHtml = `
-                        <div class="flex flex-col sm:flex-row gap-3">
-                            <label class="flex-1 flex items-center justify-center gap-2 cursor-pointer bg-green-50 text-green-700 px-4 py-3 rounded-lg border border-green-200 hover:bg-green-100 transition group shadow-sm">
-                                <input type="radio" name="status_${item.id}" value="Pass" required onchange="handleStatusChange(${item.id}, '${photoReqId}')" class="w-5 h-5 text-green-600 focus:ring-green-500 border-green-300">
-                                <span class="font-medium text-sm radio-label">ปกติ (Pass)</span>
-                            </label>
-                            <label class="flex-1 flex items-center justify-center gap-2 cursor-pointer bg-red-50 text-red-700 px-4 py-3 rounded-lg border border-red-200 hover:bg-red-100 transition group shadow-sm">
-                                <input type="radio" name="status_${item.id}" value="Fail" required onchange="handleStatusChange(${item.id}, '${photoReqId}')" class="w-5 h-5 text-red-600 focus:ring-red-500 border-red-300">
-                                <span class="font-medium text-sm radio-label">ผิดปกติ (Fail)</span>
-                            </label>
-                            <label class="flex-1 flex items-center justify-center gap-2 cursor-pointer bg-slate-50 text-slate-700 px-4 py-3 rounded-lg border border-slate-200 hover:bg-slate-100 transition group shadow-sm">
-                                <input type="radio" name="status_${item.id}" value="N/A" required onchange="handleStatusChange(${item.id}, '${photoReqId}')" class="w-5 h-5 text-slate-600 focus:ring-slate-500 border-slate-300">
-                                <span class="font-medium text-sm radio-label">ไม่เกี่ยวข้อง (N/A)</span>
-                            </label>
+                        <div class="flex items-stretch gap-2">
+                            <input type="text" inputmode="decimal" name="val_${item.id}" oninput="wsUpdateItem(${item.id})"
+                                   class="w-full px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none font-semibold text-slate-800 text-base"
+                                   placeholder="ระบุค่าที่วัดได้จริง">
+                            ${item.unit ? `<span class="flex items-center text-sm text-slate-600 font-semibold bg-slate-50 px-3 rounded-lg border border-slate-200 whitespace-nowrap">${item.unit}</span>` : ''}
                         </div>
-                    `;
-                }
-
-                // 2. จัดการกล่องกรอกข้อมูล หากมี measurement_name (ซ่อนหากว่าง)
-                let measurementInputHtml = '';
-                if (item.measurement_name && item.measurement_name.trim() !== "") {
-                    measurementInputHtml = `
-                        <div class="mt-4">
-                            <span class="text-[11px] text-slate-500 font-bold uppercase tracking-wider block mb-1.5">ระบุค่า ${item.measurement_name}</span>
-                            <div class="flex items-center gap-2">
-                                <input type="text" name="val_${item.id}" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none font-semibold shadow-sm text-slate-800" placeholder="ระบุค่าวัดที่ได้จริง...">
-                                ${item.unit ? `<span class="text-sm text-slate-600 font-semibold bg-slate-100 px-4 py-3 rounded-lg border border-slate-200 whitespace-nowrap">${item.unit}</span>` : ''}
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    measurementInputHtml = `<input type="hidden" name="val_${item.id}" value="-">`;
-                }
+                    </div>` : `<input type="hidden" name="val_${item.id}" value="-">`;
 
                 html += `
-                    <details class="group bg-white rounded-xl border border-slate-200 mb-4 overflow-hidden shadow-sm hover:shadow transition-shadow"
-         data-item-id="${item.id}" ${isOpen}>
-                        <summary class="flex justify-between items-center font-medium cursor-pointer list-none p-4 sm:p-5 bg-white hover:bg-slate-50 transition-colors">
-                            <div class="flex items-center gap-3.5 pr-4 flex-grow">
-                                <span class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm border border-primary/20">${index + 1}</span>
-                                <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3">
-                                    <span class="text-slate-800 font-semibold text-base leading-snug">${item.check_point}</span>
-                                    ${requirePhotoBadge}
+                    <details class="ws-item group bg-white rounded-xl border border-slate-200 mb-3 overflow-hidden shadow-sm"
+                             data-item-id="${item.id}" data-state="" ${index === 0 ? 'open' : ''}>
+                        <summary class="flex items-start sm:items-center gap-3 cursor-pointer list-none p-3.5 sm:p-4 hover:bg-slate-50 transition-colors">
+                            <span class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm">${index + 1}</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-slate-800 font-semibold text-[15px] leading-snug break-words">${item.check_point}</div>
+                                ${(requirePhotoBadge || measureBadge) ? `<div class="flex flex-wrap gap-1.5 mt-1.5">${requirePhotoBadge}${measureBadge}</div>` : ''}
+                            </div>
+                            <span id="ws-state-${item.id}" class="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${WS_STATE[''].cls}">
+                                <i class="${WS_STATE[''].icon}"></i><span class="hidden sm:inline">${WS_STATE[''].text}</span>
+                            </span>
+                            <i class="fa-solid fa-chevron-down flex-shrink-0 mt-2 sm:mt-0 text-slate-400 text-sm transition-transform duration-300 group-open:-rotate-180"></i>
+                        </summary>
+
+                        <div class="border-t border-slate-100 p-3.5 sm:p-5 grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-5">
+                            <!-- บันทึกผล (แสดงก่อนบนมือถือ) -->
+                            <div class="lg:col-span-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                                ${measurementHtml}
+
+                                <div class="mb-5">
+                                    <span class="text-sm font-bold text-slate-800 block mb-2">ผลการตรวจ <span class="text-red-500">*</span></span>
+                                    <input type="hidden" name="item_id[]" value="${item.id}">
+                                    ${choicesHtml}
+                                </div>
+
+                                <div>
+                                    <span class="text-sm font-bold text-slate-800 block mb-2">รูปภาพหลักฐาน ${isPhotoRequiredAlways ? '<span class="text-red-500" id="req_star_' + item.id + '">*</span>' : '<span class="text-xs font-normal text-slate-500 ml-1" id="req_star_' + item.id + '">(ถ้ามี)</span>'}</span>
+                                    <label class="custom-file-upload group relative overflow-hidden min-h-[96px] items-center justify-center" id="photo_container_${item.id}">
+                                        <input type="file" id="photo_input_${item.id}" accept="image/*" class="hidden" onchange="previewImage(this, ${item.id})" ${isPhotoRequiredAlways ? 'required' : ''}>
+                                        <div id="upload_ui_${item.id}" class="py-3 flex flex-col items-center justify-center w-full">
+                                            <i class="fa-solid fa-camera text-slate-300 mb-2 block text-3xl"></i>
+                                            <span class="text-sm text-slate-500 block px-2 font-medium" id="photo_label_${item.id}">${photoLabelText}</span>
+                                        </div>
+                                        <div id="preview_ui_${item.id}" class="hidden w-full relative group/preview">
+                                            <img id="img_preview_${item.id}" src="" class="max-h-56 mx-auto object-contain rounded" />
+                                            <span class="absolute bottom-2 right-2 text-white text-xs font-medium bg-black/60 px-2.5 py-1 rounded-lg">
+                                                <i class="fa-solid fa-pen mr-1"></i> เปลี่ยนรูป
+                                            </span>
+                                        </div>
+                                    </label>
+                                    <input type="hidden" id="photo_base64_${item.id}" name="photo_${item.id}">
+                                </div>
+
+                                <div class="flex justify-end mt-4">
+                                    <button type="button" onclick="wsNext(${item.id})" class="text-sm text-primary hover:bg-blue-100 px-3 py-2 rounded-lg font-medium">
+                                        ข้อถัดไป <i class="fa-solid fa-arrow-down ml-1"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <span class="flex-shrink-0 transition-transform duration-300 group-open:-rotate-180 bg-slate-100 rounded-full p-1.5 border border-slate-200 text-slate-500 group-hover:bg-primary group-hover:text-white group-hover:border-primary">
-                                <i class="fa-solid fa-chevron-down w-4 h-4 flex items-center justify-center text-sm"></i>
-                            </span>
-                        </summary>
-                        
-                        <div class="p-5 border-t border-slate-100 bg-slate-50/30">
-                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <div class="space-y-4">
-                                    <div class="bg-white p-5 rounded-xl border border-slate-200 h-full shadow-sm">
-                                        <h4 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 pb-2 border-b border-slate-100"><i class="fa-solid fa-book-open text-primary"></i> ข้อมูลอ้างอิงสำหรับการตรวจสอบ</h4>
-                                        <div class="mb-4">
-                                            <span class="text-[11px] text-slate-500 font-bold uppercase tracking-wider block mb-1.5">มาตรฐานการตรวจสอบ</span>
-                                            <div class="text-sm text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100 leading-relaxed">${item.standard_text || '-'}</div>
-                                            ${illustrationHtml}
-                                        </div>
-                                        <div class="mb-4">
-                                            <span class="text-[11px] text-slate-500 font-bold uppercase tracking-wider block mb-1.5">วิธีตรวจสอบ / เครื่องมือที่ใช้</span>
-                                            <div class="text-sm text-slate-700 leading-relaxed"><i class="fa-solid fa-wrench text-slate-400 mr-1.5 text-xs"></i> ${item.method_text || '-'}</div>
-                                        </div>
-                                        <div>
-                                            <span class="text-[11px] text-red-500 font-bold uppercase tracking-wider block mb-1.5">ข้อปฏิบัติเมื่อพบความผิดปกติ</span>
-                                            <div class="text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-100 leading-relaxed"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i> ${item.action_text || item.action_if_abnormal || item.action_abnormal || '-'}</div>
-                                        </div>
-                                    </div>
+
+                            <!-- ข้อมูลอ้างอิง -->
+                            <div class="lg:col-span-2 space-y-3 text-sm">
+                                <div class="bg-white p-3.5 rounded-xl border border-slate-200">
+                                    <div class="text-[11px] text-slate-500 font-bold uppercase tracking-wider mb-1"><i class="fa-solid fa-book-open mr-1"></i>มาตรฐานการตรวจสอบ</div>
+                                    <div class="text-slate-700 leading-relaxed break-words">${item.standard_text || '-'}</div>
+                                    ${illustrationHtml}
                                 </div>
-
-                                <div class="space-y-4 flex flex-col">
-                                    <div class="bg-blue-50/50 p-5 rounded-xl border border-blue-100 flex-grow shadow-sm">
-                                        <h4 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 pb-2 border-b border-blue-200/50"><i class="fa-solid fa-pen-to-square text-primary"></i> บันทึกผลการตรวจสอบ</h4>
-                                        
-                                        ${hasMeasurementConfig(item) ? `
-                                        <div class="mb-5 bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                                
-                                                <div class="flex-1">
-                                                    <span class="text-[11px] text-slate-500 font-bold uppercase tracking-wider block mb-1">ค่าวัด / ค่าที่ต้องการ</span>
-                                                    <div class="font-semibold text-slate-800 text-sm mb-1">
-														${item.measurement_name || 'ค่าที่ต้องตรวจวัด'}
-													</div>
-                                                    <div class="flex items-baseline gap-1.5">
-                                                        <span class="text-xs text-slate-500">ค่ามาตรฐาน:</span>
-                                                        <span class="text-primary font-bold text-base">${item.expected_value || '-'}</span>
-                                                        <span class="text-xs text-slate-500 font-medium">${item.unit || ''}</span>
-                                                    </div>
-                                                </div>
-
-                                                <div class="flex-1 w-full sm:w-auto">
-                                                    <span class="text-[11px] text-primary font-bold uppercase tracking-wider block mb-1">ระบุค่าที่วัดได้จริง</span>
-                                                    <div class="flex items-center gap-2">
-                                                        <input type="text" name="val_${item.id}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none font-semibold shadow-sm text-slate-800 text-sm" placeholder="ระบุค่าที่วัดได้จริง...">
-                                                        ${item.unit ? `<span class="text-sm text-slate-600 font-semibold bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 whitespace-nowrap">${item.unit}</span>` : ''}
-                                                    </div>
-                                                </div>
-
-                                            </div>
-                                        </div>
-                                        ` : `<input type="hidden" name="val_${item.id}" value="-">`}
-
-                                        <div class="mb-5">
-                                            <span class="text-sm font-bold text-slate-800 block mb-2.5">ระบุผลการประเมิน <span class="text-red-500">*</span></span>
-                                            <input type="hidden" name="item_id[]" value="${item.id}">
-                                            
-                                            ${radioOptionsHtml}
-
-                                        </div>
-
-                                        <div>
-                                            <span class="text-sm font-bold text-slate-800 block mb-2.5">รูปภาพหลักฐาน ${isPhotoRequiredAlways ? '<span class="text-red-500" id="req_star_'+item.id+'">*</span>' : '<span class="text-xs font-normal text-slate-500 ml-1" id="req_star_'+item.id+'">(ถ้ามี)</span>'}</span>
-                                            
-                                            <label class="custom-file-upload group bg-white shadow-sm relative overflow-hidden min-h-[100px] flex items-center justify-center p-2" id="photo_container_${item.id}">
-                                                <input type="file" id="photo_input_${item.id}" accept="image/*" class="hidden" onchange="previewImage(this, ${item.id})" ${isPhotoRequiredAlways ? 'required' : ''}>
-                                                
-                                                <div id="upload_ui_${item.id}" class="py-3 flex flex-col items-center justify-center w-full">
-                                                    <i class="fa-solid fa-cloud-arrow-up text-slate-300 mb-2 block text-3xl "></i>
-                                                    <span class="text-sm text-slate-500 block truncate px-2 font-medium transition-colors" id="photo_label_${item.id}">
-                                                        ${photoLabelText}
-                                                    </span>
-                                                </div>
-
-                                                <div id="preview_ui_${item.id}" class="hidden w-full relative group/preview">
-                                                    <img id="img_preview_${item.id}" src="" class="max-h-48 mx-auto object-contain rounded" />
-                                                    
-                                                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center rounded cursor-pointer">
-                                                        <span class="text-white text-sm font-medium bg-black/60 px-3 py-1.5 rounded-lg backdrop-blur-sm shadow-sm">
-                                                            <i class="fa-solid fa-pen mr-1"></i> คลิกเพื่อเปลี่ยนรูป
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </label>
-                                            
-                                            <input type="hidden" id="photo_base64_${item.id}" name="photo_${item.id}">
-                                        </div>
-                                    </div>
+                                <div class="bg-white p-3.5 rounded-xl border border-slate-200">
+                                    <div class="text-[11px] text-slate-500 font-bold uppercase tracking-wider mb-1"><i class="fa-solid fa-wrench mr-1"></i>วิธีตรวจสอบ / เครื่องมือ</div>
+                                    <div class="text-slate-700 leading-relaxed break-words">${item.method_text || '-'}</div>
+                                </div>
+                                <div class="bg-red-50 p-3.5 rounded-xl border border-red-100">
+                                    <div class="text-[11px] text-red-600 font-bold uppercase tracking-wider mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>เมื่อพบความผิดปกติ</div>
+                                    <div class="text-red-700 leading-relaxed break-words">${item.action_text || item.action_if_abnormal || item.action_abnormal || '-'}</div>
                                 </div>
                             </div>
                         </div>
-                    </details>
-                `;
+                    </details>`;
             });
 
             container.innerHTML = html;
+            // ให้แถบความคืบหน้าอยู่ใต้แถบเมนูด้านบน (nav sticky) และเลื่อนไปข้อถัดไปแล้วไม่ถูกบัง
+            const navH = document.querySelector('nav.sticky')?.offsetHeight || 0;
+            const toolbar = document.getElementById('ws-toolbar');
+            toolbar.style.top = navH + 'px';
+            container.querySelectorAll('details.ws-item').forEach(d => { d.style.scrollMarginTop = (navH + toolbar.offsetHeight + 12) + 'px'; });
+            container.querySelectorAll('.ws-filter-btn').forEach(btn => btn.addEventListener('click', () => {
+                wsFilter = btn.dataset.wsFilter;
+                wsApplyFilter();
+            }));
+            wsRefreshSummary();
+        }
+
+        // อัปเดตสถานะของข้อ (ชิปบนหัวข้อ + แถบสี) และภาพรวม
+        function wsUpdateItem(itemId) {
+            const details = document.querySelector(`details[data-item-id="${itemId}"]`);
+            if (!details) return;
+            const checked = document.querySelector(`input[name="status_${itemId}"]:checked`);
+            const state = checked ? checked.value : '';
+            details.dataset.state = state;
+            const s = WS_STATE[state] || WS_STATE[''];
+            const chip = document.getElementById(`ws-state-${itemId}`);
+            if (chip) {
+                chip.className = `flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${s.cls}`;
+                chip.innerHTML = `<i class="${s.icon}"></i><span class="hidden sm:inline">${s.text}</span>`;
+            }
+            wsRefreshSummary();
+        }
+
+        function wsRefreshSummary() {
+            const all = document.querySelectorAll('#items-list details.ws-item');
+            if (!all.length) return;
+            const done = [...all].filter(d => d.dataset.state).length;
+            const fail = [...all].filter(d => d.dataset.state === 'Fail').length;
+            document.getElementById('ws-done').textContent = done;
+            document.getElementById('ws-fail').textContent = fail;
+            document.getElementById('ws-fail-wrap').classList.toggle('hidden', fail === 0);
+            document.getElementById('ws-progress').style.width = `${Math.round(done / all.length * 100)}%`;
+            wsApplyFilter();
+        }
+
+        function wsApplyFilter() {
+            document.querySelectorAll('#items-list details.ws-item').forEach(d => {
+                const st = d.dataset.state;
+                const show = wsFilter === 'all' || (wsFilter === 'pending' ? !st : st === wsFilter);
+                d.classList.toggle('hidden', !show);
+            });
+            document.querySelectorAll('#items-list .ws-filter-btn').forEach(b => {
+                const on = b.dataset.wsFilter === wsFilter;
+                b.classList.toggle('bg-primary', on);
+                b.classList.toggle('text-white', on);
+                b.classList.toggle('border-primary', on);
+                b.classList.toggle('border-slate-300', !on);
+                b.classList.toggle('text-slate-600', !on);
+            });
+        }
+
+        function wsToggleAll() {
+            const all = [...document.querySelectorAll('#items-list details.ws-item')];
+            const open = !all.every(d => d.open);
+            all.forEach(d => { d.open = open; });
+            document.getElementById('ws-toggle-all').innerHTML = `<i class="fa-solid fa-up-down mr-1"></i>${open ? 'ยุบทั้งหมด' : 'กางทั้งหมด'}`;
+        }
+
+        // ปิดข้อนี้ แล้วเปิดข้อถัดไปที่ยังไม่ตรวจ
+        function wsNext(itemId) {
+            const all = [...document.querySelectorAll('#items-list details.ws-item')];
+            const i = all.findIndex(d => d.dataset.itemId === String(itemId));
+            if (i < 0) return;
+            all[i].open = false;
+            const next = all.slice(i + 1).find(d => !d.dataset.state && !d.classList.contains('hidden'))
+                      || all.slice(i + 1).find(d => !d.classList.contains('hidden'));
+            const target = next || all[i];
+            if (next) next.open = true;
+            const navH = document.querySelector('nav.sticky')?.offsetHeight || 0;
+            target.style.scrollMarginTop = (navH + (document.getElementById('ws-toolbar')?.offsetHeight || 0) + 12) + 'px';
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function handleStatusChange(itemId, photoRequiredId) {
+            wsUpdateItem(itemId);
             if (photoRequiredId === '3') {
                 const statusInputs = document.getElementsByName(`status_${itemId}`);
                 const photoInput = document.getElementById(`photo_input_${itemId}`);
@@ -1084,7 +1139,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     reqStar.className = "text-red-500";
                     reqStar.innerText = "*";
                     if(!photoInput.files || photoInput.files.length === 0) {
-                    photoLabel.textContent = 'คลิกเพื่อถ่ายรูป (บังคับเมื่อผิดปกติ)';
+                    photoLabel.textContent = 'แตะเพื่อถ่าย/เลือกรูป (บังคับเมื่อผิดปกติ)';
                     photoLabel.classList.add('text-red-500');
                     }
                 } else {
@@ -1093,7 +1148,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     reqStar.className = "text-xs font-normal text-slate-500 ml-1";
                     reqStar.innerText = "(ถ้ามี)";
                     if(!photoInput.files || photoInput.files.length === 0) {
-                    photoLabel.textContent = 'คลิกเพื่ออัปโหลดรูปภาพ (ไม่บังคับ)';
+                    photoLabel.textContent = 'แตะเพื่อถ่าย/เลือกรูป (บังคับเมื่อผิดปกติ)';
                     photoLabel.classList.remove('text-red-500');
                     const container = document.getElementById(`photo_container_${itemId}`);
                     container.classList.remove('border-red-400', 'bg-red-50');
