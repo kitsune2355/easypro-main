@@ -24,7 +24,7 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
                     <span id="imp-contract" class="font-medium text-sky-600"></span></p>
             </div>
             <button id="imp-template-btn" class="border border-emerald-600 text-emerald-700 hover:bg-emerald-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors shadow-sm">
-                <i data-lucide="file-down" class="w-4 h-4"></i> ดาวน์โหลดไฟล์ Template สำหรับ Import
+                <i data-lucide="file-down" class="w-4 h-4"></i> <span class="sm:hidden">Template</span><span class="hidden sm:inline">ดาวน์โหลดไฟล์ Template สำหรับ Import</span>
             </button>
         </div>
 
@@ -98,13 +98,14 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
                     บันทึกเฉพาะแถวที่กรอก ความถี่ + แจ้งเตือน + วันที่เริ่ม ครบ แถวที่เหลือยังอยู่ในตาราง
                 </p>
             </div>
-            <div class="flex items-center gap-2">
-                <span id="imp-plan-count" class="text-[12px] text-slate-500"></span>
-                <button id="imp-fs-btn" type="button" class="text-sky-600 hover:text-sky-800 bg-sky-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors border border-sky-200">
-                    <i data-lucide="maximize" class="w-4 h-4"></i> <span>ขยายเต็มจอ</span>
+            <!-- มือถือ: ปุ่มเหลือแค่ไอคอน ตัวเลขอยู่ซ้าย ปุ่มชิดขวา -->
+            <div class="flex items-center gap-2 w-full sm:w-auto shrink-0 whitespace-nowrap">
+                <span id="imp-plan-count" class="text-[12px] text-slate-500 mr-auto sm:mr-0"></span>
+                <button id="imp-fs-btn" type="button" title="ขยายเต็มจอ" aria-label="ขยายเต็มจอ" class="text-sky-600 hover:text-sky-800 bg-sky-50 px-2.5 sm:px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors border border-sky-200">
+                    <i data-lucide="maximize" class="w-4 h-4"></i> <span class="hidden sm:inline">ขยายเต็มจอ</span>
                 </button>
-                <button id="imp-save-btn" class="btn-gradient px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
-                    <i data-lucide="save" class="w-4 h-4"></i> บันทึกแผน PM
+                <button id="imp-save-btn" title="บันทึกแผน PM" aria-label="บันทึกแผน PM" class="btn-gradient px-2.5 sm:px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                    <i data-lucide="save" class="w-4 h-4"></i> <span class="hidden sm:inline">บันทึกแผน PM</span>
                 </button>
             </div>
         </div>
@@ -619,8 +620,9 @@ document.addEventListener('DOMContentLoaded', function() {
         card.classList.toggle('rounded-xl', !on);
         card.classList.toggle('overflow-hidden', on);
         $('imp-fs-btn').innerHTML = on
-            ? '<i data-lucide="minimize" class="w-4 h-4"></i> <span>ย่อหน้าจอกลับ</span>'
-            : '<i data-lucide="maximize" class="w-4 h-4"></i> <span>ขยายเต็มจอ</span>';
+            ? '<i data-lucide="minimize" class="w-4 h-4"></i> <span class="hidden sm:inline">ย่อหน้าจอกลับ</span>'
+            : '<i data-lucide="maximize" class="w-4 h-4"></i> <span class="hidden sm:inline">ขยายเต็มจอ</span>';
+        $('imp-fs-btn').title = on ? 'ย่อหน้าจอกลับ' : 'ขยายเต็มจอ';
         lucide.createIcons();
         // ความสูงตาราง = พื้นที่ที่เหลือใต้หัวการ์ด
         box.style.height = on ? `${Math.max(300, window.innerHeight - box.getBoundingClientRect().top - 20)}px` : HOT_HEIGHT;

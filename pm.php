@@ -176,7 +176,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
     </div>
 
     <div class="flex-1 flex flex-col overflow-hidden bg-[var(--color-bg-light)]">
-        <main class="flex-1 overflow-y-auto px-4 pb-4 relative">
+        <main class="flex-1 overflow-y-auto px-4 pt-4 pb-4 relative">
             <?php include 'pm_dashboard.php'; ?>
             <?php include 'pm_postpone.php'; ?>
             <?php include 'pm_plan.php'; ?>

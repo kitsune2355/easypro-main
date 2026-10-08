@@ -21,8 +21,15 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
     .sch-legend i { display: inline-flex; align-items: center; justify-content: center; width: 1.25rem; height: 1.25rem; border-radius: .25rem; font-style: normal; font-size: 11px; font-weight: 600; }
     .sch-chip { display: inline-flex; align-items: center; gap: .25rem; padding: .25rem .625rem; border-radius: 9999px; font-size: 12px; white-space: nowrap; border: 1px solid; }
 
-    /* ตารางสูงตามจอ (หักส่วนหัวของหน้า) */
+    /* มือถือ/แท็บเล็ต: เลื่อนทั้งหน้า ตารางสูงตามจอ */
     #sch-hot { height: max(380px, calc(100vh - 290px)); }
+    /* จอคอม (lg ขึ้นไป): การ์ดสูงพอดีพื้นที่ของแท็บ (ไม่ต้องเลื่อนทั้งหน้า) ตารางกินพื้นที่ที่เหลือในการ์ด
+       จอเตี้ยกว่า min-height ของการ์ด => เลื่อนหน้าได้ */
+    @media (min-width: 1024px) {
+        #tab-schedule:not(.hidden) { height: 100%; display: flex; flex-direction: column; }
+        #sch-card { flex: 1 1 auto; min-height: 480px; display: flex; flex-direction: column; }
+        #sch-hot { flex: 1 1 0; height: auto; min-height: 0; }
+    }
     /* เต็มจอ: การ์ดเต็มหน้าจอจริง (Fullscreen API) หรือเต็มหน้าเว็บ (เครื่องที่ไม่รองรับ เช่น iPhone) */
     #sch-card.sch-fs { position: fixed; inset: 0; z-index: 1000; border-radius: 0; overflow: hidden; display: flex; flex-direction: column; }
     #sch-card:fullscreen { width: 100%; height: 100%; border-radius: 0; overflow: hidden; display: flex; flex-direction: column; }
