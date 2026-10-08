@@ -1,6 +1,93 @@
 <?php
 @session_start();
 include "config_ctrl/checksession.php";
+include_once "config_ctrl/connect.php";
+
+/*
+ * ดึงข้อมูลผู้แจ้งจากบัญชีที่กำลังเข้าสู่ระบบ
+ * รองรับชื่อตัวแปร Session เดิมหลายรูปแบบ
+ */
+$login_user_id = '';
+
+if (!empty($_SESSION['sess_user_id_es'])) {
+    $login_user_id = trim($_SESSION['sess_user_id_es']);
+} elseif (!empty($_SESSION['sess_user_id'])) {
+    $login_user_id = trim($_SESSION['sess_user_id']);
+} elseif (isset($sess_user_id) && $sess_user_id !== '') {
+    $login_user_id = trim($sess_user_id);
+}
+
+$login_reporter_name = '';
+$login_reporter_tel  = '';
+$login_department    = '';
+$login_show_repair   = false;
+
+if (
+    $login_user_id !== '' &&
+    isset($connect) &&
+    $connect instanceof mysqli &&
+    !$connect->connect_errno
+) {
+    @mysqli_set_charset($connect, 'utf8');
+
+    $sql_login_user = "
+        SELECT
+            u.user_id,
+            u.user_name,
+            u.user_fname,
+            u.user_tel,
+            u.user_department,
+            u.user_show_repair,
+            u.user_open,
+            d.dep_name
+        FROM tb_user u
+        LEFT JOIN tb_department2 d
+            ON u.user_department = d.dep_id
+           AND d.dep_status = 0
+        WHERE u.user_id = ?
+          AND u.user_show_repair = 1 
+        LIMIT 1
+    ";
+
+    if ($stmt_login_user = $connect->prepare($sql_login_user)) {
+        $stmt_login_user->bind_param('s', $login_user_id);
+        $stmt_login_user->execute();
+
+        $result_login_user = $stmt_login_user->get_result();
+
+        if ($login_user = $result_login_user->fetch_assoc()) {
+            $login_show_repair = true;
+
+            $full_name = trim(
+                ($login_user['user_name'] ?? '') . ' ' .
+                ($login_user['user_fname'] ?? '')
+            );
+ 
+            $login_reporter_tel = trim($login_user['user_tel'] ?? '');
+
+            $login_reporter_name = $full_name;
+
+            if ($login_department !== '') {
+                $login_reporter_name .= ' / ' . $login_department;
+            }
+        }
+
+        $stmt_login_user->close();
+    }
+}
+
+/*
+ * หากผู้ใช้งานไม่ได้ติ๊ก “แจ้งซ่อม” หรือสถานะไม่ Active
+ * จะไม่เติมชื่อและเบอร์โทรให้อัตโนมัติ
+ */
+function repair_form_escape($value)
+{
+    return htmlspecialchars(
+        (string) $value,
+        ENT_QUOTES,
+        'UTF-8'
+    );
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -497,22 +584,67 @@ include "config_ctrl/checksession.php";
           </div>
 
           <div>
-            <label class="label-head">ชื่อ / ฝ่าย / สำนักงาน ตัวอย่าง ( นาย ก / จบท. ) <span class="text-red-500">*</span></label>
-            <input type="text" name="name" required class="input-modern" placeholder="ระบุชื่อผู้แจ้ง">
+            <label for="reporter_name_input" class="label-head">
+              ชื่อ / ฝ่าย / สำนักงาน ตัวอย่าง (นาย ก / จบท.) <span class="text-red-500">*</span>
+            </label>
+
+            <div class="relative">
+              <i data-lucide="user-check"
+                 class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary pointer-events-none"></i>
+
+              <input type="text"
+                     name="name"
+                     id="reporter_name_input"
+                     required
+                     value="<?php echo repair_form_escape($login_reporter_name); ?>"
+                     class="input-modern"
+                     style="padding-left:2.5rem;"
+                     placeholder="<?php echo $login_show_repair ? 'ข้อมูลจากผู้ใช้งานที่เข้าสู่ระบบ' : 'ระบุชื่อผู้แจ้ง'; ?>"
+                     >
+            </div>
+
+            
           </div>
 
           <div class="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50 shadow-sm">
             <div class="flex justify-between items-center mb-2">
               <label class="label-head !mb-0">เบอร์โทรศัพท์ / เบอร์สำนักงาน <span class="text-red-500" id="phone_req">*</span></label>
-              <label class="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" id="no_phone" class="w-3.5 h-3.5 text-primary rounded border-slate-300">
+              <label class="flex items-center gap-1.5 <?php echo ($login_show_repair && $login_reporter_tel !== '') ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'; ?>">
+                <input type="checkbox"
+                       id="no_phone"
+                       class="w-3.5 h-3.5 text-primary rounded border-slate-300" >
                 <span class="text-[10px] text-slate-500 font-medium">ไม่มีเบอร์โทร</span>
               </label>
             </div>
 
             <input type="hidden" name="no_phone" id="no_phone_flag" value="0">
-            <input type="tel" name="phone" id="phone_input" required class="input-modern" placeholder="0xx-xxxxxxx" inputmode="tel">
-            <p id="phone_hint" class="text-[10px] text-slate-400 mt-2 hidden">* เลือก “ไม่มีเบอร์โทร” ระบบจะบันทึกเป็น no_phone=1</p>
+
+            <div class="relative">
+              <i data-lucide="phone"
+                 class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary pointer-events-none"></i>
+
+              <input type="tel"
+                     name="phone"
+                     id="phone_input"
+                     required
+                     value="<?php echo repair_form_escape($login_reporter_tel); ?>"
+                     class="input-modern <?php echo $login_reporter_tel !== '' ? 'bg-slate-100 cursor-not-allowed' : ''; ?>"
+                     style="padding-left:2.5rem;"
+                     placeholder="0xx-xxxxxxx"
+                     inputmode="tel"
+                     <?php echo ($login_show_repair && $login_reporter_tel !== '') ? 'readonly' : ''; ?>>
+            </div>
+
+            <p id="phone_hint" class="text-[10px] text-slate-400 mt-2 hidden">
+              * เลือก “ไม่มีเบอร์โทร” ระบบจะบันทึกเป็น no_phone=1
+            </p>
+
+            <?php if ($login_show_repair && $login_reporter_tel !== ''): ?>
+              <p class="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
+                <i data-lucide="lock" class="w-3 h-3"></i>
+                ดึงเบอร์โทรจากบัญชีที่ติ๊ก “แจ้งซ่อม” แล้ว
+              </p>
+            <?php endif; ?>
           </div>
         </div>
 
@@ -813,6 +945,73 @@ include "config_ctrl/checksession.php";
 
             <div class="mt-2 text-[10px] text-slate-400">
               รองรับ: JPG / PNG / WEBP • ระบบจะเก็บสูงสุด 5 รูป
+            </div>
+          </section>
+
+          <!-- CARD 5: Video -->
+          <section class="rounded-3xl border border-slate-100 bg-white/70 shadow-sm p-5">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <label class="text-[12px] font-extrabold text-slate-700 min-w-0">วิดีโอ (สูงสุด 1 คลิป • ไม่เกิน 30 วินาที)</label>
+              <span id="video_status" class="text-[10px] font-extrabold text-slate-400 shrink-0">0/1</span>
+            </div>
+
+            <p id="video_error" class="hidden text-[11px] text-red-500 font-semibold mt-2"></p>
+
+            <!-- input จริง -->
+            <input type="file" id="video_input" name="video" class="hidden" accept="video/*">
+
+            <!-- Dropzone / Add button -->
+            <div id="video_dropzone"
+              class="mt-3 relative flex flex-col sm:flex-row gap-3 w-full rounded-2xl border border-dashed border-slate-200 bg-white p-3 transition-all"
+              role="button" tabindex="0"
+              aria-label="กดเพื่อเลือกวิดีโอ หรือ ลากไฟล์วิดีโอมาวาง">
+
+              <button id="btn_add_video" type="button"
+                class="w-full sm:w-[86px] h-[68px] sm:h-[86px] shrink-0 rounded-2xl border-2 border-dashed border-slate-200 bg-white
+                       flex flex-row sm:flex-col items-center justify-center gap-2 sm:gap-1 cursor-pointer
+                       hover:bg-slate-50 hover:border-slate-300 transition group">
+                <i data-lucide="video" class="w-6 h-6 text-slate-300 group-hover:text-slate-400 transition"></i>
+                <span class="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">ADD VIDEO</span>
+                <span class="text-[9px] font-semibold text-slate-400">≤ 30 วิ</span>
+              </button>
+
+              <!-- Empty state -->
+              <div id="video_empty" class="flex-1 flex items-center justify-center min-h-[64px] sm:min-h-[86px] text-center text-[10px] font-semibold text-slate-300 px-2">
+                กดปุ่ม ADD VIDEO เพื่อเลือกวิดีโอ (ไม่เกิน 30 วินาที)
+              </div>
+
+              <!-- Preview -->
+              <div id="video_preview_wrap" class="hidden flex-1 min-w-0 flex items-center gap-3">
+                <div class="relative w-[110px] sm:w-[120px] h-[80px] sm:h-[86px] shrink-0 rounded-2xl overflow-hidden border border-slate-200 bg-black">
+                  <video id="video_preview" class="w-full h-full object-cover cursor-pointer" title="กดเพื่อดูตัวอย่าง" playsinline muted preload="metadata"></video>
+                  <button id="video_remove" type="button"
+                    class="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center
+                           shadow-md ring-2 ring-white hover:bg-rose-600 active:scale-95 transition text-[12px] leading-none"
+                    aria-label="ลบวิดีโอ" title="ลบวิดีโอ">×</button>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-[11px] font-extrabold text-slate-700 truncate">แนบวิดีโอแล้ว</p>
+                  <p id="video_meta" class="text-[10px] font-semibold text-slate-400 mt-0.5">-</p>
+                  <button type="button" id="video_play_btn"
+                    class="mt-1.5 inline-flex items-center gap-1 text-[10px] font-extrabold text-primary hover:underline">
+                    <i data-lucide="play" class="w-3.5 h-3.5"></i> ดูตัวอย่าง
+                  </button>
+                </div>
+              </div>
+
+              <!-- Progress overlay (ระหว่างบีบอัด) -->
+              <div id="video_progress"
+                class="absolute inset-0 rounded-2xl bg-white/90 backdrop-blur-sm hidden flex-col items-center justify-center gap-2 z-10">
+                <div class="text-[11px] font-extrabold text-primary">กำลังบีบอัดวิดีโอ... <span id="video_progress_pct">0%</span></div>
+                <div class="w-2/3 max-w-[240px] h-2 rounded-full bg-slate-100 overflow-hidden">
+                  <div id="video_progress_bar" class="h-full bg-primary transition-all duration-150" style="width:0%"></div>
+                </div>
+                <div class="text-[9px] font-semibold text-slate-400">กรุณาอย่าปิดหน้านี้</div>
+              </div>
+            </div>
+
+            <div class="mt-2 text-[10px] text-slate-400">
+              รองรับ: MP4 / MOV / WEBM • ระบบจะย่อขนาดไฟล์ให้อัตโนมัติก่อนอัปโหลด
             </div>
           </section>
 
@@ -2328,6 +2527,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initPhoneToggle();
   initImages();
+  initVideo();
   initLocationRequired(); // ✅ แต่อย่ามี submit listener ซ่อนอยู่
   initAssetSelector();
 
@@ -2427,6 +2627,7 @@ document.addEventListener('DOMContentLoaded', () => {
       resetLocation();
       resetAsset();
       resetImages();
+      if (typeof window.resetRepairVideo === 'function') window.resetRepairVideo();
       resetUrgency();
 
       // ตั้งวัน/เวลาใหม่เป็นปัจจุบัน
@@ -2879,6 +3080,932 @@ async function compressImageBeforeUpload(file, maxSide = 1600, quality = 0.8) {
   });
 }
 
+// =========================
+// ✅ VIDEO: อ่าน metadata (ความยาว/ขนาดจริง)
+// =========================
+function readVideoMeta(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.muted = true;
+    v.playsInline = true;
+    // ✅ iOS ต้องมี attribute เหล่านี้จริง ๆ ถึงจะอ่าน metadata ได้เสถียร
+    v.setAttribute('muted', '');
+    v.setAttribute('playsinline', '');
+    v.setAttribute('webkit-playsinline', '');
+
+    let done = false;
+    const cleanup = () => { v.onloadedmetadata = null; v.onerror = null; v.ontimeupdate = null; };
+    const finish = (meta) => {
+      if (done) return; done = true;
+      cleanup(); URL.revokeObjectURL(url);
+      resolve(meta);
+    };
+    const fail = (err) => {
+      if (done) return; done = true;
+      cleanup(); URL.revokeObjectURL(url);
+      reject(err || new Error('ไม่สามารถอ่านไฟล์วิดีโอนี้ได้'));
+    };
+
+    v.onerror = () => fail(new Error('ไม่สามารถอ่านไฟล์วิดีโอนี้ได้'));
+
+    v.onloadedmetadata = () => {
+      const w = v.videoWidth, h = v.videoHeight;
+
+      // ✅ iOS Safari มักรายงาน duration = Infinity ตอนอ่านครั้งแรก
+      //    ต้อง seek ไปท้ายคลิปเพื่อบังคับให้เบราว์เซอร์คำนวณ duration จริง
+      if (!isFinite(v.duration) || v.duration <= 0) {
+        v.ontimeupdate = () => {
+          v.ontimeupdate = null;
+          const d = (isFinite(v.duration) && v.duration > 0) ? v.duration : 0;
+          try { v.currentTime = 0; } catch (e) {}
+          finish({ duration: d, width: w, height: h });
+        };
+        try { v.currentTime = 1e101; } catch (e) {
+          finish({ duration: 0, width: w, height: h });
+        }
+      } else {
+        finish({ duration: v.duration, width: w, height: h });
+      }
+    };
+
+    // ✅ กันค้าง: ถ้า metadata ไม่โหลดภายใน 20 วิ ให้ถือว่าอ่านไม่สำเร็จ
+    setTimeout(() => fail(new Error('read_meta_timeout')), 20000);
+
+    v.src = url;
+  });
+}
+
+// =========================
+// ✅ VIDEO: re-encode ย่อขนาดในเบราว์เซอร์ (MediaRecorder + canvas)
+//    - ถ้าเบราว์เซอร์ไม่รองรับ (เช่น iPhone บางรุ่น) จะ fallback ส่งไฟล์เดิม
+// =========================
+async function compressVideoBeforeUpload(file, opts = {}) {
+  const maxSide       = opts.maxSide || 1920;   // ด้านยาวสุด สูงสุด ~1080p (ไม่ขยายภาพเกินต้นฉบับ)
+  const maxSeconds    = opts.maxSeconds || 30;
+  const bpp           = opts.bpp || 0.12;       // bits-per-pixel: ยิ่งสูงยิ่งคม (ไฟล์ใหญ่ขึ้น)
+  const minBitrate    = opts.minBitrate || 2500000;   // อย่างต่ำ ~2.5 Mbps
+  const maxBitrate    = opts.maxBitrate || 9000000;   // เพดาน ~9 Mbps กันไฟล์ใหญ่เกิน
+  let   targetBitrate = opts.videoBitsPerSecond || 0; // ถ้าไม่กำหนด จะคำนวณอัตโนมัติจากความละเอียด
+  const onProgress    = typeof opts.onProgress === 'function' ? opts.onProgress : () => {};
+
+  // ✅ feature detection
+  const canvasCanStream = typeof HTMLCanvasElement.prototype.captureStream === 'function';
+  const hasRecorder = (typeof MediaRecorder !== 'undefined');
+  if (!hasRecorder || !canvasCanStream) {
+    return { file, recompressed: false, reason: 'unsupported' };
+  }
+
+  // ✅ เลือก mime ที่รองรับ
+  const mimeCandidates = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+    'video/mp4'
+  ];
+  let mime = '';
+  if (typeof MediaRecorder.isTypeSupported === 'function') {
+    for (const m of mimeCandidates) {
+      if (MediaRecorder.isTypeSupported(m)) { mime = m; break; }
+    }
+  }
+  if (!mime) {
+    return { file, recompressed: false, reason: 'no_mime' };
+  }
+
+  const url = URL.createObjectURL(file);
+  const video = document.createElement('video');
+  video.src = url;
+  video.playsInline = true;
+  video.preload = 'auto';
+
+  let audioCtx = null; // ✅ เก็บไว้ปิดใน finally
+
+  try {
+    await new Promise((res, rej) => {
+      video.onloadedmetadata = () => res();
+      video.onerror = () => rej(new Error('read_meta_failed'));
+    });
+
+    let vw = video.videoWidth  || 1280;
+    let vh = video.videoHeight || 720;
+
+    // ✅ ย่อด้านยาวสุดให้ไม่เกิน maxSide
+    if (vw >= vh) {
+      if (vw > maxSide) { vh = Math.round(vh * (maxSide / vw)); vw = maxSide; }
+    } else {
+      if (vh > maxSide) { vw = Math.round(vw * (maxSide / vh)); vh = maxSide; }
+    }
+    // ✅ ให้เป็นเลขคู่ (บาง encoder ต้องการ)
+    vw -= (vw % 2);
+    vh -= (vh % 2);
+
+    // ✅ คำนวณ bitrate อัตโนมัติตามความละเอียด (ถ้าไม่ได้กำหนดมา) เพื่อความคมชัด
+    if (!targetBitrate) {
+      targetBitrate = Math.round(vw * vh * 30 * bpp);
+    }
+    targetBitrate = Math.max(minBitrate, Math.min(targetBitrate, maxBitrate));
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = vw;
+    canvas.height = vh;
+    const ctx = canvas.getContext('2d');
+    // ✅ ให้การย่อภาพคมขึ้น
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    const canvasStream = canvas.captureStream(30);
+
+    // ✅ ดึงเสียงจากไฟล์ต้นฉบับผ่าน Web Audio (เก็บเสียงไว้ได้ โดยไม่ต้องเปิดเสียงดังตอนประมวลผล)
+    // ⚠️ สำคัญ: ห้าม await audioCtx.resume() บน iOS — resume() จะไม่ resolve นอก user gesture ทำให้ค้าง
+    let audioTracks = [];
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) {
+        audioCtx = new AC();
+        // เรียก resume แบบไม่บล็อก (ค้างไม่ได้)
+        if (audioCtx.state === 'suspended') { try { audioCtx.resume(); } catch (e) {} }
+        const srcNode = audioCtx.createMediaElementSource(video);
+        const destNode = audioCtx.createMediaStreamDestination();
+        srcNode.connect(destNode); // ✅ ไม่ต่อไป audioCtx.destination -> เงียบในเครื่อง แต่ track มีเสียง
+        audioTracks = destNode.stream.getAudioTracks();
+      }
+    } catch (e) {
+      // ✅ ถ้าดึงเสียงไม่ได้ ก็ปล่อยเป็นวิดีโอไม่มีเสียง (กัน mute element ให้ไม่ดังตอนเล่น)
+      video.muted = true;
+      audioTracks = [];
+    }
+
+    const outStream = new MediaStream([
+      ...canvasStream.getVideoTracks(),
+      ...audioTracks
+    ]);
+
+    const recorderOpts = { mimeType: mime, videoBitsPerSecond: targetBitrate };
+    if (audioTracks.length) recorderOpts.audioBitsPerSecond = 96000;
+
+    const recorder = new MediaRecorder(outStream, recorderOpts);
+    const chunks = [];
+    recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+
+    const stopped = new Promise((res) => { recorder.onstop = res; });
+
+    const fullDur = (isFinite(video.duration) && video.duration > 0) ? video.duration : maxSeconds;
+
+    // ✅ ช่วงตัดต่อ (ถ้ากำหนดมา) — ใช้ re-encode เฉพาะช่วง start..end
+    const startTime = Math.max(0, Number(opts.startTime) || 0);
+    let   endTime   = (opts.endTime != null) ? Number(opts.endTime) : fullDur;
+    if (!isFinite(endTime) || endTime <= startTime) endTime = fullDur;
+    // ✅ บังคับช่วงไม่เกิน maxSeconds
+    if (endTime - startTime > maxSeconds) endTime = startTime + maxSeconds;
+
+    const clipDur = Math.max(0.1, endTime - startTime);
+    let raf = 0;
+    let safetyTimer = 0;
+
+    function stopAll() {
+      if (raf) cancelAnimationFrame(raf);
+      if (safetyTimer) clearTimeout(safetyTimer);
+      try { if (recorder.state !== 'inactive') recorder.stop(); } catch (e) {}
+      try { video.pause(); } catch (e) {}
+    }
+
+    function draw() {
+      if (video.ended || video.paused) return;
+      // ✅ ถึงจุดสิ้นสุดช่วงที่เลือก -> หยุด
+      if (video.currentTime >= endTime) { stopAll(); return; }
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      onProgress(Math.min(0.99, (video.currentTime - startTime) / clipDur));
+      raf = requestAnimationFrame(draw);
+    }
+
+    // ✅ seek ไปจุดเริ่มก่อน แล้วรอ seeked เพื่อไม่ให้ติดเฟรมก่อนหน้า
+    if (startTime > 0) {
+      await new Promise((res) => {
+        const onSeeked = () => { video.removeEventListener('seeked', onSeeked); res(); };
+        video.addEventListener('seeked', onSeeked);
+        video.currentTime = startTime;
+        setTimeout(() => { video.removeEventListener('seeked', onSeeked); res(); }, 1500); // กันค้าง
+      });
+    } else {
+      video.currentTime = 0;
+    }
+
+    recorder.start(250);
+    // ✅ iOS บล็อกการเล่นวิดีโอแบบไม่มีเสียงอัตโนมัติ -> ถ้า play() ไม่ผ่าน ให้ลอง mute แล้วเล่นใหม่
+    //    (วิดีโอที่ย่อจะเงียบ แต่ได้ไฟล์เล็ก+เล่นได้ทุกเครื่อง ดีกว่าส่งไฟล์ต้นฉบับใหญ่)
+    try {
+      await video.play();
+    } catch (playErr) {
+      try { video.muted = true; } catch (e) {}
+      await video.play(); // ถ้ายังไม่ผ่านจะ throw ออกไปให้ fallback ส่งไฟล์เดิม
+    }
+    draw();
+
+    // ✅ หยุดเมื่อจบคลิป หรือถึงเพดานเวลา (กันไฟล์ที่ metadata เพี้ยน)
+    video.onended = stopAll;
+    safetyTimer = setTimeout(stopAll, (clipDur + 2) * 1000);
+
+    await stopped;
+    onProgress(1);
+
+    const ext  = mime.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+    const type = mime.split(';')[0];
+    const blob = new Blob(chunks, { type });
+
+    if (!blob.size) {
+      return { file, recompressed: false, reason: 'empty_output' };
+    }
+
+    const outName = 'repair_video_' + Date.now() + '_' + Math.floor(Math.random() * 100000) + '.' + ext;
+    const outFile = new File([blob], outName, { type, lastModified: Date.now() });
+
+    // ✅ ถ้าย่อแล้วไม่เล็กลง ใช้ไฟล์เดิมดีกว่า
+    //    (ยกเว้นกรณี "ตัดช่วง" ต้องเก็บไฟล์ที่ตัดแล้วเสมอ แม้ไบต์จะไม่เล็กลง)
+    const isTrimmed = (startTime > 0) || (endTime < fullDur - 0.1);
+    if (!isTrimmed && outFile.size >= file.size) {
+      return { file, recompressed: false, reason: 'not_smaller' };
+    }
+
+    return { file: outFile, recompressed: true, trimmed: isTrimmed };
+  } finally {
+    URL.revokeObjectURL(url);
+    if (audioCtx) { try { await audioCtx.close(); } catch (e) {} }
+  }
+}
+
+// =========================
+// ✅ VIDEO: UI + handler
+// =========================
+function initVideo() {
+  const MAX_SECONDS   = 30;
+  const MAX_INPUT_MB  = 200; // กันเลือกไฟล์ใหญ่ผิดปกติตั้งแต่ต้น
+
+  const input       = document.getElementById('video_input');
+  const dropzone    = document.getElementById('video_dropzone');
+  const btnAdd      = document.getElementById('btn_add_video');
+  const emptyState  = document.getElementById('video_empty');
+  const previewWrap = document.getElementById('video_preview_wrap');
+  const videoEl     = document.getElementById('video_preview');
+  const removeBtn   = document.getElementById('video_remove');
+  const playBtn     = document.getElementById('video_play_btn');
+  const metaEl      = document.getElementById('video_meta');
+  const errEl       = document.getElementById('video_error');
+  const statusEl    = document.getElementById('video_status');
+
+  const progWrap    = document.getElementById('video_progress');
+  const progBar     = document.getElementById('video_progress_bar');
+  const progPct     = document.getElementById('video_progress_pct');
+
+  if (!input || !dropzone) return;
+
+  let currentUrl = null;
+  let busy = false;
+  let hasVideo = false;
+
+  // ✅ ระหว่างประมวลผลวิดีโอ (busy) ให้กดปุ่มบันทึกไม่ได้
+  window.__repairVideoBusy = false;
+  function setBusy(v) {
+    busy = v;
+    window.__repairVideoBusy = v;
+    const submitBtn = document.querySelector('#repair_form button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = v;
+      submitBtn.classList.toggle('opacity-50', v);
+      submitBtn.classList.toggle('cursor-not-allowed', v);
+      submitBtn.classList.toggle('pointer-events-none', v);
+    }
+  }
+
+  // ✅ มีวิดีโอแล้ว -> disable ปุ่ม ADD VIDEO และบล็อกการเพิ่ม/ลากไฟล์
+  function setVideoPresent(present) {
+    hasVideo = present;
+    if (btnAdd) {
+      btnAdd.classList.toggle('opacity-40', present);
+      btnAdd.classList.toggle('cursor-not-allowed', present);
+      btnAdd.classList.toggle('pointer-events-none', present);
+      btnAdd.setAttribute('aria-disabled', String(present));
+      btnAdd.title = present ? 'ลบวิดีโอเดิมก่อนจึงจะเพิ่มใหม่ได้' : '';
+    }
+    if (dropzone) dropzone.classList.toggle('cursor-not-allowed', present);
+  }
+
+  function setError(msg) {
+    if (!errEl) return;
+    if (msg) { errEl.textContent = msg; errEl.classList.remove('hidden'); }
+    else     { errEl.textContent = ''; errEl.classList.add('hidden'); }
+  }
+
+  function setStatus(n) {
+    if (statusEl) statusEl.textContent = `${n}/1`;
+  }
+
+  function setInputFile(file) {
+    try {
+      const dt = new DataTransfer();
+      if (file) dt.items.add(file);
+      input.files = dt.files;
+    } catch (e) {
+      console.warn('set video input failed', e);
+    }
+  }
+
+  function showProgress(show) {
+    if (!progWrap) return;
+    progWrap.classList.toggle('hidden', !show);
+    progWrap.classList.toggle('flex', show);
+  }
+  function setProgress(p) {
+    const pct = Math.round(Math.max(0, Math.min(1, p)) * 100);
+    if (progBar) progBar.style.width = pct + '%';
+    if (progPct) progPct.textContent = pct + '%';
+  }
+
+  function clearVideo() {
+    setInputFile(null);
+    if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
+    if (videoEl) { try { videoEl.pause(); } catch (e) {} videoEl.removeAttribute('src'); videoEl.load?.(); }
+    previewWrap?.classList.add('hidden');
+    emptyState?.classList.remove('hidden');
+    setError('');
+    setStatus(0);
+    setVideoPresent(false);
+  }
+
+  function renderPreview(file, durationSec) {
+    if (currentUrl) URL.revokeObjectURL(currentUrl);
+    currentUrl = URL.createObjectURL(file);
+    if (videoEl) videoEl.src = currentUrl;
+
+    const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+    if (metaEl) metaEl.textContent = `⏱ ${durationSec.toFixed(1)} วิ • 💾 ${sizeMB} MB`;
+
+    emptyState?.classList.add('hidden');
+    previewWrap?.classList.remove('hidden');
+    setStatus(1);
+    setVideoPresent(true);
+    safeIcons();
+  }
+
+  async function handleFile(file) {
+    if (busy) return;
+    if (!file) return;
+
+    if (!file.type || !file.type.startsWith('video/')) {
+      setError('กรุณาเลือกไฟล์วิดีโอเท่านั้น (MP4 / MOV / WEBM)');
+      setInputFile(null);
+      return;
+    }
+    if (file.size > MAX_INPUT_MB * 1024 * 1024) {
+      setError(`ไฟล์ใหญ่เกินไป (สูงสุด ${MAX_INPUT_MB}MB) กรุณาถ่ายวิดีโอให้สั้นลง`);
+      setInputFile(null);
+      return;
+    }
+
+    setError('');
+
+    // ✅ 1) เช็คความยาวจากไฟล์ต้นฉบับก่อน
+    let meta;
+    try {
+      meta = await readVideoMeta(file);
+    } catch (err) {
+      console.error(err);
+      setError('อ่านไฟล์วิดีโอไม่สำเร็จ กรุณาลองไฟล์อื่น');
+      setInputFile(null);
+      return;
+    }
+
+    if (!isFinite(meta.duration) || meta.duration <= 0) {
+      setError('ไม่สามารถอ่านความยาววิดีโอได้ กรุณาลองไฟล์อื่น');
+      setInputFile(null);
+      return;
+    }
+
+    if (meta.duration > MAX_SECONDS + 0.5) {
+      // ✅ แจ้งเตือน แล้วเปิดหน้าตัดต่อให้เลือกช่วง ≤ 30 วินาที
+      setError(`วิดีโอยาว ${meta.duration.toFixed(1)} วินาที เกินกำหนด (สูงสุด ${MAX_SECONDS} วินาที)`);
+
+      await Swal.fire({
+        icon: 'warning',
+        title: 'วิดีโอยาวเกิน 30 วินาที',
+        html: `วิดีโอนี้ยาว <b>${meta.duration.toFixed(1)} วินาที</b><br>กรุณาตัดให้เหลือไม่เกิน <b>${MAX_SECONDS} วินาที</b>`,
+        confirmButtonText: 'ตัดวิดีโอ',
+        confirmButtonColor: '#006B9F'
+      });
+
+      const clip = await openTrimModal(file, meta);
+      if (!clip) { clearVideo(); return; }   // ผู้ใช้ยกเลิก
+
+      setError('');
+      await processVideo(file, meta, clip);
+      return;
+    }
+
+    // ✅ ความยาวผ่าน -> ย่อทั้งคลิป
+    await processVideo(file, meta, null);
+  }
+
+  // ✅ re-encode (+ตัดช่วงถ้ามี) พร้อม progress แล้วผูกเข้า input + preview
+  async function processVideo(file, meta, clip) {
+    setBusy(true);
+    showProgress(true);
+    setProgress(0);
+
+    const displayDur = clip ? (clip.endTime - clip.startTime) : meta.duration;
+
+    let finalFile = file;
+    let recompressed = false;
+    let compressReason = '';
+    try {
+      const clipDurSec = clip ? (clip.endTime - clip.startTime) : (meta.duration || MAX_SECONDS);
+
+      // ✅ การันตีไฟล์ ≤ 10MB: คำนวณ bitrate สูงสุดจากงบขนาดไฟล์ / ความยาวคลิป
+      //    (เผื่อ ~15% ให้เสียง + container overhead)
+      const MAX_FILE_BYTES = 10 * 1024 * 1024;
+      const sizeCapBitrate = Math.floor((MAX_FILE_BYTES * 8 * 0.85) / Math.max(1, clipDurSec));
+
+      // ✅ กันค้าง: ถ้า re-encode ไม่จบภายใน (ความยาว + 15) วิ ให้ถือว่าไม่สำเร็จ แล้ว fallback
+      const budgetSec = clipDurSec + 15;
+      const compressPromise = compressVideoBeforeUpload(file, {
+        maxSide: 640,        // ✅ ย่อเหลือ ~360p (ด้านยาวสุด 640px) เพื่อลดขนาดไฟล์
+        bpp: 0.12,           // bitrate คำนวณอัตโนมัติตามความละเอียด
+        minBitrate: 400000,  // ~0.4 Mbps ขั้นต่ำ
+        maxBitrate: sizeCapBitrate, // ✅ เพดาน bitrate เพื่อคุมไฟล์ ≤ 10MB
+        maxSeconds: MAX_SECONDS,
+        startTime: clip ? clip.startTime : 0,
+        endTime:   clip ? clip.endTime   : undefined,
+        onProgress: setProgress
+      });
+      const timeoutPromise = new Promise((_, rej) =>
+        setTimeout(() => rej(new Error('compress_timeout')), budgetSec * 1000)
+      );
+
+      const r = await Promise.race([compressPromise, timeoutPromise]);
+      finalFile = r.file || file;
+      recompressed = !!r.recompressed;
+      compressReason = r.reason || (recompressed ? 'ok' : 'fallback');
+    } catch (err) {
+      console.error('compress video error/timeout:', err);
+      finalFile = file; // fallback ส่งไฟล์เดิม
+      recompressed = false;
+      compressReason = (err && err.message) ? err.message : 'error';
+    }
+
+    showProgress(false);
+    setBusy(false);
+
+    // ✅ กรณีต้อง "ตัด" แต่เบราว์เซอร์ตัดไม่ได้ -> ไม่รับไฟล์ (กันวิดีโอเกิน 30 วิหลุดไป)
+    if (clip && !recompressed) {
+      clearVideo();
+      await Swal.fire({
+        icon: 'error',
+        title: 'ตัดวิดีโอไม่สำเร็จ',
+        html: 'เบราว์เซอร์นี้ไม่รองรับการตัดวิดีโออัตโนมัติ<br>กรุณาตัดวิดีโอให้ไม่เกิน 30 วินาทีจากแอปอื่นก่อนอัปโหลด',
+        confirmButtonText: 'ปิด',
+        confirmButtonColor: '#006B9F'
+      });
+      return;
+    }
+
+    // ✅ การันตี ≤ 10MB: ถ้าบีบอัดไม่สำเร็จจนไฟล์ยังใหญ่เกิน 10MB -> ไม่รับ (กันไฟล์ใหญ่หลุดขึ้นเซิร์ฟเวอร์)
+    const HARD_MAX = 10 * 1024 * 1024;
+    if (finalFile.size > HARD_MAX) {
+      clearVideo();
+      const mb = (finalFile.size / 1024 / 1024).toFixed(1);
+      await Swal.fire({
+        icon: 'error',
+        title: 'บีบอัดวิดีโอไม่สำเร็จ',
+        html: `ไฟล์หลังบีบอัดยังใหญ่ <b>${mb}MB</b> (เกิน 10MB)<br>` +
+              `เบราว์เซอร์/อุปกรณ์นี้แปลงวิดีโอ <b>4K</b> หรือ <b>HEVC (H.265)</b> ไม่ได้<br><br>` +
+              `แนะนำที่ iPhone: <b>ตั้งค่า → กล้อง → บันทึกวิดีโอ → 1080p</b> และ <b>รูปแบบ → เข้ากันได้มากที่สุด</b> แล้วถ่าย/อัปโหลดใหม่` +
+              `<br><span style="font-size:11px;color:#94a3b8">(reason: ${compressReason})</span>`,
+        confirmButtonText: 'ปิด',
+        confirmButtonColor: '#006B9F'
+      });
+      return;
+    }
+
+    // ✅ set เข้า input + preview
+    setInputFile(finalFile);
+    renderPreview(finalFile, displayDur);
+
+    if (!recompressed) {
+      swalToast?.('อัปโหลดวิดีโอต้นฉบับ (เบราว์เซอร์นี้ย่อไฟล์อัตโนมัติไม่ได้)', 'info');
+      console.log('video: sent original file (no recompression), reason=', compressReason);
+    }
+  }
+
+  // ✅ หน้าตัดวิดีโอ (เลือกช่วง ≤ 30 วิ) -> คืน {startTime,endTime} หรือ null ถ้ายกเลิก
+  function openTrimModal(file, meta) {
+    return new Promise((resolve) => {
+      const dur = meta.duration;
+      const objUrl = URL.createObjectURL(file);
+
+      // ✅ state ช่วงที่เลือก
+      let start = 0;
+      let end   = Math.min(MAX_SECONDS, dur);
+
+      const old = document.getElementById('video_trim_modal');
+      if (old) old.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'video_trim_modal';
+      modal.className = 'fixed inset-0 z-[1000] flex items-center justify-center';
+      modal.innerHTML = `
+        <div class="absolute inset-0 bg-slate-950/85 backdrop-blur-sm"></div>
+        <div class="relative z-10 w-[96vw] max-w-3xl bg-black text-white rounded-3xl shadow-2xl overflow-hidden border border-white/10">
+
+          <!-- Header -->
+          <div class="px-5 py-3.5 border-b border-white/10 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-7 h-7 rounded-lg bg-[#006B9F]/25 border border-[#006B9F]/50 flex items-center justify-center">
+                <i data-lucide="scissors" class="w-4 h-4 text-[#04ADFF]"></i>
+              </span>
+              <h3 class="text-sm font-extrabold">ตัดวิดีโอ <span class="text-white/40 font-semibold">(สูงสุด ${MAX_SECONDS} วินาที)</span></h3>
+            </div>
+            <button id="vt_cancel_x" type="button" class="w-9 h-9 rounded-full border border-white/15 text-white/60 hover:bg-white/10 hover:text-white flex items-center justify-center transition">✕</button>
+          </div>
+
+          <!-- Preview -->
+          <div id="vt_stage" class="relative bg-black flex items-center justify-center" style="height:min(46vh,360px);">
+            <video id="vt_video" class="max-h-full w-auto max-w-full" playsinline></video>
+            <button id="vt_playpause" type="button"
+              class="absolute w-14 h-14 rounded-full bg-black/45 border border-white/25 backdrop-blur flex items-center justify-center hover:bg-black/60 transition-opacity duration-200">
+              <i data-lucide="play" class="w-6 h-6 text-white"></i>
+            </button>
+          </div>
+
+          <!-- Info row -->
+          <div class="px-5 pt-4 flex items-center justify-between text-[12px] font-bold">
+            <div class="flex items-center gap-1.5 text-white/60">
+              <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+              <span id="vt_cur" class="tabular-nums text-white/80">0:00.0</span>
+              <span class="text-white/25">/</span>
+              <span class="tabular-nums text-white/40">${(() => { const m=Math.floor(dur/60), s=dur%60; return m+':'+s.toFixed(1).padStart(4,'0'); })()}</span>
+            </div>
+            <div class="px-2.5 py-1 rounded-full bg-[#006B9F]/25 text-[#04ADFF] border border-[#006B9F]/50">
+              เลือก <span id="vt_len" class="tabular-nums">0.0</span> วิ
+            </div>
+          </div>
+
+          <!-- Timeline (CapCut style) -->
+          <div class="px-5 py-4">
+            <div id="vt_track" class="relative h-16 rounded-xl overflow-hidden bg-[#141414] border border-white/10 select-none" style="touch-action:none;">
+              <div id="vt_strip" class="absolute inset-0 flex opacity-90"></div>
+              <div id="vt_dim_l" class="absolute top-0 bottom-0 left-0 bg-black/60 pointer-events-none"></div>
+              <div id="vt_dim_r" class="absolute top-0 bottom-0 right-0 bg-black/60 pointer-events-none"></div>
+
+              <!-- Selection window -->
+              <div id="vt_sel" class="absolute top-0 bottom-0 border-y-2 border-[#04ADFF] box-border">
+                <div id="vt_move" class="absolute inset-0 cursor-grab"></div>
+                <div id="vt_h_l" class="absolute left-0 top-0 bottom-0 w-3.5 bg-[#006B9F] rounded-l-lg cursor-ew-resize flex items-center justify-center shadow-lg">
+                  <span class="w-0.5 h-5 bg-white/70 rounded-full"></span>
+                </div>
+                <div id="vt_h_r" class="absolute right-0 top-0 bottom-0 w-3.5 bg-[#006B9F] rounded-r-lg cursor-ew-resize flex items-center justify-center shadow-lg">
+                  <span class="w-0.5 h-5 bg-white/70 rounded-full"></span>
+                </div>
+              </div>
+
+              <!-- Playhead -->
+              <div id="vt_play" class="absolute top-0 bottom-0 w-[2px] bg-white pointer-events-none shadow" style="left:0;">
+                <span class="absolute -top-0.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-white"></span>
+              </div>
+
+              <div id="vt_strip_loading" class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white/40 pointer-events-none">
+                กำลังสร้างตัวอย่างเฟรม...
+              </div>
+            </div>
+            <p class="mt-2 text-[10px] text-white/40">ลากที่จับสีเขียวสองข้างเพื่อกำหนดจุดเริ่ม–จุดจบ • ลากกลางแถบเพื่อเลื่อนทั้งช่วง • สูงสุด ${MAX_SECONDS} วินาที</p>
+          </div>
+
+          <!-- Footer -->
+          <div class="px-5 py-4 border-t border-white/10 flex items-center justify-end gap-2">
+            <button id="vt_cancel" type="button" class="px-4 py-2 rounded-xl bg-white/5 border border-white/15 text-white/80 text-xs font-extrabold hover:bg-white/10 transition">ยกเลิก</button>
+            <button id="vt_confirm" type="button" class="px-5 py-2 rounded-xl bg-[#006B9F] text-white text-xs font-extrabold hover:brightness-110 transition inline-flex items-center gap-1.5">
+              <i data-lucide="check" class="w-4 h-4"></i> ตัดและใช้วิดีโอนี้
+            </button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      safeIcons();
+      // ✅ จำตำแหน่ง scroll ปัจจุบันไว้คืนตอนปิด (กันเด้งขึ้นบน)
+      const scrollY0 = window.scrollY || document.documentElement.scrollTop || 0;
+      document.documentElement.style.overflow = 'hidden';
+
+      const vid      = modal.querySelector('#vt_video');
+      const track    = modal.querySelector('#vt_track');
+      const strip    = modal.querySelector('#vt_strip');
+      const stripLd  = modal.querySelector('#vt_strip_loading');
+      const selEl    = modal.querySelector('#vt_sel');
+      const dimL     = modal.querySelector('#vt_dim_l');
+      const dimR     = modal.querySelector('#vt_dim_r');
+      const playEl   = modal.querySelector('#vt_play');
+      const lenEl    = modal.querySelector('#vt_len');
+      const curEl    = modal.querySelector('#vt_cur');
+      const ppBtn    = modal.querySelector('#vt_playpause');
+      let   buildingStrip = true; // ระหว่างสร้าง filmstrip ให้ข้าม loop/playhead
+      vid.src = objUrl;
+
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+      const fmt = (s) => {
+        s = Math.max(0, s);
+        const m = Math.floor(s / 60);
+        const ss = s % 60;
+        return `${m}:${ss.toFixed(1).padStart(4, '0')}`;
+      };
+
+      // ✅ วาดตำแหน่ง selection / dim / label ตาม start,end
+      function layout() {
+        const lp = (start / dur) * 100;
+        const rp = (end / dur) * 100;
+        selEl.style.left  = lp + '%';
+        selEl.style.width = (rp - lp) + '%';
+        dimL.style.width  = lp + '%';
+        dimR.style.width  = (100 - rp) + '%';
+        lenEl.textContent = (end - start).toFixed(1);
+      }
+
+      function setPlayhead(t) {
+        playEl.style.left = ((clamp(t, 0, dur) / dur) * 100) + '%';
+        curEl.textContent = fmt(t);
+      }
+
+      function seekPreview(t) {
+        try { vid.currentTime = clamp(t, 0, dur); } catch (e) {}
+      }
+
+      // ===== Drag handles / move =====
+      let drag = null; // {type, startX, s0, e0}
+      const pointerX = (ev) => (ev.touches ? ev.touches[0].clientX : ev.clientX);
+
+      function onDown(type, ev) {
+        ev.preventDefault();
+        drag = { type, startX: pointerX(ev), s0: start, e0: end };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      }
+
+      function onMove(ev) {
+        if (!drag) return;
+        const dsec = ((pointerX(ev) - drag.startX) / track.clientWidth) * dur;
+
+        if (drag.type === 'l') {
+          start = clamp(drag.s0 + dsec, Math.max(0, end - MAX_SECONDS), end - 0.3);
+          seekPreview(start); setPlayhead(start);
+        } else if (drag.type === 'r') {
+          end = clamp(drag.e0 + dsec, start + 0.3, Math.min(dur, start + MAX_SECONDS));
+          seekPreview(end - 0.05); setPlayhead(end);
+        } else {
+          const win = drag.e0 - drag.s0;
+          start = clamp(drag.s0 + dsec, 0, dur - win);
+          end = start + win;
+          seekPreview(start); setPlayhead(start);
+        }
+        layout();
+      }
+
+      function onUp() {
+        drag = null;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+      }
+
+      modal.querySelector('#vt_h_l').addEventListener('pointerdown', (e) => onDown('l', e));
+      modal.querySelector('#vt_h_r').addEventListener('pointerdown', (e) => onDown('r', e));
+      modal.querySelector('#vt_move').addEventListener('pointerdown', (e) => onDown('move', e));
+
+      // ===== Play / pause + loop within selection =====
+      // lucide แปลง <i> เป็น <svg> ไปแล้ว จึง render ไอคอนใหม่ทุกครั้ง
+      function setPlayIcon(playing) {
+        ppBtn.innerHTML = `<i data-lucide="${playing ? 'pause' : 'play'}" class="w-6 h-6 text-white"></i>`;
+        ppBtn.classList.toggle('opacity-0', playing);
+        ppBtn.classList.toggle('pointer-events-none', playing);
+        safeIcons();
+      }
+      function togglePlay() {
+        if (vid.paused) {
+          if (vid.currentTime < start || vid.currentTime >= end) seekPreview(start);
+          vid.play?.();
+        } else {
+          vid.pause();
+        }
+      }
+      ppBtn.addEventListener('click', togglePlay);
+      vid.addEventListener('click', togglePlay);
+      vid.addEventListener('play',  () => setPlayIcon(true));
+      vid.addEventListener('pause', () => setPlayIcon(false));
+
+      vid.addEventListener('timeupdate', () => {
+        if (buildingStrip) return; // กันชนกับการ seek สร้าง filmstrip
+        if (!vid.paused && vid.currentTime >= end) {
+          seekPreview(start);
+          vid.play?.();
+        }
+        setPlayhead(vid.currentTime);
+      });
+
+      // ===== Filmstrip thumbnails =====
+      const seekTo = (t) => new Promise((res) => {
+        const on = () => { vid.removeEventListener('seeked', on); res(); };
+        vid.addEventListener('seeked', on);
+        try { vid.currentTime = clamp(t, 0, Math.max(0, dur - 0.05)); } catch (e) { res(); }
+        setTimeout(() => { vid.removeEventListener('seeked', on); res(); }, 1200);
+      });
+
+      async function buildFilmstrip() {
+        try {
+          const frames = 10;
+          const th = 64;
+          const ratio = (vid.videoWidth || 16) / (vid.videoHeight || 9);
+          const tw = Math.max(24, Math.round(th * ratio));
+          const c = document.createElement('canvas');
+          c.width = tw; c.height = th;
+          const cx = c.getContext('2d');
+
+          for (let i = 0; i < frames; i++) {
+            const t = ((i + 0.5) / frames) * dur;
+            await seekTo(t);
+            try { cx.drawImage(vid, 0, 0, tw, th); } catch (e) {}
+            const img = document.createElement('img');
+            img.src = c.toDataURL('image/jpeg', 0.6);
+            img.className = 'h-full flex-1 object-cover min-w-0';
+            img.draggable = false;
+            strip.appendChild(img);
+          }
+        } catch (e) {
+          console.warn('filmstrip error', e);
+        } finally {
+          stripLd?.remove();
+          await seekTo(start);
+          buildingStrip = false;
+          setPlayhead(start);
+        }
+      }
+
+      vid.addEventListener('loadedmetadata', async () => {
+        layout();
+        setPlayhead(0);
+        await buildFilmstrip();
+      }, { once: true });
+
+      // ===== Cleanup / result =====
+      const cleanup = () => {
+        try { vid.pause(); } catch (e) {}
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        URL.revokeObjectURL(objUrl);
+        modal.remove();
+        document.documentElement.style.overflow = '';
+        // ✅ คืนตำแหน่ง scroll เดิม (กันเด้งขึ้นบน)
+        requestAnimationFrame(() => window.scrollTo(0, scrollY0));
+      };
+
+      const onCancel = () => { cleanup(); resolve(null); };
+      modal.querySelector('#vt_cancel').addEventListener('click', onCancel);
+      modal.querySelector('#vt_cancel_x').addEventListener('click', onCancel);
+
+      modal.querySelector('#vt_confirm').addEventListener('click', () => {
+        const clip = { startTime: start, endTime: end };
+        cleanup();
+        resolve(clip);
+      });
+    });
+  }
+
+  // ✅ ปุ่ม ADD VIDEO
+  btnAdd?.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (busy || hasVideo) return;
+    input.value = '';
+    input.click();
+  });
+
+  // ✅ คลิกในกรอบ (ยกเว้นปุ่มลบ/preview) เพื่อเลือกไฟล์
+  dropzone.addEventListener('click', (e) => {
+    if (busy) return;
+    if (e.target.closest('#video_preview_wrap') || e.target.closest('#video_remove')) return;
+    if (hasVideo) return; // มีวิดีโอแล้ว ห้ามเพิ่ม
+    input.value = '';
+    input.click();
+  });
+
+  dropzone.addEventListener('keydown', (e) => {
+    if (busy || hasVideo) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+  });
+
+  input.addEventListener('change', function () {
+    const f = this.files && this.files[0];
+    if (f) handleFile(f);
+  });
+
+  removeBtn?.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (busy) return;
+    clearVideo();
+  });
+
+  // ✅ ดูตัวอย่าง: เปิด modal พรีวิวขนาดใหญ่ พร้อม controls
+  function openVideoPreview() {
+    if (!currentUrl) {
+      swalToast?.('ยังไม่มีวิดีโอให้แสดง', 'info');
+      return;
+    }
+
+    // หยุดวิดีโอเล็กในการ์ดก่อน
+    try { videoEl?.pause(); } catch (e) {}
+
+    let modal = document.getElementById('video_preview_modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'video_preview_modal';
+      modal.className = 'fixed inset-0 z-[1000] hidden items-center justify-center';
+      modal.innerHTML = `
+        <div id="vpm_backdrop" class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm"></div>
+        <div class="relative z-10 w-[92vw] max-w-3xl">
+          <div class="flex items-center justify-between mb-3">
+            <div class="text-[12px] font-extrabold text-white/90">ตัวอย่างวิดีโอ</div>
+            <button id="vpm_close" type="button"
+              class="px-3 py-2 rounded-xl bg-white/10 text-white text-xs font-bold hover:bg-white/20">ปิด</button>
+          </div>
+          <div class="rounded-2xl overflow-hidden bg-black border border-white/10">
+            <video id="vpm_video" controls playsinline
+              class="w-full max-h-[75vh] bg-black object-contain"></video>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeModal = () => {
+        const v = document.getElementById('vpm_video');
+        try { v?.pause(); } catch (e) {}
+        if (v) v.removeAttribute('src'), v.load?.();
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.documentElement.style.overflow = '';
+        // ✅ คืนตำแหน่ง scroll เดิม (กันเด้งขึ้นบน)
+        const sy = modal._scrollY || 0;
+        requestAnimationFrame(() => window.scrollTo(0, sy));
+      };
+      modal.querySelector('#vpm_backdrop')?.addEventListener('click', closeModal);
+      modal.querySelector('#vpm_close')?.addEventListener('click', closeModal);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+      });
+      modal._closeFn = closeModal;
+    }
+
+    const v = modal.querySelector('#vpm_video');
+    if (v) {
+      v.src = currentUrl;
+      v.muted = false;
+    }
+    // ✅ จำตำแหน่ง scroll ปัจจุบันไว้คืนตอนปิด
+    modal._scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.documentElement.style.overflow = 'hidden';
+    v?.play?.().catch(() => { /* ผู้ใช้กดเล่นเองได้จาก controls */ });
+  }
+
+  playBtn?.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    openVideoPreview();
+  });
+
+  // คลิกที่กล่องพรีวิววิดีโอก็เปิดตัวอย่างได้
+  videoEl?.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    openVideoPreview();
+  });
+
+  // ✅ drag & drop
+  ['dragenter', 'dragover'].forEach(evt =>
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropzone.classList.add('border-primary/40', 'bg-primary/5');
+    })
+  );
+  dropzone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('border-primary/40', 'bg-primary/5');
+  });
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('border-primary/40', 'bg-primary/5');
+    if (busy || hasVideo) return;
+    const f = e.dataTransfer?.files?.[0];
+    if (f) handleFile(f);
+  });
+
+  // ✅ ให้ปุ่ม reset / submit สำเร็จ เรียกล้างได้
+  window.resetRepairVideo = clearVideo;
+
+  clearVideo();
+}
+
 async function buildCompressedRepairFormData(form) {
   // ✅ สร้าง FormData ใหม่เอง เพื่อกันไฟล์ต้นฉบับติดเข้าไป
   const fd = new FormData();
@@ -2997,6 +4124,13 @@ function initSwalStepValidationNoAuto(){
     if(running) return;
     running = true;
 
+    // ✅ ถ้าวิดีโอยังประมวลผลไม่เสร็จ ห้ามบันทึก
+    if (window.__repairVideoBusy) {
+      await swalWarn('กรุณารอระบบประมวลผลวิดีโอให้เสร็จก่อนบันทึก');
+      running = false;
+      return;
+    }
+
     // ✅ ไล่หา “ตัวแรกที่ยังไม่ผ่าน” แล้วหยุดทันที
     for(const step of steps){
       const el = step.el();
@@ -3039,16 +4173,42 @@ console.log('Compressed FormData images[] =', fd.getAll('images[]'));
     didOpen: () => Swal.showLoading()
   });
 
-  const res = await fetch('save_repair_api1.php', { method: 'POST', body: fd });
-  const json = await res.json().catch(() => ({}));
+  const res = await fetch('save_repair_api2.php', { method: 'POST', body: fd });
+
+  // ✅ อ่านเป็น text ก่อน เผื่อเซิร์ฟเวอร์ตอบไม่ใช่ JSON (เช่น 413 ไฟล์ใหญ่เกิน / PHP error)
+  const raw = await res.text();
+  let json = {};
+  try { json = JSON.parse(raw); } catch (e) { json = {}; }
 
   Swal.close();
 
   if (!res.ok || json.status !== 'success') {
+    console.error('save failed:', res.status, raw);
+
+    // ✅ วิเคราะห์สาเหตุที่พบบ่อย: ไฟล์ใหญ่เกินลิมิตเซิร์ฟเวอร์ -> response ไม่ใช่ JSON
+    let msg = json.message;
+    if (!msg) {
+      if (res.status === 413) {
+        msg = 'ไฟล์ใหญ่เกินที่เซิร์ฟเวอร์รับได้ (413) — วิดีโอจาก iPhone อาจใหญ่เกินไป';
+      } else if (!raw || /<html|<br|Fatal error|upload_max_filesize|post_max_size/i.test(raw)) {
+        msg = `เซิร์ฟเวอร์ตอบผิดพลาด (HTTP ${res.status}) — ไฟล์อาจใหญ่เกินลิมิต หรือมีปัญหาฝั่งเซิร์ฟเวอร์`;
+      } else {
+        msg = `เกิดข้อผิดพลาด (HTTP ${res.status}) กรุณาลองใหม่`;
+      }
+    }
+
+    // 🔎 DEBUG ชั่วคราว: แสดง response ดิบจากเซิร์ฟเวอร์ เพื่อดูสาเหตุจริง (คุณไม่มี console บน iPhone)
+    const rawSnippet = (raw || '(ว่าง)').toString().slice(0, 600)
+      .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
     await Swal.fire({
       icon: 'error',
       title: 'บันทึกไม่สำเร็จ',
-      text: json.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่',
+      html: `<div style="text-align:left">
+               <div style="margin-bottom:8px">${msg}</div>
+               <div style="font-size:11px;color:#64748b">HTTP ${res.status} • response จากเซิร์ฟเวอร์:</div>
+               <pre style="text-align:left;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto;background:#0f172a;color:#e2e8f0;padding:10px;border-radius:8px;font-size:11px;margin-top:6px">${rawSnippet}</pre>
+             </div>`,
       confirmButtonText: 'ปิด',
       confirmButtonColor: '#006B9F'
     });
@@ -3071,6 +4231,10 @@ form.reset();
 
 if (typeof window.resetRepairImages === 'function') {
   window.resetRepairImages();
+}
+
+if (typeof window.resetRepairVideo === 'function') {
+  window.resetRepairVideo();
 }
 
 // ปิด try หลัก
