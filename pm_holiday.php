@@ -14,6 +14,9 @@ include "config_ctrl/checksession.php";
                 <h3 class="text-lg font-semibold text-slate-800">จัดการวันหยุดและเงื่อนไข</h3>
                 <p class="text-sm text-slate-500 mt-1">ระบบจะตรวจสอบเงื่อนไขนี้ก่อนลงตาราง PM</p>
             </div>
+            <button type="button" onclick="togglePmPanel('holiday', true)" class="hidden lg:inline-flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors" title="ซ่อนแผงจัดการวันหยุด">
+                <i class="fas fa-angles-left"></i>
+            </button>
             <button type="button" onclick="window.toggleHolidayDrawer()" class="lg:hidden p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
@@ -90,7 +93,12 @@ include "config_ctrl/checksession.php";
     <div class="lg:col-span-8 xl:col-span-9 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col min-h-[500px] lg:min-h-0 lg:h-full overflow-hidden">
         
         <div class="flex items-center justify-between mb-4 shrink-0">
-            <h3 class="text-lg font-semibold text-slate-800">รายการวันหยุดที่บันทึกไว้</h3>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="togglePmPanel('holiday', false)" class="pm-expand-btn items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 text-sm font-medium" title="แสดงแผงจัดการวันหยุด">
+                    <i class="fas fa-angles-right"></i> จัดการวันหยุด
+                </button>
+                <h3 class="text-lg font-semibold text-slate-800">รายการวันหยุดที่บันทึกไว้</h3>
+            </div>
             <button type="button" onclick="window.toggleHolidayDrawer(true)" class="lg:hidden px-3 py-2 bg-sky-50 text-sky-600 hover:bg-sky-100 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors">
                 <i data-lucide="plus" class="w-4 h-4"></i> เพิ่ม/จัดการ
             </button>

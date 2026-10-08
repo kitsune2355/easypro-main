@@ -261,9 +261,14 @@ include "config_ctrl/checksession.php";
                 <h3 class="text-base font-bold text-slate-800 grid grid-flow-col auto-cols-max items-center gap-2">
                     <i class="fas fa-filter text-sky-600"></i> ตัวกรองขั้นสูง
                 </h3>
-                <button class="md:hidden text-slate-400" onclick="toggleSidebar()">
-                    <i class="fas fa-times text-lg"></i>
-                </button>
+                <div class="flex items-center">
+                    <button type="button" class="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" onclick="togglePmPanel('dashboard', true)" title="ซ่อนแผงตัวกรอง">
+                        <i class="fas fa-angles-left"></i>
+                    </button>
+                    <button class="md:hidden text-slate-400" onclick="toggleSidebar()">
+                        <i class="fas fa-times text-lg"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="space-y-4 overflow-y-auto pr-1">
@@ -347,6 +352,9 @@ include "config_ctrl/checksession.php";
                 <div class="grid grid-flow-col auto-cols-max items-center gap-3">
                     <button onclick="toggleSidebar()" class="md:hidden p-2 bg-sky-50 text-sky-600 rounded-lg">
                         <i class="fas fa-filter"></i>
+                    </button>
+                    <button type="button" onclick="togglePmPanel('dashboard', false)" class="pm-expand-btn items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 text-sm font-medium" title="แสดงแผงตัวกรอง">
+                        <i class="fas fa-angles-right"></i> ตัวกรอง
                     </button>
                     <h3 class="text-lg font-semibold text-slate-800">ปฏิทินปฏิบัติงาน PM</h3>
                 </div>

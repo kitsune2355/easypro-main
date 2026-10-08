@@ -14,6 +14,9 @@ include "config_ctrl/checksession.php";
                 <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
                     <i class="fas fa-filter text-sky-600"></i> ตัวกรองขั้นสูง
                 </h3>
+                <button type="button" class="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" onclick="togglePmPanel('postpone', true)" title="ซ่อนแผงตัวกรอง">
+                    <i class="fas fa-angles-left"></i>
+                </button>
                 <button class="md:hidden text-slate-400 hover:text-slate-600 transition-colors p-1" onclick="togglePostponeSidebar()">
                     <i class="fas fa-times text-xl"></i>
                 </button>
@@ -138,6 +141,9 @@ include "config_ctrl/checksession.php";
                     <h2 class="text-lg font-bold text-slate-800">
                         <button type="button" class="p-2 bg-sky-50 text-sky-600 rounded-lg md:hidden hover:bg-sky-100 transition-colors" onclick="togglePostponeSidebar()">
                             <i class="fas fa-filter pointer-events-none"></i>
+                        </button>
+                        <button type="button" onclick="togglePmPanel('postpone', false)" class="pm-expand-btn items-center gap-1.5 px-2.5 py-1.5 mr-2 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 text-sm font-medium align-middle" title="แสดงแผงตัวกรอง">
+                            <i class="fas fa-angles-right"></i> ตัวกรอง
                         </button>
                         <i class="fas fa-calendar-alt text-sky-600 mr-2"></i> จัดการเลื่อนแผนงาน PM</h2>
                     <button onclick="savePostponements()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 md:px-6 rounded-lg text-xs md:text-sm font-bold shadow-md transition">

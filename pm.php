@@ -103,6 +103,20 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+        /* แผงซ้าย (ตัวกรอง/ตัวจัดการ) พับได้บนจอใหญ่: แท็บปฏิทิน / เลื่อนแผน PM / จัดการวันหยุด (ดู togglePmPanel)
+           มือถือยังใช้ลิ้นชักเดิมของแต่ละแท็บ */
+        .pm-expand-btn { display: none; }
+        @media (min-width: 768px) {
+            #tab-dashboard.pm-collapsed > .grid, #tab-postpone.pm-collapsed > .grid { grid-template-columns: minmax(0, 1fr); }
+            #tab-dashboard.pm-collapsed #filter-sidebar, #tab-postpone.pm-collapsed #postpone-filter-sidebar { display: none; }
+            #tab-dashboard.pm-collapsed .pm-expand-btn, #tab-postpone.pm-collapsed .pm-expand-btn { display: inline-flex; }
+        }
+        @media (min-width: 1024px) {
+            #tab-holiday.pm-collapsed #holiday-drawer { display: none; }
+            #tab-holiday.pm-collapsed > .lg\:col-span-8 { grid-column: 1 / -1; }
+            #tab-holiday.pm-collapsed .pm-expand-btn { display: inline-flex; }
+        }
+
         #tab-holiday, #tab-holiday, #tab-plan, #tab-holiday
         {
             height: calc(100vh - 180px) !important;
@@ -329,6 +343,29 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                 }
             }
         }
+
+        // ---------- แผงซ้าย (ตัวกรอง/ตัวจัดการ) พับได้บนจอใหญ่ — จำสถานะแยกแต่ละแท็บ ----------
+        const PM_PANEL_KEY = 'pmPanelCollapsed';
+        const pmPanelState = () => { try { return JSON.parse(localStorage.getItem(PM_PANEL_KEY)) || {}; } catch (e) { return {}; } };
+
+        window.togglePmPanel = function(tabId, collapse) {
+            const tab = document.getElementById('tab-' + tabId);
+            if (!tab) return;
+            const on = collapse ?? !tab.classList.contains('pm-collapsed');
+            tab.classList.toggle('pm-collapsed', on);
+            const state = pmPanelState();
+            state[tabId] = on;
+            try { localStorage.setItem(PM_PANEL_KEY, JSON.stringify(state)); } catch (e) { /* โหมดส่วนตัว: ไม่จำสถานะ */ }
+            // พื้นที่เปลี่ยน => ให้ปฏิทิน/ตารางในแท็บคำนวณขนาดใหม่
+            requestAnimationFrame(() => {
+                window.dispatchEvent(new Event('resize'));
+                if (tabId === 'dashboard' && window.calendar) window.calendar.updateSize();
+            });
+        };
+
+        Object.entries(pmPanelState()).forEach(([tabId, on]) => {
+            document.getElementById('tab-' + tabId)?.classList.toggle('pm-collapsed', !!on);
+        });
 
         document.addEventListener('DOMContentLoaded', () => {
             const savedTab = localStorage.getItem('activePMTab') || 'dashboard';
