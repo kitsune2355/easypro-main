@@ -1,4 +1,4 @@
-﻿<?php 
+<?php 
 @session_start();
 include "config_ctrl/connect.php";
 include "config_ctrl/checksession.php";
@@ -166,6 +166,11 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                     <i data-lucide="file-up" class="w-4 h-4"></i> นำเข้าแผนจาก Excel
                 </button>
             </li>
+            <li>
+                <button onclick="switchTab('schedule')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
+                    <i data-lucide="table-2" class="w-4 h-4"></i> ตารางแผน PM
+                </button>
+            </li>
             <?php } ?>
         </ul>
     </div>
@@ -180,6 +185,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
             <?php include 'pm_holiday.php'; ?>
             <?php include 'pm_feedback.php'; ?>
             <?php include 'pm_import.php'; ?>
+            <?php include 'pm_schedule.php'; ?>
         </main>
     </div>
 
@@ -314,7 +320,11 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
             } else if (tabId === 'feedback') {
                 // เพิ่มเงื่อนไขนี้เข้าไป
                 if (typeof window.initFeedbackTab === 'function') {
-                    window.initFeedbackTab(); 
+                    window.initFeedbackTab();
+                }
+            } else if (tabId === 'schedule') {
+                if (typeof window.initScheduleTab === 'function') {
+                    window.initScheduleTab();
                 }
             }
         }

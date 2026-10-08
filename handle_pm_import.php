@@ -54,8 +54,6 @@ $DEFAULT_ITEM = [
     'photo_required_id' => 2, // ไม่บังคับ
 ];
 
-$DAY_OPTIONS = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
-
 function fetchAll($connect, $sql, $types = '', $params = []) {
     $stmt = mysqli_prepare($connect, $sql);
     if (!$stmt) throw new Exception('Query preparation failed: ' . mysqli_error($connect));
@@ -66,20 +64,6 @@ function fetchAll($connect, $sql, $types = '', $params = []) {
     while ($row = mysqli_fetch_assoc($res)) $rows[] = $row;
     mysqli_stmt_close($stmt);
     return $rows;
-}
-
-// freq_value => ['desc', 'multi' (dropdown_multi_select), 'max_alert' (alert_before_for_repeat_config)]
-function getFreqOptions($connect) {
-    $opts = [];
-    $sql = "SELECT freq_value, description, dropdown_multi_select, alert_before_for_repeat_config FROM pm_freq_options ORDER BY id ASC";
-    foreach (fetchAll($connect, $sql) as $r) {
-        $opts[(string)$r['freq_value']] = [
-            'desc' => $r['description'],
-            'multi' => (string)$r['dropdown_multi_select'],
-            'max_alert' => intval($r['alert_before_for_repeat_config'])
-        ];
-    }
-    return $opts;
 }
 
 // ข้อจำกัดไฟล์แนบ (เหมือนหน้าสร้างเช็คชีต)
@@ -458,21 +442,7 @@ try {
             $err = '';
             if (!isset($machineTypes[$it['machine_id'] ?? ''])) $err = 'ไม่พบเครื่องจักรในหน่วยงานนี้';
             elseif (!isset($sheetIdsOfAg[$it['checksheet_id'] ?? ''])) $err = 'ไม่พบเช็คชีต';
-            elseif (!isset($freqOptions[$freq])) $err = 'กรุณาเลือกความถี่';
-            elseif (!in_array((string)($it['alert'] ?? ''), array_map('strval', $alertValues), true)) $err = 'กรุณาเลือกการแจ้งเตือน';
-            elseif (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !strtotime($start)) $err = 'วันที่เริ่มไม่ถูกต้อง';
-            elseif (($contract_start && $start < $contract_start) || $start > $contract_end) $err = 'วันที่เริ่มอยู่นอกช่วงสัญญา';
-            else {
-                $multi = $freqOptions[$freq]['multi'];
-                $max = $freqOptions[$freq]['max_alert'];
-                $av = intval($it['alert']);
-                if (!($av === 0 || $av === -1 || $av <= $max)) $err = 'การแจ้งเตือนนี้ใช้กับความถี่ที่เลือกไม่ได้';
-                elseif ($multi === '2' && count($days) !== 2) $err = 'ต้องระบุวันให้ครบ 2 วัน';
-                elseif (($multi === '6' || $multi === '31') && !$days) $err = 'ต้องระบุวันอย่างน้อย 1 วัน';
-                elseif (in_array($multi, ['2', '5', '6'], true) && array_diff($days, $GLOBALS['DAY_OPTIONS'])) $err = 'วันในสัปดาห์ต้องเป็น จ. อ. พ. พฤ. ศ. ส. อา.';
-                elseif ($multi === '31' && array_filter($days, function ($d) { return !ctype_digit($d) || $d < 1 || $d > 31; })) $err = 'วันที่ในเดือนต้องเป็น 1-31';
-                elseif (!in_array($multi, ['2', '5', '6', '31'], true) && $days) $err = 'ความถี่นี้ไม่ต้องระบุวัน';
-            }
+            else $err = validatePmPlanFields($freq, $it['alert'] ?? '', $days, $start, $freqOptions, $alertValues, $contract_start, $contract_end);
             if ($err) $errors[] = ['index' => $i, 'row' => $rowNo, 'error' => $err];
         }
         if ($errors) jsonOut(['success' => false, 'error' => 'ข้อมูลไม่ถูกต้อง ' . count($errors) . ' แถว', 'errors' => $errors]);

@@ -1,5 +1,5 @@
 <?php
-//pm_plan_functions.php — ฟังก์ชันคำนวณแผน PM ที่ใช้ร่วมกัน (handle_pm_plan.php, handle_pm_import.php)
+//pm_plan_functions.php — ฟังก์ชันคำนวณแผน PM ที่ใช้ร่วมกัน (handle_pm_plan.php, handle_pm_import.php, handle_pm_schedule.php)
 
 /**
  * ฟังก์ชันคำนวณวันทำ PM รอบถัดไป (รองรับวันหยุด และ ล็อกวันที่สำหรับรายเดือนแบบแม่นยำ)
@@ -188,4 +188,42 @@ function getHolidays($connect, $ag_id) {
     }
     mysqli_stmt_close($stmt);
     return $holidays;
+}
+
+// freq_value => ['desc', 'multi' (dropdown_multi_select), 'max_alert' (alert_before_for_repeat_config)]
+function getFreqOptions($connect) {
+    $opts = [];
+    $res = mysqli_query($connect, "SELECT freq_value, description, dropdown_multi_select, alert_before_for_repeat_config FROM pm_freq_options ORDER BY id ASC");
+    if (!$res) throw new Exception('Query failed: ' . mysqli_error($connect));
+    while ($r = mysqli_fetch_assoc($res)) {
+        $opts[(string)$r['freq_value']] = [
+            'desc' => $r['description'],
+            'multi' => (string)$r['dropdown_multi_select'],
+            'max_alert' => intval($r['alert_before_for_repeat_config'])
+        ];
+    }
+    return $opts;
+}
+
+/**
+ * ตรวจค่าแผน PM: ความถี่ / แจ้งเตือน / ระบุวัน / วันที่เริ่มคำนวณ — คืนข้อความผิดพลาด หรือ '' ถ้าถูกต้อง
+ * ใช้ร่วมกัน: บันทึกแผนจากตารางนำเข้า Excel (handle_pm_import.php) และแก้แผนในตารางแผน PM (handle_pm_schedule.php)
+ * $days = วันที่ระบุ (array ของ string), $alertValues = alert_value ทั้งหมดใน pm_alert_options
+ */
+function validatePmPlanFields($freq, $alert, $days, $start, $freqOptions, $alertValues, $contractStart, $contractEnd) {
+    $dayOptions = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
+    if (!isset($freqOptions[$freq])) return 'กรุณาเลือกความถี่';
+    if (!in_array((string)$alert, array_map('strval', $alertValues), true)) return 'กรุณาเลือกการแจ้งเตือน';
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !strtotime($start)) return 'วันที่เริ่มไม่ถูกต้อง';
+    if (($contractStart && $start < $contractStart) || ($contractEnd && $start > $contractEnd)) return 'วันที่เริ่มอยู่นอกช่วงสัญญา';
+
+    $multi = $freqOptions[$freq]['multi'];
+    $av = intval($alert);
+    if (!($av === 0 || $av === -1 || $av <= $freqOptions[$freq]['max_alert'])) return 'การแจ้งเตือนนี้ใช้กับความถี่ที่เลือกไม่ได้';
+    if ($multi === '2' && count($days) !== 2) return 'ต้องระบุวันให้ครบ 2 วัน';
+    if (($multi === '6' || $multi === '31') && !$days) return 'ต้องระบุวันอย่างน้อย 1 วัน';
+    if (in_array($multi, ['2', '5', '6'], true) && array_diff($days, $dayOptions)) return 'วันในสัปดาห์ต้องเป็น จ. อ. พ. พฤ. ศ. ส. อา.';
+    if ($multi === '31' && array_filter($days, function ($d) { return !ctype_digit($d) || $d < 1 || $d > 31; })) return 'วันที่ในเดือนต้องเป็น 1-31';
+    if (!in_array($multi, ['2', '5', '6', '31'], true) && $days) return 'ความถี่นี้ไม่ต้องระบุวัน';
+    return '';
 }

@@ -7,11 +7,11 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
 <style>
     #imp-plan-hot .htInvalid { background-color: #fee2e2 !important; }
     #imp-plan-hot .imp-input { background-color: #f0f9ff; }
-    #imp-plan-hot .imp-disabled { background-color: #f1f5f9; color: #94a3b8; }
-    /* ช่องสัปดาห์ (เหมือนตารางใน Template) */
+    #imp-plan-hot .imp-disabled { background-color: #f1f5f9 !important; color: #94a3b8; }
+    /* ช่องสัปดาห์ (เหมือนตารางใน Template) — ใช้ !important เพราะธีม Handsontable บังคับสีพื้นของเซลล์อ่านอย่างเดียว (.htDimmed) */
     #imp-plan-hot td.imp-week { padding: 0; text-align: center; font-size: 11px; font-weight: 600; color: #0369a1; }
-    #imp-plan-hot td.imp-week.imp-mark { background-color: #e0f2fe; }
-    #imp-plan-hot td.imp-week.imp-start { background-color: #0ea5e9; color: #fff; }
+    #imp-plan-hot td.imp-week.imp-mark { background-color: #e0f2fe !important; }
+    #imp-plan-hot td.imp-week.imp-start { background-color: #0ea5e9 !important; color: #fff; }
     #imp-plan-hot td.imp-month-end { border-right: 2px solid #cbd5e1; }
 </style>
 <div id="tab-import" class="tab-content hidden">
@@ -534,6 +534,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         hot = new Handsontable($('imp-plan-hot'), {
             data: data,
+            colorScheme: 'light',   // ไม่ใช้โหมดมืดตามเครื่อง (ทั้งหน้าเป็นธีมสว่าง)
             nestedHeaders: [
                 ['Name', 'CODE', 'Location', ...MONTHS.map(m => ({ label: m, colspan: 4 })), { label: 'แผน PM (ตรวจสอบ / แก้ไข)', colspan: 5 }],
                 ['', '', '', ...Array.from({ length: 48 }, (_, k) => String(k + 1)),
