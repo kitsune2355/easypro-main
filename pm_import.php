@@ -586,8 +586,10 @@ document.addEventListener('DOMContentLoaded', function() {
             width: '100%',
             height: '100%',
             stretchH: 'none',
-            colWidths: [180, 110, 150, ...Array(48).fill(26), 160, 170, 110, 110, 280],
+            colWidths: [180, 110, 150, ...Array(48).fill(45), 160, 170, 110, 110, 280],
             fixedColumnsStart: 2,
+            // ช่องสัปดาห์กว้างคงที่: ถ้าให้ Handsontable คำนวณเอง ความกว้างที่ใช้คำนวณพื้นที่เลื่อนไม่ตรงกับที่วาดจริง => เลื่อนสุดขวาแล้วมีพื้นที่ว่าง
+            modifyColWidth: (width, col) => (col >= 3 && col < PLAN_FIRST_COL ? 45 : width),
             fillHandle: { direction: 'vertical', autoInsertRow: false },
             filters: true,
             dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],

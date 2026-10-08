@@ -32,10 +32,7 @@ if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
     }
     /* เต็มจอ: การ์ดเต็มหน้าจอจริง (Fullscreen API) หรือเต็มหน้าเว็บ (เครื่องที่ไม่รองรับ เช่น iPhone) */
     #sch-card.sch-fs { position: fixed; inset: 0; z-index: 1000; border-radius: 0; overflow: hidden; display: flex; flex-direction: column; }
-    #sch-card:fullscreen { width: 100%; height: 100%; border-radius: 0; overflow: hidden; display: flex; flex-direction: column; }
-    #sch-card:-webkit-full-screen { width: 100%; height: 100%; border-radius: 0; overflow: hidden; display: flex; flex-direction: column; }
-    #sch-card.sch-fs #sch-hot, #sch-card:fullscreen #sch-hot { flex: 1 1 auto; height: auto; min-height: 0; }
-    #sch-card:-webkit-full-screen #sch-hot { flex: 1 1 auto; height: auto; min-height: 0; }
+    #sch-card.sch-fs #sch-hot { flex: 1 1 auto; height: auto; min-height: 0; }
 </style>
 <div id="tab-schedule" class="tab-content hidden">
     <div id="sch-card" class="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200">
@@ -131,9 +128,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const escHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const isNarrow = () => window.innerWidth < 640;
 
-    // ตอนเต็มจอจริง มีแต่การ์ดที่มองเห็น => หน้าต่างแจ้งเตือนต้องแสดงในการ์ด
+    // เต็มจอทั้งเอกสาร => หน้าต่างแจ้งเตือน (z-index 1060) แสดงเหนือการ์ดเต็มจอ (1000) ได้ตามปกติ
     const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
-    const alertBox = opts => Swal.fire({ target: fsElement() || document.body, ...opts });
+    const alertBox = opts => Swal.fire(opts);
     // เรียก showLoading ทันที (ไม่ใช้ didOpen: ถ้า Swal.close() ถูกเรียกก่อน popup เปิดเสร็จ didOpen จะสร้าง popup เปล่าค้างไว้)
     const loadingBox = (title, html = '') => { alertBox({ title, html, allowOutsideClick: false, showConfirmButton: false }); Swal.showLoading(); };
 
@@ -246,13 +243,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const weekCols = Array.from({ length: 48 }, (_, k) => ({ data: 'w' + k, readOnly: true }));
         // จอแคบ: ตรึงแค่คอลัมน์ Name และใช้คอลัมน์แคบลง
         const colWidths = narrowLayout
-            ? [130, 90, 120, ...Array(48).fill(24), 140, 140, 90, 100, 90]
-            : [180, 110, 150, ...Array(48).fill(26), 160, 170, 110, 110, 100];
+            ? [130, 90, 120, ...Array(48).fill(40), 140, 140, 90, 100, 90]
+            : [180, 110, 150, ...Array(48).fill(45), 160, 170, 110, 110, 100];
 
         hot = new Handsontable($('sch-hot'), {
             data: data,
             colorScheme: 'light',          // ไม่ใช้โหมดมืดตามเครื่อง (ทั้งหน้าเป็นธีมสว่าง)
-            uiContainer: $('sch-card'),    // เมนูกรองอยู่ในการ์ด => ยังเห็นตอนเต็มจอ
             nestedHeaders: [
                 ['Name', 'CODE', 'Location', ...MONTHS.map(m => ({ label: `${m} ${year}`, colspan: 4 })), { label: 'แผน PM (แก้ไขได้)', colspan: 4 }, ''],
                 ['', '', '', ...Array.from({ length: 48 }, (_, k) => String(k + 1)),
@@ -268,7 +264,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   source: function(query, process) { process(alertsForFreq(this.instance.getDataAtRowProp(this.row, 'freq')).map(a => a.desc)); } },
                 { data: 'days' },
                 { data: 'next_date', type: 'date', dateFormat: 'YYYY-MM-DD', correctFormat: true, className: 'htCenter',
-                  datePickerConfig: { container: $('sch-card'),
+                  datePickerConfig: { container: document.body,
                                       minDate: contract.start ? new Date(contract.start) : null,
                                       maxDate: contract.end ? new Date(contract.end) : null } },
                 { data: 'start_date', readOnly: true, className: 'htCenter text-slate-500' }
@@ -319,6 +315,9 @@ document.addEventListener('DOMContentLoaded', function() {
             stretchH: 'none',
             colWidths: colWidths,
             fixedColumnsStart: narrowLayout ? 1 : 2,
+            // ช่องสัปดาห์กว้างคงที่: ถ้าให้ Handsontable คำนวณเอง (ตามหัวคอลัมน์/ปุ่มเมนูกรอง) ความกว้างที่ใช้คำนวณพื้นที่เลื่อน
+            // ไม่ตรงกับที่วาดจริง => เลื่อนสุดขวาแล้วมีพื้นที่ว่าง
+            modifyColWidth: (width, col) => (col >= 3 && col < PLAN_FIRST_COL ? colWidths[col] : width),
             fillHandle: { direction: 'vertical', autoInsertRow: false },
             filters: true,
             dropdownMenu: ['filter_by_condition', 'filter_by_value', 'filter_action_bar'],
@@ -464,8 +463,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ---------- เต็มจอ ----------
-    // ใช้ Fullscreen API กับการ์ด (เต็มหน้าจอจริง ทะลุ iframe ของ main.php ที่มี allowfullscreen)
-    // เครื่องที่ไม่รองรับ (เช่น Safari บน iPhone) => การ์ดเต็มพื้นที่หน้าเว็บแทน
+    // การ์ดคลุมทั้งหน้า (.sch-fs) + ขอเต็มจอให้ "ทั้งเอกสาร" (ทะลุ iframe ของ main.php ที่มี allowfullscreen)
+    // ไม่ขอเต็มจอเฉพาะการ์ด: Handsontable วางเมนูกรอง/ตัวเลือกวันที่ไว้ใน <body> ซึ่งจะมองไม่เห็นถ้าเต็มจอแค่การ์ด
+    // เครื่องที่ไม่รองรับ (เช่น Safari บน iPhone) => การ์ดคลุมพื้นที่หน้าเว็บอย่างเดียว
     function setFsButton(on) {
         $('sch-fs-btn').innerHTML = on
             ? '<i data-lucide="minimize" class="w-4 h-4"></i> <span class="hidden sm:inline">ย่อหน้าจอ</span>'
@@ -475,26 +475,30 @@ document.addEventListener('DOMContentLoaded', function() {
         if (hot) setTimeout(() => hot.refreshDimensions(), 80);
     }
 
+    function setCardFullscreen(on) {
+        $('sch-card').classList.toggle('sch-fs', on);
+        setFsButton(on);
+    }
+
     $('sch-fs-btn').addEventListener('click', async () => {
-        const card = $('sch-card');
-        if (fsElement() === card) {
-            (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        if ($('sch-card').classList.contains('sch-fs')) {
+            setCardFullscreen(false);
+            if (fsElement()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
             return;
         }
-        if (card.classList.contains('sch-fs')) {
-            card.classList.remove('sch-fs');
-            setFsButton(false);
-            return;
-        }
-        const req = card.requestFullscreen || card.webkitRequestFullscreen;
+        setCardFullscreen(true);
+        const el = document.documentElement;
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
         if (req && (document.fullscreenEnabled || document.webkitFullscreenEnabled)) {
-            try { await req.call(card); return; } catch (e) { /* ไม่อนุญาต => ใช้แบบเต็มหน้าเว็บ */ }
+            try { await req.call(el); } catch (e) { /* ไม่อนุญาต => การ์ดคลุมหน้าเว็บอย่างเดียว */ }
         }
-        card.classList.add('sch-fs');
-        setFsButton(true);
     });
 
-    const onFsChange = () => setFsButton(fsElement() === $('sch-card'));
+    // กด ESC ออกจากเต็มจอของเบราว์เซอร์ => ย่อการ์ดกลับด้วย
+    const onFsChange = () => {
+        if (fsElement()) setFsButton(true);
+        else if ($('sch-card').classList.contains('sch-fs')) setCardFullscreen(false);
+    };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
 
