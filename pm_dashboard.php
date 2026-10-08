@@ -1006,16 +1006,34 @@ include "config_ctrl/checksession.php";
             if (!d) {
                 prep = `<div class="space-y-2">${skel('w-2/3')}<br>${skel('w-1/2')}</div>`;
             } else {
-                const it = d.items, fl = d.files;
+                const it = d.items;
                 const photo = [it.photo_always ? `บังคับถ่ายรูป ${it.photo_always}` : '', it.photo_abnormal ? `ถ่ายรูปเมื่อผิดปกติ ${it.photo_abnormal}` : ''].filter(Boolean).join(' · ');
                 const spares = d.spares.length
                     ? d.spares.map(s => `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[12px] text-slate-700">${esc(s.part_name)} <b class="text-slate-500">×${parseFloat(s.quantity) || 0}</b></span>`).join('')
                     : '<span class="text-slate-400">ไม่มี</span>';
-                const docs = [fl.documents ? `เอกสาร ${fl.documents} ไฟล์` : '', fl.images ? `รูปประกอบ ${fl.images} รูป` : ''].filter(Boolean).join(' · ') || '<span class="text-slate-400">ไม่มี</span>';
+                // ไฟล์แนบ: คลิกเพื่อดาวน์โหลด (ไอคอนตามชนิดไฟล์)
+                const fileIcon = (name, type) => {
+                    const ext = String(name).split('.').pop().toLowerCase();
+                    if (type === 'image' || /^(jpe?g|png|gif|webp|bmp|heic)$/.test(ext)) return 'fas fa-file-image text-violet-500';
+                    if (ext === 'pdf') return 'fas fa-file-pdf text-red-500';
+                    if (/^xls[xm]?$|^csv$/.test(ext)) return 'fas fa-file-excel text-emerald-600';
+                    if (/^docx?$/.test(ext)) return 'fas fa-file-word text-blue-600';
+                    if (/^pptx?$/.test(ext)) return 'fas fa-file-powerpoint text-orange-500';
+                    return 'fas fa-file text-slate-400';
+                };
+                const docs = d.files.length
+                    ? `<div class="mt-1 space-y-1 max-h-40 overflow-y-auto pr-0.5">${d.files.map(fi => `
+                        <a href="${esc(encodeURI(fi.file_path))}" download="${esc(fi.file_name)}" title="ดาวน์โหลด ${esc(fi.file_name)}"
+                           class="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-sky-300 hover:bg-sky-50 text-slate-700 no-underline transition-colors group">
+                            <i class="${fileIcon(fi.file_name, fi.file_type)} w-4 text-center shrink-0"></i>
+                            <span class="flex-1 min-w-0 truncate text-[12.5px]">${esc(fi.file_name || fi.file_path.split('/').pop())}</span>
+                            <i class="fas fa-download text-[11px] text-slate-400 group-hover:text-sky-600 shrink-0"></i>
+                        </a>`).join('')}</div>`
+                    : '<span class="text-slate-400">ไม่มี</span>';
                 prep = `
                     <div class="pm-dt-row"><i class="fas fa-list-check text-sky-600"></i><div>จุดตรวจ <b>${it.total}</b> รายการ${photo ? `<div class="text-[12px] text-slate-500"><i class="fas fa-camera mr-1"></i>${photo}</div>` : ''}</div></div>
                     <div class="pm-dt-row"><i class="fas fa-toolbox text-amber-600"></i><div class="min-w-0"><div class="mb-1">อะไหล่ / วัสดุ</div><div class="flex flex-wrap gap-1">${spares}</div></div></div>
-                    <div class="pm-dt-row"><i class="fas fa-paperclip text-slate-500"></i><div>คู่มือ / ไฟล์แนบ: ${docs}</div></div>`;
+                    <div class="pm-dt-row"><i class="fas fa-paperclip text-slate-500"></i><div class="flex-1 min-w-0">คู่มือ / ไฟล์แนบ${d.files.length ? ` <span class="text-slate-400">(${d.files.length})</span>` : ': '}${docs}</div></div>`;
             }
 
             const pp = d && d.postpones.length ? d.postpones[0] : null;

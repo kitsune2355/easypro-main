@@ -176,8 +176,9 @@ if ($action === 'get_event_detail') {
                           COALESCE(SUM(photo_required_id = 3), 0) AS photo_abnormal
                    FROM pm_checksheet_items WHERE checksheet_id = ?", 'i', $cs)[0];
     $spares = $one("SELECT part_name, quantity FROM pm_checksheet_spares WHERE checksheet_id = ? ORDER BY id", 'i', $cs);
-    $files = $one("SELECT COALESCE(SUM(file_type = 'document'), 0) AS documents, COALESCE(SUM(file_type = 'image'), 0) AS images
-                   FROM pm_checksheet_files WHERE checksheet_id = ?", 'i', $cs)[0];
+    // คู่มือ/ไฟล์แนบของเช็คชีต (file_path เป็น path จาก root ของระบบ เช่น uploads/files/...) — เอกสารก่อน แล้วค่อยรูป
+    $files = $one("SELECT file_type, file_name, file_path FROM pm_checksheet_files
+                   WHERE checksheet_id = ? ORDER BY file_type = 'image', id", 'i', $cs);
 
     // ทำครั้งล่าสุดของแผนเดียวกัน (ก่อนรอบนี้)
     $last = $one("SELECT MAX(COALESCE(DATE(completed_at), event_date)) AS d FROM pm_plan_events
@@ -204,7 +205,7 @@ if ($action === 'get_event_detail') {
         'event' => $ev,
         'items' => array_map('intval', $items),
         'spares' => $spares,
-        'files' => array_map('intval', $files),
+        'files' => $files,
         'last_done' => $last,
         'postpones' => $postpones,
         'work' => $work,
