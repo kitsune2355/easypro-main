@@ -249,6 +249,11 @@ include "config_ctrl/checksession.php";
         }
         .sidebar-overlay.active { display: block; }
     }
+    /* popup รายละเอียดงาน PM */
+    .pm-dt-body { margin: 1.25rem 1rem 0 !important; padding: 0 !important; }
+    .pm-dt-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .6rem; border-radius: 9999px; border: 1px solid; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+    .pm-dt-row { display: flex; gap: .6rem; align-items: flex-start; }
+    .pm-dt-row > i { width: 1rem; margin-top: .2rem; text-align: center; flex-shrink: 0; }
 </style>
 
 <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
@@ -952,6 +957,142 @@ include "config_ctrl/checksession.php";
         saveAs(blob, `PM_Schedule_${viewTitle}.xlsx`);
     }
 
+    // ==========================================
+    // Popup รายละเอียดงาน PM (คลิก event ในปฏิทิน): แสดงข้อมูลจาก event ทันที แล้วโหลดรายละเอียดเพิ่ม
+    // (สิ่งที่ต้องเตรียม / ทำครั้งล่าสุด / ประวัติเลื่อน / ผลการทำงาน) จาก handle_pm_dashboard.php?action=get_event_detail
+    // ==========================================
+    function openPmEventDetail(eventId, props, start) {
+        const token = openPmEventDetail.token = {};   // กันผลของ popup ก่อนหน้ามาเขียนทับ popup ใหม่
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const fmt = d => d ? moment(d).format('DD/MM/YYYY') : '-';
+        const done = props.status == 1;
+        const eventDate = moment(start).format('YYYY-MM-DD');
+
+        // วันที่กำหนดเทียบกับวันนี้ (งานที่ยังไม่ทำเท่านั้น)
+        function dueChip(today) {
+            if (done) return '';
+            const diff = moment(eventDate).diff(moment(today), 'days');
+            if (diff < 0) return `<span class="pm-dt-chip bg-red-50 text-red-700 border-red-200"><i class="fas fa-exclamation-triangle"></i> เลยกำหนด ${-diff} วัน</span>`;
+            if (diff === 0) return `<span class="pm-dt-chip bg-amber-50 text-amber-700 border-amber-200"><i class="fas fa-bolt"></i> ครบกำหนดวันนี้</span>`;
+            return `<span class="pm-dt-chip bg-slate-50 text-slate-600 border-slate-200"><i class="far fa-clock"></i> อีก ${diff} วัน</span>`;
+        }
+        const tile = (icon, color, label, value) => `
+            <div class="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100 min-w-0">
+                <div class="w-8 h-8 shrink-0 rounded-lg bg-white shadow-sm flex items-center justify-center ${color}"><i class="${icon}"></i></div>
+                <div class="min-w-0">
+                    <div class="text-[11px] text-slate-400 leading-tight">${label}</div>
+                    <div class="text-[13px] font-semibold text-slate-700 truncate">${value}</div>
+                </div>
+            </div>`;
+        const skel = w => `<span class="inline-block h-3 ${w} rounded bg-slate-200 animate-pulse align-middle"></span>`;
+
+        function build(d) {
+            const ev = d ? d.event : {};
+            const today = d ? d.today : moment().format('YYYY-MM-DD');
+            const status = done
+                ? `<span class="pm-dt-chip bg-emerald-50 text-emerald-700 border-emerald-200"><i class="fas fa-check-circle"></i> ดำเนินการแล้ว</span>`
+                : `<span class="pm-dt-chip bg-sky-50 text-sky-700 border-sky-200"><i class="fas fa-clock"></i> รอดำเนินการ</span>`;
+            const postponed = d && d.postpones.length
+                ? `<span class="pm-dt-chip bg-violet-50 text-violet-700 border-violet-200"><i class="fas fa-history"></i> เลื่อนแล้ว ${d.postpones.length} ครั้ง</span>` : '';
+
+            const code = ev.ass_code ? ` · <span class="font-mono">${esc(ev.ass_code)}</span>` : '';
+            const model = d ? [ev.asset_model, ev.asset_sn ? 'S/N ' + ev.asset_sn : ''].filter(Boolean).map(esc).join(' · ') : '';
+            const est = d ? (ev.estimated_time ? `~${esc(ev.estimated_time)} นาที` : '-') : skel('w-14');
+            const last = d ? (d.last_done ? fmt(d.last_done) : 'ยังไม่เคยทำ') : skel('w-16');
+            const freq = d ? esc(ev.freq_desc || '-') : skel('w-16');
+
+            // สิ่งที่ต้องเตรียม
+            let prep = '';
+            if (!d) {
+                prep = `<div class="space-y-2">${skel('w-2/3')}<br>${skel('w-1/2')}</div>`;
+            } else {
+                const it = d.items, fl = d.files;
+                const photo = [it.photo_always ? `บังคับถ่ายรูป ${it.photo_always}` : '', it.photo_abnormal ? `ถ่ายรูปเมื่อผิดปกติ ${it.photo_abnormal}` : ''].filter(Boolean).join(' · ');
+                const spares = d.spares.length
+                    ? d.spares.map(s => `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[12px] text-slate-700">${esc(s.part_name)} <b class="text-slate-500">×${parseFloat(s.quantity) || 0}</b></span>`).join('')
+                    : '<span class="text-slate-400">ไม่มี</span>';
+                const docs = [fl.documents ? `เอกสาร ${fl.documents} ไฟล์` : '', fl.images ? `รูปประกอบ ${fl.images} รูป` : ''].filter(Boolean).join(' · ') || '<span class="text-slate-400">ไม่มี</span>';
+                prep = `
+                    <div class="pm-dt-row"><i class="fas fa-list-check text-sky-600"></i><div>จุดตรวจ <b>${it.total}</b> รายการ${photo ? `<div class="text-[12px] text-slate-500"><i class="fas fa-camera mr-1"></i>${photo}</div>` : ''}</div></div>
+                    <div class="pm-dt-row"><i class="fas fa-toolbox text-amber-600"></i><div class="min-w-0"><div class="mb-1">อะไหล่ / วัสดุ</div><div class="flex flex-wrap gap-1">${spares}</div></div></div>
+                    <div class="pm-dt-row"><i class="fas fa-paperclip text-slate-500"></i><div>คู่มือ / ไฟล์แนบ: ${docs}</div></div>`;
+            }
+
+            const pp = d && d.postpones.length ? d.postpones[0] : null;
+            const postponeBox = pp ? `
+                <div class="mt-3 p-3 rounded-xl bg-violet-50 border border-violet-100 text-[13px] text-violet-800">
+                    <i class="fas fa-history mr-1"></i> เลื่อนจาก <b>${fmt(pp.old_date)}</b> เป็น <b>${fmt(pp.new_date)}</b>
+                    ${pp.reason ? `<div class="text-[12px] text-violet-600 mt-0.5">เหตุผล: ${esc(pp.reason)}</div>` : ''}
+                </div>` : '';
+
+            const w = d && d.work;
+            const workBox = w ? `
+                <div class="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-[13px] text-emerald-900 space-y-1">
+                    <div><i class="fas fa-calendar-check mr-1"></i> ทำเมื่อ <b>${fmt(w.actual_date || ev.completed_at)}</b></div>
+                    ${w.inspectors.length ? `<div><i class="fas fa-user-check mr-1"></i> ผู้ตรวจ: ${w.inspectors.map(esc).join(', ')}</div>` : ''}
+                    <div><i class="fas fa-star mr-1"></i> ${w.evaluation ? `ประเมินแล้ว คะแนนเฉลี่ย <b>${esc(w.evaluation.average_score)}</b>${w.evaluation.evaluator_name ? ` โดย ${esc(w.evaluation.evaluator_name)}` : ''}` : '<span class="text-emerald-700">ยังไม่ได้ประเมิน</span>'}</div>
+                </div>` : '';
+
+            return `
+                <div class="text-left">
+                    <div class="flex flex-wrap items-center gap-1.5 pr-6">${status}${d ? dueChip(today) : ''}${postponed}</div>
+                    <h3 class="mt-3 text-lg font-bold text-slate-800 leading-snug">${esc(props.checksheet || '-')}</h3>
+                    <div class="mt-0.5 text-[13px] text-slate-500"><i class="fas fa-cogs mr-1 text-slate-400"></i>${esc(props.machine || '-')}${code}</div>
+
+                    <div class="mt-4 grid grid-cols-2 gap-2">
+                        ${tile('fas fa-calendar-day', 'text-sky-600', 'วันที่กำหนด', fmt(eventDate))}
+                        ${tile('fas fa-redo', 'text-indigo-500', 'ความถี่', freq)}
+                        ${tile('fas fa-stopwatch', 'text-amber-500', 'เวลาโดยประมาณ', est)}
+                        ${tile('fas fa-check-double', 'text-emerald-600', 'ทำครั้งล่าสุด', last)}
+                    </div>
+
+                    <div class="mt-3 p-3 rounded-xl border border-slate-100 text-[13px] text-slate-700 space-y-1">
+                        <div><i class="fas fa-map-marker-alt w-4 text-rose-500"></i> ${esc(props.location || '-')}</div>
+                        <div class="text-slate-500"><i class="fas fa-layer-group w-4 text-purple-500"></i> ${esc(props.type || '-')}${model ? ` · ${model}` : ''}</div>
+                    </div>
+
+                    ${done ? '' : `
+                    <div class="mt-3 p-3 rounded-xl bg-sky-50/60 border border-sky-100 text-[13px] text-slate-700">
+                        <div class="text-[12px] font-semibold text-sky-800 mb-2">สิ่งที่ต้องเตรียม</div>
+                        <div class="space-y-2">${prep}</div>
+                    </div>`}
+                    ${postponeBox}
+                    ${workBox}
+                </div>`;
+        }
+
+        Swal.fire({
+            html: build(null),
+            width: '34rem',
+            showCloseButton: true,
+            showCancelButton: true,
+            confirmButtonText: done ? '<i class="fas fa-search mr-2"></i> ดูประวัติ' : '<i class="fas fa-external-link-alt mr-2"></i> เปิดใบงาน',
+            cancelButtonText: 'ปิด',
+            reverseButtons: true,
+            buttonsStyling: false,
+            customClass: {
+                confirmButton: (done ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100' : 'bg-sky-600 hover:bg-sky-700 shadow-sky-100') + ' text-white px-6 py-2.5 rounded-lg font-semibold text-sm mx-1.5 shadow-lg transition-all',
+                cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-2.5 rounded-lg font-semibold text-sm mx-1.5 transition-all',
+                popup: 'rounded-3xl border-none shadow-2xl',
+                htmlContainer: 'pm-dt-body'
+            },
+            showClass: { popup: 'animate__animated animate__fadeInUp animate__faster' },
+            hideClass: { popup: 'animate__animated animate__fadeOutDown animate__faster' }
+        }).then(result => {
+            if (!result.isConfirmed) return;
+            openPmFullWindow('pm_worksheet.php?plan_id=' + encodeURIComponent(eventId) + (done ? '&mode=history' : ''));
+        });
+
+        fetch(`handle_pm_dashboard.php?action=get_event_detail&id=${encodeURIComponent(eventId)}`)
+            .then(r => r.json())
+            .then(res => {
+                const box = Swal.getHtmlContainer();
+                if (!res.success || !box || openPmEventDetail.token !== token) return;
+                box.innerHTML = build(res.data);
+            })
+            .catch(err => console.error('โหลดรายละเอียดงาน PM ไม่สำเร็จ', err));
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof loadDashboardLocations === 'function') loadDashboardLocations();
         loadDashboardMachineTypes();
@@ -997,115 +1138,7 @@ include "config_ctrl/checksession.php";
                     // 1. กรณีคลิกที่ "แผนงาน PM" (ID ขึ้นต้นด้วย pm_)
                     // ==========================================
                     if (eventId && eventId.startsWith('pm_')) {
-                        const realId = eventId.replace('pm_', '');
-                        let badgeHtml = '';
-                        let confirmBtnText = '';
-                        let confirmBtnClass = '';
-
-                        if (props.status == 1 || props.status == '1') {
-                            badgeHtml = `
-                                <span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-emerald-200">
-                                    <i class="fas fa-check-circle mr-1"></i> ดำเนินการแล้ว
-                                </span>
-                            `;
-                            confirmBtnText = '<i class="fas fa-search mr-2"></i> ดูประวัติ';
-                            confirmBtnClass = 'bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-semibold text-sm mx-2 shadow-lg shadow-emerald-100 transition-all';
-                        } else {
-                            badgeHtml = `
-                                <span class="bg-sky-100 text-sky-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-sky-200">
-                                    <i class="fas fa-clock mr-1"></i> แผนงานรอดำเนินการ
-                                </span>
-                            `;
-                            confirmBtnText = '<i class="fas fa-external-link-alt mr-2"></i> เปิดใบงาน';
-                            confirmBtnClass = 'bg-sky-600 hover:bg-sky-700 text-white px-6 py-2.5 rounded-lg font-semibold text-sm mx-2 shadow-lg shadow-sky-100 transition-all';
-                        }
-
-                        Swal.fire({
-                            title: `<span class="text-xl font-bold text-slate-800">รายละเอียด</span>`,
-                            html: `
-                                <div class="space-y-3">
-                                    <div class="flex justify-center mb-5">
-                                        ${badgeHtml}
-                                    </div>
-
-                                    <div class="grid grid-cols-1 gap-3 text-left">
-                                        <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-all hover:bg-white hover:shadow-md">
-                                            <div class="w-10 h-10 bg-white rounded-lg shadow-sm flex items-center justify-center mr-3 text-indigo-500">
-                                                <i class="fas fa-cogs text-lg"></i>
-                                            </div>
-                                            <div>
-                                                <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tight">เครื่องจักร/อุปกรณ์</div>
-                                                <div class="text-sm font-semibold text-slate-700">${props.machine || '-'}</div>
-                                            </div>
-                                        </div>
-
-                                        <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-all hover:bg-white hover:shadow-md">
-                                            <div class="w-10 h-10 bg-white rounded-lg shadow-sm flex items-center justify-center mr-3 text-purple-500">
-                                                <i class="fas fa-layer-group text-lg"></i>
-                                            </div>
-                                            <div>
-                                                <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tight">ประเภท</div>
-                                                <div class="text-sm font-semibold text-slate-700">${props.type || '-'}</div>
-                                            </div>
-                                        </div>
-
-                                        <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-all hover:bg-white hover:shadow-md">
-                                            <div class="w-10 h-10 bg-white rounded-lg shadow-sm flex items-center justify-center mr-3 text-sky-500">
-                                                <i class="fas fa-map-marker-alt text-lg"></i>
-                                            </div>
-                                            <div>
-                                                <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tight">สถานที่ / ตำแหน่ง</div>
-                                                <div class="text-sm font-semibold text-slate-700">${props.location || '-'}</div>
-                                            </div>
-                                        </div>
-
-                                        <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-all hover:bg-white hover:shadow-md">
-                                            <div class="w-10 h-10 bg-white rounded-lg shadow-sm flex items-center justify-center mr-3 text-emerald-500">
-                                                <i class="fas fa-clipboard-check text-lg"></i>
-                                            </div>
-                                            <div>
-                                                <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tight">รายการเช็คชีต</div>
-                                                <div class="text-sm font-semibold text-slate-700">${props.checksheet || '-'}</div>
-                                            </div>
-                                        </div>
-
-                                        <div class="flex items-center p-3 bg-slate-50 rounded-xl border border-slate-100 transition-all hover:bg-white hover:shadow-md">
-                                            <div class="w-10 h-10 bg-white rounded-lg shadow-sm flex items-center justify-center mr-3 text-amber-500">
-                                                <i class="fas fa-calendar-day text-lg"></i>
-                                            </div>
-                                            <div>
-                                                <div class="text-[10px] text-slate-400 font-bold uppercase tracking-tight">วันที่กำหนดงาน</div>
-                                                <div class="text-sm font-semibold text-slate-700">${eventDate}</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            `,
-                            showCancelButton: false,
-                            confirmButtonText: confirmBtnText,
-                            reverseButtons: true,
-                            buttonsStyling: false,
-                            customClass: {
-                                confirmButton: confirmBtnClass,
-                                cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-2.5 rounded-lg font-semibold text-sm mx-2 transition-all',
-                                popup: 'rounded-3xl border-none shadow-2xl',
-                                title: 'pt-8'
-                            },
-                            showClass: { popup: 'animate__animated animate__fadeInUp animate__faster' },
-                            hideClass: { popup: 'animate__animated animate__fadeOutDown animate__faster' }
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-								let url = '';
-							
-								if (props.status == 1 || props.status == '1') {
-									url = 'pm_worksheet.php?plan_id=' + encodeURIComponent(realId) + '&mode=history';
-								} else {
-									url = 'pm_worksheet.php?plan_id=' + encodeURIComponent(realId);
-								}
-							
-								openPmFullWindow(url);
-							}
-                        });
+                        openPmEventDetail(eventId.replace('pm_', ''), props, info.event.start);
                     }
 
                     // ==========================================
