@@ -1,4 +1,4 @@
-﻿<?php 
+<?php 
 ob_start();
 ini_set('memory_limit', '8M');
 ini_set('max_execution_time', 300);

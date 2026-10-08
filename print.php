@@ -1,4 +1,4 @@
-﻿<?php 
+<?php 
 define("SB_M1","data_13"); 
 @session_start();
 include "config_ctrl/connect.php";

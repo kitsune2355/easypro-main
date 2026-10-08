@@ -1,4 +1,4 @@
-﻿<table style="width:100%;" border="0" cellspacing="0" cellpadding="0" class="text13normal" align="center">
+<table style="width:100%;" border="0" cellspacing="0" cellpadding="0" class="text13normal" align="center">
   <tr style="background-color: #000000; color:#FFFFFF; padding:25px; font-weight:bold; height:35px; font-size:16px;">
 	<td align="center" >
 	<?php 

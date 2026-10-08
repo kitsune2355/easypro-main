@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 if (!headers_sent()) { header('Content-Type: text/html; charset=UTF-8'); } 
 @session_start();
 include "config_ctrl/checksession.php"; 

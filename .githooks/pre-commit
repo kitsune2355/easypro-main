@@ -1,0 +1,26 @@
+#!/bin/sh
+# ไม่ให้ commit ไฟล์ที่มี BOM (EF BB BF)
+# BOM ในไฟล์ .php จะถูกส่งออกเป็น &#xFEFF; ก่อน <?php => header() ใช้ไม่ได้ / JSON พัง / มีช่องว่างแปลกๆ ด้านบนหน้า
+# เปิดใช้ครั้งเดียวต่อเครื่อง:  git config core.hooksPath .githooks
+
+bom=$(printf '\357\273\277')
+
+bad=$(git diff --cached --name-only --diff-filter=ACMR -- '*.php' '*.js' '*.css' '*.html' |
+    while IFS= read -r f; do
+        case "$f" in
+            PHPMailer*|plugins/*|docs/*) continue ;;   # ไลบรารีภายนอก
+        esac
+        if git show ":$f" | grep -q "$bom"; then
+            echo "  $f"
+        fi
+    done)
+
+if [ -n "$bad" ]; then
+    echo "commit ไม่ผ่าน: ไฟล์ต่อไปนี้มี BOM (จะแสดงเป็น &#xFEFF; บนหน้าเว็บ)"
+    echo "$bad"
+    echo ""
+    echo "วิธีแก้: บันทึกไฟล์ใหม่เป็น \"UTF-8\" (ไม่ใช่ \"UTF-8 with BOM\")"
+    echo "  VS Code: คลิก \"UTF-8 with BOM\" ที่แถบล่าง > Save with Encoding > UTF-8 แล้ว git add อีกครั้ง"
+    exit 1
+fi
+exit 0

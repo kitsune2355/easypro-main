@@ -1,4 +1,4 @@
-﻿<?php if($data==true){  ?>
+<?php if($data==true){  ?>
 	<div class="col-md-12">
 		<div class="alert alert-success" id="success-alert">
 			<button type="button" class="close" data-dismiss="alert">x</button>

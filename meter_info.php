@@ -1,4 +1,4 @@
-﻿<?php 
+<?php 
 @session_start();
 include "config_ctrl/checksession.php"; 
 ?>
@@ -149,7 +149,7 @@ include "config_ctrl/checksession.php";
             </div>
         </aside>
 
-        <main class="flex-1 flex flex-col overflow-hidden p-4 space-y-4">
+        <main class="flex-1 min-w-0 flex flex-col overflow-y-auto lg:overflow-hidden p-4 space-y-4">
             
             <div class="space-y-4 shrink-0">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
@@ -172,7 +172,7 @@ include "config_ctrl/checksession.php";
                                     <i data-lucide="map-pin" class="w-3.5 h-3.5 text-primary shrink-0"></i>
                                     <span id="current-meter-location">--</span>
                                 </div>
-                                <div class="flex items-center gap-1 text-slate-500 text-xs mt-0.5 truncate">
+                                <div class="flex flex-wrap items-center gap-x-1 text-slate-500 text-xs mt-0.5">
                                     <span>ค่าที่ยอมรับได้ </span><span id="meter-limit-percent" class="text-sky-700 font-medium">0.0</span><span>%</span>
                                     <p>ค่าสูงสุดหน้าปัด</p><span id="current-meter-max" class="text-sky-700 font-medium">0.0</span><span>หน่วย</span>
                                 </div>
@@ -243,13 +243,13 @@ include "config_ctrl/checksession.php";
                 </div>
             </div>
 
-            <div class="flex-1 overflow-hidden min-h-[300px]">
+            <div class="flex-1 overflow-hidden min-h-[420px] lg:min-h-[300px]">
                 <div class="bg-white h-full w-full rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
                     <div id="myGrid" class="ag-theme-alpine flex-1 w-full"></div>
                 </div>
             </div>
 
-            <div class="mt-6 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="mt-6 shrink-0 lg:shrink bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <div class="p-3">
                     <div class="flex flex-wrap items-center justify-between gap-4">
                         <div class="flex flex-wrap items-center gap-4">

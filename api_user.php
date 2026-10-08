@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 @session_start();
 header('Content-Type: application/json; charset=utf-8');
 ini_set('display_errors', 0);

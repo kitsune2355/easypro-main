@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 error_reporting(E_ALL ^ E_NOTICE);
 
 // 1. รับค่า Username ของหน่วยงานจาก URL เช่น login_qr.php?u=user_bam_1

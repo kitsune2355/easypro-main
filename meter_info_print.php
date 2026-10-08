@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 include 'config_ctrl/connect.php';
 
 // รับค่าจาก URL

@@ -1,4 +1,4 @@
-﻿ 
+ 
  <?php 
 define("SB_M1","data_1");
 define("SB_M2","data_2_1");

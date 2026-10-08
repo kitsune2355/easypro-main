@@ -1,4 +1,4 @@
-﻿<link rel="stylesheet" href="fonts/thsarabunnew.css" />
+<link rel="stylesheet" href="fonts/thsarabunnew.css" />
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.5.2/jquery.min.js"></script>
 <script type="text/javascript" src="src/jquery.qrcode.js"></script>
 <script type="text/javascript" src="src/qrcode.js"></script>

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 	include "checksession.php";
 	if($sess_user_level!="admin"){ 
 	?>

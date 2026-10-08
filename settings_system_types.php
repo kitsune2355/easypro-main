@@ -1,4 +1,4 @@
-﻿<?php 
+<?php 
 @session_start();
 // ตรวจสอบ Session ตามเดิม
 include "config_ctrl/checksession.php"; 

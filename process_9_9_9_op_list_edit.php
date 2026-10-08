@@ -1,4 +1,4 @@
-﻿ <?php 
+ <?php 
 define("SB_M1","process_m_10");
 define("SB_M2","process_10");
 include("config_ctrl/connect.php"); 

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 	include "checksession.php";
 	$user_id = $_GET['user_id'];
 	if($sess_user_id=="") {

@@ -1,4 +1,4 @@
-﻿<style>
+<style>
 @media print {
   @page {
     margin:5mm 5mm 10mm 10mm;

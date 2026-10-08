@@ -1,0 +1,7 @@
+# https://editorconfig.org
+# ไฟล์ข้อความทุกไฟล์เป็น UTF-8 แบบ "ไม่มี BOM"
+# BOM ในไฟล์ .php จะถูกส่งออกเป็น &#xFEFF; ก่อน <?php => header() ใช้ไม่ได้ / JSON พัง / มีช่องว่างแปลกๆ ด้านบนหน้า
+root = true
+
+[*]
+charset = utf-8

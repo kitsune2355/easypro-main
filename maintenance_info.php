@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 @session_start();
 include "config_ctrl/checksession.php";
 $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้ว JS พัง

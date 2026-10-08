@@ -1,4 +1,4 @@
-﻿<?php 
+<?php 
 
 function fn_number_format($value,$decimal,$nullOption) {
 	if(($value*1)!=0) {

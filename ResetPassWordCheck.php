@@ -1,4 +1,4 @@
-﻿<?php 
+<?php 
 include "config_ctrl/connect.php";
 ?>
     <link rel="stylesheet" href="fonts/thsarabunnew.css" />

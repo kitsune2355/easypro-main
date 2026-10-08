@@ -1,4 +1,4 @@
-﻿<?php 
+<?php 
 define("SB_M1","data_7");
 include "head.php"; 
 

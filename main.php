@@ -1,4 +1,4 @@
-﻿<?php 
+<?php 
 
 @session_start();
 
@@ -97,22 +97,24 @@ $rolePerms = array();
         .sidebar-expanded { width: 240px; }
         .sidebar-collapsed { width: 70px; }
 
+        /* มือถือ/แท็บเล็ต: 100vh ของ Safari รวมแถบเครื่องมือด้วย ทำให้ส่วนล่างโดนบัง
+           จึงใช้ 100dvh (ความสูงที่มองเห็นจริง) ให้กรอบหลักพอดีจอ แล้วให้ iframe กินพื้นที่ที่เหลือทั้งหมด
+           หน้าในเลื่อนอยู่ภายใน iframe ชั้นเดียว (ไม่มีการเลื่อนซ้อนกับหน้าหลัก) */
         @media (max-width: 1024px) {
             body {
-                height: auto !important;
-                min-height: 100vh;
-                overflow-y: auto !important;
+                min-height: 0 !important;
+                height: 100vh;
+                height: 100dvh;
             }
 
-            main {
-                height: auto !important;
-                min-height: 100vh;
-                overflow: visible !important;
+            main,
+            #sidebar {
+                height: 100vh !important;
+                height: 100dvh !important;
             }
 
             .flex-1.px-3.pb-3 {
-                height: 80vh !important; 
-                flex: none !important;
+                min-height: 0;
             }
         }
 

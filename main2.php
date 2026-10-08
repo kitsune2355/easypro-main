@@ -1,4 +1,4 @@
-﻿<?php 
+<?php 
 @session_start();
 include "config_ctrl/connect.php";
 include "config_ctrl/checksession.php";

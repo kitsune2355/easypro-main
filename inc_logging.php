@@ -1,4 +1,4 @@
-﻿<?
+<?
 $SQLLog = $sql;
 if($SQLLog=="") $SQLLog = $sql_sb;
 if($SQLLog=="") $SQLLog = $sql_ms;

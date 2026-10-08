@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 @session_start();
 include __DIR__ . "/config_ctrl/connect.php";
 

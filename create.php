@@ -1,4 +1,4 @@
-﻿<script src="ajax/ajax_framework.js"> </script>
+<script src="ajax/ajax_framework.js"> </script>
   <link rel="stylesheet" href="plugins/icheck-bootstrap/icheck-bootstrap.min.css">
 <?php  
 define("SB_M1","datauser_1");

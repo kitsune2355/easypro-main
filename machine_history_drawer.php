@@ -1,4 +1,4 @@
-﻿<div id="history-drawer-overlay" onclick="closeHistoryDrawer()" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] hidden opacity-0 transition-opacity duration-300"></div>
+<div id="history-drawer-overlay" onclick="closeHistoryDrawer()" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] hidden opacity-0 transition-opacity duration-300"></div>
 
 <div id="history-drawer-panel" class="fixed top-0 right-0 h-full w-full md:w-[600px] bg-slate-50/95 backdrop-blur-xl z-[70] shadow-2xl transform translate-x-full transition-transform duration-300 flex flex-col">
     

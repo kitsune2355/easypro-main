@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 	include "config_ctrl/connect.php"; 
 	$SelectValue = $_GET["SelectValue"];
 	echo "- เลือกชั้น -@@@ ###"; 

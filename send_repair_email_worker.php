@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 date_default_timezone_set('Asia/Bangkok');
 ignore_user_abort(true);
