@@ -48,12 +48,89 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
         }
         .custom-file-upload:hover { border-color: #006b9f; background: #eff6ff; }
 
-        /* รายการจุดตรวจสอบ: สถานะของแต่ละข้อ (แถบสีด้านซ้าย) */
-        .ws-item { border-left-width: 4px; border-left-color: #cbd5e1; }
-        .ws-item[data-state="Pass"] { border-left-color: #16a34a; }
-        .ws-item[data-state="Fail"] { border-left-color: #dc2626; }
-        .ws-item[data-state="N/A"]  { border-left-color: #64748b; }
-        .ws-choice { min-height: 52px; }
+        /* ===== ใบงาน PM: แถบขั้นตอน (stepper) ===== */
+        .ws-step-btn { width: 100%; height: 100%; display: flex; align-items: center; gap: .625rem; padding: .5rem .75rem; border-radius: .75rem; border: 1px solid #e2e8f0; background: #fff; color: #475569; text-align: left; transition: all .15s; }
+        .ws-step-btn:hover { border-color: #94a3b8; }
+        .ws-step-num { flex-shrink: 0; width: 1.75rem; height: 1.75rem; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; font-size: .8125rem; font-weight: 700; background: #f1f5f9; color: #64748b; }
+        .ws-step-title { display: block; font-size: .875rem; font-weight: 600; line-height: 1.25; }
+        .ws-step-sub { display: block; font-size: .6875rem; color: #94a3b8; line-height: 1.3; margin-top: .125rem; }
+        .ws-step-btn.is-active { background: #006b9f; border-color: #006b9f; color: #fff; box-shadow: 0 4px 10px rgba(0, 107, 159, .2); }
+        .ws-step-btn.is-active .ws-step-num { background: rgba(255, 255, 255, .2); color: #fff; }
+        .ws-step-btn.is-active .ws-step-sub { color: rgba(255, 255, 255, .8); }
+        .ws-step-btn.is-done:not(.is-active) .ws-step-num { background: #dcfce7; color: #15803d; }
+        @media (max-width: 639.98px) {
+            .ws-step-btn { flex-direction: column; gap: .25rem; padding: .5rem .25rem; text-align: center; }
+            .ws-step-title { font-size: .75rem; }
+            .ws-step-sub { display: none; }
+        }
+
+        /* ===== รายการจุดตรวจสอบ: ตาราง (md ขึ้นไป) / การ์ด (มือถือ) + แผงรายละเอียดของข้อที่เลือก ===== */
+        .ws-sheet-wrap { overflow-x: auto; }
+        .ws-sheet { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .875rem; }
+        .ws-sheet th, .ws-sheet td { background: #fff; border-bottom: 1px solid #e2e8f0; padding: .625rem .75rem; vertical-align: top; text-align: left; }
+        .ws-sheet th + th, .ws-sheet td + td { border-left: 1px solid #f1f5f9; }
+        .ws-sheet thead th { background: #f8fafc; color: #64748b; font-size: .75rem; font-weight: 600; white-space: nowrap; }
+        .ws-sheet .ws-col-no { width: 3rem; text-align: center; color: #64748b; font-weight: 600; box-shadow: inset 4px 0 0 #cbd5e1; }
+        .ws-sheet .ws-col-point { min-width: 12rem; }
+        .ws-sheet .ws-col-status { width: 15rem; min-width: 13rem; }
+        .ws-sheet .ws-col-value { width: 11rem; min-width: 9rem; }
+        .ws-sheet .ws-col-photo { width: 7rem; min-width: 6.5rem; }
+        .ws-sheet tbody tr.ws-item { cursor: pointer; }
+        @media (hover: hover) and (min-width: 768px) {
+            .ws-sheet tbody tr.ws-item:hover td { background: #f8fafc; }
+        }
+        .ws-sheet td:focus-within { outline: 2px solid #006b9f; outline-offset: -2px; }
+        /* สถานะของแต่ละข้อ: แถบสีที่คอลัมน์ลำดับ + พื้นแดงเมื่อผิดปกติ, แถวที่เลือกเป็นพื้นฟ้า */
+        .ws-item[data-state="Pass"] .ws-col-no { box-shadow: inset 4px 0 0 #16a34a; color: #15803d; }
+        .ws-item[data-state="Fail"] .ws-col-no { box-shadow: inset 4px 0 0 #dc2626; color: #b91c1c; }
+        .ws-item[data-state="N/A"]  .ws-col-no { box-shadow: inset 4px 0 0 #64748b; }
+        .ws-sheet tbody tr.ws-item[data-state="Fail"] td { background: #fef2f2; }
+        .ws-sheet tbody tr.ws-item.is-selected td { background: #eff6ff; }
+        .ws-sheet tbody tr.ws-item.is-selected[data-state="Fail"] td { background: #fee2e2; }
+        .ws-choice { min-height: 2.25rem; }
+        .ws-photo { min-height: 3.75rem; padding: .25rem; }
+        .ws-hide { display: none !important; }
+        .ws-mobile-no, .ws-chip { display: none !important; }
+        .ws-more-btn { display: none; }
+
+        /* แผงรายละเอียด: จอ lg ขึ้นไปอยู่ด้านขวาของตาราง, จอเล็กกว่าเป็นแผ่นเลื่อนขึ้นจากด้านล่าง */
+        @media (min-width: 1024px) {
+            .ws-body { display: grid; grid-template-columns: minmax(0, 1fr) 21rem; }
+            .ws-detail { position: sticky; top: var(--ws-detail-top, 9rem); align-self: start; max-height: calc(100vh - var(--ws-detail-top, 9rem) - 5.5rem); overflow-y: auto; border-left: 1px solid #e2e8f0; background: #fff; border-radius: 0 0 .75rem 0; }
+            .ws-detail-head, .ws-backdrop { display: none !important; }
+        }
+        @media (max-width: 1023.98px) {
+            .ws-detail { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: 82vh; overflow-y: auto; background: #fff; border-radius: 1rem 1rem 0 0; box-shadow: 0 -10px 30px rgba(15, 23, 42, .18); transform: translateY(105%); visibility: hidden; transition: transform .25s ease, visibility .25s; }
+            .ws-detail.is-open { transform: translateY(0); visibility: visible; }
+            .ws-backdrop { position: fixed; inset: 0; z-index: 55; background: rgba(15, 23, 42, .45); opacity: 0; pointer-events: none; transition: opacity .2s; }
+            .ws-backdrop.is-open { opacity: 1; pointer-events: auto; }
+            .ws-more-btn { display: inline-flex; align-items: center; gap: .375rem; margin-top: .5rem; font-size: .75rem; font-weight: 500; color: #006b9f; }
+        }
+        @media (min-width: 768px) and (max-width: 1023.98px) {
+            .ws-detail { left: 50%; right: auto; width: 36rem; max-width: 100%; transform: translate(-50%, 105%); }
+            .ws-detail.is-open { transform: translate(-50%, 0); }
+        }
+
+        /* มือถือ: แต่ละข้อเป็นการ์ด */
+        @media (max-width: 767.98px) {
+            .ws-sheet-wrap { overflow: visible; padding: .75rem; background: #f8fafc; border-radius: 0 0 .75rem .75rem; }
+            .ws-sheet, .ws-sheet tbody { display: block; }
+            .ws-sheet thead, .ws-sheet tr.ws-item > td.ws-col-no, .ws-sheet tr.ws-item > td.ws-empty { display: none; }
+            .ws-sheet tbody tr.ws-item { display: flex; flex-direction: column; margin-bottom: .75rem; border: 1px solid #e2e8f0; border-left: 4px solid #cbd5e1; border-radius: .75rem; overflow: hidden; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .05); cursor: default; }
+            .ws-sheet tbody tr.ws-item[data-state="Pass"] { border-left-color: #16a34a; }
+            .ws-sheet tbody tr.ws-item[data-state="Fail"] { border-left-color: #dc2626; }
+            .ws-sheet tbody tr.ws-item[data-state="N/A"]  { border-left-color: #64748b; }
+            .ws-sheet tr.ws-item > td { display: block; width: auto; min-width: 0; border: 0; border-top: 1px solid #f1f5f9; padding: .625rem .875rem; box-shadow: none; }
+            .ws-sheet tbody tr.ws-item.is-selected > td { background: #fff; }
+            .ws-sheet tbody tr.ws-item[data-state="Fail"] > td { background: #fef2f2; }
+            .ws-sheet tr.ws-item > td.ws-col-point { border-top: 0; background: #f8fafc; }
+            .ws-sheet td[data-label]::before { content: attr(data-label); display: block; font-size: .6875rem; font-weight: 600; color: #64748b; margin-bottom: .375rem; }
+            .ws-sheet td:focus-within { outline: none; }
+            .ws-mobile-no { display: inline-flex !important; align-items: center; justify-content: center; flex-shrink: 0; width: 1.75rem; height: 1.75rem; border-radius: 9999px; background: rgba(0, 107, 159, .1); color: #006b9f; font-weight: 700; font-size: .8125rem; }
+            .ws-chip { display: inline-flex !important; }
+            .ws-choice { min-height: 2.75rem; }
+            .ws-photo { min-height: 4.5rem; }
+        }
 
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
@@ -133,33 +210,35 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		}
     </style>
 </head>
-<body class="text-slate-700 pb-20">
+<body class="text-slate-700 pb-28">
 
     <nav class="bg-primary text-white shadow-md sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-            <h1 class="text-xl font-semibold flex items-center gap-2 truncate">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex justify-between items-center gap-3">
+            <h1 class="text-base sm:text-xl font-semibold flex items-center gap-2 min-w-0">
                 <i class="fa-solid fa-clipboard-check flex-shrink-0"></i> 
                 <span class="truncate">บันทึกผลการบำรุงรักษา (PM Worksheet)</span>
             </h1>
-			<button type="button"
-					onclick="openPmEventMatrixReport()"
-					class="bg-white text-primary px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-100 transition flex items-center gap-2">
-				<i class="fa-solid fa-table-cells-large"></i>
-				<span>รายงาน PM ตามรอบงาน</span>
-			</button>
-			<button type="button"
-					onclick="openPmMonthlyReport()"
-					class="bg-white text-primary px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-100 transition flex items-center gap-2">
-				<i class="fa-solid fa-table"></i>
-				<span>รายงาน PM รายเดือน</span>
-			</button>
+			<div class="flex flex-shrink-0 gap-2">
+				<button type="button"
+						onclick="openPmEventMatrixReport()" title="รายงาน PM ตามรอบงาน"
+						class="bg-white text-primary px-3 md:px-4 py-2 rounded-lg flex-shrink-0 text-sm font-semibold hover:bg-slate-100 transition flex items-center gap-2">
+					<i class="fa-solid fa-table-cells-large"></i>
+					<span class="hidden md:inline">รายงาน PM ตามรอบงาน</span>
+				</button>
+				<button type="button"
+						onclick="openPmMonthlyReport()" title="รายงาน PM รายเดือน"
+						class="bg-white text-primary px-3 md:px-4 py-2 rounded-lg flex-shrink-0 text-sm font-semibold hover:bg-slate-100 transition flex items-center gap-2">
+					<i class="fa-solid fa-table"></i>
+					<span class="hidden md:inline">รายงาน PM รายเดือน</span>
+				</button>
+			</div>
 			
 		<?php if (!empty($mode)): ?>
 		<button type="button"
-				onclick="openPmPrintPage()"
-				class="bg-white text-primary px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-100 transition flex items-center gap-2">
+				onclick="openPmPrintPage()" title="พิมพ์ใบงาน PM"
+				class="bg-white text-primary px-3 md:px-4 py-2 rounded-lg flex-shrink-0 text-sm font-semibold hover:bg-slate-100 transition flex items-center gap-2">
 			<i class="fa-solid fa-print"></i>
-			<span>พิมพ์ใบงาน PM</span>
+			<span class="hidden md:inline">พิมพ์ใบงาน PM</span>
 		</button>
         <?php endif; ?>
         </div>
@@ -170,6 +249,29 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
         <form id="pmForm" onSubmit="event.preventDefault();">
             <input type="hidden" id="plan_id" name="plan_id" value="<?php echo htmlspecialchars($plan_id); ?>">
 
+            <!-- ===== หัวงาน ===== -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 flex items-center gap-3">
+                <span class="hidden sm:flex flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 text-primary items-center justify-center"><i class="fa-solid fa-gears"></i></span>
+                <div class="min-w-0">
+                    <div id="ws-job-machine" class="font-semibold text-slate-800 truncate">-</div>
+                    <div class="text-xs text-slate-500 truncate">เลขที่เอกสาร <span id="ws-job-doc">-</span> · กำหนดการ <span id="ws-job-date">-</span></div>
+                </div>
+            </div>
+
+            <!-- ===== แถบขั้นตอน (ติดด้านบนใต้ nav) ===== -->
+            <div id="ws-stepper" class="sticky z-30 py-3 mb-3 bg-slate-100">
+                <nav aria-label="ขั้นตอนการบันทึก">
+                    <ol class="grid grid-cols-4 gap-1.5 sm:gap-2">
+                        <li><button type="button" class="ws-step-btn" data-ws-step-go="1"><span class="ws-step-num">1</span><span class="min-w-0"><span class="ws-step-title">ข้อมูลงาน</span><span class="ws-step-sub">เครื่องจักร · ไฟล์แนบ</span></span></button></li>
+                        <li><button type="button" class="ws-step-btn" data-ws-step-go="2"><span class="ws-step-num">2</span><span class="min-w-0"><span class="ws-step-title">ตรวจสอบ</span><span class="ws-step-sub" id="ws-step-sub-2">จุดตรวจสอบ</span></span></button></li>
+                        <li><button type="button" class="ws-step-btn" data-ws-step-go="3"><span class="ws-step-num">3</span><span class="min-w-0"><span class="ws-step-title">อะไหล่</span><span class="ws-step-sub">อะไหล่/วัสดุที่ใช้</span></span></button></li>
+                        <li><button type="button" class="ws-step-btn" data-ws-step-go="4"><span class="ws-step-num">4</span><span class="min-w-0"><span class="ws-step-title">สรุป &amp; ลงชื่อ</span><span class="ws-step-sub">ผู้ตรวจสอบ · ลายเซ็น</span></span></button></li>
+                    </ol>
+                </nav>
+            </div>
+
+            <!-- ===== ขั้นที่ 1: ข้อมูลงาน ===== -->
+            <section class="ws-step" data-ws-step="1">
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
                 <div class="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center gap-2.5">
                     <i class="fa-solid fa-circle-info text-primary text-lg"></i>
@@ -187,7 +289,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     <div><label class="block text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">วันที่ดำเนินการจริง</label><div id="info-actual-date" class="font-semibold text-green-700 flex items-center gap-1.5"><i class="fa-solid fa-calendar-check"></i><span><?php echo date('Y-m-d'); ?></span></div></div>
                 </div>
             </div>
-			
+
 			<div id="checksheet-files-section" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6 hidden">
 				<div class="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center gap-2.5">
 					<i class="fa-solid fa-paperclip text-primary text-lg"></i>
@@ -208,7 +310,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 					</div>
 				</div>
 			</div>
-			
+
             <div id="spares-container" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6 hidden">
                 <div class="bg-amber-50 border-b border-amber-200 px-6 py-4 flex items-center gap-2.5">
                     <i class="fa-solid fa-screwdriver-wrench text-amber-700 text-lg"></i>
@@ -227,7 +329,22 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     </table>
                 </div>
             </div>
+            </section>
 
+            <!-- ===== ขั้นที่ 2: ตรวจสอบ ===== -->
+            <section class="ws-step hidden" data-ws-step="2">
+            <!-- ไม่ใช้ overflow-hidden เพื่อให้แถบความคืบหน้า (sticky) ติดด้านบนขณะเลื่อน -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
+                <div class="bg-slate-50 border-b border-slate-200 px-4 sm:px-6 py-4 flex items-center gap-2.5 rounded-t-xl">
+                    <i class="fa-solid fa-list-check text-primary text-lg"></i>
+                    <h2 class="text-base sm:text-lg font-semibold text-slate-800">รายการจุดตรวจสอบ <span class="text-xs sm:text-sm font-normal text-slate-500 ml-1 sm:ml-2"><span class="hidden lg:inline">(คลิกแถวเพื่อดูมาตรฐานและวิธีตรวจด้านขวา)</span></span></h2>
+                </div>
+                <div id="items-list" class="rounded-b-xl"></div>
+            </div>
+            </section>
+
+            <!-- ===== ขั้นที่ 3: อะไหล่/วัสดุที่ใช้จริง ===== -->
+            <section class="ws-step hidden" data-ws-step="3">
             <!-- *** รายการอะไหล่ที่ใช้จริง (Actual Spares Used) *** -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
                 <div class="bg-emerald-50 border-b border-emerald-200 px-6 py-4 flex items-center justify-between">
@@ -240,16 +357,11 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     <?php include "stock_function.php"; ?>
                 </div>
             </div>
+            </section>
 
-            <!-- ไม่ใช้ overflow-hidden เพื่อให้แถบความคืบหน้า (sticky) ติดด้านบนขณะเลื่อน -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
-                <div class="bg-slate-50 border-b border-slate-200 px-4 sm:px-6 py-4 flex items-center gap-2.5 rounded-t-xl">
-                    <i class="fa-solid fa-list-check text-primary text-lg"></i>
-                    <h2 class="text-base sm:text-lg font-semibold text-slate-800">รายการจุดตรวจสอบ <span class="text-xs sm:text-sm font-normal text-slate-500 ml-1 sm:ml-2">(แตะหัวข้อเพื่อกาง/ยุบ)</span></h2>
-                </div>
-                <div id="items-list" class="p-4 sm:p-6 bg-slate-50/50 rounded-b-xl"></div>
-            </div>
-
+            <!-- ===== ขั้นที่ 4: สรุป & ลงชื่อ ===== -->
+            <section class="ws-step hidden" data-ws-step="4">
+                <div id="ws-summary" class="bg-white rounded-xl shadow-sm border border-slate-200 mb-6"></div>
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
                 <h3 class="text-base font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100"><i class="fa-solid fa-user-gear text-primary mr-2"></i>ส่วนของผู้ปฏิบัติงาน / ผู้ตรวจสอบ</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -387,20 +499,35 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     </div>
                 </div>
             </div>
-            
-            <div class="mt-8 flex flex-col sm:flex-row justify-end gap-3 border-t border-slate-100 pt-6">
-                <button type="button" onClick="window.close()" class="w-full sm:w-auto px-6 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-200 font-medium transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-xmark"></i>
-                    <span>ยกเลิก</span>
-                </button>
-                <button type="button" id="btn_save_work" onClick="saveWorkRecord()" class="w-full sm:w-auto px-8 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-semibold shadow transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-floppy-disk"></i>
-                    <span>บันทึกผลการปฏิบัติงาน</span>
-                </button>
-                <button type="button" id="btn_save_eval" onClick="saveEvaluation()" class="hidden w-full sm:w-auto px-8 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-star"></i>
-                    <span>บันทึกการประเมิน</span>
-                </button>
+            </section>
+
+            <!-- ===== แถบปุ่มด้านล่าง (ติดขอบล่างจอ) ===== -->
+            <div id="ws-actionbar" class="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-2 sm:gap-3">
+                    <button type="button" onClick="window.close()" class="hidden sm:inline-flex px-4 py-2.5 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg font-medium transition items-center gap-2">
+                        <i class="fa-solid fa-xmark"></i>
+                        <span>ยกเลิก</span>
+                    </button>
+                    <span id="ws-bar-status" class="hidden md:inline text-sm text-slate-500 mr-auto">ขั้นตอน 1 / 4</span>
+                    <button type="button" id="ws-prev" class="ml-auto md:ml-0 px-4 sm:px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition flex items-center gap-2">
+                        <i class="fa-solid fa-chevron-left"></i>
+                        <span>ย้อนกลับ</span>
+                    </button>
+                    <button type="button" id="ws-next" class="px-5 sm:px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-semibold shadow transition flex items-center gap-2">
+                        <span>ถัดไป</span>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <div id="ws-save-actions" class="hidden flex gap-2">
+                        <button type="button" id="btn_save_work" onClick="saveWorkRecord()" class="px-5 sm:px-8 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-semibold shadow transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-floppy-disk"></i>
+                            <span>บันทึกผลการปฏิบัติงาน</span>
+                        </button>
+                        <button type="button" id="btn_save_eval" onClick="saveEvaluation()" class="hidden px-5 sm:px-8 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-star"></i>
+                            <span>บันทึกการประเมิน</span>
+                        </button>
+                    </div>
+                </div>
             </div>
 
         </form>
@@ -762,6 +889,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 					setTimeout(() => { loadingIndicator.style.display = 'none'; }, 300);
 		
 					document.getElementById('app-container').style.display = 'block';
+					wsInitSteps();
 					window.dispatchEvent(new Event('resize'));
 		
 				} else {
@@ -881,210 +1009,472 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             tbody.innerHTML = html;
         }
 
-        // ---------- รายการจุดตรวจสอบ (โหมดบันทึก) ----------
+        // ---------- ขั้นตอนของใบงาน (stepper) ----------
+        // หน้าแบ่งเป็น 4 ขั้น (section.ws-step[data-ws-step]) แสดงทีละขั้น ไปขั้นไหนก็ได้ ตรวจความครบตอนกดบันทึก
+        let wsStep = 1;
+        const WS_STEP_COUNT = 4;
+
+        function wsInitSteps() {
+            const txt = id => (document.getElementById(id)?.textContent || '').trim() || '-';
+            document.getElementById('ws-job-machine').textContent = txt('info-machine-name');
+            document.getElementById('ws-job-doc').textContent = txt('info-doc-no');
+            document.getElementById('ws-job-date').textContent = txt('info-plan-date');
+            document.querySelectorAll('[data-ws-step-go]').forEach(b => { b.onclick = () => wsGoStep(+b.dataset.wsStepGo); });
+            document.getElementById('ws-prev').onclick = () => wsGoStep(wsStep - 1);
+            document.getElementById('ws-next').onclick = () => wsGoStep(wsStep + 1);
+            window.addEventListener('resize', wsLayoutSticky);
+            wsGoStep(1, false);
+        }
+
+        function wsGoStep(n, scroll = true) {
+            n = Math.min(Math.max(n, 1), WS_STEP_COUNT);
+            wsStep = n;
+            document.querySelectorAll('.ws-step').forEach(p => p.classList.toggle('hidden', +p.dataset.wsStep !== n));
+            document.querySelectorAll('[data-ws-step-go]').forEach(b => {
+                const on = +b.dataset.wsStepGo === n;
+                b.classList.toggle('is-active', on);
+                b.setAttribute('aria-current', on ? 'step' : 'false');
+            });
+            document.getElementById('ws-prev').classList.toggle('invisible', n === 1);
+            document.getElementById('ws-next').classList.toggle('hidden', n === WS_STEP_COUNT);
+            document.getElementById('ws-save-actions').classList.toggle('hidden', n !== WS_STEP_COUNT);
+            document.getElementById('ws-bar-status').textContent = `ขั้นตอน ${n} / ${WS_STEP_COUNT}`;
+            wsCloseDetail();
+            if (n === 4) {
+                wsRenderSummary();
+                wsFixSignatureCanvas();
+            }
+            wsLayoutSticky();
+            if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // เปิดขั้นที่มี element นี้อยู่ (ใช้ตอนพาไปยังช่องที่กรอกไม่ครบ)
+        function wsShowStepOf(el) {
+            const panel = el?.closest?.('.ws-step');
+            if (panel && +panel.dataset.wsStep !== wsStep) wsGoStep(+panel.dataset.wsStep, false);
+        }
+
+        // canvas ลายเซ็นถูกสร้างตอนขั้นที่ 4 ยังซ่อนอยู่ (กว้าง 0) จึงต้องปรับขนาดเมื่อแสดงครั้งแรก
+        function wsFixSignatureCanvas() {
+            const c = document.getElementById('inspector-signature-pad');
+            if (!c || !c.offsetWidth) return;
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            if (c.width !== Math.round(c.offsetWidth * ratio)) window.dispatchEvent(new Event('resize'));
+        }
+
+        // ตำแหน่งของส่วนที่ติดด้านบน: nav > แถบขั้นตอน > แถบเครื่องมือของตาราง > แผงรายละเอียด
+        function wsLayoutSticky() {
+            const navH = document.querySelector('nav.sticky')?.offsetHeight || 0;
+            const stepper = document.getElementById('ws-stepper');
+            if (!stepper) return;
+            stepper.style.top = navH + 'px';
+            const top2 = navH + stepper.offsetHeight;
+            const toolbar = document.getElementById('ws-toolbar');
+            if (toolbar) toolbar.style.top = top2 + 'px';
+            document.getElementById('ws-detail')?.style.setProperty('--ws-detail-top', (top2 + (toolbar?.offsetHeight || 0) + 12) + 'px');
+            document.documentElement.style.scrollPaddingTop = (top2 + (toolbar?.offsetHeight || 0) + 16) + 'px';
+        }
+
+        // ขั้นที่ 4: สรุปผลการตรวจ (กดรายการเพื่อกลับไปแก้ข้อนั้น)
+        function wsRenderSummary() {
+            const box = document.getElementById('ws-summary');
+            if (!box) return;
+            const rows = [...document.querySelectorAll('#items-list tr.ws-item')];
+            const pending = rows.filter(r => !r.dataset.state);
+            const fails = rows.filter(r => r.dataset.state === 'Fail');
+            const count = s => rows.filter(r => r.dataset.state === s).length;
+            const stat = (label, val, cls) => `
+                <div class="rounded-xl border p-3 ${cls}">
+                    <div class="text-xs font-medium opacity-80">${label}</div>
+                    <div class="text-2xl font-bold leading-tight mt-0.5">${val}</div>
+                </div>`;
+            const list = rs => rs.map(r => {
+                const d = wsDetail[r.dataset.itemId] || {};
+                return `<button type="button" onclick="wsJumpToItem('${r.dataset.itemId}')"
+                            class="w-full text-left flex items-start gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/80 transition">
+                            <span class="font-semibold">${d.no || ''}.</span><span class="flex-1">${d.title || '-'}</span>
+                            <i class="fa-solid fa-chevron-right text-[10px] mt-1.5 opacity-60"></i>
+                        </button>`;
+            }).join('');
+
+            box.innerHTML = `
+                <div class="bg-slate-50 border-b border-slate-200 px-5 py-4 flex items-center gap-2.5 rounded-t-xl">
+                    <i class="fa-solid fa-clipboard-list text-primary text-lg"></i>
+                    <h2 class="text-base sm:text-lg font-semibold text-slate-800">สรุปผลการตรวจ</h2>
+                </div>
+                <div class="p-4 sm:p-5 space-y-4">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        ${stat('ตรวจแล้ว', `${rows.length - pending.length}<span class="text-base font-medium opacity-70"> / ${rows.length}</span>`, 'bg-white border-slate-200 text-slate-700')}
+                        ${stat('ปกติ', count('Pass'), 'bg-green-50 border-green-200 text-green-700')}
+                        ${stat('ผิดปกติ', count('Fail'), 'bg-red-50 border-red-200 text-red-700')}
+                        ${stat('N/A', count('N/A'), 'bg-slate-50 border-slate-200 text-slate-600')}
+                    </div>
+                    ${pending.length ? `
+                        <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                            <div class="text-sm font-semibold mb-1"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>ยังไม่ได้ตรวจ ${pending.length} ข้อ</div>
+                            <div class="text-sm">${list(pending)}</div>
+                        </div>` : ''}
+                    ${fails.length ? `
+                        <div class="rounded-xl border border-red-200 bg-red-50 p-3 text-red-800">
+                            <div class="text-sm font-semibold mb-1"><i class="fa-solid fa-circle-xmark mr-1.5"></i>รายการที่ผิดปกติ ${fails.length} ข้อ</div>
+                            <div class="text-sm">${list(fails)}</div>
+                        </div>` : ''}
+                    ${rows.length && !pending.length && !fails.length ? `
+                        <div class="rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-medium text-green-800">
+                            <i class="fa-solid fa-circle-check mr-1.5"></i>ตรวจครบทุกข้อ ไม่พบความผิดปกติ
+                        </div>` : ''}
+                </div>`;
+        }
+
+        function wsJumpToItem(itemId) {
+            wsGoStep(2, false);
+            wsShowRow(itemId);
+            wsSelect(itemId, { scroll: true });
+        }
+
+        // ---------- รายการจุดตรวจสอบ : ตาราง + แผงรายละเอียด ----------
+        // ตารางมีเฉพาะคอลัมน์ที่ต้องกรอก ส่วนมาตรฐาน/วิธีตรวจ/ข้อปฏิบัติ แสดงในแผงรายละเอียดของข้อที่เลือก
         // หมายเหตุ: name/id ที่ validation และการบันทึกใช้ (status_, val_, item_id[], photo_*, req_star_, data-item-id,
-        // .mb-5 รอบตัวเลือกผล, .bg-blue-50/50 รอบส่วนบันทึกผล) ต้องคงไว้เหมือนเดิม
+        // .ws-status-box รอบตัวเลือกผล) ต้องคงไว้เหมือนเดิม
         const WS_STATE = {
             '':    { text: 'ยังไม่ตรวจ', cls: 'bg-slate-100 text-slate-500 border-slate-200', icon: 'fa-regular fa-circle' },
             'Pass':{ text: 'ปกติ',       cls: 'bg-green-100 text-green-700 border-green-200', icon: 'fa-solid fa-circle-check' },
             'Fail':{ text: 'ผิดปกติ',    cls: 'bg-red-100 text-red-700 border-red-200',       icon: 'fa-solid fa-circle-xmark' },
             'N/A': { text: 'N/A',        cls: 'bg-slate-200 text-slate-700 border-slate-300', icon: 'fa-solid fa-ban' }
         };
+        const WS_CHIP_CLS = 'ws-chip flex-shrink-0 items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border';
         let wsFilter = 'all';
+        let wsSearch = '';
+        let wsDetail = {};      // itemId -> ข้อมูลที่แสดงในแผงรายละเอียด
+        let wsSelected = null;
+
+        const wsAttr = s => String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+        // โครงตาราง + แผงรายละเอียด (ใช้ร่วมกันทั้งโหมดบันทึกและโหมดประวัติ)
+        function wsSheetHtml(bodyHtml, footHtml = '') {
+            return `
+                <div class="ws-body">
+                    <div class="ws-sheet-wrap min-w-0">
+                        <table class="ws-sheet">
+                            <thead>
+                                <tr>
+                                    <th class="ws-col-no">#</th>
+                                    <th class="ws-col-point">จุดตรวจสอบ</th>
+                                    <th class="ws-col-status">ผลการตรวจ</th>
+                                    <th class="ws-col-value">ค่าที่วัดได้จริง</th>
+                                    <th class="ws-col-photo">รูปภาพหลักฐาน</th>
+                                </tr>
+                            </thead>
+                            <tbody>${bodyHtml}</tbody>
+                        </table>
+                        ${footHtml}
+                    </div>
+                    <aside id="ws-detail" class="ws-detail" aria-label="รายละเอียดจุดตรวจสอบ">
+                        <div class="ws-detail-head sticky top-0 bg-white z-10 flex items-center justify-between px-4 pt-3 pb-2 border-b border-slate-100">
+                            <span class="text-sm font-semibold text-slate-700">รายละเอียดจุดตรวจสอบ</span>
+                            <button type="button" onclick="wsCloseDetail()" class="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-500" title="ปิด"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div id="ws-detail-body"></div>
+                    </aside>
+                </div>
+                <div id="ws-detail-backdrop" class="ws-backdrop" onclick="wsCloseDetail()"></div>`;
+        }
+
+        // คอลัมน์ลำดับ + จุดตรวจสอบ (บนมือถือคือหัวการ์ด)
+        function wsPointCells(index, item, badges, chipHtml) {
+            return `
+                <td class="ws-col-no">${index + 1}</td>
+                <td class="ws-col-point">
+                    <div class="flex items-start gap-2">
+                        <span class="ws-mobile-no">${index + 1}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-slate-800 leading-snug break-words">${item.check_point || '-'}</div>
+                            ${badges ? `<div class="flex flex-wrap gap-1 mt-1.5">${badges}</div>` : ''}
+                        </div>
+                        ${chipHtml}
+                    </div>
+                    <button type="button" class="ws-more-btn"><i class="fa-solid fa-book-open"></i><span>ดูมาตรฐาน / วิธีตรวจ</span></button>
+                </td>`;
+        }
+
+        const wsIllustration = url => url
+            ? `<a href="${url}" target="_blank" class="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-primary hover:bg-blue-100 rounded-md text-xs font-medium transition-colors border border-blue-100"><i class="fa-regular fa-image"></i> ดูรูปประกอบมาตรฐาน</a>`
+            : '';
+
+        // เก็บข้อมูลของข้อไว้แสดงในแผงรายละเอียด
+        function wsSetDetail(itemId, no, item, badges, illustrationUrl, action) {
+            wsDetail[itemId] = {
+                no, badges,
+                title: item.check_point || '-',
+                standard: item.standard_text,
+                illustration: wsIllustration(illustrationUrl),
+                expected: hasMeasurementConfig(item)
+                    ? `${item.measurement_name ? item.measurement_name + ' : ' : ''}<b class="text-primary">${item.expected_value}</b> ${item.unit || ''}` : '',
+                method: item.method_text,
+                action
+            };
+        }
+
+        function wsRenderDetail(itemId) {
+            const d = wsDetail[itemId];
+            const body = document.getElementById('ws-detail-body');
+            if (!d || !body) return;
+            const total = Object.keys(wsDetail).length;
+            const section = (icon, label, html, cls = 'bg-white border-slate-200', labelCls = 'text-slate-500') => `
+                <div class="rounded-xl border p-3.5 ${cls}">
+                    <div class="text-[11px] font-bold uppercase tracking-wider mb-1 ${labelCls}"><i class="${icon} mr-1"></i>${label}</div>
+                    <div class="leading-relaxed break-words">${html}</div>
+                </div>`;
+            body.innerHTML = `
+                <div class="px-4 pt-4 pb-3">
+                    <div class="text-xs text-slate-500 mb-1">ข้อ ${d.no} จาก ${total}</div>
+                    <div class="font-semibold text-slate-800 leading-snug">${d.title}</div>
+                    ${d.badges ? `<div class="flex flex-wrap gap-1 mt-2">${d.badges}</div>` : ''}
+                </div>
+                <div class="px-4 pb-4 space-y-3 text-sm text-slate-700">
+                    ${section('fa-solid fa-book-open', 'มาตรฐานการตรวจสอบ', (d.standard || '-') + d.illustration)}
+                    ${d.expected ? section('fa-solid fa-ruler', 'ค่ามาตรฐาน', d.expected, 'bg-blue-50/60 border-blue-100', 'text-primary') : ''}
+                    ${section('fa-solid fa-wrench', 'วิธีตรวจสอบ / เครื่องมือ', d.method || '-')}
+                    ${section('fa-solid fa-triangle-exclamation', 'เมื่อพบความผิดปกติ', d.action || '-', 'bg-red-50 border-red-100 text-red-700', 'text-red-600')}
+                </div>
+                <div class="sticky bottom-0 bg-white border-t border-slate-100 p-3 flex gap-2">
+                    <button type="button" onclick="wsSelectStep(-1)" ${d.no <= 1 ? 'disabled' : ''}
+                            class="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-chevron-left mr-1"></i>ข้อก่อนหน้า</button>
+                    <button type="button" onclick="wsSelectStep(1)" ${d.no >= total ? 'disabled' : ''}
+                            class="flex-1 px-3 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed">ข้อถัดไป<i class="fa-solid fa-chevron-right ml-1"></i></button>
+                </div>`;
+        }
+
+        function wsSelect(itemId, { open = false, scroll = false } = {}) {
+            wsSelected = String(itemId);
+            document.querySelectorAll('#items-list tr.ws-item').forEach(r => r.classList.toggle('is-selected', r.dataset.itemId === wsSelected));
+            wsRenderDetail(wsSelected);
+            if (open) wsOpenDetail();
+            if (scroll) document.querySelector(`#items-list tr.ws-item[data-item-id="${wsSelected}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // ข้อก่อนหน้า/ถัดไป (ข้ามแถวที่ถูกกรองออก)
+        function wsSelectStep(delta) {
+            const rows = [...document.querySelectorAll('#items-list tr.ws-item:not(.ws-hide)')];
+            const next = rows[rows.findIndex(r => r.dataset.itemId === wsSelected) + delta];
+            if (next) wsSelect(next.dataset.itemId, { scroll: true });
+        }
+
+        function wsOpenDetail() {
+            document.getElementById('ws-detail')?.classList.add('is-open');
+            document.getElementById('ws-detail-backdrop')?.classList.add('is-open');
+        }
+
+        function wsCloseDetail() {
+            document.getElementById('ws-detail')?.classList.remove('is-open');
+            document.getElementById('ws-detail-backdrop')?.classList.remove('is-open');
+        }
+
+        // คลิก/โฟกัสแถว = เลือกข้อนั้น, ปุ่ม "ดูมาตรฐาน" (จอเล็ก) = เปิดแผงรายละเอียด
+        function wsBindSheet(container) {
+            if (container.dataset.wsBound) return;
+            container.dataset.wsBound = '1';
+            container.addEventListener('click', e => {
+                const row = e.target.closest('tr.ws-item');
+                if (!row) return;
+                wsSelect(row.dataset.itemId, { open: !!e.target.closest('.ws-more-btn') });
+            });
+            container.addEventListener('focusin', e => {
+                const row = e.target.closest('tr.ws-item');
+                if (row && row.dataset.itemId !== wsSelected) wsSelect(row.dataset.itemId);
+            });
+            container.addEventListener('keydown', wsSheetKeys);
+        }
 
         function renderItems(items) {
             const container = document.getElementById('items-list');
+            wsDetail = {};
 
-            // ปุ่มเลือกผล: radio ซ่อน (peer) + ปุ่มใหญ่กดง่ายบนมือถือ เปลี่ยนสีชัดเจนเมื่อเลือก
+            // ปุ่มเลือกผล: radio ซ่อน (peer) + ปุ่มแบบ segmented เปลี่ยนสีชัดเจนเมื่อเลือก
             const choice = (item, photoReqId, value, label, icon, onCls) => `
-                <label class="flex-1 min-w-[30%] cursor-pointer">
+                <label class="flex-1 cursor-pointer">
                     <input type="radio" name="status_${item.id}" value="${value}" required
                            onchange="handleStatusChange(${item.id}, '${photoReqId}')" class="peer sr-only">
-                    <span class="ws-choice radio-label flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 text-sm font-medium transition
+                    <span class="ws-choice radio-label flex items-center justify-center gap-1.5 px-2 rounded-lg border-2 text-xs sm:text-sm font-medium transition whitespace-nowrap
                                  bg-white text-slate-600 border-slate-200 hover:border-slate-300 peer-focus-visible:ring-2 peer-focus-visible:ring-primary ${onCls}">
                         <i class="${icon}"></i> ${label}
                     </span>
                 </label>`;
 
-            let html = `
-                <div id="ws-toolbar" class="sticky top-0 z-20 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-4 px-4 sm:px-6 py-3 bg-white/95 backdrop-blur border-b border-slate-200">
-                    <div class="flex items-center justify-between gap-3 mb-2">
-                        <div class="text-sm text-slate-700">ตรวจแล้ว <b id="ws-done">0</b> / ${items.length} ข้อ
-                            <span id="ws-fail-wrap" class="hidden ml-2 text-red-600">· ผิดปกติ <b id="ws-fail">0</b></span></div>
-                        <button type="button" onclick="wsToggleAll()" id="ws-toggle-all"
-                                class="text-xs text-primary hover:underline whitespace-nowrap"><i class="fa-solid fa-up-down mr-1"></i>กางทั้งหมด</button>
-                    </div>
-                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden mb-2.5">
-                        <div id="ws-progress" class="h-full bg-primary rounded-full transition-all duration-300" style="width:0%"></div>
-                    </div>
-                    <div class="flex gap-2 overflow-x-auto">
-                        <button type="button" data-ws-filter="all"     class="ws-filter-btn px-3 py-1 rounded-full text-xs border whitespace-nowrap">ทั้งหมด</button>
-                        <button type="button" data-ws-filter="pending" class="ws-filter-btn px-3 py-1 rounded-full text-xs border whitespace-nowrap">ยังไม่ตรวจ</button>
-                        <button type="button" data-ws-filter="Fail"    class="ws-filter-btn px-3 py-1 rounded-full text-xs border whitespace-nowrap">ผิดปกติ</button>
-                    </div>
-                </div>`;
-
+            let rows = '';
             items.forEach((item, index) => {
                 // เงื่อนไข Photo Required (1 = บังคับ, 2 = ไม่บังคับ, 3 = บังคับเฉพาะเมื่อไม่ผ่าน)
                 const photoReqId = String(item.photo_required_id);
                 const isPhotoRequiredAlways = (photoReqId === '1');
 
                 let requirePhotoBadge = '';
-                let photoLabelText = 'แตะเพื่อถ่าย/เลือกรูป (ไม่บังคับ)';
                 if (photoReqId === '1') {
                     requirePhotoBadge = '<span class="text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-semibold border border-red-200 whitespace-nowrap"><i class="fa-solid fa-camera mr-1"></i>บังคับถ่ายรูป</span>';
-                    photoLabelText = 'แตะเพื่อถ่าย/เลือกรูป (บังคับ)';
                 } else if (photoReqId === '3') {
                     requirePhotoBadge = '<span class="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-semibold border border-amber-200 whitespace-nowrap"><i class="fa-solid fa-camera mr-1"></i>ถ่ายรูปเมื่อผิดปกติ</span>';
-                    photoLabelText = 'แตะเพื่อถ่าย/เลือกรูป (บังคับเมื่อผิดปกติ)';
                 }
-                const measureBadge = hasMeasurementConfig(item)
+                const needMeasure = hasMeasurementConfig(item);
+                const measureBadge = needMeasure
                     ? `<span class="text-[10px] bg-blue-50 text-primary px-2 py-0.5 rounded-full font-semibold border border-blue-200 whitespace-nowrap"><i class="fa-solid fa-ruler mr-1"></i>ต้องวัดค่า</span>` : '';
-
-                const illustrationHtml = item.reference_image
-                    ? `<a href="${item.reference_image}" target="_blank" class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-primary hover:bg-blue-100 rounded-md text-xs font-medium transition-colors border border-blue-100"><i class="fa-regular fa-image"></i> ดูรูปประกอบมาตรฐาน</a>`
-                    : '';
+                const badges = requirePhotoBadge + measureBadge;
+                wsSetDetail(item.id, index + 1, item, badges, item.reference_image,
+                    item.action_text || item.action_if_abnormal || item.action_abnormal);
 
                 const isNA = String(item.check_type_id) === '2';
-                const choicesHtml = `
-                    <div class="flex flex-wrap gap-2.5">
-                        ${choice(item, photoReqId, 'Pass', 'ปกติ', 'fa-solid fa-check', 'peer-checked:bg-green-600 peer-checked:border-green-600 peer-checked:text-white')}
-                        ${choice(item, photoReqId, 'Fail', 'ผิดปกติ', 'fa-solid fa-xmark', 'peer-checked:bg-red-600 peer-checked:border-red-600 peer-checked:text-white')}
-                        ${isNA ? choice(item, photoReqId, 'N/A', 'ไม่เกี่ยวข้อง', 'fa-solid fa-ban', 'peer-checked:bg-slate-600 peer-checked:border-slate-600 peer-checked:text-white') : ''}
-                    </div>`;
-
-                const measurementHtml = hasMeasurementConfig(item) ? `
-                    <div class="mb-5 bg-white p-4 rounded-xl border border-slate-200">
-                        <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-2">
-                            <span class="font-semibold text-slate-800 text-sm">${item.measurement_name || 'ค่าที่ต้องตรวจวัด'}</span>
-                            <span class="text-xs text-slate-500">ค่ามาตรฐาน <b class="text-primary text-sm">${item.expected_value || '-'}</b> ${item.unit || ''}</span>
+                const statusCell = `
+                    <td class="ws-col-status" data-label="ผลการตรวจ *">
+                        <div class="ws-status-box rounded-lg">
+                            <input type="hidden" name="item_id[]" value="${item.id}">
+                            <div class="flex gap-1.5">
+                                ${choice(item, photoReqId, 'Pass', 'ปกติ', 'fa-solid fa-check', 'peer-checked:bg-green-600 peer-checked:border-green-600 peer-checked:text-white')}
+                                ${choice(item, photoReqId, 'Fail', 'ผิดปกติ', 'fa-solid fa-xmark', 'peer-checked:bg-red-600 peer-checked:border-red-600 peer-checked:text-white')}
+                                ${isNA ? choice(item, photoReqId, 'N/A', 'N/A', 'fa-solid fa-ban', 'peer-checked:bg-slate-600 peer-checked:border-slate-600 peer-checked:text-white') : ''}
+                            </div>
                         </div>
-                        <div class="flex items-stretch gap-2">
+                    </td>`;
+
+                const valueCell = needMeasure ? `
+                    <td class="ws-col-value" data-label="${wsAttr(item.measurement_name || 'ค่าที่วัดได้จริง')}">
+                        <div class="flex items-stretch gap-1.5">
                             <input type="text" inputmode="decimal" name="val_${item.id}" oninput="wsUpdateItem(${item.id})"
-                                   class="w-full px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none font-semibold text-slate-800 text-base"
-                                   placeholder="ระบุค่าที่วัดได้จริง">
-                            ${item.unit ? `<span class="flex items-center text-sm text-slate-600 font-semibold bg-slate-50 px-3 rounded-lg border border-slate-200 whitespace-nowrap">${item.unit}</span>` : ''}
+                                   class="ws-value-input w-full min-w-0 px-2.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none font-semibold text-slate-800"
+                                   placeholder="กรอกค่า">
+                            ${item.unit ? `<span class="flex items-center text-xs text-slate-600 font-semibold bg-slate-50 px-2 rounded-lg border border-slate-200 whitespace-nowrap">${item.unit}</span>` : ''}
                         </div>
-                    </div>` : `<input type="hidden" name="val_${item.id}" value="-">`;
+                        <div class="text-xs text-slate-500 mt-1">มาตรฐาน <b class="text-primary">${item.expected_value}</b> ${item.unit || ''}</div>
+                    </td>` : `
+                    <td class="ws-col-value ws-empty" data-label="ค่าที่วัดได้จริง">
+                        <span class="text-slate-300">–</span>
+                        <input type="hidden" name="val_${item.id}" value="-">
+                    </td>`;
 
-                html += `
-                    <details class="ws-item group bg-white rounded-xl border border-slate-200 mb-3 overflow-hidden shadow-sm"
-                             data-item-id="${item.id}" data-state="" ${index === 0 ? 'open' : ''}>
-                        <summary class="flex items-start sm:items-center gap-3 cursor-pointer list-none p-3.5 sm:p-4 hover:bg-slate-50 transition-colors">
-                            <span class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-sm">${index + 1}</span>
-                            <div class="flex-1 min-w-0">
-                                <div class="text-slate-800 font-semibold text-[15px] leading-snug break-words">${item.check_point}</div>
-                                ${(requirePhotoBadge || measureBadge) ? `<div class="flex flex-wrap gap-1.5 mt-1.5">${requirePhotoBadge}${measureBadge}</div>` : ''}
+                const reqStar = isPhotoRequiredAlways
+                    ? `<span class="text-red-500" id="req_star_${item.id}">*</span>`
+                    : `<span class="text-xs font-normal text-slate-500 ml-1" id="req_star_${item.id}">(ถ้ามี)</span>`;
+                const photoCell = `
+                    <td class="ws-col-photo" data-label="รูปภาพหลักฐาน">
+                        <label class="custom-file-upload ws-photo group relative overflow-hidden items-center justify-center" id="photo_container_${item.id}">
+                            <input type="file" id="photo_input_${item.id}" accept="image/*" class="hidden" onchange="previewImage(this, ${item.id})" ${isPhotoRequiredAlways ? 'required' : ''}>
+                            <div id="upload_ui_${item.id}" class="flex flex-col items-center justify-center w-full">
+                                <i class="fa-solid fa-camera text-slate-300 text-lg"></i>
+                                <span class="text-[11px] text-slate-500 font-medium leading-tight mt-0.5"><span id="photo_label_${item.id}">เพิ่มรูป</span> ${reqStar}</span>
                             </div>
-                            <span id="ws-state-${item.id}" class="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${WS_STATE[''].cls}">
-                                <i class="${WS_STATE[''].icon}"></i><span class="hidden sm:inline">${WS_STATE[''].text}</span>
-                            </span>
-                            <i class="fa-solid fa-chevron-down flex-shrink-0 mt-2 sm:mt-0 text-slate-400 text-sm transition-transform duration-300 group-open:-rotate-180"></i>
-                        </summary>
-
-                        <div class="border-t border-slate-100 p-3.5 sm:p-5 grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-5">
-                            <!-- บันทึกผล (แสดงก่อนบนมือถือ) -->
-                            <div class="lg:col-span-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                                ${measurementHtml}
-
-                                <div class="mb-5">
-                                    <span class="text-sm font-bold text-slate-800 block mb-2">ผลการตรวจ <span class="text-red-500">*</span></span>
-                                    <input type="hidden" name="item_id[]" value="${item.id}">
-                                    ${choicesHtml}
-                                </div>
-
-                                <div>
-                                    <span class="text-sm font-bold text-slate-800 block mb-2">รูปภาพหลักฐาน ${isPhotoRequiredAlways ? '<span class="text-red-500" id="req_star_' + item.id + '">*</span>' : '<span class="text-xs font-normal text-slate-500 ml-1" id="req_star_' + item.id + '">(ถ้ามี)</span>'}</span>
-                                    <label class="custom-file-upload group relative overflow-hidden min-h-[96px] items-center justify-center" id="photo_container_${item.id}">
-                                        <input type="file" id="photo_input_${item.id}" accept="image/*" class="hidden" onchange="previewImage(this, ${item.id})" ${isPhotoRequiredAlways ? 'required' : ''}>
-                                        <div id="upload_ui_${item.id}" class="py-3 flex flex-col items-center justify-center w-full">
-                                            <i class="fa-solid fa-camera text-slate-300 mb-2 block text-3xl"></i>
-                                            <span class="text-sm text-slate-500 block px-2 font-medium" id="photo_label_${item.id}">${photoLabelText}</span>
-                                        </div>
-                                        <div id="preview_ui_${item.id}" class="hidden w-full relative group/preview">
-                                            <img id="img_preview_${item.id}" src="" class="max-h-56 mx-auto object-contain rounded" />
-                                            <span class="absolute bottom-2 right-2 text-white text-xs font-medium bg-black/60 px-2.5 py-1 rounded-lg">
-                                                <i class="fa-solid fa-pen mr-1"></i> เปลี่ยนรูป
-                                            </span>
-                                        </div>
-                                    </label>
-                                    <input type="hidden" id="photo_base64_${item.id}" name="photo_${item.id}">
-                                </div>
-
-                                <div class="flex justify-end mt-4">
-                                    <button type="button" onclick="wsNext(${item.id})" class="text-sm text-primary hover:bg-blue-100 px-3 py-2 rounded-lg font-medium">
-                                        ข้อถัดไป <i class="fa-solid fa-arrow-down ml-1"></i>
-                                    </button>
-                                </div>
+                            <div id="preview_ui_${item.id}" class="hidden w-full relative">
+                                <img id="img_preview_${item.id}" src="" class="w-full h-40 md:h-14 object-cover rounded" />
+                                <span class="absolute bottom-1 right-1 text-white text-[10px] bg-black/60 px-1.5 py-0.5 rounded" title="เปลี่ยนรูป"><i class="fa-solid fa-pen"></i></span>
                             </div>
+                        </label>
+                        <input type="hidden" id="photo_base64_${item.id}" name="photo_${item.id}">
+                    </td>`;
 
-                            <!-- ข้อมูลอ้างอิง -->
-                            <div class="lg:col-span-2 space-y-3 text-sm">
-                                <div class="bg-white p-3.5 rounded-xl border border-slate-200">
-                                    <div class="text-[11px] text-slate-500 font-bold uppercase tracking-wider mb-1"><i class="fa-solid fa-book-open mr-1"></i>มาตรฐานการตรวจสอบ</div>
-                                    <div class="text-slate-700 leading-relaxed break-words">${item.standard_text || '-'}</div>
-                                    ${illustrationHtml}
-                                </div>
-                                <div class="bg-white p-3.5 rounded-xl border border-slate-200">
-                                    <div class="text-[11px] text-slate-500 font-bold uppercase tracking-wider mb-1"><i class="fa-solid fa-wrench mr-1"></i>วิธีตรวจสอบ / เครื่องมือ</div>
-                                    <div class="text-slate-700 leading-relaxed break-words">${item.method_text || '-'}</div>
-                                </div>
-                                <div class="bg-red-50 p-3.5 rounded-xl border border-red-100">
-                                    <div class="text-[11px] text-red-600 font-bold uppercase tracking-wider mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>เมื่อพบความผิดปกติ</div>
-                                    <div class="text-red-700 leading-relaxed break-words">${item.action_text || item.action_if_abnormal || item.action_abnormal || '-'}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </details>`;
+                const chip = `<span id="ws-state-${item.id}" class="${WS_CHIP_CLS} ${WS_STATE[''].cls}"><i class="${WS_STATE[''].icon}"></i>${WS_STATE[''].text}</span>`;
+
+                rows += `
+                    <tr class="ws-item" data-item-id="${item.id}" data-state="" data-search="${wsAttr(String(item.check_point || '').toLowerCase())}">
+                        ${wsPointCells(index, item, badges, chip)}
+                        ${statusCell}
+                        ${valueCell}
+                        ${photoCell}
+                    </tr>`;
             });
 
-            container.innerHTML = html;
-            // ให้แถบความคืบหน้าอยู่ใต้แถบเมนูด้านบน (nav sticky) และเลื่อนไปข้อถัดไปแล้วไม่ถูกบัง
-            const navH = document.querySelector('nav.sticky')?.offsetHeight || 0;
-            const toolbar = document.getElementById('ws-toolbar');
-            toolbar.style.top = navH + 'px';
-            container.querySelectorAll('details.ws-item').forEach(d => { d.style.scrollMarginTop = (navH + toolbar.offsetHeight + 12) + 'px'; });
+            const toolbar = `
+                <div id="ws-toolbar" class="sticky top-0 z-20 px-4 sm:px-5 py-3 bg-white/95 backdrop-blur border-b border-slate-200">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+                        <div class="text-sm text-slate-700 whitespace-nowrap">ตรวจแล้ว <b id="ws-done">0</b> / ${items.length} ข้อ
+                            <span id="ws-fail-wrap" class="hidden ml-1 text-red-600">· ผิดปกติ <b id="ws-fail">0</b></span></div>
+                        <div class="flex-1 min-w-[120px] h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div id="ws-progress" class="h-full bg-primary rounded-full transition-all duration-300" style="width:0%"></div>
+                        </div>
+                        <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full lg:w-auto">
+                            <div class="relative flex-1 sm:flex-none sm:w-56 min-w-[160px]">
+                                <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                <input type="search" id="ws-search" placeholder="ค้นหาจุดตรวจสอบ"
+                                       class="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none">
+                            </div>
+                            <div class="flex gap-1.5 overflow-x-auto">
+                                <button type="button" data-ws-filter="all"     class="ws-filter-btn px-3 py-1 rounded-full text-xs border whitespace-nowrap">ทั้งหมด</button>
+                                <button type="button" data-ws-filter="pending" class="ws-filter-btn px-3 py-1 rounded-full text-xs border whitespace-nowrap">ยังไม่ตรวจ</button>
+                                <button type="button" data-ws-filter="Fail"    class="ws-filter-btn px-3 py-1 rounded-full text-xs border whitespace-nowrap">ผิดปกติ</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+
+            container.innerHTML = toolbar + wsSheetHtml(rows,
+                `<div id="ws-empty" class="hidden p-8 text-center text-sm text-slate-400">ไม่พบรายการที่ตรงกับเงื่อนไข</div>`);
+
             container.querySelectorAll('.ws-filter-btn').forEach(btn => btn.addEventListener('click', () => {
                 wsFilter = btn.dataset.wsFilter;
                 wsApplyFilter();
             }));
+            document.getElementById('ws-search').addEventListener('input', e => {
+                wsSearch = e.target.value.trim().toLowerCase();
+                wsApplyFilter();
+            });
+            wsBindSheet(container);
             wsRefreshSummary();
+            if (items.length) wsSelect(items[0].id);
+            wsLayoutSticky();
         }
 
-        // อัปเดตสถานะของข้อ (ชิปบนหัวข้อ + แถบสี) และภาพรวม
+        // ช่องกรอกค่า: Enter / ↓ ไปแถวถัดไป, ↑ ไปแถวก่อนหน้า (แบบ Excel)
+        function wsSheetKeys(e) {
+            if (!e.target.classList.contains('ws-value-input')) return;
+            if (!['Enter', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+            e.preventDefault();
+            const inputs = [...document.querySelectorAll('#items-list tr.ws-item:not(.ws-hide) .ws-value-input')];
+            const next = inputs[inputs.indexOf(e.target) + (e.key === 'ArrowUp' ? -1 : 1)];
+            if (next) { next.focus(); next.select(); }
+        }
+
+        // อัปเดตสถานะของข้อ (สีแถว + ชิปบนการ์ดมือถือ) และภาพรวม
         function wsUpdateItem(itemId) {
-            const details = document.querySelector(`details[data-item-id="${itemId}"]`);
-            if (!details) return;
+            const row = document.querySelector(`#items-list .ws-item[data-item-id="${itemId}"]`);
+            if (!row) return;
             const checked = document.querySelector(`input[name="status_${itemId}"]:checked`);
             const state = checked ? checked.value : '';
-            details.dataset.state = state;
+            row.dataset.state = state;
             const s = WS_STATE[state] || WS_STATE[''];
             const chip = document.getElementById(`ws-state-${itemId}`);
             if (chip) {
-                chip.className = `flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${s.cls}`;
-                chip.innerHTML = `<i class="${s.icon}"></i><span class="hidden sm:inline">${s.text}</span>`;
+                chip.className = `${WS_CHIP_CLS} ${s.cls}`;
+                chip.innerHTML = `<i class="${s.icon}"></i>${s.text}`;
             }
             wsRefreshSummary();
         }
 
         function wsRefreshSummary() {
-            const all = document.querySelectorAll('#items-list details.ws-item');
-            if (!all.length) return;
-            const done = [...all].filter(d => d.dataset.state).length;
-            const fail = [...all].filter(d => d.dataset.state === 'Fail').length;
+            const all = document.querySelectorAll('#items-list tr.ws-item');
+            if (!all.length || !document.getElementById('ws-done')) return;
+            const done = [...all].filter(r => r.dataset.state).length;
+            const fail = [...all].filter(r => r.dataset.state === 'Fail').length;
             document.getElementById('ws-done').textContent = done;
             document.getElementById('ws-fail').textContent = fail;
             document.getElementById('ws-fail-wrap').classList.toggle('hidden', fail === 0);
             document.getElementById('ws-progress').style.width = `${Math.round(done / all.length * 100)}%`;
+            // ตัวเลขบนแถบขั้นตอน
+            const sub = document.getElementById('ws-step-sub-2');
+            if (sub) sub.textContent = `ตรวจแล้ว ${done}/${all.length} ข้อ`;
+            const stepBtn = document.querySelector('[data-ws-step-go="2"]');
+            if (stepBtn) {
+                stepBtn.classList.toggle('is-done', done === all.length);
+                stepBtn.querySelector('.ws-step-num').innerHTML = done === all.length ? '<i class="fa-solid fa-check"></i>' : '2';
+            }
             wsApplyFilter();
         }
 
         function wsApplyFilter() {
-            document.querySelectorAll('#items-list details.ws-item').forEach(d => {
-                const st = d.dataset.state;
-                const show = wsFilter === 'all' || (wsFilter === 'pending' ? !st : st === wsFilter);
-                d.classList.toggle('hidden', !show);
+            let visible = 0;
+            document.querySelectorAll('#items-list tr.ws-item').forEach(r => {
+                const st = r.dataset.state;
+                const okState = wsFilter === 'all' || (wsFilter === 'pending' ? !st : st === wsFilter);
+                const okSearch = !wsSearch || (r.dataset.search || '').includes(wsSearch);
+                const show = okState && okSearch;
+                r.classList.toggle('ws-hide', !show);
+                if (show) visible++;
             });
+            document.getElementById('ws-empty')?.classList.toggle('hidden', visible > 0);
             document.querySelectorAll('#items-list .ws-filter-btn').forEach(b => {
                 const on = b.dataset.wsFilter === wsFilter;
                 b.classList.toggle('bg-primary', on);
@@ -1093,28 +1483,6 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                 b.classList.toggle('border-slate-300', !on);
                 b.classList.toggle('text-slate-600', !on);
             });
-        }
-
-        function wsToggleAll() {
-            const all = [...document.querySelectorAll('#items-list details.ws-item')];
-            const open = !all.every(d => d.open);
-            all.forEach(d => { d.open = open; });
-            document.getElementById('ws-toggle-all').innerHTML = `<i class="fa-solid fa-up-down mr-1"></i>${open ? 'ยุบทั้งหมด' : 'กางทั้งหมด'}`;
-        }
-
-        // ปิดข้อนี้ แล้วเปิดข้อถัดไปที่ยังไม่ตรวจ
-        function wsNext(itemId) {
-            const all = [...document.querySelectorAll('#items-list details.ws-item')];
-            const i = all.findIndex(d => d.dataset.itemId === String(itemId));
-            if (i < 0) return;
-            all[i].open = false;
-            const next = all.slice(i + 1).find(d => !d.dataset.state && !d.classList.contains('hidden'))
-                      || all.slice(i + 1).find(d => !d.classList.contains('hidden'));
-            const target = next || all[i];
-            if (next) next.open = true;
-            const navH = document.querySelector('nav.sticky')?.offsetHeight || 0;
-            target.style.scrollMarginTop = (navH + (document.getElementById('ws-toolbar')?.offsetHeight || 0) + 12) + 'px';
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         function handleStatusChange(itemId, photoRequiredId) {
@@ -1139,7 +1507,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     reqStar.className = "text-red-500";
                     reqStar.innerText = "*";
                     if(!photoInput.files || photoInput.files.length === 0) {
-                    photoLabel.textContent = 'แตะเพื่อถ่าย/เลือกรูป (บังคับเมื่อผิดปกติ)';
+                    photoLabel.textContent = 'เพิ่มรูป';
                     photoLabel.classList.add('text-red-500');
                     }
                 } else {
@@ -1148,7 +1516,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     reqStar.className = "text-xs font-normal text-slate-500 ml-1";
                     reqStar.innerText = "(ถ้ามี)";
                     if(!photoInput.files || photoInput.files.length === 0) {
-                    photoLabel.textContent = 'แตะเพื่อถ่าย/เลือกรูป (บังคับเมื่อผิดปกติ)';
+                    photoLabel.textContent = 'เพิ่มรูป';
                     photoLabel.classList.remove('text-red-500');
                     const container = document.getElementById(`photo_container_${itemId}`);
                     container.classList.remove('border-red-400', 'bg-red-50');
@@ -1258,156 +1626,68 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 			});
 		}
 		
+		// โหมดประวัติ: ใช้ตาราง + แผงรายละเอียดแบบเดียวกับโหมดบันทึก แต่แสดงผลอย่างเดียว
 		function renderHistoryItems(items) {
 			const container = document.getElementById('items-list');
-			let html = '';
-		
+			wsDetail = {};
+
 			if (!items || items.length === 0) {
 				container.innerHTML = `
-					<div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
+					<div class="p-8 text-center text-slate-400">
 						ไม่พบรายการผลการตรวจสอบ
 					</div>
 				`;
 				return;
 			}
-		
-			items.forEach((item, index) => {
-				const statusClass = item.result_status === 'Pass'
-					? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-					: item.result_status === 'Fail'
-						? 'bg-red-100 text-red-700 border-red-200'
-						: 'bg-slate-100 text-slate-700 border-slate-200';
-		
-				const photoUrl = item.result_photo_path ? String(item.result_photo_path).trim() : '';
 
+			let rows = '';
+			items.forEach((item, index) => {
+				const st = WS_STATE[item.result_status];
+				const statusLabel = st ? st.text : (item.result_status || '-');
+				const statusCls = st ? st.cls : WS_STATE[''].cls;
+				const statusIcon = st ? st.icon : WS_STATE[''].icon;
+				const needMeasure = hasMeasurementConfig(item);
+				wsSetDetail(item.checksheet_item_id, index + 1, item, '', item.illustration_path, item.action_abnormal);
+
+				const photoUrl = item.result_photo_path ? String(item.result_photo_path).trim() : '';
 				const photoHtml = photoUrl
 					? `
-						<div class="inline-block">
-							<div 
-								class="group relative w-32 h-24 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 shadow-sm cursor-pointer hover:shadow-md hover:border-primary transition"
-								onclick='ImageCarousel.open(${JSON.stringify([photoUrl])}, "รูปหลักฐาน")'
-								title="คลิกเพื่อดูรูปใหญ่"
+						<div
+							class="group relative w-full h-40 md:h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 cursor-pointer hover:border-primary transition"
+							onclick='ImageCarousel.open(${JSON.stringify([photoUrl])}, "รูปหลักฐาน")'
+							title="คลิกเพื่อดูรูปใหญ่"
+						>
+							<img
+								src="${photoUrl}"
+								alt="รูปหลักฐาน"
+								class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+								onerror="this.parentElement.innerHTML='<div class=&quot;w-full h-full flex items-center justify-center text-xs text-red-500 bg-red-50&quot;>โหลดรูปไม่ได้</div>';"
 							>
-								<img 
-									src="${photoUrl}" 
-									alt="รูปหลักฐาน"
-									class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-									onerror="this.parentElement.innerHTML='<div class=&quot;w-full h-full flex items-center justify-center text-xs text-red-500 bg-red-50&quot;>โหลดรูปไม่ได้</div>';"
-								>
-				
-								<div class="absolute inset-0 bg-black/0 group-hover:bg-black/35 transition flex items-center justify-center">
-									<span class="opacity-0 group-hover:opacity-100 transition bg-white/90 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-full shadow">
-										<i class="fa-solid fa-magnifying-glass-plus mr-1"></i> ดูรูปใหญ่
-									</span>
-								</div>
-							</div>
+							<span class="absolute bottom-1 right-1 text-white text-[10px] bg-black/60 px-1.5 py-0.5 rounded"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
 						</div>
 					  `
-					: `<span class="text-slate-400 text-sm">ไม่มีรูปหลักฐาน</span>`;
-		
-				const referenceImageHtml = item.illustration_path
-					? `
-						<a href="${item.illustration_path}" target="_blank"
-						   class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-primary hover:bg-blue-100 rounded-md text-xs font-medium transition-colors border border-blue-100 mt-2">
-							<i class="fa-regular fa-image"></i>
-							ดูรูปประกอบมาตรฐาน
-						</a>
-					  `
-					: '';
-		
-				html += `
-					<details class="group bg-white rounded-xl border border-slate-200 mb-4 overflow-hidden shadow-sm" data-item-id="${item.checksheet_item_id}" ${index === 0 ? 'open' : ''}>
-						<summary class="flex justify-between items-center font-medium cursor-pointer list-none p-4 sm:p-5 bg-white hover:bg-slate-50 transition-colors">
-							<div class="flex items-center gap-3.5 pr-4 flex-grow">
-								<span class="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 font-bold text-sm border border-emerald-200">
-									${index + 1}
-								</span>
-		
-								<div class="flex flex-col sm:flex-row sm:items-center gap-2">
-									<span class="text-slate-800 font-semibold text-base leading-snug">${item.check_point || '-'}</span>
-									<span class="inline-flex px-3 py-1 rounded-full border text-xs font-bold ${statusClass}">
-										${item.result_status || '-'}
-									</span>
-								</div>
-							</div>
-		
-							<span class="flex-shrink-0 transition-transform duration-300 group-open:-rotate-180 bg-slate-100 rounded-full p-1.5 border border-slate-200 text-slate-500">
-								<i class="fa-solid fa-chevron-down w-4 h-4 flex items-center justify-center text-sm"></i>
-							</span>
-						</summary>
-		
-						<div class="p-5 border-t border-slate-100 bg-slate-50/30">
-							<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-		
-								<div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-									<h4 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 pb-2 border-b border-slate-100">
-										<i class="fa-solid fa-book-open text-emerald-700"></i>
-										ข้อมูลอ้างอิง
-									</h4>
-		
-									<div class="mb-4">
-										<span class="text-[11px] text-slate-500 font-bold uppercase tracking-wider block mb-1.5">มาตรฐานการตรวจสอบ</span>
-										<div class="text-sm text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100 leading-relaxed">
-											${item.standard_text || '-'}
-										</div>
-										${referenceImageHtml}
-									</div>
-		
-									<div class="mb-4">
-										<span class="text-[11px] text-slate-500 font-bold uppercase tracking-wider block mb-1.5">วิธีตรวจสอบ</span>
-										<div class="text-sm text-slate-700 leading-relaxed">
-											<i class="fa-solid fa-wrench text-slate-400 mr-1.5 text-xs"></i>
-											${item.method_text || '-'}
-										</div>
-									</div>
-		
-									<div>
-										<span class="text-[11px] text-red-500 font-bold uppercase tracking-wider block mb-1.5">ข้อปฏิบัติเมื่อพบความผิดปกติ</span>
-										<div class="text-sm text-red-700 bg-red-50 p-3 rounded-lg border border-red-100 leading-relaxed">
-											<i class="fa-solid fa-triangle-exclamation mr-1.5"></i>
-											${item.action_abnormal || '-'}
-										</div>
-									</div>
-								</div>
-		
-								<div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-									<h4 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2 pb-2 border-b border-slate-100">
-										<i class="fa-solid fa-clipboard-check text-emerald-700"></i>
-										ผลการตรวจที่บันทึกไว้
-									</h4>
-		
-									<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-										<div class="bg-slate-50 rounded-xl border border-slate-100 p-4">
-											<div class="text-[11px] text-slate-500 font-bold mb-1">ผลการตรวจ</div>
-											<div>
-												<span class="inline-flex px-3 py-1 rounded-full border text-xs font-bold ${statusClass}">
-													${item.result_status || '-'}
-												</span>
-											</div>
-										</div>
-		
-										<div class="bg-slate-50 rounded-xl border border-slate-100 p-4">
-											<div class="text-[11px] text-slate-500 font-bold mb-1">ค่าที่วัดได้จริง</div>
-											<div class="font-bold text-slate-800">
-												${item.actual_value || '-'} ${item.unit || ''}
-											</div>
-											${item.expected_value ? `<div class="text-xs text-emerald-700 mt-1">ค่ามาตรฐาน: ${item.expected_value} ${item.unit || ''}</div>` : ''}
-										</div>
-									</div>
-		
-									<div>
-										<div class="text-[11px] text-slate-500 font-bold mb-2">รูปภาพหลักฐาน</div>
-										${photoHtml}
-									</div>
-								</div>
-		
-							</div>
-						</div>
-					</details>
+					: `<span class="text-slate-400 text-xs">ไม่มีรูป</span>`;
+
+				rows += `
+					<tr class="ws-item" data-item-id="${item.checksheet_item_id}" data-state="${wsAttr(item.result_status || '')}">
+						${wsPointCells(index, item, '', `<span class="${WS_CHIP_CLS} ${statusCls}"><i class="${statusIcon}"></i>${statusLabel}</span>`)}
+						<td class="ws-col-status" data-label="ผลการตรวจ">
+							<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${statusCls}"><i class="${statusIcon}"></i>${statusLabel}</span>
+						</td>
+						<td class="ws-col-value ${needMeasure || item.actual_value ? '' : 'ws-empty'}" data-label="ค่าที่วัดได้จริง">
+							<b class="text-slate-800">${item.actual_value || '-'}</b> <span class="text-xs text-slate-500">${item.unit || ''}</span>
+							${needMeasure ? `<div class="text-xs text-slate-500 mt-1">มาตรฐาน <b class="text-primary">${item.expected_value}</b> ${item.unit || ''}</div>` : ''}
+						</td>
+						<td class="ws-col-photo" data-label="รูปภาพหลักฐาน">${photoHtml}</td>
+					</tr>
 				`;
 			});
-		
-			container.innerHTML = html;
+
+			container.innerHTML = wsSheetHtml(rows);
+			wsBindSheet(container);
+			wsSelect(items[0].checksheet_item_id);
+			const sub = document.getElementById('ws-step-sub-2');
+			if (sub) sub.textContent = `${items.length} ข้อ`;
 		}
 		
 		function renderHistoryActualSpares(spares) {
@@ -1456,11 +1736,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 				</div>
 			`;
 		
-			const itemsSection = document.getElementById('items-list')?.closest('.bg-white');
-		
-			if (itemsSection) {
-				itemsSection.insertAdjacentElement('beforebegin', container);
-			}
+			// โหมดประวัติ: แสดงอะไหล่ที่ใช้จริงในขั้นที่ 3
+			document.querySelector('.ws-step[data-ws-step="3"]')?.appendChild(container);
 		}
 		
 		function renderHistoryPreparedSpares(spares) {
@@ -1572,7 +1849,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             } else {
                 // กรณีผู้ใช้กด Cancle ไม่อัปโหลดรูปภาพ (เคลียร์ค่าทิ้ง)
                 const isPhotoRequired = input.hasAttribute('required');
-                label.textContent = isPhotoRequired ? 'คลิกเพื่อถ่ายรูป (บังคับ)' : 'คลิกเพื่ออัปโหลดรูปภาพ';
+                label.textContent = 'เพิ่มรูป';
                 label.classList.remove('text-primary', 'font-bold');
                 
                 container.classList.remove('border-primary', 'bg-blue-50/10');
@@ -1597,18 +1874,24 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 			if (element) element.classList.add('field-error');
 		}
 		
+		// แถวของข้อในตารางจุดตรวจสอบ: เอาออกจากตัวกรองเพื่อให้มองเห็น
+		function wsShowRow(itemId) {
+			const row = document.querySelector(`#items-list .ws-item[data-item-id="${itemId}"]`);
+			if (row) row.classList.remove('ws-hide');
+			return row;
+		}
+		
 		function markItemError(itemId) {
-			const details = document.querySelector(`details[data-item-id="${itemId}"]`);
-			if (!details) return;
+			const row = wsShowRow(itemId);
+			if (!row) return;
 		
-			details.open = true;
+			const pointCell = row.querySelector('.ws-col-point');
+			const panel = row.querySelector('.ws-status-box');
 		
-			const summary = details.querySelector('summary');
-			const panel = details.querySelector('.bg-blue-50\\/50, .bg-blue-50');
-		
-			if (summary) summary.classList.add('item-error-summary');
+			if (pointCell) pointCell.classList.add('item-error-summary');
 			if (panel) panel.classList.add('item-error-panel');
 		}
+
 		
 		function scrollToFirstError(errors) {
 			if (!errors || errors.length === 0) return;
@@ -1616,15 +1899,16 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 			const first = errors[0];
 		
 			if (first.type === 'item') {
-				const details = document.querySelector(`details[data-item-id="${first.itemId}"]`);
-				if (details) {
-					details.open = true;
-					details.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				const row = wsShowRow(first.itemId);
+				wsShowStepOf(row);
+				if (row) {
+					row.scrollIntoView({ behavior: 'smooth', block: 'center' });
 				}
 				return;
 			}
 		
 			if (first.element) {
+				wsShowStepOf(first.element);
 				first.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			}
 		}
@@ -1632,10 +1916,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		function openAndScrollToElement(element) {
 			if (!element) return;
 		
-			const details = element.closest('details');
-			if (details) {
-				details.open = true;
-			}
+			element.closest('.ws-item')?.classList.remove('ws-hide');
+			wsShowStepOf(element);
 		
 			setTimeout(() => {
 				element.scrollIntoView({
@@ -1676,13 +1958,12 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		
 				if (err.type === 'item') {
 					const itemId = err.itemId;
-					const details = document.querySelector(`details[data-item-id="${itemId}"]`);
-					if (details) details.open = true;
+					const details = wsShowRow(itemId);
 		
 					let target = null;
 		
 					if (err.fieldKey === 'status') {
-						target = document.querySelector(`input[name="status_${itemId}"]`)?.closest('.mb-5');
+						target = document.querySelector(`input[name="status_${itemId}"]`)?.closest('.ws-status-box');
 					} else if (err.fieldKey === 'value') {
 						target = document.querySelector(`[name="val_${itemId}"]`);
 					} else if (err.fieldKey === 'photo') {
@@ -1802,7 +2083,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		
 				if (!status) {
 					hasErrorInThisItem = true;
-					const statusBox = document.querySelector(`input[name="status_${itemId}"]`)?.closest('.mb-5');
+					const statusBox = document.querySelector(`input[name="status_${itemId}"]`)?.closest('.ws-status-box');
 					markElementError(statusBox);
 					errors.push({
 						type: 'item',
