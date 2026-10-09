@@ -72,7 +72,8 @@ if (!$manualVer) $manualVer = time();
         /* กล่องคำอธิบาย: สูงคงที่ (ข้อความยาวเลื่อนในกล่อง) => ภาพไม่ขยับเวลาเปลี่ยนจุด */
         #zoomCap { width: 100%; max-width: 48rem; flex: none; height: 5.75rem; }
         #zoomCapBody { height: 100%; }
-        #zoomCapBody .cap-text { height: 100%; overflow-y: auto; }
+        #zoomCapBody .cap-text { height: 100%; overflow-y: auto; display: flex; flex-direction: column; }
+        #zoomCapBody .cap-text > div { margin: auto 0; }   /* สั้น = อยู่กลางแนวตั้ง, ยาว = เริ่มบนสุดและเลื่อนได้ */
         @media (max-width: 640px) {
             #zoomCap { height: 7.5rem; }
             #zoom .shot img, #zoom .shot.mobile img { max-height: calc(100vh - 14rem); }
@@ -98,6 +99,9 @@ if (!$manualVer) $manualVer = time();
         <h1 class="text-base sm:text-lg font-bold leading-tight truncate">คู่มือการใช้งาน</h1>
         <p class="text-[11px] sm:text-xs text-slate-500 truncate">เรียนรู้ทีละบท พร้อมภาพหน้าจอจริงของระบบ</p>
     </div>
+    <a href="#faq" id="faqBtn" title="คำถามที่พบบ่อย" class="flex-none inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-medium text-slate-700 hover:bg-sky-50 hover:border-sky-300">
+        <i data-lucide="circle-help" class="w-4 h-4 text-sky-700"></i><span class="hidden md:inline">คำถามที่พบบ่อย</span>
+    </a>
     <div class="hidden sm:flex items-center gap-3 flex-none">
         <div class="text-right">
             <div class="text-[11px] text-slate-500">อ่านแล้ว</div>
@@ -180,15 +184,6 @@ const MODULES = [
         tips: ['QR หนึ่งอันผูกกับบัญชีเดียว ใครสแกนก็เข้าระบบในชื่อบัญชีนั้น — สร้าง QR จากบัญชีที่ตั้งไว้สำหรับแจ้งซ่อมเท่านั้น ห้ามใช้บัญชีผู้ดูแลระบบหรือบัญชีช่าง', 'ใส่ชื่อและเบอร์โทรของคุณในฟอร์มทุกครั้ง เพื่อให้ช่างติดต่อกลับได้ เพราะชื่อบัญชีเป็นชื่อกลาง']
     },
     {
-        id: 'notifications', title: 'การแจ้งเตือน', perm: null, href: 'notifications.php',
-        intro: 'ระบบจะแจ้งเตือนงานที่ต้องทำ เช่น งาน PM ที่ถึงกำหนดวันนี้ หรือแจ้งล่วงหน้าตามที่ตั้งไว้ในแผน',
-        parts: [{ shot: 'notifications', steps: [
-            { t: 'กดไอคอน <b>กระดิ่ง</b> มุมขวาบน เพื่อดูการแจ้งเตือนล่าสุด แล้วกด <b>ดูการแจ้งเตือนทั้งหมด</b> เพื่อเปิดหน้านี้' },
-            { t: 'รายการเรียงตามวัน รายการที่มี <b>จุดสีฟ้า</b> คือยังไม่ได้อ่าน' },
-            { t: 'กด <span class="kbd">อ่านทั้งหมด</span> เพื่อทำเครื่องหมายว่าอ่านแล้วทุกรายการ' }
-        ] }]
-    },
-    {
         id: 'dashboard', title: 'หน้าหลัก (Dashboard)', perm: null, href: 'dashboard.php',
         intro: 'สรุปภาพรวมงานแจ้งซ่อมตามช่วงเวลาและสถานที่ที่เลือก เหมาะสำหรับดูสถานการณ์อย่างรวดเร็ว',
         parts: [{ shot: 'dashboard', steps: [
@@ -199,7 +194,28 @@ const MODULES = [
             { m: 5, t: '<b>การ์ดสรุป</b> — จำนวนงานทั้งหมด รอดำเนินการ กำลังดำเนินการ สำเร็จแล้ว และยกเลิก' },
             { m: 6, t: '<b>กราฟ</b> — แนวโน้มงานและงานแยกตามอาคาร กด <span class="kbd">เต็มจอ</span> เพื่อดูกราฟขนาดใหญ่' }
         ] }]
-    }]
+    },
+    {
+        id: 'notifications', title: 'การแจ้งเตือน', perm: null, href: 'notifications.php',
+        intro: 'ระบบแจ้งเตือนเมื่อมีเรื่องที่ต้องดำเนินการ เช่น มีการแจ้งซ่อมใหม่ ปิดงานซ่อม มิเตอร์ใช้เกินเกณฑ์ อะไหล่ในสต็อกใกล้หมด และงาน PM ที่ถึงกำหนดวันนี้หรือแจ้งล่วงหน้า — ดูได้จาก <b>ไอคอนกระดิ่ง</b> มุมขวาบนของทุกหน้า',
+        parts: [
+        { title: '1. ดูการแจ้งเตือนล่าสุดจากกระดิ่ง', shot: 'notif_bell', steps: [
+            { m: 1, t: '<b>ไอคอนกระดิ่ง</b> มุมขวาบน — ตัวเลขสีแดงคือจำนวนที่ยังไม่อ่าน (99+ = มากกว่า 99 รายการ) กดเพื่อเปิดรายการล่าสุด' },
+            { m: 2, t: '<b>รายการแจ้งเตือน</b> — จุดสีฟ้า = ยังไม่อ่าน <b>กดที่รายการ</b> เพื่อไปหน้าที่เกี่ยวข้องทันที และระบบจะถือว่าอ่านแล้ว' },
+            { m: 3, t: 'กด <b>ดูการแจ้งเตือนทั้งหมด</b> (ล่างสุดของรายการ) เพื่อเปิดหน้ารวมการแจ้งเตือน' }
+        ] },
+        { title: '2. หน้าการแจ้งเตือนทั้งหมด', shot: 'notifications', steps: [
+            { t: 'รายการเรียงตามวัน (วันนี้ / วันที่ก่อนหน้า) เลื่อนลงเพื่อโหลดรายการเก่าเพิ่ม' },
+            { t: 'กด <span class="kbd">อ่านทั้งหมด</span> เพื่อทำเครื่องหมายว่าอ่านแล้วทุกรายการ ตัวเลขบนกระดิ่งจะหายไป' }
+        ] }],
+        table: { title: 'กดการแจ้งเตือนแล้วไปที่ไหน', rows: [
+            ['แจ้งซ่อมใหม่ / ปิดงานซ่อม', 'เมนู <b>ข้อมูลแจ้งซ่อม</b>'],
+            ['แจ้งเตือน PM (วันนี้ / ล่วงหน้า)', 'เมนู <b>วางแผน PM</b>'],
+            ['มิเตอร์ใช้เกินเกณฑ์', 'เมนู <b>ข้อมูลมิเตอร์</b>'],
+            ['อะไหล่ใกล้หมด', 'เมนู <b>จัดการสต็อก</b>']
+        ] }
+    },
+    ]
 },
 {
     id: 'repair', title: 'งานแจ้งซ่อม', icon: 'wrench',
@@ -641,11 +657,26 @@ const MODULES = [
     }]
 }];
 
+// คำถามที่พบบ่อย: [หมวด, คำถาม, คำตอบ, id บทที่เกี่ยวข้อง (แสดงลิงก์เฉพาะบทที่ผู้ใช้มีสิทธิ์)]
 const FAQ = [
-    ['ไม่เห็นเมนูที่ต้องใช้', 'เมนูแสดงตามสิทธิ์ของบัญชี ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์'],
-    ['แนบรูปไม่ได้', 'ตรวจชนิดไฟล์ (JPG / PNG / WEBP) และจำนวนรูปที่แนบได้ในแต่ละฟอร์ม'],
-    ['ข้อมูลไม่อัปเดต', 'กดปุ่มรีเฟรช/โหลดใหม่ของหน้านั้น หรือเลือกเมนูเดิมอีกครั้ง'],
-    ['บนมือถือหาเมนูไม่เจอ', 'กดปุ่ม ☰ มุมซ้ายบนของจอ']
+    ['ทั่วไป', 'ไม่เห็นเมนูที่ต้องใช้', 'เมนูแสดงตามสิทธิ์ของบัญชี ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์', 'main'],
+    ['ทั่วไป', 'ลืมรหัสผ่าน / ต้องการเปลี่ยนรหัสผ่าน', 'ติดต่อผู้ดูแลระบบให้ตั้งรหัสผ่านใหม่ (ปุ่มรูปกุญแจในหน้าตั้งค่าผู้ใช้งาน)', 'settings'],
+    ['ทั่วไป', 'บนมือถือหาเมนูไม่เจอ', 'กดปุ่ม ☰ มุมซ้ายบนของจอ', 'main'],
+    ['ทั่วไป', 'ข้อมูลไม่อัปเดต', 'กดปุ่มรีเฟรช/โหลดใหม่ของหน้านั้น หรือเลือกเมนูเดิมอีกครั้ง', null],
+    ['ทั่วไป', 'ตัวเลขสีแดงบนกระดิ่งคืออะไร', 'จำนวนการแจ้งเตือนที่ยังไม่อ่าน กดกระดิ่งเพื่อดู หรือกด "อ่านทั้งหมด" ในหน้าการแจ้งเตือน', 'notifications'],
+    ['ทั่วไป', 'ใช้บนมือถือได้ไหม', 'ได้ทุกเมนู หน้าจอปรับตามขนาดอัตโนมัติ และเข้าสู่ระบบด้วยการสแกน QR Code ได้', 'qr_login'],
+    ['แจ้งซ่อม', 'แนบรูปหรือวิดีโอไม่ได้', 'รูปแนบได้สูงสุด 5 รูป (JPG / PNG / WEBP) วิดีโอ 1 คลิป ไม่เกิน 30 วินาที — คลิปยาวให้ตัดช่วงก่อนส่ง', 'repair'],
+    ['แจ้งซ่อม', 'แจ้งซ่อมแล้ว จะรู้ได้อย่างไรว่าช่างรับงานแล้ว', 'ดูสถานะในเมนูข้อมูลแจ้งซ่อม: รอดำเนินการ → กำลังดำเนินการ (ช่างรับงานแล้ว) → เสร็จสิ้น', 'repair_list'],
+    ['แจ้งซ่อม', 'แจ้งซ่อมผิด ต้องการยกเลิก', 'กดปุ่ม ✕ ยกเลิกใบงาน ในเมนูข้อมูลแจ้งซ่อม (ยกเลิกได้เฉพาะงานที่ยังไม่ปิด)', 'repair_list'],
+    ['แจ้งซ่อม', 'ส่งแบบประเมินไม่ได้', 'ต้องปิดงานให้เป็นสถานะเสร็จสิ้นก่อน จึงจะส่งแบบประเมินได้', 'repair_eval'],
+    ['แจ้งซ่อม', 'สแกน QR ที่ตัวเครื่องแล้วไปหน้าไหน', 'เปิดหน้าประวัติเครื่องจักร ดูข้อมูลเครื่องและประวัติซ่อม แล้วกด "แจ้งซ่อมเครื่องจักรนี้" ได้เลย', 'qr'],
+    ['งาน PM', 'งาน PM ไม่ขึ้นในปฏิทิน', 'ตรวจตัวกรองด้านซ้าย (กด "ล้างค่า") และเดือนที่ดูอยู่ — ถ้ายังไม่ขึ้น แผนอาจยังไม่ได้ใส่วันเริ่มทำ', 'pm_calendar'],
+    ['งาน PM', 'ทำงาน PM ตามวันที่กำหนดไม่ได้', 'เลื่อนงานได้ที่แท็บเลื่อนแผน PM โดยต้องระบุเหตุผลทุกครั้ง', 'pm_postpone'],
+    ['งาน PM', 'งาน PM ตรงกับวันหยุด', 'ตั้งวันหยุดและวิธีจัดการ (เลื่อนไป / เลื่อนมาก่อน / หยุดทำ) ที่แท็บจัดการวันหยุด แล้วกด "คำนวณแผนใหม่"', 'pm_holiday'],
+    ['งาน PM', 'บันทึกใบงาน PM ไม่ผ่าน', 'ดูขั้นสรุปว่ายังมีข้อที่ไม่ได้ตรวจหรือไม่ จุดที่บังคับถ่ายรูปต้องแนบรูป และต้องเลือกชื่อผู้ตรวจสอบพร้อมเซ็นชื่อ', 'pm_worksheet'],
+    ['มิเตอร์และสต็อก', 'เลขมิเตอร์ครั้งนี้น้อยกว่าครั้งก่อน', 'ถ้าหน้าปัดวิ่งครบรอบแล้ว ให้ติ๊ก "ยืนยันมิเตอร์วนรอบ" ตอนบันทึก', 'meter'],
+    ['มิเตอร์และสต็อก', 'จำนวนอะไหล่ในระบบไม่ตรงกับของจริง', 'ใช้ปุ่ม "ปรับยอด" ในเมนูจัดการสต็อก เพื่อให้มีประวัติการแก้ไข', 'stock_move'],
+    ['คู่มือนี้', 'สถานะ "อ่านแล้ว" หายไป', 'สถานะอ่านแล้วเก็บไว้ในเบราว์เซอร์ของเครื่องนั้น เปลี่ยนเครื่อง/เบราว์เซอร์ หรือล้างข้อมูลเบราว์เซอร์จะเริ่มนับใหม่', null]
 ];
 
 // ============================================================
@@ -673,6 +704,36 @@ function updateProgress() {
 }
 
 // ============================================================
+// คำถามที่พบบ่อย
+// ============================================================
+const faqMatch = (f, q) => !q || (f[1] + ' ' + f[2]).toLowerCase().includes(q);
+function faqListHtml(q, open) {
+    const list = FAQ.filter(f => faqMatch(f, q));
+    if (!list.length) return `<div class="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">ไม่พบคำถามที่ตรงกับ "${q.replace(/[<>&"]/g, '')}"</div>`;
+    return `<div class="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 overflow-hidden">
+        ${[...new Set(list.map(f => f[0]))].map(g => `<div class="px-4 pt-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 bg-slate-50/70">${g}</div>`
+            + list.filter(f => f[0] === g).map(([, fq, a, go]) => `<details class="group px-4 py-3" ${open ? 'open' : ''}><summary class="cursor-pointer list-none flex items-center justify-between gap-3 text-[14px] font-medium text-slate-800">${fq}<i data-lucide="chevron-down" class="w-4 h-4 flex-none text-slate-400 group-open:rotate-180 transition-transform"></i></summary><p class="mt-2 text-[14px] text-slate-600">${a}</p>${go && byId[go] ? `<button type="button" data-nav="${go}" class="mt-2 inline-flex items-center gap-1 text-[13px] font-medium text-sky-700 hover:underline"><i data-lucide="book-open" class="w-3.5 h-3.5"></i>ดูบท: ${byId[go].title}</button>` : ''}</details>`).join('')).join('')}
+    </div>`;
+}
+
+function renderFaq() {
+    const q = $('search').value.trim().toLowerCase();
+    $('content').innerHTML = `
+    <div class="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8 fade-in">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-sky-50 text-[#006b9f] flex items-center justify-center flex-none"><i data-lucide="circle-help" class="w-5 h-5"></i></div>
+            <div class="min-w-0">
+                <h2 class="text-xl sm:text-2xl font-bold text-slate-900">คำถามที่พบบ่อย</h2>
+                <p class="text-[13px] text-slate-500">${q ? `ผลการค้นหา "${q.replace(/[<>&"]/g, '')}" — <button type="button" id="faqClear" class="text-sky-700 font-medium hover:underline">ดูทั้งหมด</button>` : 'กดที่คำถามเพื่อดูคำตอบ หรือพิมพ์ในช่องค้นหาด้านซ้ายเพื่อหาคำถาม'}</p>
+            </div>
+        </div>
+        <div class="mt-5">${faqListHtml(q, !!q)}</div>
+        <p class="mt-6 text-[13px] text-slate-500">ไม่พบคำตอบที่ต้องการ? ติดต่อผู้ดูแลระบบของหน่วยงาน</p>
+    </div>`;
+    icons();
+}
+
+// ============================================================
 // สารบัญ + ค้นหา
 // ============================================================
 let currentId = null;
@@ -680,8 +741,10 @@ function renderToc() {
     const q = $('search').value.trim().toLowerCase();
     const match = l => !q || [l.title, l.intro, l.module.title, ...(l.parts || []).filter(p => !p.roles || p.roles.includes(LEVEL)).flatMap(p => p.steps.map(s => s.t)), ...(l.tips || []), ...(l.blocks || []).map(b => b.title + ' ' + b.text)]
         .some(t => stripTags(t).toLowerCase().includes(q));
+    const faqHits = FAQ.filter(f => faqMatch(f, q)).length;
     let html = `<button type="button" class="toc-item ${currentId === null ? 'active' : ''}" data-go=""><i data-lucide="home" class="w-4 h-4 text-slate-500"></i>เริ่มต้นที่นี่</button>`;
-    let any = false;
+    if (!q || faqHits) html += `<button type="button" class="toc-item ${currentId === 'faq' ? 'active' : ''}" data-go="faq"><i data-lucide="circle-help" class="w-4 h-4 text-sky-700"></i><span class="flex-1">คำถามที่พบบ่อย</span>${q ? `<span class="rounded-full bg-sky-100 text-sky-700 text-[11px] font-semibold px-1.5">${faqHits}</span>` : ''}</button>`;
+    let any = !!(q && faqHits);
     modules.forEach(m => {
         const ls = flat.filter(l => l.module.id === m.id && match(l));
         if (!ls.length) return;
@@ -700,7 +763,7 @@ $('tocList').addEventListener('click', e => {
     location.hash = b.dataset.go ? '#' + b.dataset.go : '#';
     closeToc();
 });
-$('search').addEventListener('input', renderToc);
+$('search').addEventListener('input', () => { renderToc(); if (currentId === 'faq') renderFaq(); });
 
 // สารบัญบนมือถือ (แผงเลื่อนจากซ้าย)
 const openToc = () => { $('toc').classList.remove('-translate-x-full'); $('tocBackdrop').classList.remove('hidden'); };
@@ -838,9 +901,7 @@ function renderHome() {
         <h3 class="mt-8 mb-3 font-semibold text-slate-800">หัวข้อทั้งหมด</h3>
         <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">${modules.map(card).join('')}</div>
         <h3 class="mt-8 mb-3 font-semibold text-slate-800">คำถามที่พบบ่อย</h3>
-        <div class="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
-            ${FAQ.map(([q, a]) => `<details class="group px-4 py-3"><summary class="cursor-pointer list-none flex items-center justify-between gap-3 text-[14px] font-medium text-slate-800">${q}<i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform"></i></summary><p class="mt-2 text-[14px] text-slate-600">${a}</p></details>`).join('')}
-        </div>
+        ${faqListHtml('', false)}
     </div>`;
     icons();
 }
@@ -854,9 +915,10 @@ content.addEventListener('mouseout', e => { const s = e.target.closest('[data-st
 content.addEventListener('focusin', e => { const s = e.target.closest('[data-step]'); if (s) setActive(content, s.dataset.step, true); });
 content.addEventListener('focusout', e => { const s = e.target.closest('[data-step]'); if (s) setActive(content, s.dataset.step, false); });
 content.addEventListener('click', e => {
+    if (e.target.closest('#faqClear')) { $('search').value = ''; renderToc(); renderFaq(); return; }
     const nav = e.target.closest('[data-nav]');
     if (nav) {
-        if (currentId) { done.add(currentId); saveDone(); }   // ไปบทถัดไป = อ่านบทนี้แล้ว
+        if (currentId && byId[currentId]) { done.add(currentId); saveDone(); }   // ไปบทถัดไป = อ่านบทนี้แล้ว
         location.hash = '#' + nav.dataset.nav; return;
     }
     const pin = e.target.closest('[data-pin]');
@@ -908,7 +970,7 @@ function openZoom(shot) {
         + shotHtml(shot.dataset.shot, 'z')
         + (zoomSteps.length ? `<div id="zoomCap" class="bg-white rounded-2xl shadow-xl p-2 sm:p-3 flex items-center gap-2 sm:gap-3">
             <button type="button" data-zstep="-1" class="w-10 h-10 flex-none rounded-full border border-slate-200 hover:bg-slate-50 text-slate-600 flex items-center justify-center" title="จุดก่อนหน้า (←)"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
-            <div id="zoomCapBody" class="flex-1 min-w-0 flex items-start gap-2.5 py-0.5"></div>
+            <div id="zoomCapBody" class="flex-1 min-w-0 flex items-center gap-2.5 py-0.5"></div>
             <button type="button" data-zstep="1" class="w-10 h-10 flex-none rounded-full border border-slate-200 hover:bg-slate-50 text-slate-600 flex items-center justify-center" title="จุดถัดไป (→)"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
         </div>` : '');
     z.classList.add('open');
@@ -924,7 +986,7 @@ function showZoomStep(i) {
     const body = $('zoomCapBody');
     if (!body) return;
     body.innerHTML = st
-        ? `<span class="step-no">${st.m}</span><div class="cap-text flex-1 min-w-0 text-[14px] leading-relaxed text-slate-600">${st.html}</div><span class="ml-auto pl-2 text-[11px] text-slate-400 whitespace-nowrap self-center">${i + 1}/${zoomSteps.length}</span>`
+        ? `<span class="step-no">${st.m}</span><div class="cap-text flex-1 min-w-0 text-left text-[14px] leading-relaxed text-slate-600"><div>${st.html}</div></div><span class="ml-auto pl-2 text-[11px] text-slate-400 whitespace-nowrap">${i + 1}/${zoomSteps.length}</span>`
         : `<div class="self-center text-[14px] text-slate-500"><i data-lucide="mouse-pointer-click" class="w-4 h-4 inline -mt-0.5 mr-1 text-rose-500"></i>แตะตัวเลขบนภาพ หรือกด ‹ › เพื่อดูคำอธิบายทีละจุด</div>`;
     icons();
 }
@@ -960,8 +1022,8 @@ document.addEventListener('keydown', e => {
 function route() {
     const id = decodeURIComponent(location.hash.slice(1));
     const l = byId[id];
-    currentId = l ? l.id : null;
-    l ? renderLesson(l) : renderHome();
+    currentId = l ? l.id : (id === 'faq' ? 'faq' : null);
+    if (l) renderLesson(l); else if (id === 'faq') renderFaq(); else renderHome();
     renderToc();
     updateProgress();
     content.scrollTop = 0;
