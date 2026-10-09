@@ -307,7 +307,7 @@ include "config_ctrl/checksession.php";
                     <div>
                         <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">รอดำเนินการ</p>
                         <h3 id="stat-pending" class="text-4xl font-black text-amber-500 tracking-tight">0</h3>
-                        <p id="stat-pending-note" class="text-xs text-slate-400 mt-2">ค้างทั้งหมด · ไม่จำกัดช่วงเวลา</p>
+                        <p id="stat-pending-note" class="text-xs text-slate-400 mt-2">รวมทุกช่วงเวลา</p>
                     </div>
                     <div class="kpi-icon-wrapper bg-amber-50 text-amber-500 group-hover:bg-amber-500 group-hover:text-white transition-colors duration-300">
                         <i data-lucide="clock" class="w-6 h-6"></i>
@@ -321,7 +321,7 @@ include "config_ctrl/checksession.php";
                     <div>
                         <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">กำลังดำเนินการ</p>
                         <h3 id="stat-doing" class="text-4xl font-black text-sky-500 tracking-tight">0</h3>
-                        <p class="text-xs text-slate-400 mt-2">ทั้งหมด · ไม่จำกัดช่วงเวลา</p>
+                        <p class="text-xs text-slate-400 mt-2">รวมทุกช่วงเวลา</p>
                     </div>
                     <div class="kpi-icon-wrapper bg-sky-50 text-sky-500 group-hover:bg-sky-500 group-hover:text-white transition-colors duration-300">
                         <i data-lucide="hammer" class="w-6 h-6"></i>
