@@ -119,6 +119,7 @@ if ($action === 'one') {
         g.TGroupName,
         a.asset_status,
         a.asset_company,
+        a.asset_warranty,
         a.asset_rp_area_id
       FROM tb_ass_list a
       LEFT JOIN tb_asset_group g ON g.GroupId = a.asset_type
@@ -157,6 +158,7 @@ if ($action === 'one') {
       g.TGroupName,
       a.asset_status,
       a.asset_company,
+      a.asset_warranty,
       a.asset_rp_area_id
     FROM tb_ass_list a
     LEFT JOIN tb_asset_group g ON g.GroupId = a.asset_type
@@ -236,6 +238,7 @@ $sql = "
     g.TGroupName,
     a.asset_status,
     a.asset_company,
+    a.asset_warranty,
     a.asset_rp_area_id
   FROM tb_ass_list a
   LEFT JOIN tb_asset_group g ON g.GroupId = a.asset_type

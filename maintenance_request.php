@@ -776,7 +776,7 @@ function repair_form_escape($value)
                       <span id="asset_sel_loc_html" class="min-w-0 break-words w-full sm:w-auto"></span>
                     </div>
 
-                    <div class="mt-3 flex flex-wrap gap-2"> </div>
+                    <div id="asset_sel_warranty" class="mt-3"></div>
                   </div>
                   
                   <button type="button" id="asset_clear_btn" class="shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-white border border-slate-200 text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all flex items-center justify-center">
@@ -1394,6 +1394,44 @@ async function loadAssetTypeFilters(){
 }
 
   
+// ===============================
+// ประกันเครื่องจักร: บริษัทที่ดูแล + วันหมดประกัน (asset_company / asset_warranty)
+// ===============================
+function warrantyInfo(dateStr) {
+  const d = String(dateStr || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d === '0000-00-00') return { tone: 'none', text: 'ไม่ระบุวันหมดประกัน' };
+  const end = new Date(d + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((end - today) / 86400000);
+  const th = end.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (days < 0) return { tone: 'expired', text: `หมดประกันแล้ว (${th})` };
+  if (days <= 60) return { tone: 'soon', text: `ใกล้หมดประกัน · เหลือ ${days} วัน (${th})` };
+  return { tone: 'ok', text: `อยู่ในประกันถึง ${th}` };
+}
+// compact = แถวผลค้นหา, ไม่ compact = กล่องในการ์ดเครื่องที่เลือก (มีคำแนะนำให้ติดต่อบริษัท)
+function renderWarrantyBox(company, dateStr, compact) {
+  const e = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const w = warrantyInfo(dateStr);
+  const tone = {
+    ok:      ['bg-emerald-50 border-emerald-200 text-emerald-700', 'shield-check'],
+    soon:    ['bg-amber-50 border-amber-200 text-amber-700', 'shield-alert'],
+    expired: ['bg-rose-50 border-rose-200 text-rose-700', 'shield-x'],
+    none:    ['bg-slate-50 border-slate-200 text-slate-500', 'shield']
+  }[w.tone];
+  const comp = String(company || '').trim();
+  const compHtml = `<span class="inline-flex items-center gap-1 min-w-0"><i data-lucide="building-2" class="w-3.5 h-3.5 shrink-0"></i><span class="truncate">${comp ? e(comp) : 'ไม่ระบุบริษัทที่ดูแล'}</span></span>`;
+  const chip = `<span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-extrabold whitespace-nowrap ${tone[0]}"><i data-lucide="${tone[1]}" class="w-3.5 h-3.5"></i>${w.text}</span>`;
+  if (compact) {
+    return `<div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500 font-semibold">${compHtml}${chip}</div>`;
+  }
+  const hint = (w.tone === 'ok' || w.tone === 'soon')
+    ? `<p class="mt-1.5 text-[11px] font-semibold text-emerald-700">ยังอยู่ในประกัน — แนะนำให้ติดต่อ${comp ? ' <b>' + e(comp) + '</b> ' : 'บริษัทที่ดูแล'}ก่อนดำเนินการซ่อม</p>`
+    : '';
+  return `<div class="rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
+      <div class="text-[10px] font-extrabold uppercase tracking-wide text-slate-400 mb-1">บริษัทที่ดูแล / ประกัน</div>
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-bold text-slate-700">${compHtml}${chip}</div>${hint}
+    </div>`;
+}
 function showSoftAlert(message, type = 'info') {
   // ลบตัวเดิมถ้ามี (กันซ้อน)
   const old = document.getElementById('soft_alert_top');
@@ -2321,6 +2359,8 @@ function escapeHtml(str){
 		}
 		safeIcons();
       elSelOwner.textContent  = x.owner;
+      const elSelWarranty = document.getElementById('asset_sel_warranty');
+      if (elSelWarranty) { elSelWarranty.innerHTML = renderWarrantyBox(x.owner, x.warranty, false); safeIcons(); }
       elBadgeType.textContent = (x.type_name && String(x.type_name).trim() !== "") ? x.type_name : "Asset";
 
 
@@ -2384,11 +2424,7 @@ function escapeHtml(str){
 			  ${renderLocationIcons(x.location)}
 			</div>
 		
-			<div class="mt-2 flex items-center gap-2 text-[11px] text-slate-400 font-semibold break-words">
-			  <span class="inline-flex items-center gap-1">
-				<i data-lucide="users" class="w-4 h-4"></i> ${esc(x.owner)}
-			  </span>
-			</div>
+			${renderWarrantyBox(x.owner, x.warranty, true)}
 		  </div>
 		
 		  <div class="shrink-0 mt-1 text-slate-300">

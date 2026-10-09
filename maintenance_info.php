@@ -2010,6 +2010,7 @@ let CL = { keepUrls: [], newFiles: [] };
 		
 		  // ========= 1. แท็บ “รายละเอียดใบงาน” =========
 		  fillEditTab(row);   // ใช้ของเดิมที่มีอยู่แล้ว
+		  renderRepairVideo(row.video_url);
 		
 		  // ========= 2. แท็บ “การดำเนินการ – รับงาน / จ่ายงาน” =========
 			let acDate = '';
@@ -3812,6 +3813,61 @@ clearFloor(target='edit'){
 })();
 
 // ทรัพย์สิน<br>
+// ===============================
+// ประกันเครื่องจักร: บริษัทที่ดูแล + วันหมดประกัน (asset_company / asset_warranty)
+// ===============================
+function warrantyInfo(dateStr) {
+  const d = String(dateStr || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d === '0000-00-00') return { tone: 'none', text: 'ไม่ระบุวันหมดประกัน' };
+  const end = new Date(d + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((end - today) / 86400000);
+  const th = end.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (days < 0) return { tone: 'expired', text: `หมดประกันแล้ว (${th})` };
+  if (days <= 60) return { tone: 'soon', text: `ใกล้หมดประกัน · เหลือ ${days} วัน (${th})` };
+  return { tone: 'ok', text: `อยู่ในประกันถึง ${th}` };
+}
+// compact = แถวผลค้นหา, ไม่ compact = กล่องในการ์ดเครื่องที่เลือก (มีคำแนะนำให้ติดต่อบริษัท)
+function renderWarrantyBox(company, dateStr, compact) {
+  const e = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const w = warrantyInfo(dateStr);
+  const tone = {
+    ok:      ['bg-emerald-50 border-emerald-200 text-emerald-700', 'shield-check'],
+    soon:    ['bg-amber-50 border-amber-200 text-amber-700', 'shield-alert'],
+    expired: ['bg-rose-50 border-rose-200 text-rose-700', 'shield-x'],
+    none:    ['bg-slate-50 border-slate-200 text-slate-500', 'shield']
+  }[w.tone];
+  const comp = String(company || '').trim();
+  const compHtml = `<span class="inline-flex items-center gap-1 min-w-0"><i data-lucide="building-2" class="w-3.5 h-3.5 shrink-0"></i><span class="truncate">${comp ? e(comp) : 'ไม่ระบุบริษัทที่ดูแล'}</span></span>`;
+  const chip = `<span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-extrabold whitespace-nowrap ${tone[0]}"><i data-lucide="${tone[1]}" class="w-3.5 h-3.5"></i>${w.text}</span>`;
+  if (compact) {
+    return `<div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500 font-semibold">${compHtml}${chip}</div>`;
+  }
+  const hint = (w.tone === 'ok' || w.tone === 'soon')
+    ? `<p class="mt-1.5 text-[11px] font-semibold text-emerald-700">ยังอยู่ในประกัน — แนะนำให้ติดต่อ${comp ? ' <b>' + e(comp) + '</b> ' : 'บริษัทที่ดูแล'}ก่อนดำเนินการซ่อม</p>`
+    : '';
+  return `<div class="rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
+      <div class="text-[10px] font-extrabold uppercase tracking-wide text-slate-400 mb-1">บริษัทที่ดูแล / ประกัน</div>
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-bold text-slate-700">${compHtml}${chip}</div>${hint}
+    </div>`;
+}
+// ===============================
+// วิดีโอแจ้งซ่อม (ดูอย่างเดียว) ใน drawer รายละเอียดงานซ่อม — row.video_url จาก get_one
+// ===============================
+function renderRepairVideo(url) {
+  const box = document.getElementById('ed_video_box');
+  const cnt = document.getElementById('ed_video_count');
+  if (!box) return;
+  const u = String(url || '').trim();
+  if (cnt) cnt.textContent = u ? '1/1' : '0/1';
+  box.innerHTML = u
+    ? `<video src="${escapeHtml(u)}" controls playsinline preload="metadata" class="w-full max-h-72 rounded-xl bg-black"></video>
+       <a href="${escapeHtml(u)}" target="_blank" rel="noopener" class="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 hover:underline"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> เปิดวิดีโอในแท็บใหม่</a>`
+    : `<div class="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/60 py-6 flex flex-col items-center justify-center gap-1 text-slate-400">
+         <i data-lucide="video-off" class="w-6 h-6"></i><span class="text-[11px] font-bold">ไม่มีวิดีโอแนบมากับใบแจ้งซ่อมนี้</span>
+       </div>`;
+  safeIcons();
+}
 const AssetSelector = {
   apiEndpoint: 'get_assets.php',
   typeId: 0,
@@ -4012,6 +4068,8 @@ renderSelectedCard(item) {
   document.getElementById('sel_asset_code').innerText  = item.ass_code || 'NO CODE';
   document.getElementById('sel_asset_sn').innerText    = 'SN: ' + (item.asset_sn || '-');
   document.getElementById('sel_asset_model').innerText = 'Model: ' + (item.asset_model || '-');
+  const selWarranty = document.getElementById('sel_asset_warranty');
+  if (selWarranty) selWarranty.innerHTML = renderWarrantyBox(item.asset_company, item.asset_warranty, false);
 
   // ✅ สำคัญ: ใช้ตัวนี้จบ
   this.applyThumb(item.fileUpload1_url || '');
@@ -4400,6 +4458,7 @@ document.addEventListener('click', (e) => {
         <h4 id="sel_asset_name" class="text-[15px] font-black text-slate-900 leading-snug truncate">
           Asset Name
         </h4>
+        <div id="sel_asset_warranty" class="mt-2"></div>
 
        <!-- <div class="mt-2 flex items-center gap-2 text-[11px] font-semibold text-slate-500">
           <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i>
@@ -4462,6 +4521,17 @@ document.addEventListener('click', (e) => {
           </div>
 
           
+        </div>
+        <!-- Video (ดูอย่างเดียว) -->
+        <div class="up-card mt-4">
+          <div class="up-head">
+            <div class="up-title">
+              <i data-lucide="video" class="w-4 h-4 text-sky-700"></i>
+              วิดีโอแจ้งซ่อม (สูงสุด 1 คลิป)
+            </div>
+            <div class="up-count"><span id="ed_video_count">0/1</span></div>
+          </div>
+          <div id="ed_video_box" class="mt-1"></div>
         </div>
 
       </div> 

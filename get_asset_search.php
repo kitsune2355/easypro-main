@@ -86,6 +86,7 @@ SELECT
   a.dep_id,
   a.asset_status,
   a.asset_company,
+  a.asset_warranty,
 
   b.area_name,
   f.ac_name,
@@ -158,7 +159,8 @@ while($row = mysqli_fetch_assoc($res)){
     "type_name" => $row['TGroupName'],               // ✅ เอาไว้โชว์ badge
     "location"  => implode(" • ", $loc),
     "status"    => $row['asset_status'],
-    "owner"     => $row['asset_company']
+    "owner"     => $row['asset_company'],
+    "warranty"  => $row['asset_warranty']   // วันหมดประกัน (YYYY-MM-DD)
   ];
 }
 
