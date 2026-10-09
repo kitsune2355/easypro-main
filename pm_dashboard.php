@@ -252,11 +252,11 @@ include "config_ctrl/checksession.php";
     /* ปุ่ม +N (งานที่เหลือของวัน) ตีกรอบเป็นชิปเต็มความกว้างช่อง ให้เห็นชัดว่ากดได้ */
     #pm-calendar .fc-daygrid-more-link {
         display: block; float: none !important; box-sizing: border-box; width: calc(100% - 6px); margin: 2px 3px 0; padding: 1px 6px;
-        border: 1px solid #bae6fd; background: #f0f9ff; color: #0369a1;
-        border-radius: 6px; font-size: 12px; font-weight: 600; line-height: 1.5; text-align: center;
+        border: 1px solid #006B9F; background: #fff; color: #0f172a;   /* แบบ outline เหมือนเดิม */
+        border-radius: 4px; font-size: 12px; font-weight: 500; line-height: 1.5; text-align: left;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, border-color .15s;
     }
-    #pm-calendar .fc-daygrid-more-link:hover { background: #e0f2fe; border-color: #7dd3fc; text-decoration: none; }
+    #pm-calendar .fc-daygrid-more-link:hover { background: #f0f9ff; color: #006B9F; text-decoration: none; }
     #pm-calendar .fc-daygrid-day-bottom { margin-top: 0 !important; }
     /* popup รายละเอียดงาน PM */
     .pm-dt-body { margin: 1.25rem 1rem 0 !important; padding: 0 !important; }
