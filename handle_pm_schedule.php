@@ -126,6 +126,33 @@ try {
                  'contract' => ['start' => $contract_start, 'end' => $contract_end]]]);
     }
 
+    // กำหนดการรายวันในช่วงวันที่ (มุมมองรายเดือน/รายสัปดาห์) => {plan_id: {YYYY-MM-DD: {n, done, overdue}}}
+    if ($action === 'get_days') {
+        $from = (string)($_GET['from'] ?? '');
+        $to = (string)($_GET['to'] ?? '');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) || $from > $to) {
+            throw new Exception('ช่วงวันที่ไม่ถูกต้อง');
+        }
+        if ((strtotime($to) - strtotime($from)) / 86400 > 62) throw new Exception('ช่วงวันที่ยาวเกินไป (สูงสุด 62 วัน)');
+        $today = date('Y-m-d');
+
+        $days = [];
+        foreach (fetchRows($connect, "
+            SELECT e.plan_id, e.event_date, e.status
+            FROM pm_plan_events e
+            JOIN pm_plans p ON p.id = e.plan_id
+            WHERE p.ag_id = ? AND p.status = 1 AND e.event_date BETWEEN ? AND ?",
+            "sss", [$ag_id, $from, $to]) as $e) {
+            $d = &$days[$e['plan_id']][$e['event_date']];
+            if (!$d) $d = ['n' => 0, 'done' => 0, 'overdue' => 0];
+            $d['n']++;
+            if ((int)$e['status'] === 1) $d['done']++;
+            elseif ($e['event_date'] < $today) $d['overdue']++;
+            unset($d);
+        }
+        jsonOut(['success' => true, 'data' => ['from' => $from, 'to' => $to, 'today' => $today, 'days' => (object)$days]]);
+    }
+
     // แก้แผนหลายรายการ: อัปเดตแผน แล้วสร้างกำหนดการที่ยังไม่ดำเนินการใหม่ตั้งแต่ "รอบถัดไป" จนสิ้นสุดสัญญา
     // (กำหนดการที่ทำแล้ว และงานค้างก่อนวันรอบถัดไป คงไว้เหมือนเดิม)
     if ($action === 'update_plans') {
