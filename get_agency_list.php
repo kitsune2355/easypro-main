@@ -16,7 +16,7 @@ $levelCheck = $_SESSION['sess_user_level_es_check'] ?? '0';
 
 if ($levelCheck == '1') {
   $sql = "
-    SELECT a.ag_id, a.ag_job, a.ag_contract
+    SELECT a.ag_id, a.ag_job, a.ag_contract, a.ag_end_date
     FROM tb_agency_employer e
     INNER JOIN tb_agency a ON a.ag_id = e.age_ag_id
     WHERE e.age_user_id = '".mysqli_real_escape_string($connect, $userId)."'
@@ -25,7 +25,7 @@ if ($levelCheck == '1') {
   ";
 } else {
   $sql = "
-    SELECT ag_id, ag_job, ag_contract
+    SELECT ag_id, ag_job, ag_contract, ag_end_date
     FROM tb_agency
     WHERE ag_status = 1
     ORDER BY ag_format DESC
@@ -39,12 +39,17 @@ if (!$q) {
   exit();
 }
 
+require_once "config_ctrl/agency_contract.php";
+$isSuper = ($_SESSION['sess_user_level_es'] ?? '') === 'super_admin';
 $data = [];
 while ($r = mysqli_fetch_assoc($q)) {
+  $expired = agc_is_expired($r['ag_end_date']);
+  if ($expired && !$isSuper) continue;   // หมดสัญญา: ผู้ใช้ทั่วไปไม่เห็น / super_admin เห็นพร้อมป้าย
   $data[] = [
     'ag_id' => (int)$r['ag_id'],
     'code'  => $r['ag_job'],
-    'name'  => $r['ag_contract'],
+    'name'  => $r['ag_contract'] . ($expired ? ' (หมดสัญญา ' . agc_thai_date($r['ag_end_date']) . ')' : ''),
+    'expired' => $expired,
   ];
 }
 

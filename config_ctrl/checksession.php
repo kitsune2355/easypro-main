@@ -28,6 +28,14 @@ if (empty($_SESSION['session_time'])) {
 /* ??????????? 1 ??????? */
 $overtime = time() - (int)$_SESSION['session_time'];
 
+/* หน่วยงานหมดสัญญาระหว่างที่ยังล็อกอินอยู่ => ออกจากระบบพร้อมข้อความ (super_admin ใช้งานต่อได้) */
+if ($_SESSION['sess_user_level_es'] !== 'super_admin' && !empty($_SESSION['sess_ag_end_date'])) {
+    require_once __DIR__ . '/agency_contract.php';
+    if (agc_is_expired($_SESSION['sess_ag_end_date'])) {
+        agc_block(agc_message([['name' => (string)($_SESSION['sess_agency_name'] ?? ''), 'end' => $_SESSION['sess_ag_end_date']]]), $loginUrl);
+    }
+}
+
 if ($overtime > 3600) {
     session_unset();
     session_destroy();

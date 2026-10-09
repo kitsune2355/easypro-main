@@ -21,6 +21,7 @@ if ($user_login === '' || $pass_login === '') {
 
 // connect DB
 include "connect.php";
+include_once "agency_contract.php";   // ตรวจหน่วยงานหมดสัญญา
 
 // เข้ารหัสรหัสผ่านแบบเดิม
 $pass_login_md5 = md5(md5(md5($pass_login)));
@@ -132,6 +133,15 @@ if ($num_rows >= 1) {
 							];
 						}
 					
+						// หน่วยงานที่หมดสัญญา: ไม่ให้เลือก — ถ้าหมดสัญญาทุกหน่วยงาน => เข้าสู่ระบบไม่ได้
+						$expiredAg = [];
+						$agencyList = array_values(array_filter((array)$agencyList, function ($a) use (&$expiredAg) {
+							if (agc_is_expired($a['ag_end_date'])) { $expiredAg[] = ['name' => $a['ag_contract'], 'end' => $a['ag_end_date']]; return false; }
+							return true;
+						}));
+						if (count($agencyList) <= 0 && count($expiredAg) > 0) {
+							agc_block(agc_message($expiredAg));
+						}
 						if (count($agencyList) <= 0) {
 							$_SESSION['login_error'] = 'ไม่พบหน่วยงานที่เปิดใช้งานสำหรับผู้ใช้นี้';
 							header('Location: ../login.php');
@@ -185,6 +195,15 @@ if ($num_rows >= 1) {
 					];
 				}
 			
+				// หน่วยงานที่หมดสัญญา: ไม่ให้เลือก — ถ้าหมดสัญญาทุกหน่วยงาน => เข้าสู่ระบบไม่ได้
+				$expiredAg = [];
+				$agencyList = array_values(array_filter((array)$agencyList, function ($a) use (&$expiredAg) {
+					if (agc_is_expired($a['ag_end_date'])) { $expiredAg[] = ['name' => $a['ag_contract'], 'end' => $a['ag_end_date']]; return false; }
+					return true;
+				}));
+				if (count($agencyList) <= 0 && count($expiredAg) > 0) {
+					agc_block(agc_message($expiredAg));
+				}
 				if (count($agencyList) <= 0) {
 					$_SESSION['login_error'] = 'ไม่พบหน่วยงานที่เปิดใช้งานสำหรับผู้ใช้นี้';
 					header('Location: ../login.php');
@@ -246,6 +265,11 @@ if ($num_rows >= 1) {
                 $_SESSION['login_error'] = 'ไม่พบข้อมูลหน่วยงาน หรือหน่วยงานถูกปิดใช้งาน';
                 header('Location: ../login.php');
                 exit();
+            }
+
+            // หน่วยงานหมดสัญญา => เข้าสู่ระบบไม่ได้
+            if (agc_is_expired($r_ag['ag_end_date'])) {
+                agc_block(agc_message([['name' => $r_ag['ag_contract'], 'end' => $r_ag['ag_end_date']]]));
             }
 
             $_SESSION['sess_user_agency'] 	= (int)$r_ag['ag_id'];

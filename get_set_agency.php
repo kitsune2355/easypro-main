@@ -37,6 +37,14 @@ if (!$r) {
   exit();
 }
 
+// หน่วยงานหมดสัญญา: เลือกไม่ได้ (ยกเว้น super_admin ที่ดูแลระบบ)
+require_once "config_ctrl/agency_contract.php";
+if (($_SESSION['sess_user_level_es'] ?? '') !== 'super_admin' && agc_is_expired($r['ag_end_date'])) {
+  http_response_code(403);
+  echo json_encode(['ok' => false, 'message' => agc_message([['name' => $r['ag_contract'], 'end' => $r['ag_end_date']]])], JSON_UNESCAPED_UNICODE);
+  exit();
+}
+
 // ???? session
 $_SESSION['sess_user_agency']   		= (int)$r['ag_id'];
 $_SESSION['sess_agency_code'] 			= $r['ag_job'];

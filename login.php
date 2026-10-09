@@ -210,14 +210,15 @@ if (!empty($_SESSION['login_error'])) {
 		
 		const loginError = <?php echo json_encode($login_error); ?>;
 		if (loginError) {
+			// หน่วยงานหมดสัญญา: ข้อความยาวและต้องติดต่อผู้ดูแล => ไม่ปิดเอง ให้ผู้ใช้กดรับทราบ
+			const contractEnded = loginError.indexOf('หมดสัญญา') !== -1;
 			Swal.fire({
-				icon: 'error',
-				title: 'เข้าสู่ระบบไม่สำเร็จ',
+				icon: contractEnded ? 'warning' : 'error',
+				title: contractEnded ? 'หน่วยงานหมดสัญญาแล้ว' : 'เข้าสู่ระบบไม่สำเร็จ',
 				text: loginError,
-				confirmButtonText: 'ลองใหม่',
+				confirmButtonText: contractEnded ? 'รับทราบ' : 'ลองใหม่',
 				confirmButtonColor: '#006b9f',
-				timer: 4000,
-				timerProgressBar: true
+				...(contractEnded ? {} : { timer: 4000, timerProgressBar: true })
 			}).then(() => {
 				if (loginInput) {
 					loginInput.focus();

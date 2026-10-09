@@ -11,6 +11,7 @@ if (empty($u)) {
 
 // connect DB
 include "connect.php";
+include_once "agency_contract.php";   // ตรวจหน่วยงานหมดสัญญา
 
 $user_login = mysqli_real_escape_string($connect, $u);
 
@@ -73,6 +74,10 @@ if ($num_rows >= 1) {
                    FROM tb_agency WHERE ag_id = {$ag_id} AND ag_status = 1 LIMIT 1";
         $q_ag = mysqli_query($connect, $sql_ag);
         if ($r_ag = mysqli_fetch_assoc($q_ag)) {
+            // หน่วยงานหมดสัญญา => เข้าสู่ระบบด้วย QR ไม่ได้
+            if (agc_is_expired($r_ag['ag_end_date'])) {
+                agc_block(agc_message([['name' => $r_ag['ag_contract'], 'end' => $r_ag['ag_end_date']]]));
+            }
             $_SESSION['sess_user_agency'] = (int)$r_ag['ag_id'];
             $_SESSION['sess_agency_code'] = $r_ag['ag_job'];
             $_SESSION['sess_agency_name'] = $r_ag['ag_contract'];
