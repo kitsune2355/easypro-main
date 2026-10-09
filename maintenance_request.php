@@ -1021,9 +1021,10 @@ function repair_form_escape($value)
     </div>
 
     <!-- FOOTER -->
-    <div class="h-16 bg-white border-t border-slate-100 px-8 flex justify-between items-center shrink-0">
-      <button type="reset"
-  class="group inline-flex items-center gap-2 px-4 py-2 rounded-xl
+    <!-- ยึดขอบล่างของจอขณะเลื่อนฟอร์ม (sticky) -->
+    <div class="sticky bottom-0 z-30 h-16 bg-white/95 backdrop-blur border-t border-slate-200 shadow-[0_-6px_16px_-10px_rgba(15,23,42,.25)] px-3 sm:px-8 flex justify-between items-center gap-3 shrink-0 lg:rounded-b-3xl">
+      <button type="reset" title="ล้างข้อมูล" aria-label="ล้างข้อมูล"
+  class="group inline-flex items-center gap-2 p-1 sm:px-4 sm:py-2 rounded-xl
          bg-white border border-slate-200 text-slate-600
          shadow-sm hover:shadow-md hover:bg-blue-50 hover:border-blue-200
          hover:text-blue-700 active:scale-95 transition-all">
@@ -1034,12 +1035,13 @@ function repair_form_escape($value)
     <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
   </span>
 
-  <span class="text-xs font-extrabold uppercase tracking-widest">
+  <!-- มือถือ: เหลือแค่ไอคอน -->
+  <span class="hidden sm:inline text-xs font-extrabold uppercase tracking-widest">
     ล้างข้อมูล
   </span>
 </button>
 
-      <button type="submit" class="btn-gradient px-10 py-2.5 rounded-xl shadow-lg flex items-center gap-2.5 font-bold text-sm">
+      <button type="submit" class="btn-gradient flex-1 sm:flex-none justify-center px-6 sm:px-10 py-2.5 rounded-xl shadow-lg flex items-center gap-2.5 font-bold text-sm">
         <i data-lucide="send" class="w-4 h-4"></i>
         ยืนยันแจ้งซ่อม
       </button>
