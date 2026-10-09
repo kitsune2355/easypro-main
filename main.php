@@ -197,7 +197,7 @@ if (isset($_SESSION['sess_user_level_es']) && ($_SESSION['sess_user_level_es'] =
 <?php if (isset($_SESSION['sess_user_level_es']) && ($_SESSION['sess_user_level_es'] == 'super_admin' || $_SESSION['sess_user_level_es_check'] == '1')) { ?>
 <div id="agencyModal" class="fixed inset-0 z-[9999] hidden items-center justify-center p-0 md:p-4 backdrop-blur-md bg-black/40 transition-all duration-300">
   
-  <div class="relative w-full h-full md:h-auto md:max-w-[800px] bg-white rounded-none md:rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border-0 md:border border-gray-100 overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300">
+  <div class="relative w-full h-full md:h-auto md:min-h-[min(520px,calc(100dvh-3rem))] md:max-h-[min(860px,calc(100dvh-3rem))] md:max-w-[800px] bg-white rounded-none md:rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border-0 md:border border-gray-100 overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300">
     
     <div class="flex items-center justify-between px-6 py-4 md:px-8 md:py-6 bg-gradient-to-r from-easy-primary to-easy-primary/80 text-white shrink-0">
       <div>
@@ -211,16 +211,17 @@ if (isset($_SESSION['sess_user_level_es']) && ($_SESSION['sess_user_level_es'] =
       </button>
     </div>
 
-    <div class="flex-1 flex flex-col p-4 md:p-8 overflow-hidden">
+    <div class="flex-1 min-h-0 flex flex-col p-4 md:px-8 md:py-6 overflow-hidden">
       
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 md:mb-6 shrink-0">
-        <div class="relative group">
-          <label class="text-[10px] uppercase font-bold text-gray-400 mb-1 ml-1 block">Company Code</label>
-          <input id="fCode" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:bg-white focus:border-easy-primary focus:ring-4 focus:ring-easy-primary/10 outline-none transition-all placeholder:text-gray-300" placeholder="e.g. AG001">
+      <!-- ช่องค้นหา (กรองรายการในตารางด้านล่างทันทีที่พิมพ์) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 shrink-0">
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+          <input id="fCode" type="search" autocomplete="off" aria-label="ค้นหารหัสหน่วยงาน" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:bg-white focus:border-easy-primary focus:ring-4 focus:ring-easy-primary/10 outline-none transition-all placeholder:text-gray-400" placeholder="ค้นหารหัสหน่วยงาน...">
         </div>
-        <div class="relative group">
-          <label class="text-[10px] uppercase font-bold text-gray-400 mb-1 ml-1 block">Company Name</label>
-          <input id="fName" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:bg-white focus:border-easy-primary focus:ring-4 focus:ring-easy-primary/10 outline-none transition-all placeholder:text-gray-300" placeholder="e.g. Global Logistics Co.">
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+          <input id="fName" type="search" autocomplete="off" aria-label="ค้นหาชื่อหน่วยงาน" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:bg-white focus:border-easy-primary focus:ring-4 focus:ring-easy-primary/10 outline-none transition-all placeholder:text-gray-400" placeholder="ค้นหาชื่อหน่วยงาน...">
         </div>
       </div>
 
@@ -256,7 +257,7 @@ if (isset($_SESSION['sess_user_level_es']) && ($_SESSION['sess_user_level_es'] =
         </div>
       </div>
 
-      <div class="flex flex-col md:flex-row items-center justify-between mt-4 md:mt-8 gap-4 shrink-0">
+      <div class="flex flex-col md:flex-row items-center justify-between mt-3 md:mt-4 gap-4 shrink-0">
         <div class="hidden md:flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100">
           <i data-lucide="triangle-alert" class="w-4 h-4"></i>
           <span class="text-[11px] font-medium">โปรดเลือกหน่วยงานเพื่อเริ่มใช้งานระบบ</span>
