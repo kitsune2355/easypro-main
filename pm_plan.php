@@ -19,7 +19,7 @@ include "config_ctrl/checksession.php";
         display: none;
     }
 </style>
-<div id="tab-plan" class="tab-content hidden">
+<div id="tab-plan" class="tab-content hidden flex flex-col min-h-full">
     <div id="plan-list-view" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 block">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
             <div>
@@ -42,7 +42,7 @@ include "config_ctrl/checksession.php";
         </div>
     </div>
 
-    <div id="plan-wizard-view" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 hidden">
+    <div id="plan-wizard-view" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 hidden flex flex-col flex-1">
         <div class="flex justify-between items-center mb-6 border-b pb-4">
             <div>
                 <h3 class="text-lg font-semibold text-slate-800">สร้างแผน PM ใหม่</h3>
@@ -60,19 +60,19 @@ include "config_ctrl/checksession.php";
             <div class="flex items-center w-full max-w-2xl">
                 <div id="stepper-1" class="flex items-center text-sky-600 relative">
                     <div class="rounded-full transition duration-500 ease-in-out h-8 w-8 py-3 border-2 border-sky-600 bg-sky-600 text-white flex items-center justify-center font-bold text-sm">1</div>
-                    <div class="absolute top-0 -ml-10 text-center mt-10 w-28 text-xs font-medium uppercase text-sky-600">เลือกข้อมูลพื้นฐาน</div>
+                    <div class="absolute top-0 left-0 sm:left-auto sm:-ml-10 text-left sm:text-center mt-10 w-24 sm:w-28 text-[11px] sm:text-xs font-medium uppercase text-sky-600">เลือกข้อมูลพื้นฐาน</div>
                 </div>
                 <div id="line-1" class="flex-auto border-t-2 transition duration-500 ease-in-out border-slate-200"></div>
                 
                 <div id="stepper-2" class="flex items-center text-slate-400 relative">
                     <div class="rounded-full transition duration-500 ease-in-out h-8 w-8 py-3 border-2 border-slate-200 bg-white flex items-center justify-center font-bold text-sm">2</div>
-                    <div class="absolute top-0 -ml-10 text-center mt-10 w-28 text-xs font-medium uppercase">ตั้งค่าเช็คชีต</div>
+                    <div class="absolute top-0 -ml-8 sm:-ml-10 text-center mt-10 w-24 sm:w-28 text-[11px] sm:text-xs font-medium uppercase">ตั้งค่าเช็คชีต</div>
                 </div>
                 <div id="line-2" class="flex-auto border-t-2 transition duration-500 ease-in-out border-slate-200"></div>
                 
                 <div id="stepper-3" class="flex items-center text-slate-400 relative">
                     <div class="rounded-full transition duration-500 ease-in-out h-8 w-8 py-3 border-2 border-slate-200 bg-white flex items-center justify-center font-bold text-sm">3</div>
-                    <div class="absolute top-0 -ml-10 text-center mt-10 w-28 text-xs font-medium uppercase">กำหนดวันเริ่มทำ</div>
+                    <div class="absolute top-0 right-0 sm:right-auto sm:-ml-10 text-right sm:text-center mt-10 w-24 sm:w-28 text-[11px] sm:text-xs font-medium uppercase">กำหนดวันเริ่มทำ</div>
                 </div>
             </div>
         </div>
@@ -114,13 +114,13 @@ include "config_ctrl/checksession.php";
             </div>
 
             <div id="step-content-3" class="hidden space-y-4">
-                <div class="flex justify-between items-end mb-2">
+                <div class="flex justify-between items-end gap-3 mb-2">
                     <div>
                         <h4 class="text-sm font-medium text-slate-800">กำหนดวันเริ่มทำ PM สำหรับเครื่องจักรในกลุ่ม</h4>
                         <p class="text-xs text-slate-500">กรอกวันที่ในรูปแบบ YYYY-MM-DD หรือดับเบิ้ลคลิกเพื่อเปิดปฏิทิน</p>
                     </div>
-                    <button type="button" onclick="window.toggleStep3Fullscreen()" class="text-sky-600 hover:text-sky-800 bg-sky-50 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors border border-sky-200">
-                        <i data-lucide="maximize" class="w-4 h-4"></i> ขยายเต็มจอ
+                    <button type="button" onclick="window.toggleStep3Fullscreen()" title="ขยายเต็มจอ" aria-label="ขยายเต็มจอ" class="shrink-0 text-sky-600 hover:text-sky-800 bg-sky-50 p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors border border-sky-200">
+                        <i data-lucide="maximize" class="w-4 h-4"></i> <span class="hidden sm:inline">ขยายเต็มจอ</span>
                     </button>
                 </div>
                 
@@ -131,8 +131,8 @@ include "config_ctrl/checksession.php";
                         <h4 class="text-sm font-medium text-slate-800">กำหนดวันเริ่มทำ PM สำหรับเครื่องจักรในกลุ่ม</h4>
                         <p class="text-xs text-slate-500">กรอกวันที่ในรูปแบบ YYYY-MM-DD หรือดับเบิ้ลคลิกเพื่อเปิดปฏิทิน</p>
                     </div>
-                        <button type="button" onclick="window.toggleStep3Fullscreen()" class="text-slate-600 hover:text-red-500 bg-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 border border-slate-300 shadow-sm transition-colors">
-                            <i data-lucide="minimize" class="w-4 h-4"></i> ย่อหน้าจอกลับ
+                        <button type="button" onclick="window.toggleStep3Fullscreen()" title="ย่อหน้าจอกลับ" aria-label="ย่อหน้าจอกลับ" class="shrink-0 text-slate-600 hover:text-red-500 bg-white p-2 sm:px-4 sm:py-2 rounded-lg text-sm font-medium flex items-center gap-2 border border-slate-300 shadow-sm transition-colors">
+                            <i data-lucide="minimize" class="w-4 h-4"></i> <span class="hidden sm:inline">ย่อหน้าจอกลับ</span>
                         </button>
                     </div>
                     
@@ -142,7 +142,10 @@ include "config_ctrl/checksession.php";
 
         </div>
 
-        <div class="flex justify-between items-center mt-8 pt-4 border-t border-slate-200">
+        <!-- เนื้อหาสั้นกว่าจอ: ดันแถบปุ่มลงล่างสุด ทุกขั้นจึงอยู่ตำแหน่งเดียวกัน -->
+        <div class="flex-1"></div>
+        <!-- ปุ่มย้อนกลับ / ถัดไป / บันทึก ยึดขอบล่างของจอขณะเลื่อน -->
+        <div class="sticky bottom-0 z-20 -mx-5 -mb-5 mt-8 px-5 py-3 flex justify-between items-center gap-2 bg-white/95 backdrop-blur border-t border-slate-200 rounded-b-xl shadow-[0_-6px_16px_-10px_rgba(15,23,42,.25)]">
             <button id="btn-prev" onclick="window.prevStep()" class="hidden px-5 py-2.5 rounded-lg text-sm font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
                 ย้อนกลับ
             </button>
@@ -972,6 +975,37 @@ include "config_ctrl/checksession.php";
         const gridDiv = document.querySelector('#pmPlanGrid');
         if (gridDiv) {
             planGridApi = agGrid.createGrid(gridDiv, gridOptions);
+
+            // มือถือ: การ์ดแผน PM
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+            window.PmGridCards(planGridApi, gridDiv.parentElement, {
+                search: 'ค้นหาเครื่องจักร, เช็คชีต, S/N...',
+                onSearch: q => planGridApi.setGridOption('quickFilterText', q),
+                empty: 'ยังไม่มีแผน PM',
+                card: d => {
+                    const on = d.status == 1 || d.status === 'ใช้งาน';
+                    const id = esc(d.id);
+                    return `<div class="pm-mc ${on ? '' : 'is-off'}">
+                        <div class="pm-mc-title">${esc(d.equipmentName || '-')}</div>
+                        <div class="pm-mc-sub mt-0.5">${esc(d.macTypeName || '')}${d.asset_sn ? ' · S/N ' + esc(d.asset_sn) : ''}</div>
+                        <div class="mt-1.5 text-xs text-slate-600 flex items-start gap-1.5"><i data-lucide="clipboard-check" class="w-3.5 h-3.5 mt-0.5 shrink-0 text-sky-600"></i><span>${esc(d.checksheetName || '-')}</span></div>
+                        <div class="grid grid-cols-2 gap-1.5 mt-2">
+                            <div class="pm-mc-kv"><b>วันเข้าทำถัดไป</b><span class="!text-sky-700">${window.formatDate(d.next_date, false)}</span></div>
+                            <div class="pm-mc-kv"><b>ความถี่</b><span>${esc(d.freqDesc || '-')}</span></div>
+                            <div class="pm-mc-kv"><b>เริ่มทำตั้งแต่</b><span class="!text-teal-600">${window.formatDate(d.start_date, false)}</span></div>
+                            <div class="pm-mc-kv"><b>แจ้งเตือนล่วงหน้า</b><span>${esc(d.alertDesc || '-')}</span></div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-slate-100">
+                            <label class="pm-switch ${on ? 'text-emerald-600' : 'text-slate-400'}"><input type="checkbox" ${on ? 'checked' : ''} onchange="window.updatePlanStatus('${id}', this.checked)"><i></i>${on ? 'ใช้งาน' : 'ปิดใช้งาน'}</label>
+                            <div class="flex gap-1.5">
+                                <button type="button" class="pm-mc-btn" title="รายงานรายเดือน/รายวัน" onclick="window.open('pm_monthly_report_1.php?plan_id=${id}&show_pending=1', '_blank')"><i class="fa-solid fa-file-invoice"></i></button>
+                                <button type="button" class="pm-mc-btn !text-sky-600" title="แก้ไข" onclick="editPlan('${id}')"><i class="fa fa-edit"></i></button>
+                                <button type="button" class="pm-mc-btn !text-red-500" title="ลบ" onclick="deletePlan('${id}')"><i class="fa fa-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>`;
+                }
+            });
         }
 
 

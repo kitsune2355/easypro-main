@@ -318,6 +318,37 @@ include "config_ctrl/checksession.php";
         const gridDiv = document.querySelector('#holiday-grid');
         gridApi = agGrid.createGrid(gridDiv, gridOptions);
 
+        // มือถือ: การ์ดวันหยุด
+        (function () {
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+            const TYPE = { once: 'ครั้งเดียว', yearly: 'ทุกปี', daily: 'ทุกๆวัน' };
+            const HANDLE = { next_working_day: 'เลื่อนไปวันถัดไป', prev_working_day: 'เลื่อนมาทำก่อน', skip: 'หยุดทำ', none: 'ไม่หยุดทำ' };
+            window.PmGridCards(gridApi, gridDiv.parentElement, {
+                empty: 'ยังไม่มีวันหยุดที่บันทึกไว้',
+                card: h => {
+                    const on = h.status == 1 || h.status === true;
+                    const date = window.formatDate(h.type === 'daily' ? `ทุกวัน ${h.date}` : h.date, false);
+                    return `<div class="pm-mc ${on ? '' : 'is-off'}">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <div class="text-sm font-bold text-sky-600">${esc(date)}</div>
+                                <div class="pm-mc-title mt-0.5">${esc(h.name || '-')}</div>
+                            </div>
+                            <span class="pm-mc-chip bg-slate-100 text-slate-600 shrink-0">${esc(TYPE[h.type] || h.type || '-')}</span>
+                        </div>
+                        <div class="mt-2 text-xs text-slate-600 flex items-center gap-1.5"><i data-lucide="calendar-clock" class="w-3.5 h-3.5 text-amber-500"></i>เมื่อตรงวันหยุด: <b class="font-semibold text-slate-700">${esc(HANDLE[h.handle] || h.handle || '-')}</b></div>
+                        <div class="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-slate-100">
+                            <label class="pm-switch ${on ? 'text-emerald-600' : 'text-slate-400'}"><input type="checkbox" ${on ? 'checked' : ''} onchange="window.toggleHolidayStatus('${esc(h.id)}')"><i></i>${on ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</label>
+                            <div class="flex gap-1.5">
+                                <button type="button" class="pm-mc-btn" title="แก้ไข" onclick="window.editHoliday('${esc(h.id)}')"><i data-lucide="edit" class="w-4 h-4"></i></button>
+                                <button type="button" class="pm-mc-btn !text-red-500" title="ลบ" onclick="window.deleteHoliday('${esc(h.id)}')"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                    </div>`;
+                }
+            });
+        })();
+
         const holidayDataSource = {
             getRows: async (params) => {
                 const limit = params.endRow - params.startRow;

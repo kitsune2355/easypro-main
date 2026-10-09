@@ -535,7 +535,30 @@ include "config_ctrl/checksession.php";
                     params.api.setGridOption('datasource', checksheetDatasource);
                 }
             };
-            agGrid.createGrid(gridDiv, window.checksheetGridOptions);
+            const csApi = agGrid.createGrid(gridDiv, window.checksheetGridOptions);
+
+            // มือถือ: การ์ดเช็คชีต
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+            window.PmGridCards(csApi, gridDiv.parentElement, {
+                search: 'ค้นหาชื่อเช็คชีต...',
+                onSearch: q => csApi.setFilterModel(q ? { name: { filterType: 'text', type: 'contains', filter: q } } : null),
+                empty: 'ยังไม่มีเช็คชีตที่บันทึกไว้',
+                card: d => `<div class="pm-mc">
+                    <div class="pm-mc-title">${esc(d.name || '-')}</div>
+                    <div class="pm-mc-sub mt-0.5">${esc(d.docNo || '-')} · Rev. ${esc(d.revNo || '-')} · มีผล ${window.formatDate(d.effectiveDate, false)}</div>
+                    ${d.category ? `<div class="mt-1 text-xs text-slate-600 flex items-center gap-1.5"><i data-lucide="cpu" class="w-3.5 h-3.5 text-sky-600"></i>${esc(d.category)}</div>` : ''}
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        <span class="pm-mc-chip bg-slate-100 text-slate-600">${d.itemCount || 0} หัวข้อตรวจ</span>
+                        <span class="pm-mc-chip bg-sky-50 text-sky-700">${d.estimatedTime || 0} นาที</span>
+                        <span class="pm-mc-chip bg-amber-50 text-amber-600">อะไหล่ ${d.sparePartsCount || 0} รายการ</span>
+                    </div>
+                    <div class="flex justify-end gap-1.5 mt-2.5 pt-2.5 border-t border-slate-100">
+                        <button type="button" class="pm-mc-btn !text-indigo-500" title="คัดลอก" onclick="copyChecksheet(${Number(d.id)})"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                        <button type="button" class="pm-mc-btn !text-blue-500" title="แก้ไข" onclick="editChecksheet(${Number(d.id)})"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                        <button type="button" class="pm-mc-btn !text-red-500" title="ลบ" onclick="deleteChecksheet(${Number(d.id)})"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                </div>`
+            });
         }
 
         // ฟังก์ชันรีเฟรชข้อมูล (เช่น หลังลบหรือแก้ไข)

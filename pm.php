@@ -123,23 +123,121 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
             min-height: 400px;
         }
     </style>
+    <style>
+        /* ===== มือถือ: การ์ดแทนตาราง AG Grid (ดู PmGridCards) ===== */
+        .pm-mcards { display: none; }
+        @media (max-width: 767.98px) {
+            /* ตารางจริงยังทำงานอยู่นอกจอ (โหลดข้อมูล/แบ่งหน้า/กรอง) การ์ดอ่านข้อมูลจากตาราง */
+            .pm-grid-wrap { position: absolute !important; left: -12000px !important; top: 0; width: 1000px !important; height: 700px !important; overflow: hidden !important; }
+            .pm-grid-wrap > .ag-theme-alpine { height: 700px !important; }
+            .pm-mcards { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; gap: .6rem; }
+            #tab-holiday { height: auto !important; min-height: 0 !important; }
+            #tab-holiday > .lg\:col-span-8 { min-height: 0 !important; }
+        }
+        .pm-mc-list { display: flex; flex-direction: column; gap: .6rem; min-height: 0; overflow-y: auto; }
+        .pm-mc { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: .8rem; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+        .pm-mc.is-off { background: #f8fafc; }
+        .pm-mc.is-off .pm-mc-title { color: #94a3b8; }
+        .pm-mc-title { font-weight: 700; color: #1e293b; font-size: 14px; line-height: 1.35; }
+        .pm-mc-sub { font-size: 12px; color: #64748b; }
+        .pm-mc-kv { background: #f8fafc; border-radius: .6rem; padding: .35rem .55rem; min-width: 0; }
+        .pm-mc-kv b { display: block; font-size: 10px; font-weight: 600; color: #94a3b8; }
+        .pm-mc-kv span { display: block; font-size: 12.5px; font-weight: 600; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pm-mc-btn { width: 2.25rem; height: 2.25rem; border-radius: .7rem; border: 1px solid #e2e8f0; display: inline-flex; align-items: center; justify-content: center; color: #64748b; background: #fff; }
+        .pm-mc-btn:active { background: #f1f5f9; }
+        .pm-mc-chip { display: inline-flex; align-items: center; gap: .25rem; padding: .1rem .5rem; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+        .pm-mc-pager { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .25rem 0; }
+        .pm-mc-pager button { width: 2.5rem; height: 2.5rem; border-radius: .75rem; border: 1px solid #e2e8f0; background: #fff; color: #334155; }
+        .pm-mc-pager button:disabled { opacity: .35; }
+        .pm-switch { position: relative; display: inline-flex; align-items: center; gap: .4rem; cursor: pointer; font-size: 12px; font-weight: 600; }
+        .pm-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+        .pm-switch i { width: 2.1rem; height: 1.2rem; border-radius: 9999px; background: #e2e8f0; position: relative; transition: .2s; }
+        .pm-switch i::after { content: ''; position: absolute; top: 2px; left: 2px; width: calc(1.2rem - 4px); height: calc(1.2rem - 4px); border-radius: 9999px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: .2s; }
+        .pm-switch input:checked + i { background: #10b981; }
+        .pm-switch input:checked + i::after { transform: translateX(.9rem); }
+    </style>
+    <script>
+        /* มือถือ: แสดงแถวของตาราง AG Grid หน้าปัจจุบันเป็นการ์ด (ตารางยังเป็นตัวจัดการข้อมูล/แบ่งหน้า/กรอง)
+           PmGridCards(api, wrapEl, { card(data) => html, empty, search: placeholder, onSearch(text) }) */
+        window.PmGridCards = function (api, wrap, opts) {
+            if (!api || !wrap) return null;
+            const isMobile = () => window.innerWidth < 768;
+            wrap.classList.add('pm-grid-wrap');
+            const box = document.createElement('div');
+            box.className = 'pm-mcards';
+            box.innerHTML = (opts.search ? `<div class="relative"><i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>`
+                    + `<input type="search" class="pm-mc-q w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-sky-500/30" placeholder="${opts.search}"></div>` : '')
+                + `<div class="pm-mc-list"></div>`
+                + `<div class="pm-mc-pager"><button type="button" data-p="prev" aria-label="หน้าก่อนหน้า"><i data-lucide="chevron-left" class="w-4 h-4 mx-auto"></i></button>`
+                + `<span class="pm-mc-info text-xs font-semibold text-slate-500 text-center"></span>`
+                + `<button type="button" data-p="next" aria-label="หน้าถัดไป"><i data-lucide="chevron-right" class="w-4 h-4 mx-auto"></i></button></div>`;
+            wrap.insertAdjacentElement('afterend', box);
+            const list = box.querySelector('.pm-mc-list'), info = box.querySelector('.pm-mc-info');
+            let retry = null, tries = 0;
+
+            function render() {
+                if (!isMobile()) return;
+                const size = api.paginationGetPageSize(), page = api.paginationGetCurrentPage();
+                const pages = Math.max(1, api.paginationGetTotalPages() || 1);
+                const total = api.paginationGetRowCount ? api.paginationGetRowCount() : api.getDisplayedRowCount();
+                const html = [];
+                let pending = false;
+                for (let i = page * size; i < page * size + size; i++) {
+                    const node = api.getDisplayedRowAtIndex(i);
+                    if (!node) break;
+                    if (!node.data) { pending = true; continue; }
+                    html.push(opts.card(node.data, node));
+                }
+                list.innerHTML = html.length ? html.join('')
+                    : (pending ? `<div class="py-12 text-center text-slate-400 text-sm">กำลังโหลด...</div>`
+                               : `<div class="py-12 text-center text-slate-400 text-sm"><i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2"></i>${opts.empty || 'ไม่พบข้อมูล'}</div>`);
+                info.textContent = `หน้า ${Math.min(page + 1, pages)} / ${pages}` + (total ? ` · ${total} รายการ` : '');
+                box.querySelector('[data-p="prev"]').disabled = page <= 0;
+                box.querySelector('[data-p="next"]').disabled = page >= pages - 1;
+                box.querySelector('.pm-mc-pager').style.display = pages > 1 ? '' : 'none';
+                if (window.lucide) lucide.createIcons({ root: box });
+                // แถวที่ยังโหลดจากเซิร์ฟเวอร์ไม่เสร็จ (infinite row model) => ลองวาดใหม่อีกครั้ง
+                clearTimeout(retry);
+                if (pending && tries++ < 20) retry = setTimeout(render, 300); else if (!pending) tries = 0;
+            }
+            box.addEventListener('click', e => {
+                const b = e.target.closest('[data-p]');
+                if (!b) return;
+                if (b.dataset.p === 'prev') api.paginationGoToPreviousPage(); else api.paginationGoToNextPage();
+                list.scrollTop = 0;
+                box.scrollIntoView({ block: 'nearest' });
+            });
+            if (opts.search) {
+                let tm = null;
+                box.querySelector('.pm-mc-q').addEventListener('input', e => {
+                    clearTimeout(tm);
+                    tm = setTimeout(() => opts.onSearch(e.target.value.trim()), 300);
+                });
+            }
+            ['modelUpdated', 'paginationChanged', 'rowDataUpdated', 'cellValueChanged'].forEach(ev => api.addEventListener(ev, () => { tries = 0; render(); }));
+            let wasMobile = isMobile();
+            window.addEventListener('resize', () => { const m = isMobile(); if (m && !wasMobile) render(); wasMobile = m; });
+            setTimeout(render, 0);
+            return { render };
+        };
+    </script>
 </head>
 <body class="flex flex-col antialiased text-slate-700 h-screen w-full relative">
 
-    <nav class="flex-none px-6 py-4 flex items-center justify-between border-b border-slate-200 bg-white z-20 shadow-sm">
+    <nav class="flex-none px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b border-slate-200 bg-white z-20 shadow-sm">
         <div class="flex items-center gap-4">
             <div class="p-2 bg-[#006B9F] rounded-lg shadow-md text-white">
                 <i data-lucide="notebook-pen" class="w-6 h-6"></i>
             </div>
             <div>
                 <h2 class="text-lg font-bold text-slate-800 leading-tight" id="header-title">Preventive Maintenance</h2>
-                <p class="text-xs text-slate-500 mt-1" id="header-subtitle">ติดตามและตรวจสอบแผนการบำรุงรักษา</p>
+                <p class="hidden sm:block text-xs text-slate-500 mt-1" id="header-subtitle">ติดตามและตรวจสอบแผนการบำรุงรักษา</p>
             </div>
         </div>
     </nav>
 
-    <div class="flex-none bg-white border-b border-slate-200 px-6 z-10 shadow-sm">
-        <ul class="flex space-x-8 overflow-x-auto hide-scrollbar">
+    <div class="flex-none bg-white border-b border-slate-200 px-2 sm:px-6 z-10 shadow-sm relative">
+        <ul id="pm-tabs" class="flex gap-5 sm:gap-8 px-2 sm:px-0 overflow-x-auto hide-scrollbar">
             <li>
                 <button onclick="switchTab('dashboard')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
                     <i data-lucide="calendar" class="w-4 h-4"></i> ปฏิทิน
@@ -186,10 +284,12 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                 </button>
             </li>
         </ul>
+        <!-- มือถือ: เงาจางขอบขวา บอกว่ายังมีแท็บให้เลื่อนดู -->
+        <span id="pm-tabs-fade" class="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent"></span>
     </div>
 
     <div class="flex-1 flex flex-col overflow-hidden bg-[var(--color-bg-light)]">
-        <main class="flex-1 overflow-y-auto px-4 pt-4 pb-4 relative">
+        <main class="flex-1 overflow-y-auto px-2 sm:px-4 pt-3 sm:pt-4 pb-4 relative">
             <?php include 'pm_dashboard.php'; ?>
             <?php include 'pm_postpone.php'; ?>
             <?php include 'pm_plan.php'; ?>
@@ -311,7 +411,12 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
             if(targetTab) targetTab.classList.remove('hidden');
 
             const activeBtn = document.querySelector(`button[onclick*="'${tabId}'"]`);
-            if (activeBtn) activeBtn.classList.add('active');
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+                // มือถือ: เลื่อนแถบแท็บให้เห็นแท็บที่เลือก
+                const ul = document.getElementById('pm-tabs');
+                if (ul) ul.scrollTo({ left: activeBtn.offsetLeft - (ul.clientWidth - activeBtn.offsetWidth) / 2, behavior: 'smooth' });
+            }
 
             localStorage.setItem('activePMTab', tabId);
 
@@ -364,6 +469,15 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
         Object.entries(pmPanelState()).forEach(([tabId, on]) => {
             document.getElementById('tab-' + tabId)?.classList.toggle('pm-collapsed', !!on);
         });
+
+        (function () {
+            const ul = document.getElementById('pm-tabs'), fade = document.getElementById('pm-tabs-fade');
+            if (!ul || !fade) return;
+            const upd = () => { fade.style.opacity = ul.scrollLeft + ul.clientWidth >= ul.scrollWidth - 4 ? '0' : '1'; };
+            ul.addEventListener('scroll', upd, { passive: true });
+            window.addEventListener('resize', upd);
+            setTimeout(upd, 0);
+        })();
 
         document.addEventListener('DOMContentLoaded', () => {
             const savedTab = localStorage.getItem('activePMTab') || 'dashboard';

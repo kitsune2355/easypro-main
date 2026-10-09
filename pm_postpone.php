@@ -136,7 +136,7 @@ include "config_ctrl/checksession.php";
         </aside>
 
         <div class="flex flex-col gap-4 overflow-hidden h-full pb-2 md:pt-0">
-            <div class="calendar-wrapper bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0">
+            <div class="calendar-wrapper bg-white p-3 sm:p-5 rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0">
                 <div class="flex justify-between items-center mb-4 shrink-0">
                     <h2 class="text-lg font-bold text-slate-800">
                         <button type="button" class="p-2 bg-sky-50 text-sky-600 rounded-lg md:hidden hover:bg-sky-100 transition-colors" onclick="togglePostponeSidebar()">
@@ -150,7 +150,7 @@ include "config_ctrl/checksession.php";
                         <i class="fas fa-save md:mr-2"></i> <span class="hidden md:inline">บันทึกการเลื่อนทั้งหมด</span>
                     </button>
                 </div>
-                <div class="flex-1 relative border border-slate-200 rounded-lg overflow-hidden">
+                <div class="pp-hot-wrap flex-1 relative border border-slate-200 rounded-lg overflow-hidden">
                     <div id="hot-container" class="absolute inset-0 z-0"></div>
                     
                     <div id="no-data-overlay" class="absolute inset-0 z-10 hidden backdrop-blur-[2px]">
@@ -160,15 +160,17 @@ include "config_ctrl/checksession.php";
                         </div>
                     </div>
                 </div>
+                <!-- มือถือ: การ์ดแต่ละแผน -->
+                <div id="pp-cards" class="pp-cards flex-1 min-h-0 overflow-y-auto flex-col gap-2.5"></div>
             </div>
 
-            <div id="history-section" class="bg-slate-50 p-4 rounded-xl border border-slate-200 hidden shrink-0">
+            <div id="history-section" class="bg-slate-50 p-4 rounded-xl border border-slate-200 hidden shrink-0 max-md:!hidden">
                 <h3 class="text-sm font-bold text-slate-700 mb-3"><i class="fas fa-history mr-2"></i> ประวัติการเลื่อนของรายการที่เลือก</h3>
                 <div id="history-list" class="space-y-2 max-h-32 overflow-y-auto text-xs custom-scrollbar">
                 </div>
             </div>
 
-            <div class="flex flex-col sm:flex-row justify-between items-center px-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm gap-4 shrink-0">
+            <div class="flex flex-row flex-wrap justify-between items-center px-3 sm:px-4 py-2.5 sm:py-3 bg-white border border-slate-200 rounded-xl shadow-sm gap-2 sm:gap-4 shrink-0">
                 <div class="flex items-center gap-2">
                     <span class="text-xs text-slate-500 font-medium">แสดงหน้าละ:</span>
                     <select id="page-size-select" onchange="changePageSize()" class="text-xs border-slate-300 rounded-lg py-1.5 pl-3 pr-8 focus:ring-sky-500 focus:border-sky-500 shadow-sm cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors appearance-none outline-none">
@@ -198,6 +200,13 @@ include "config_ctrl/checksession.php";
     </div>
 </div>
 
+<style>
+    .pp-cards { display: none; }
+    @media (max-width: 767.98px) {
+        #tab-postpone .pp-hot-wrap { position: absolute !important; left: -12000px; width: 1000px; height: 600px; flex: none; }
+        #tab-postpone .pp-cards { display: flex; }
+    }
+</style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
 <script>
@@ -642,7 +651,60 @@ include "config_ctrl/checksession.php";
             },
             licenseKey: 'non-commercial-and-evaluation'
         });
+        hotInstance.addHook('afterLoadData', () => setTimeout(renderPostponeCards, 0));
+        hotInstance.addHook('afterChange', (changes, source) => { if (source !== 'mobile') renderPostponeCards(); });
+        renderPostponeCards();
     }
+
+    /* มือถือ: การ์ดแทนตาราง — เลือกวันที่เลื่อนใหม่/เหตุผลในการ์ด แล้วเขียนกลับลงตาราง (ปุ่มบันทึกใช้ข้อมูลจากตารางเหมือนเดิม) */
+    function renderPostponeCards() {
+        const box = document.getElementById('pp-cards');
+        if (!box || !hotInstance || window.innerWidth >= 768) return;
+        const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        const rows = hotInstance.getSourceData() || [];
+        const today = moment().format('YYYY-MM-DD');
+        const max = CONTRACT_END ? moment(CONTRACT_END).format('YYYY-MM-DD') : '';
+        box.innerHTML = rows.length ? rows.map((r, i) => `
+            <div class="pm-mc ${r.new_date ? '!border-amber-300 !bg-amber-50/40' : ''}" data-row="${i}">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <div class="pm-mc-title">${esc(r.machine || '-')}</div>
+                        <div class="pm-mc-sub mt-0.5"><span class="font-mono">${esc(r.qr_code || '')}</span>${r.type ? ' · ' + esc(r.type) : ''}</div>
+                    </div>
+                    ${r.postpone_count > 0 ? `<button type="button" onclick="showPostponeHistory('${esc(r.id)}')" class="pm-mc-chip bg-red-100 text-red-700 shrink-0">เลื่อนแล้ว ${r.postpone_count} ครั้ง</button>` : ''}
+                </div>
+                <div class="mt-1.5 text-xs text-slate-600 space-y-0.5">
+                    ${r.location ? `<div class="flex items-start gap-1.5"><i class="fas fa-location-dot w-3 mt-0.5 text-slate-400"></i><span>${esc(r.location)}</span></div>` : ''}
+                    ${r.checksheet ? `<div class="flex items-start gap-1.5"><i class="fas fa-clipboard-check w-3 mt-0.5 text-sky-600"></i><span>${esc(r.checksheet)}</span></div>` : ''}
+                </div>
+                <div class="grid grid-cols-2 gap-1.5 mt-2">
+                    <div class="pm-mc-kv"><b>วันที่แผนเดิม</b><span class="!text-rose-600">${window.formatDate(r.old_date, false)}</span></div>
+                    <div class="pm-mc-kv"><b>ความถี่</b><span>${esc(r.frequency || '-')} วัน</span></div>
+                </div>
+                <div class="grid grid-cols-1 gap-2 mt-2.5 pt-2.5 border-t border-slate-100">
+                    <label class="text-[11px] font-semibold text-slate-500">วันที่เลื่อนใหม่
+                        <input type="date" data-f="new_date" value="${esc(r.new_date || '')}" min="${today}" ${max ? `max="${max}"` : ''} class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white">
+                    </label>
+                    <label class="text-[11px] font-semibold text-slate-500">เหตุผลที่เลื่อน
+                        <input type="text" data-f="reason" value="${esc(r.reason || '')}" placeholder="ระบุเหตุผล" class="mt-1 w-full border border-amber-200 bg-amber-50 rounded-lg px-3 py-2 text-sm text-slate-700">
+                    </label>
+                </div>
+            </div>`).join('')
+            : `<div class="py-12 text-center text-slate-400 text-sm"><i class="fas fa-folder-open text-3xl text-slate-300 mb-2 block"></i>ไม่พบข้อมูลตามเงื่อนไขที่กำหนด</div>`;
+    }
+    document.addEventListener('change', e => {
+        const inp = e.target.closest('#pp-cards [data-f]');
+        if (!inp || !hotInstance) return;
+        const row = +inp.closest('[data-row]').dataset.row;
+        let v = inp.value;
+        if (inp.dataset.f === 'new_date' && v && new Date(v).getDay() === 0) {
+            Swal.fire('เลือกวันไม่ได้', 'ไม่สามารถเลื่อนไปวันอาทิตย์ได้', 'warning');
+            inp.value = v = '';
+        }
+        hotInstance.setDataAtRowProp(row, inp.dataset.f, v || null, 'mobile');
+        inp.closest('.pm-mc').classList.toggle('!border-amber-300', !!hotInstance.getDataAtRowProp(row, 'new_date'));
+    });
+    window.addEventListener('resize', () => renderPostponeCards());
 
     async function loadPostponeHistory(planId) {
         const section = document.getElementById('history-section');

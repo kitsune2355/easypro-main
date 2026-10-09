@@ -361,7 +361,7 @@ include "config_ctrl/checksession.php";
                     <button type="button" onclick="togglePmPanel('dashboard', false)" class="pm-expand-btn items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 text-sm font-medium" title="แสดงแผงตัวกรอง">
                         <i class="fas fa-angles-right"></i> ตัวกรอง
                     </button>
-                    <h3 class="text-lg font-semibold text-slate-800">ปฏิทินปฏิบัติงาน PM</h3>
+                    <h3 class="text-lg font-semibold text-slate-800">ปฏิทิน PM</h3>
                 </div>
                 
                 <div class="hidden lg:grid grid-flow-col auto-cols-max items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
@@ -1120,7 +1120,11 @@ include "config_ctrl/checksession.php";
         
         if (calendarEl) {
             window.calendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth',
+                // มือถือ: เริ่มที่มุมมองกำหนดการ (รายการ) อ่านง่ายกว่าตารางเดือน
+                initialView: isMobile ? 'listMonth' : 'dayGridMonth',
+                dayMaxEvents: isMobile ? 2 : false,
+                allDayText: 'ทั้งวัน',
+                moreLinkText: n => '+' + n,
                 locale: 'th',
                 height: '100%',
                 handleWindowResize: true,
@@ -1138,7 +1142,8 @@ include "config_ctrl/checksession.php";
                     right: 'multiMonthYear,dayGridMonth,dayGridDay,listMonth'
                 },
                 views: {
-                    multiMonthYear: { type: 'multiMonth', duration: { years: 1 } }
+                    multiMonthYear: { type: 'multiMonth', duration: { years: 1 } },
+                    dayGridDay: { dayMaxEvents: false }   // รายวัน: แสดงทุกงาน
                 },
                 themeSystem: 'standard',
                 
