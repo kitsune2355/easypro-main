@@ -174,12 +174,15 @@ include "config_ctrl/checksession.php";
             font-weight: 500;
             transition: 0.2s;
         }
+        @media (max-width: 639.98px) { .btn-chart-action { padding: 0.5rem; } .btn-chart-action .btn-label { display: none; } }   /* มือถือ: เหลือแค่ไอคอน */
         .btn-chart-action:hover {
             background: #f8fafc;
             border-color: #cbd5e1;
         }
 
         .tab-pill {
+            white-space: nowrap;
+            text-align: center;
             padding: 0.5rem 1.5rem;
             border-radius: 9999px;
             font-size: 0.875rem;
@@ -187,6 +190,10 @@ include "config_ctrl/checksession.php";
             transition: all 0.2s;
             cursor: pointer;
             color: #64748b;
+        }
+        /* มือถือ: แท็บเล็กลง แบ่ง 3 ช่องเท่ากัน ไม่ขึ้นบรรทัดใหม่ */
+        @media (max-width: 767.98px) {
+            .tab-pill { padding: 0.375rem 0.5rem; font-size: 0.8125rem; }
         }
         .tab-pill.active {
             background-color: var(--color-primary);
@@ -211,24 +218,33 @@ include "config_ctrl/checksession.php";
         }
         @keyframes shimmer { 0% { background-position: -1000px 0; } 100% { background-position: 1000px 0; } }
         .hidden { display: none !important; }
+        /* ตัวกรอง: จอเล็กกว่า 1024px หุบได้ (ไม่ใช้ .hidden เพราะ !important ด้านบนจะชนะ lg:flex) */
+        @media (max-width: 1023.98px) { #dashFilters.is-closed { display: none; } }
     </style>
 </head>
 <body class="antialiased min-h-screen">
     
-    <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm px-3 py-2 mb-8">
-        <div class="w-full mx-auto flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <div class="bg-[--color-primary] p-2.5 rounded-xl text-white shadow-lg shadow-sky-200">
-                    <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
+    <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm px-3 py-2 mb-4 sm:mb-8">
+        <div class="w-full mx-auto flex flex-col xl:flex-row xl:items-center justify-between gap-2 xl:gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="bg-[--color-primary] p-2 sm:p-2.5 rounded-xl text-white shadow-lg shadow-sky-200 flex-none">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5 sm:w-6 sm:h-6"></i>
                 </div>
-                <div>
-                    <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Maintenance Dashboard</h1>
-                    <p class="text-sm text-slate-500">ระบบบริหารจัดการงานซ่อมบำรุงและพลังงาน</p>
+                <div class="min-w-0 flex-1">
+                    <h1 class="text-lg sm:text-2xl font-bold text-slate-800 tracking-tight leading-tight truncate">Maintenance Dashboard</h1>
+                    <p class="text-xs sm:text-sm text-slate-500 truncate">ระบบบริหารจัดการงานซ่อมบำรุงและพลังงาน</p>
                 </div>
+                <!-- จอเล็กกว่า lg (1024px): ตัวกรองหุบเป็นปุ่ม (บอกช่วงที่เลือกอยู่) -->
+                <button type="button" id="filterToggle" aria-expanded="false" aria-controls="dashFilters" title="ตัวกรอง"
+                    class="lg:hidden flex-none inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-slate-700 hover:bg-sky-50 hover:border-sky-300 shadow-sm">
+                    <i data-lucide="sliders-horizontal" class="w-5 h-5 text-sky-700"></i>
+                    <span id="filterSummary" class="hidden sm:inline text-[13px] font-medium max-w-[16rem] truncate"></span>
+                    <i data-lucide="chevron-down" id="filterChevron" class="w-4 h-4 text-slate-400 transition-transform"></i>
+                </button>
             </div>
 
-            <div class="flex flex-wrap items-end gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
-                <div class="px-2">
+            <div id="dashFilters" class="is-closed flex flex-wrap items-end gap-2 sm:gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+                <div class="px-1 sm:px-2">
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">ช่วงเวลา</label>
                     <select id="filterType" class="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block w-32 p-2 custom-select outline-none">
                         <option value="daily">รายวัน</option>
@@ -237,16 +253,16 @@ include "config_ctrl/checksession.php";
                     </select>
                 </div>
 
-                <div id="filterInputs" class="flex items-center gap-2"></div>
+                <div id="filterInputs" class="flex items-center gap-2 flex-wrap"></div>
 
-                <div class="px-2 border-l border-slate-200 pl-4 ml-2">
+                <div class="px-1 sm:px-2 xl:border-l border-slate-200 xl:pl-4 xl:ml-2">
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">สถานที่</label>
-                    <select id="buildingFilter" class="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block w-48 p-2 custom-select outline-none">
+                    <select id="buildingFilter" class="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block w-48 max-w-full p-2 custom-select outline-none">
                         <option value="">ทั้งหมด</option>
                     </select>
                 </div>
 
-                <button id="searchBtn" class="btn-primary px-5 py-2 rounded-xl flex items-center gap-2 font-semibold ml-2 h-[38px]">
+                <button id="searchBtn" class="btn-primary px-5 py-2 rounded-xl flex items-center gap-2 font-semibold xl:ml-2 h-[38px]">
                     <i data-lucide="search" class="w-4 h-4"></i>
                     <span>ค้นหา</span>
                 </button>
@@ -254,7 +270,7 @@ include "config_ctrl/checksession.php";
         </div>
     </div>
 
-    <main class="max-w-full mx-auto px-6 pb-12">
+    <main class="max-w-full mx-auto px-3 sm:px-6 pb-12">
         
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('')" title="คลิกเพื่อดูรายการ">
@@ -336,9 +352,9 @@ include "config_ctrl/checksession.php";
                         <h4 class="font-bold text-lg text-slate-800">ปริมาณงานตามช่วงเวลา</h4>
                         <p class="text-xs text-slate-400">แนวโน้มการแจ้งซ่อม</p>
                     </div>
-                    <button type="button" onClick="toggleChartFullscreen('monthlyTotalChart')" class="btn-chart-action">
+                    <button type="button" onClick="toggleChartFullscreen('monthlyTotalChart')" class="btn-chart-action" title="เต็มจอ">
                         <i data-lucide="maximize" class="w-4 h-4"></i>
-                        <span>เต็มจอ</span>
+                        <span class="btn-label">เต็มจอ</span>
                     </button>
                 </div>
                 <div id="monthlyTotalChart" class="echart-box"></div>
@@ -350,9 +366,9 @@ include "config_ctrl/checksession.php";
                     <div>
                         <h4 class="font-bold text-lg text-slate-800">แยกตามอาคาร</h4>
                     </div>
-                    <button type="button" onClick="toggleChartFullscreen('buildingChart')" class="btn-chart-action">
+                    <button type="button" onClick="toggleChartFullscreen('buildingChart')" class="btn-chart-action" title="เต็มจอ">
                         <i data-lucide="maximize" class="w-4 h-4"></i>
-                        <span>เต็มจอ</span>
+                        <span class="btn-label">เต็มจอ</span>
                     </button>
                 </div>
                 <div id="buildingChart" class="echart-box"></div>
@@ -364,9 +380,9 @@ include "config_ctrl/checksession.php";
                 <div id="loader-service-chart" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
                 <div class="flex items-center justify-between mb-4 gap-3">
                     <h4 class="font-bold text-lg text-slate-800">ชนิดของการบริการ</h4>
-                    <button type="button" onClick="toggleChartFullscreen('serviceTypeChart')" class="btn-chart-action">
+                    <button type="button" onClick="toggleChartFullscreen('serviceTypeChart')" class="btn-chart-action" title="เต็มจอ">
                         <i data-lucide="maximize" class="w-4 h-4"></i>
-                        <span>เต็มจอ</span>
+                        <span class="btn-label">เต็มจอ</span>
                     </button>
                 </div>
                 <div id="serviceTypeChart" class="echart-box"></div>
@@ -375,9 +391,9 @@ include "config_ctrl/checksession.php";
                 <div id="loader-category-chart" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
                 <div class="flex items-center justify-between mb-4 gap-3">
                     <h4 class="font-bold text-lg text-slate-800">ประเภทงาน</h4>
-                    <button type="button" onClick="toggleChartFullscreen('jobCategoryChart')" class="btn-chart-action">
+                    <button type="button" onClick="toggleChartFullscreen('jobCategoryChart')" class="btn-chart-action" title="เต็มจอ">
                         <i data-lucide="maximize" class="w-4 h-4"></i>
-                        <span>เต็มจอ</span>
+                        <span class="btn-label">เต็มจอ</span>
                     </button>
                 </div>
                 <div id="jobCategoryChart" class="echart-box"></div>
@@ -389,9 +405,9 @@ include "config_ctrl/checksession.php";
                 <div id="loader-monthly-repair-chart" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
                 <div class="flex items-center justify-between mb-4 gap-3">
                     <h4 class="font-bold text-lg text-slate-800">กราฟรวมแจ้งซ่อมทั้งหมดในแต่ละเดือน</h4>
-                    <button type="button" onClick="toggleChartFullscreen('monthlyRepairSummaryChart')" class="btn-chart-action">
+                    <button type="button" onClick="toggleChartFullscreen('monthlyRepairSummaryChart')" class="btn-chart-action" title="เต็มจอ">
                         <i data-lucide="maximize" class="w-4 h-4"></i>
-                        <span>เต็มจอ</span>
+                        <span class="btn-label">เต็มจอ</span>
                     </button>
                 </div>
                 <div id="monthlyRepairSummaryChart" class="echart-box-lg"></div>
@@ -401,9 +417,9 @@ include "config_ctrl/checksession.php";
                 <div id="loader-monthly-service-chart" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
                 <div class="flex items-center justify-between mb-4 gap-3">
                     <h4 class="font-bold text-lg text-slate-800">กราฟรวมชนิดของการบริการ แยกแต่ละชนิดในแต่ละเดือน</h4>
-                    <button type="button" onClick="toggleChartFullscreen('monthlyServiceSummaryChart')" class="btn-chart-action">
+                    <button type="button" onClick="toggleChartFullscreen('monthlyServiceSummaryChart')" class="btn-chart-action" title="เต็มจอ">
                         <i data-lucide="maximize" class="w-4 h-4"></i>
-                        <span>เต็มจอ</span>
+                        <span class="btn-label">เต็มจอ</span>
                     </button>
                 </div>
                 <div id="monthlyServiceSummaryChart" class="echart-box-lg"></div>
@@ -413,9 +429,9 @@ include "config_ctrl/checksession.php";
                 <div id="loader-monthly-type-chart" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
                 <div class="flex items-center justify-between mb-4 gap-3">
                     <h4 class="font-bold text-lg text-slate-800">กราฟรวมประเภทงานในแต่ละเดือน แยกแต่ละประเภทงาน</h4>
-                    <button type="button" onClick="toggleChartFullscreen('monthlyTypeSummaryChart')" class="btn-chart-action">
+                    <button type="button" onClick="toggleChartFullscreen('monthlyTypeSummaryChart')" class="btn-chart-action" title="เต็มจอ">
                         <i data-lucide="maximize" class="w-4 h-4"></i>
-                        <span>เต็มจอ</span>
+                        <span class="btn-label">เต็มจอ</span>
                     </button>
                 </div>
                 <div id="monthlyTypeSummaryChart" class="echart-box-lg"></div>
@@ -423,18 +439,18 @@ include "config_ctrl/checksession.php";
         </div>
 
         <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="p-3 sm:p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4">
                 <div class="flex items-center gap-3">
                     <div class="bg-yellow-100 p-2 rounded-lg text-yellow-600">
                         <i data-lucide="zap" class="w-5 h-5"></i>
                     </div>
                     <div>
-                        <h2 class="text-xl font-bold text-slate-800">Energy Monitoring</h2>
+                        <h2 class="text-lg sm:text-xl font-bold text-slate-800">Energy Monitoring</h2>
                         <p class="text-xs text-slate-500">ติดตามการใช้พลังงานไฟฟ้าและน้ำประปา</p>
                     </div>
                 </div>
                 
-                <div class="flex items-center gap-3 bg-white p-1 rounded-full border border-slate-200 shadow-sm">
+                <div class="w-full md:w-auto grid grid-cols-3 md:flex md:items-center gap-1 md:gap-3 bg-white p-1 rounded-full border border-slate-200 shadow-sm">
                     <div onClick="switchEnergyTab('wt')" id="tab-btn-wt" class="tab-pill active">มิเตอร์น้ำ</div>
                     <div onClick="switchEnergyTab('et')" id="tab-btn-et" class="tab-pill">มิเตอร์ไฟ</div>
                     <div onClick="switchEnergyTab('tou')" id="tab-btn-tou" class="tab-pill">มิเตอร์ TOU</div>
@@ -452,9 +468,9 @@ include "config_ctrl/checksession.php";
 
                 <div id="container-wt" class="block">
                     <div class="flex justify-end mb-4">
-                        <button type="button" onClick="toggleChartFullscreen('wtChart')" class="btn-chart-action">
+                        <button type="button" onClick="toggleChartFullscreen('wtChart')" class="btn-chart-action" title="เต็มจอ">
                             <i data-lucide="maximize" class="w-4 h-4"></i>
-                            <span>เต็มจอ</span>
+                            <span class="btn-label">เต็มจอ</span>
                         </button>
                     </div>
                     <div id="wtChart" class="echart-box-lg"></div>
@@ -462,9 +478,9 @@ include "config_ctrl/checksession.php";
 
                 <div id="container-et" class="hidden">
                     <div class="flex justify-end mb-4">
-                        <button type="button" onClick="toggleChartFullscreen('etChart')" class="btn-chart-action">
+                        <button type="button" onClick="toggleChartFullscreen('etChart')" class="btn-chart-action" title="เต็มจอ">
                             <i data-lucide="maximize" class="w-4 h-4"></i>
-                            <span>เต็มจอ</span>
+                            <span class="btn-label">เต็มจอ</span>
                         </button>
                     </div>
                     <div id="etChart" class="echart-box-lg"></div>
@@ -475,9 +491,9 @@ include "config_ctrl/checksession.php";
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div class="lg:col-span-2">
                             <div class="flex justify-end mb-4">
-                                <button type="button" onClick="toggleChartFullscreen('touChart')" class="btn-chart-action">
+                                <button type="button" onClick="toggleChartFullscreen('touChart')" class="btn-chart-action" title="เต็มจอ">
                                     <i data-lucide="maximize" class="w-4 h-4"></i>
-                                    <span>เต็มจอ</span>
+                                    <span class="btn-label">เต็มจอ</span>
                                 </button>
                             </div>
                             <div id="touChart" class="echart-box-lg"></div>
@@ -485,9 +501,9 @@ include "config_ctrl/checksession.php";
                         <div class="rounded-xl p-4 border border-slate-100 flex flex-col justify-center">
                             <div class="flex items-center justify-between gap-3 mb-4">
                                 <h5 class="text-center font-bold text-slate-500 uppercase text-xs tracking-wider">สัดส่วนการใช้พลังงาน</h5>
-                                <button type="button" onClick="toggleChartFullscreen('touDonutChart')" class="btn-chart-action">
+                                <button type="button" onClick="toggleChartFullscreen('touDonutChart')" class="btn-chart-action" title="เต็มจอ">
                                     <i data-lucide="maximize" class="w-4 h-4"></i>
-                                    <span>เต็มจอ</span>
+                                    <span class="btn-label">เต็มจอ</span>
                                 </button>
                             </div>
                             <div id="touDonutChart" class="echart-box-sm"></div>
@@ -701,20 +717,203 @@ include "config_ctrl/checksession.php";
 		} else {
 			clearFullscreenChartSize();
 		}
+		setTimeout(fitAllCharts, 350);
 	}
 	
 	document.addEventListener('fullscreenchange', handleFullscreenChange);
 	document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 	document.addEventListener('MSFullscreenChange', handleFullscreenChange);
 	
+	let fitTimer = null;
 	window.addEventListener('resize', function() {
-		if (getFullscreenElement()) {
-			resizeFullscreenChart();
-		} else {
-			Object.values(charts).forEach(c => c.resize());
-		}
+		if (getFullscreenElement()) resizeFullscreenChart();
+		clearTimeout(fitTimer);
+		fitTimer = setTimeout(fitAllCharts, 150);
 	});
 
+    // ===== จัดวางกราฟทุกตัว (fitChart) — เรียกอัตโนมัติหลัง setOption ทุกครั้ง และเมื่อขนาดจอเปลี่ยน =====
+    // จากล่างขึ้นบน: legend > แถบซูม (slider) > แกน X > พื้นที่กราฟ — กันพื้นที่ตามขนาดจริง ไม่มีอะไรทับกัน
+    // legend แสดงครบทุกรายการ (ไม่ใช้แบบเลื่อนหน้า => บันทึกภาพได้ครบ) จัดเป็นคอลัมน์กว้างเท่ากัน ชื่อยาวตัดด้วย … (ชี้เพื่อดูชื่อเต็ม)
+    // ความสูงกล่องกราฟขยายตามจำนวนแถวของ legend => พื้นที่กราฟคงที่ / จอแคบ: กราฟวงกลมแสดง % ในชิ้น
+    const FIT = { font: 12, icon: 14, iconGap: 5, gap: 10, lineH: 16, top: 44, pad: 8, slider: 18, colMin: 140 };
+    const LEGEND = { font: FIT.font, itemW: FIT.icon, gap: FIT.gap };   // ใช้ใน updateLineChart
+    let fitCtx = null;
+    const cleanName = v => String(v ?? '').replace(/\s+/g, ' ').trim();   // ชื่อที่มีขึ้นบรรทัด/ช่องว่างซ้อน => บรรทัดเดียว
+    function textWidth(t) {
+        fitCtx = fitCtx || document.createElement('canvas').getContext('2d');
+        fitCtx.font = `${FIT.font}px Prompt, sans-serif`;
+        return fitCtx.measureText(t).width;
+    }
+
+    // ตัดข้อความให้พอดีความกว้าง (px) แล้วต่อท้ายด้วย … — ตัวอักษร { } | ใช้ใน rich text ไม่ได้ จึงแทนที่ไว้
+    function fitText(t, w) {
+        t = t.replace(/[{}|]/g, ' ');
+        if (textWidth(t) <= w) return t;
+        let lo = 0, hi = t.length;
+        while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (textWidth(t.slice(0, mid) + '…') <= w) lo = mid; else hi = mid - 1; }
+        return t.slice(0, lo).trimEnd() + '…';
+    }
+
+    // mode.full = แสดง legend ครบทุกรายการเสมอ (ใช้ตอนบันทึกภาพ) / ปกติ: legend เกิน 3 แถว (มือถือ 4) => ใช้แบบเลื่อนดู (scroll) ของ ECharts
+    function fitChart(chart, mode) {
+        mode = mode || {};
+        if (!chart || (chart.isDisposed && chart.isDisposed())) return;
+        const el = chart.getDom();
+        const W = el.clientWidth;
+        if (!W) return;                      // ซ่อนอยู่ (แท็บอื่น) — จัดใหม่ตอนแสดง
+        const opt = chart.getOption();
+        const series = opt.series || [];
+        const narrow = W < 560;
+        const isPie = series.length > 0 && series.every(x => x.type === 'pie');
+        const hBar = !isPie && opt.yAxis && opt.yAxis[0] && opt.yAxis[0].type === 'category';
+        const hasSlider = (opt.dataZoom || []).some(d => d.type === 'slider');
+        const lg = (opt.legend || [])[0];
+
+        // ----- legend -----
+        let names = [];
+        if (lg && lg.show !== false) {
+            names = (lg.data && lg.data.length) ? lg.data.map(d => (d && typeof d === 'object') ? d.name : d)
+                  : isPie ? series.flatMap(x => (x.data || []).map(d => d.name)) : series.map(x => x.name);
+            names = names.map(cleanName).filter(Boolean);
+        }
+        const avail = W - 24;
+        let rows = 0, legend = null;
+        if (names.length) {
+            const natural = names.reduce((sum, n) => sum + FIT.icon + FIT.iconGap + textWidth(n) + FIT.gap, 0);
+            const base = { show: true, type: 'plain', bottom: FIT.pad, icon: 'roundRect', itemWidth: FIT.icon, itemHeight: 10, itemGap: FIT.gap,
+                           formatter: cleanName, tooltip: { show: true }, data: lg.data, selected: lg.selected };
+            const ts = { fontSize: FIT.font, color: '#475569', lineHeight: FIT.lineH };
+            if (natural <= avail) {          // แถวเดียวพอ: ขนาดตามชื่อจริง จัดกึ่งกลาง
+                rows = 1;
+                legend = { ...base, left: 'center', textStyle: ts };
+            } else {                         // หลายแถว: คอลัมน์กว้างเท่ากัน
+                // จำนวนคอลัมน์: มากที่สุดที่ชื่อส่วนใหญ่ (80%) ยังแสดงได้เต็ม — ชื่อสั้นได้หลายคอลัมน์ ชื่อยาวได้คอลัมน์กว้าง
+                const widths = names.map(textWidth);
+                let cols = 1;
+                for (let c = Math.max(1, Math.floor(avail / FIT.colMin)); c > 1; c--) {
+                    const tw = avail / c - FIT.icon - FIT.iconGap - FIT.gap;
+                    if (widths.filter(x => x <= tw).length >= names.length * 0.8) { cols = c; break; }
+                }
+                cols = Math.min(cols, names.length);
+                const colW = Math.floor(avail / cols);
+                rows = Math.ceil(names.length / cols);
+                // ช่องข้อความกว้างคงที่ (rich text) => ทุกรายการกว้างเท่ากัน เรียงเป็นคอลัมน์ / ชื่อยาวตัดเองด้วย …
+                const tw = colW - FIT.icon - FIT.iconGap - FIT.gap;
+                legend = { ...base, left: Math.round((W - cols * colW) / 2), width: cols * colW,
+                           formatter: n => `{n|${fitText(cleanName(n), tw)}}`,
+                           textStyle: { ...ts, rich: { n: { width: tw, fontSize: FIT.font, lineHeight: FIT.lineH, color: '#475569' } } } };
+            }
+        }
+        // ----- รายการมากเกินบนจอ: legend แบบเลื่อนดูของไลบรารี + ปุ่ม ทั้งหมด/สลับ (บันทึกภาพยังได้ครบ — ดู saveChartImage) -----
+        let sideLegend = 0;                  // ความกว้างที่กันไว้ทางขวาสำหรับ legend แนวตั้ง
+        let sideButtons = false;             // ปุ่ม ทั้งหมด/สลับ มุมขวาบน (เฉพาะ legend แนวตั้ง)
+        if (legend && !mode.full && rows > (narrow ? 4 : 3)) {
+            const selector = [{ type: 'all', title: 'ทั้งหมด' }, { type: 'inverse', title: 'สลับ' }];
+            const sel = { selector, selectorLabel: { fontSize: 11, padding: [3, 6], borderRadius: 4 }, selectorItemGap: 6,
+                          pageIconSize: 11, pageTextStyle: { color: '#64748b', fontSize: 11 }, pageIconColor: '#0284c7', pageIconInactiveColor: '#cbd5e1' };
+            if (W >= 900) {                  // จอกว้าง: คอลัมน์แนวตั้งทางขวาของกราฟ
+                sideLegend = 250;
+                const tw = sideLegend - 40 - FIT.icon - FIT.iconGap;
+                legend = { ...legend, ...sel, selector: false, type: 'scroll', orient: 'vertical', left: null, width: null, right: 8, top: FIT.top + 8, bottom: FIT.pad,
+                           itemGap: 8,
+                           formatter: n => `{n|${fitText(cleanName(n), tw)}}`,
+                           textStyle: { fontSize: FIT.font, color: '#475569', lineHeight: FIT.lineH, rich: { n: { width: tw, fontSize: FIT.font, lineHeight: FIT.lineH, color: '#475569' } } } };
+                rows = 0;
+                sideButtons = true;
+            } else {                         // จอแคบ: แถวเดียวด้านล่าง เลื่อนด้วยลูกศร
+                const tw = Math.min(180, W * 0.45);
+                legend = { ...legend, ...sel, type: 'scroll', orient: 'horizontal', left: 8, right: 8, width: null, bottom: FIT.pad,
+                           selectorPosition: 'end',
+                           formatter: n => fitText(cleanName(n), tw),
+                           textStyle: { fontSize: FIT.font, color: '#475569', lineHeight: FIT.lineH } };
+                rows = 1;
+            }
+        }
+        const legendH = rows ? rows * FIT.lineH + (rows - 1) * FIT.gap : 0;
+        const sliderBottom = FIT.pad + legendH + (rows ? 20 : 0);
+        const gridBottom = hasSlider ? sliderBottom + FIT.slider + 16 : sliderBottom + 6;
+
+        // ----- ความสูง: พื้นที่กราฟคงที่ + ส่วนล่าง (เต็มจอใช้ความสูงจอ) -----
+        const isFs = !mode.full && !!getFullscreenElement() && fullscreenChartId === el.id;
+        let plotH = narrow ? 240 : (el.classList.contains('echart-box-lg') ? 340 : 270);
+        if (hBar) plotH = Math.max(plotH, ((opt.yAxis[0].data || []).length) * (narrow ? 26 : 30));
+        if (isPie) plotH = narrow ? 250 : 290;
+        if (!isFs) el.style.height = (FIT.top + plotH + gridBottom) + 'px';
+        chart.resize();
+        const H = el.clientHeight;
+
+        const upd = { grid: { top: FIT.top, bottom: gridBottom, left: 12, right: (hBar ? 44 : 20) + sideLegend, containLabel: true } };
+        if (hasSlider) upd.dataZoom = opt.dataZoom.map(d => d.type === 'slider' ? { bottom: sliderBottom, height: FIT.slider, left: 56, right: 36 + sideLegend } : {});
+        if (!isPie && opt.xAxis) upd.xAxis = opt.xAxis.map(() => ({ axisLabel: { hideOverlap: true, fontSize: narrow ? 10 : 12 } }));
+        if (hBar) upd.yAxis = opt.yAxis.map(() => ({ axisLabel: { width: narrow ? 110 : 170, overflow: 'truncate', ellipsis: '…' } }));
+        upd.series = series.map((x, i) => {
+            if (x.type === 'pie') {
+                chart.__pieRatio = chart.__pieRatio || {};
+                if (chart.__pieRatio[i] === undefined) {
+                    const r = x.radius;
+                    chart.__pieRatio[i] = Array.isArray(r) && String(r[0]).includes('%') ? parseFloat(r[0]) / parseFloat(r[1]) : 0;
+                }
+                const ratio = chart.__pieRatio[i];
+                const area = H - FIT.top - gridBottom;
+                const R = Math.max(40, Math.min(narrow ? W * 0.42 : (W - sideLegend) * 0.24, area * 0.44));
+                return {
+                    center: [Math.round((W - sideLegend) / 2), Math.round(FIT.top + area / 2)],
+                    radius: ratio ? [Math.round(R * ratio), Math.round(R)] : Math.round(R),
+                    label: narrow
+                        ? { show: true, position: 'inside', formatter: p => (p.percent >= 6 ? Math.round(p.percent) + '%' : ''), color: '#fff', fontWeight: 600, width: null }
+                        : { show: true, position: 'outside', formatter: '{b}: {c} ({d}%)', color: '#475569', fontWeight: 'normal', width: 150, overflow: 'truncate' },
+                    labelLine: { show: !narrow }
+                };
+            }
+            return x.type === 'custom' ? {} : { labelLayout: { hideOverlap: true } };   // ตัวเลขที่ทับกันซ่อนเอง
+        });
+
+        const btn = (label, w, x, action) => ({
+            type: 'group', x, y: 0, onclick: () => chart.dispatchAction({ type: action }),
+            children: [
+                { type: 'rect', shape: { width: w, height: 20, r: 4 }, style: { fill: '#fff', stroke: '#cbd5e1' }, cursor: 'pointer' },
+                { type: 'text', x: w / 2, y: 10, style: { text: label, fill: '#475569', font: `11px Prompt, sans-serif`, align: 'center', verticalAlign: 'middle' }, cursor: 'pointer' }
+            ]
+        });
+        const graphic = sideButtons
+            ? [{ type: 'group', right: 10, top: FIT.top - 14, children: [btn('ทั้งหมด', 54, 0, 'legendAllSelect'), btn('สลับ', 40, 60, 'legendInverseSelect')] }]
+            : [];
+
+        chart.__fitting = true;
+        try {
+            chart.setOption({ graphic }, { replaceMerge: ['graphic'] });
+            chart.setOption(upd);
+            if (legend) chart.setOption({ legend: [legend] }, { replaceMerge: ['legend'] });
+        } finally { chart.__fitting = false; }
+    }
+    const layoutEnergyLegend = fitChart;
+
+    // บันทึกภาพกราฟ: วาดสำเนาของกราฟนอกจอ (กว้างอย่างน้อย 1000px) แสดง legend ครบทุกรายการ แล้วดาวน์โหลดเป็น PNG
+    // กราฟบนหน้าจอไม่เปลี่ยน — ช่วงที่ซูมไว้และรายการที่ซ่อน/แสดงใน legend ยังตรงกับที่เห็น
+    function saveChartImage(chart, title) {
+        const src = chart.getDom();
+        const box = document.createElement('div');
+        box.style.cssText = `position:absolute;left:-20000px;top:0;width:${Math.max(1000, src.clientWidth)}px;height:${src.clientHeight}px;background:#fff`;
+        box.className = src.className;
+        document.body.appendChild(box);
+        const copy = echarts.init(box);
+        try {
+            const o = chart.getOption();
+            o.animation = false;
+            o.toolbox = [{ show: false }];
+            copy.setOption(o);
+            fitChart(copy, { full: true });
+            const url = copy.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' });
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${title || 'chart'}_${moment().format('YYYY-MM-DD')}.png`;
+            document.body.appendChild(a); a.click(); a.remove();
+        } finally {
+            copy.dispose();
+            box.remove();
+        }
+    }
+    const fitAllCharts = () => Object.values(charts).forEach(fitChart);
     const getBaseOption = (titleForExport) => ({
         textStyle: { fontFamily: 'Prompt' },
         color: chartColors,
@@ -741,7 +940,12 @@ include "config_ctrl/checksession.php";
                     icon: 'path://M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M15.8,20H14L12,16.6L10,20H8.2L11.1,15.5L8.2,11H10L12,14.4L14,11H15.8L12.9,15.5L15.8,20M13,9V3.5L18.5,9H13Z',
                     onclick: (opt, instance) => exportChartToCSV(instance, titleForExport || 'chart')
                 },
-                saveAsImage: { show: true, title: 'บันทึกภาพ', pixelRatio: 2 }
+                mySaveImage: {
+                    show: true,
+                    title: 'บันทึกภาพ',
+                    icon: 'path://M4.7,22.9L29.3,45.5L54.7,23.4M4.6,43.6L4.6,58L53.8,58L53.8,43.6M29.2,45.1L29.2,0',
+                    onclick: (opt, api) => saveChartImage(echarts.getInstanceByDom(api.getDom()), titleForExport)
+                }
             },
             iconStyle: { borderColor: '#94a3b8' },
             right: 10,
@@ -762,6 +966,11 @@ include "config_ctrl/checksession.php";
         tou: echarts.init(document.querySelector("#touChart")),
         touDonut: echarts.init(document.querySelector("#touDonutChart"))
     };
+    // ทุกครั้งที่กราฟได้ข้อมูลใหม่ => จัดวางใหม่ (fitChart เรียก setOption เองโดยตั้ง __fitting กันวนซ้ำ)
+    Object.values(charts).forEach(c => {
+        const orig = c.setOption.bind(c);
+        c.setOption = function (o, ...rest) { const res = orig(o, ...rest); if (!c.__fitting) fitChart(c); return res; };
+    });
 
     window.addEventListener('resize', () => Object.values(charts).forEach(c => c.resize()));
 
@@ -783,12 +992,9 @@ include "config_ctrl/checksession.php";
         else { $('#touFilterContainer').addClass('hidden'); $('#touMeterFilter').val(''); }
 
         setTimeout(() => {
-            if (type === 'wt') charts.wt.resize();
-            if (type === 'et') charts.et.resize();
-            if (type === 'tou') {
-                charts.tou.resize();
-                charts.touDonut.resize();
-            }
+            if (type === 'wt') fitChart(charts.wt);
+            if (type === 'et') fitChart(charts.et);
+            if (type === 'tou') { fitChart(charts.tou); fitChart(charts.touDonut); }
         }, 300);
 
         loadDashboardData(currentStart, currentEnd);
@@ -1283,8 +1489,7 @@ include "config_ctrl/checksession.php";
 					...getBaseOption('Monthly_Service_Summary'),
 					tooltip: { trigger: 'axis' },
 					legend: {
-						type: 'scroll',
-						top: 0,
+						type: 'plain',
 						data: ['trend'].concat(monthlySummary.serviceSeries.map(s => s.name))
 					},
 					grid: {
@@ -1320,8 +1525,7 @@ include "config_ctrl/checksession.php";
 					...getBaseOption('Monthly_Type_Summary'),
 					tooltip: { trigger: 'axis' },
 					legend: {
-						type: 'scroll',
-						top: 0,
+						type: 'plain',
 						data: ['trend'].concat(monthlySummary.typeSeries.map(s => s.name))
 					},
 					grid: {
@@ -1348,6 +1552,7 @@ include "config_ctrl/checksession.php";
 				}, true);
 
                 function updateLineChart(chart, seriesMap, title) {
+                    chart.__legendNames = Object.keys(seriesMap);
                     const meterNames = Object.keys(seriesMap);
 
                     const series = meterNames.map(name => ({
@@ -1359,7 +1564,7 @@ include "config_ctrl/checksession.php";
                         lineStyle: { width: 2 },
                         emphasis: { focus: 'series' },
                         label: {
-                            show: true,
+                            show: meterNames.length <= 8,   // มิเตอร์มาก: ตัวเลขทุกจุดจะทับกันจนอ่านไม่ออก — ดูค่าจาก tooltip แทน
                             position: 'top',
                             formatter: hideZeroLabel
                         },
@@ -1375,13 +1580,14 @@ include "config_ctrl/checksession.php";
                             textStyle: { color: '#94a3b8' }
                         } : {},
                         legend: {
-                            type: 'plain',
-                            bottom: 0,
+                            type: 'plain',          // แสดงครบทุกมิเตอร์ (ไม่ใช้แบบเลื่อนหน้า — บันทึกภาพแล้วรายการที่ซ่อนจะหายไป)
+                            bottom: 8,
                             left: 'center',
                             icon: 'roundRect',
-                            itemWidth: 18,
+                            itemWidth: LEGEND.itemW,
                             itemHeight: 10,
-                            textStyle: { fontSize: 12, color: '#475569' }
+                            itemGap: LEGEND.gap,
+                            textStyle: { fontSize: LEGEND.font, color: '#475569' }
                         },
                         tooltip: {
                             trigger: 'axis',
@@ -1396,8 +1602,8 @@ include "config_ctrl/checksession.php";
                         grid: {
                             left: '3%',
                             right: '4%',
-                            top: '10%',
-                            bottom: '22%',
+                            top: 48,
+                            bottom: 90,             // ปรับตามความสูงของ legend ใน layoutEnergyLegend()
                             containLabel: true
                         },
                         xAxis: {
@@ -1417,10 +1623,11 @@ include "config_ctrl/checksession.php";
                         },
                         dataZoom: [
                             { type: 'inside' },
-                            { type: 'slider', bottom: 55, height: 18 }
+                            { type: 'slider', bottom: 40, height: 18 }
                         ],
                         series: series
                     }, true);
+                    layoutEnergyLegend(chart);
                 }
 
                 updateLineChart(charts.wt, wtSeriesMap, 'Water_Usage');
@@ -1515,7 +1722,30 @@ include "config_ctrl/checksession.php";
         });
     }
 
+    // ตัวกรอง (จอเล็กกว่า xl หุบเป็นปุ่ม) — ปุ่มบอกช่วงเวลาและสถานที่ที่เลือกอยู่
+    function setFiltersOpen(open) {
+        $('#dashFilters').toggleClass('is-closed', !open);
+        $('#filterToggle').attr('aria-expanded', String(open)).toggleClass('bg-sky-50 border-sky-300', open);
+        $('#filterChevron').toggleClass('rotate-180', open);
+    }
+    function updateFilterSummary() {
+        const type = $('#filterType').val();
+        const v = id => $(id).val() || '';
+        const m = s => s ? moment(s, 'YYYY-MM').locale('th').format('MMM') + ' ' + (moment(s, 'YYYY-MM').year() + 543) : '';
+        let range = '';
+        if (type === 'daily') range = `${moment(v('#dateStart')).format('D/M')} – ${moment(v('#dateEnd')).format('D/M')}`;
+        else if (type === 'monthly') range = v('#monthStart') === v('#monthEnd') ? m(v('#monthStart')) : `${m(v('#monthStart'))} – ${m(v('#monthEnd'))}`;
+        else range = v('#yearStart') === v('#yearEnd') ? `ปี ${+v('#yearStart') + 543}` : `${+v('#yearStart') + 543} – ${+v('#yearEnd') + 543}`;
+        const bld = $('#buildingFilter').val() ? $('#buildingFilter option:selected').text() : 'ทุกสถานที่';
+        $('#filterSummary').text(`${range} · ${bld}`);
+        $('#filterToggle').attr('title', `ตัวกรอง: ${range} · ${bld}`);
+    }
+    $('#filterToggle').on('click', () => setFiltersOpen($('#dashFilters').hasClass('is-closed')));
+    $('#dashFilters').on('change', 'select, input', updateFilterSummary);
+
     $('#searchBtn').on('click', function() {
+        updateFilterSummary();
+        if (window.innerWidth < 1024) setFiltersOpen(false);   // จอเล็ก: ค้นหาแล้วหุบตัวกรอง
         const type = $('#filterType').val();
         let s, e;
 
@@ -1543,6 +1773,7 @@ include "config_ctrl/checksession.php";
 
     $(document).ready(function() {
         populateBuildingFilter();
+        updateFilterSummary();
         loadDashboardData(currentStart, currentEnd);
     });
     </script>
