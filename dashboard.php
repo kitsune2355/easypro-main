@@ -795,6 +795,7 @@ include "config_ctrl/checksession.php";
         const W = el.clientWidth;
         if (!W) return;                      // ซ่อนอยู่ (แท็บอื่น) — จัดใหม่ตอนแสดง
         const opt = chart.getOption();
+        if (!opt) return;                    // ยังไม่ได้ setOption (หน้าจอเปลี่ยนขนาดระหว่างโหลด) — จัดตอน setOption แรก
         const series = opt.series || [];
         const narrow = W < 560;
         const isPie = series.length > 0 && series.every(x => x.type === 'pie');

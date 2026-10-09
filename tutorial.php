@@ -1036,6 +1036,9 @@ function openPage(l) {
 // ภาพขยาย: แตะตัวเลขบนภาพ => แสดงคำอธิบายของขั้นตอนนั้นใต้ภาพ เลื่อนทีละจุดด้วยปุ่ม ‹ › หรือปุ่มลูกศรบนคีย์บอร์ด
 let zoomSteps = [];   // [{ m, html }] เรียงตามเลขหมุด
 let zoomIdx = -1;
+// เปิดใน main.php: ขอให้ขยาย iframe เต็มหน้าจอ ภาพขยายจะทับ navbar/sidebar
+function frameMax(on) { try { if (window.parent !== window && typeof parent.setFrameMax === 'function') parent.setFrameMax(on); } catch (e) { /* ต่าง origin */ } }
+function closeZoom() { $('zoom').classList.remove('open'); frameMax(false); }
 function openZoom(shot) {
     const z = $('zoom');
     const l = byId[currentId];
@@ -1052,6 +1055,7 @@ function openZoom(shot) {
             <button type="button" data-zstep="1" class="w-10 h-10 flex-none rounded-full border border-slate-200 hover:bg-slate-50 text-slate-600 flex items-center justify-center" title="จุดถัดไป (→)"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
         </div>` : '');
     z.classList.add('open');
+    frameMax(true);
     showZoomStep(-1);
     icons();
 }
@@ -1081,7 +1085,7 @@ $('zoom').addEventListener('click', e => {
     }
     const nav = e.target.closest('[data-zstep]');
     if (nav) { stepZoom(+nav.dataset.zstep); return; }
-    if (e.target === $('zoom') || e.target.closest('[data-close]')) $('zoom').classList.remove('open');
+    if (e.target === $('zoom') || e.target.closest('[data-close]')) closeZoom();
 });
 function stepZoom(d) {
     if (!zoomSteps.length) return;
@@ -1089,7 +1093,7 @@ function stepZoom(d) {
 }
 document.addEventListener('keydown', e => {
     if (!$('zoom').classList.contains('open')) return;
-    if (e.key === 'Escape') $('zoom').classList.remove('open');
+    if (e.key === 'Escape') closeZoom();
     else if (e.key === 'ArrowRight') stepZoom(1);
     else if (e.key === 'ArrowLeft') stepZoom(-1);
 });

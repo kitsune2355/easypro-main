@@ -118,6 +118,11 @@ $rolePerms = array();
         html.fs-scaled .sidebar-collapsed { width: calc(70px * var(--fs)); }
         html.fs-scaled #sidebar > :not(#toggle-btn), html.fs-scaled main > header { zoom: var(--fs); }
         html.fs-scaled #content-iframe { transform-origin: 0 0; transform: scale(var(--fs)); width: calc(100% / var(--fs)) !important; height: calc(100% / var(--fs)) !important; }
+        /* หน้าใน iframe ขอแสดงเต็มหน้าจอชั่วคราว ทับ navbar/sidebar (เช่น ภาพขยายในคู่มือ) — ดู setFrameMax()
+           กล่องกระจกที่ครอบ iframe ใช้ backdrop-filter ซึ่งทำให้ position:fixed ไม่อิงหน้าจอ จึงปิดไว้ระหว่างนั้น */
+        html.frame-max #content-iframe { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; height: 100dvh !important; z-index: 2147483000; border-radius: 0; }
+        html.frame-max.fs-scaled #content-iframe { width: calc(100vw / var(--fs)) !important; height: calc(100dvh / var(--fs)) !important; }
+        html.frame-max :has(> #content-iframe) { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
         /* มือถือ/แท็บเล็ต: 100vh ของ Safari รวมแถบเครื่องมือด้วย ทำให้ส่วนล่างโดนบัง
            จึงใช้ 100dvh (ความสูงที่มองเห็นจริง) ให้กรอบหลักพอดีจอ แล้วให้ iframe กินพื้นที่ที่เหลือทั้งหมด
@@ -418,6 +423,9 @@ const menuItems = allMenuItems.filter(function(item) {
 
 const sidebar = document.getElementById('sidebar');
 const iframe = document.getElementById('content-iframe');
+// หน้าใน iframe ขอแสดงเต็มหน้าจอชั่วคราว (เช่น ภาพขยายในคู่มือ) — โหลดหน้าใหม่เมื่อไรก็คืนสภาพเดิม กันค้าง
+window.setFrameMax = function (on) { document.documentElement.classList.toggle('frame-max', !!on); };
+iframe.addEventListener('load', () => window.setFrameMax(false));
 const loader = document.getElementById('iframe-loading');
 const backdrop = document.getElementById('sidebar-backdrop');
 const toggleBtn = document.getElementById('toggle-btn');
