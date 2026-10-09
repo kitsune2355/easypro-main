@@ -3644,18 +3644,23 @@ function initVideo() {
       let start = 0;
       let end   = Math.min(MAX_SECONDS, dur);
 
-      const old = document.getElementById('video_trim_modal');
+      // ✅ เปิดเต็มจอทับ navbar / sidebar ของ main.php => สร้างไว้ที่หน้าต่างบนสุด (ถ้าเข้าถึงได้)
+      let H = window;
+      try { if (window.top !== window && window.top.document.body) H = window.top; } catch (e) { /* ต่าง origin: เต็มจอในหน้าตัวเอง */ }
+      const D = H.document;
+      const icons = () => { if (H.lucide && typeof H.lucide.createIcons === 'function') H.lucide.createIcons(); else safeIcons(); };
+
+      const old = D.getElementById('video_trim_modal');
       if (old) old.remove();
 
-      const modal = document.createElement('div');
+      const modal = D.createElement('div');
       modal.id = 'video_trim_modal';
-      modal.className = 'fixed inset-0 z-[1000] flex items-center justify-center';
+      modal.className = 'fixed inset-0 z-[2147483000] flex flex-col bg-black text-white';
       modal.innerHTML = `
-        <div class="absolute inset-0 bg-slate-950/85 backdrop-blur-sm"></div>
-        <div class="relative z-10 w-[96vw] max-w-3xl bg-black text-white rounded-3xl shadow-2xl overflow-hidden border border-white/10">
+        <div class="relative w-full h-full flex flex-col" style="padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);">
 
           <!-- Header -->
-          <div class="px-5 py-3.5 border-b border-white/10 flex items-center justify-between">
+          <div class="flex-none px-4 sm:px-5 py-3 border-b border-white/10 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="w-7 h-7 rounded-lg bg-[#006B9F]/25 border border-[#006B9F]/50 flex items-center justify-center">
                 <i data-lucide="scissors" class="w-4 h-4 text-[#04ADFF]"></i>
@@ -3666,16 +3671,17 @@ function initVideo() {
           </div>
 
           <!-- Preview -->
-          <div id="vt_stage" class="relative bg-black flex items-center justify-center" style="height:min(46vh,360px);">
-            <video id="vt_video" class="max-h-full w-auto max-w-full" playsinline></video>
+          <div id="vt_stage" class="relative bg-black flex-1 min-h-0 flex items-center justify-center">
+            <video id="vt_video" class="w-full h-full object-contain" playsinline></video>
             <button id="vt_playpause" type="button"
               class="absolute w-14 h-14 rounded-full bg-black/45 border border-white/25 backdrop-blur flex items-center justify-center hover:bg-black/60 transition-opacity duration-200">
               <i data-lucide="play" class="w-6 h-6 text-white"></i>
             </button>
           </div>
 
+          <div class="flex-none w-full max-w-4xl mx-auto">
           <!-- Info row -->
-          <div class="px-5 pt-4 flex items-center justify-between text-[12px] font-bold">
+          <div class="px-4 sm:px-5 pt-4 flex items-center justify-between text-[12px] font-bold">
             <div class="flex items-center gap-1.5 text-white/60">
               <i data-lucide="clock" class="w-3.5 h-3.5"></i>
               <span id="vt_cur" class="tabular-nums text-white/80">0:00.0</span>
@@ -3688,7 +3694,7 @@ function initVideo() {
           </div>
 
           <!-- Timeline (CapCut style) -->
-          <div class="px-5 py-4">
+          <div class="px-4 sm:px-5 py-4">
             <div id="vt_track" class="relative h-16 rounded-xl overflow-hidden bg-[#141414] border border-white/10 select-none" style="touch-action:none;">
               <div id="vt_strip" class="absolute inset-0 flex opacity-90"></div>
               <div id="vt_dim_l" class="absolute top-0 bottom-0 left-0 bg-black/60 pointer-events-none"></div>
@@ -3714,23 +3720,26 @@ function initVideo() {
                 กำลังสร้างตัวอย่างเฟรม...
               </div>
             </div>
-            <p class="mt-2 text-[10px] text-white/40">ลากที่จับสีเขียวสองข้างเพื่อกำหนดจุดเริ่ม–จุดจบ • ลากกลางแถบเพื่อเลื่อนทั้งช่วง • สูงสุด ${MAX_SECONDS} วินาที</p>
+            <p class="mt-2 text-[10px] text-white/40">ลากที่จับสองข้างเพื่อกำหนดจุดเริ่ม–จุดจบ • ลากกลางแถบเพื่อเลื่อนทั้งช่วง • สูงสุด ${MAX_SECONDS} วินาที</p>
           </div>
 
           <!-- Footer -->
-          <div class="px-5 py-4 border-t border-white/10 flex items-center justify-end gap-2">
+          <div class="px-4 sm:px-5 py-3 sm:py-4 border-t border-white/10 flex items-center justify-end gap-2">
             <button id="vt_cancel" type="button" class="px-4 py-2 rounded-xl bg-white/5 border border-white/15 text-white/80 text-xs font-extrabold hover:bg-white/10 transition">ยกเลิก</button>
             <button id="vt_confirm" type="button" class="px-5 py-2 rounded-xl bg-[#006B9F] text-white text-xs font-extrabold hover:brightness-110 transition inline-flex items-center gap-1.5">
               <i data-lucide="check" class="w-4 h-4"></i> ตัดและใช้วิดีโอนี้
             </button>
           </div>
+          </div>
         </div>
       `;
-      document.body.appendChild(modal);
-      safeIcons();
+      D.body.appendChild(modal);
+      icons();
       // ✅ จำตำแหน่ง scroll ปัจจุบันไว้คืนตอนปิด (กันเด้งขึ้นบน)
       const scrollY0 = window.scrollY || document.documentElement.scrollTop || 0;
       document.documentElement.style.overflow = 'hidden';
+      const topOverflow0 = D.documentElement.style.overflow;
+      D.documentElement.style.overflow = 'hidden';
 
       const vid      = modal.querySelector('#vt_video');
       const track    = modal.querySelector('#vt_track');
@@ -3781,8 +3790,8 @@ function initVideo() {
       function onDown(type, ev) {
         ev.preventDefault();
         drag = { type, startX: pointerX(ev), s0: start, e0: end };
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp);
+        H.addEventListener('pointermove', onMove);
+        H.addEventListener('pointerup', onUp);
       }
 
       function onMove(ev) {
@@ -3806,8 +3815,8 @@ function initVideo() {
 
       function onUp() {
         drag = null;
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
+        H.removeEventListener('pointermove', onMove);
+        H.removeEventListener('pointerup', onUp);
       }
 
       modal.querySelector('#vt_h_l').addEventListener('pointerdown', (e) => onDown('l', e));
@@ -3820,7 +3829,7 @@ function initVideo() {
         ppBtn.innerHTML = `<i data-lucide="${playing ? 'pause' : 'play'}" class="w-6 h-6 text-white"></i>`;
         ppBtn.classList.toggle('opacity-0', playing);
         ppBtn.classList.toggle('pointer-events-none', playing);
-        safeIcons();
+        icons();
       }
       function togglePlay() {
         if (vid.paused) {
@@ -3891,16 +3900,23 @@ function initVideo() {
       // ===== Cleanup / result =====
       const cleanup = () => {
         try { vid.pause(); } catch (e) {}
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
+        H.removeEventListener('pointermove', onMove);
+        H.removeEventListener('pointerup', onUp);
+        D.removeEventListener('keydown', onKey);
+        window.removeEventListener('pagehide', onCancel);
         URL.revokeObjectURL(objUrl);
         modal.remove();
+        D.documentElement.style.overflow = topOverflow0;
         document.documentElement.style.overflow = '';
         // ✅ คืนตำแหน่ง scroll เดิม (กันเด้งขึ้นบน)
         requestAnimationFrame(() => window.scrollTo(0, scrollY0));
       };
 
       const onCancel = () => { cleanup(); resolve(null); };
+      // Esc = ยกเลิก | เปลี่ยนเมนูระหว่างตัด (หน้าใน iframe ถูกทิ้ง) => ปิดหน้าตัดที่ค้างบนหน้าต่างบนสุด
+      const onKey = (e) => { if (e.key === 'Escape') onCancel(); };
+      D.addEventListener('keydown', onKey);
+      window.addEventListener('pagehide', onCancel);
       modal.querySelector('#vt_cancel').addEventListener('click', onCancel);
       modal.querySelector('#vt_cancel_x').addEventListener('click', onCancel);
 
