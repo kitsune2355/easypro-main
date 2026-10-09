@@ -223,6 +223,7 @@
                 icon: "box",
                 items: [
                     { label: "รายการอะไหล่และวัสดุ", href: "settings_spares.php", id: "spares" },
+                    { label: "คลังสินค้า / ตึก", href: "settings_warehouses.php", id: "warehouses" },
                 ]
             },
             {

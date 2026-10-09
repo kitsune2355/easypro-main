@@ -4,6 +4,7 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+@session_start();
 include 'config_ctrl/connect.php'; 
 
 if (mysqli_connect_errno()) {
@@ -170,6 +171,88 @@ elseif ($action === 'update') {
     }
 }
 
+// =========================================
+// หน้าตั้งค่า "คลังสินค้า / ตึก" (settings_warehouses.php) — ใช้หน่วยงานจาก session เท่านั้น
+// =========================================
+elseif ($action === 'list_setting') {
+    $ag_id = (int)($_SESSION['sess_user_agency'] ?? 0);
+    $search = trim($_GET['search'] ?? '');
+    $limit = max(1, min(100000, (int)($_GET['limit'] ?? 20)));
+    $offset = max(0, (int)($_GET['offset'] ?? 0));
+    $like = '%' . $search . '%';
+
+    $stmt = $connect->prepare("SELECT COUNT(*) c FROM tb_wh_stock WHERE ag_id = ? AND wh_name LIKE ?");
+    $stmt->bind_param("is", $ag_id, $like);
+    $stmt->execute();
+    $total = (int)$stmt->get_result()->fetch_assoc()['c'];
+    $stmt->close();
+
+    $stmt = $connect->prepare("SELECT w.id, w.wh_name, w.status,
+                                      (SELECT COUNT(*) FROM product_stocks ps WHERE ps.wh_id = w.id) AS total_items
+                               FROM tb_wh_stock w
+                               WHERE w.ag_id = ? AND w.wh_name LIKE ?
+                               ORDER BY w.id ASC
+                               LIMIT ? OFFSET ?");
+    $stmt->bind_param("isii", $ag_id, $like, $limit, $offset);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $data = [];
+    while ($row = $res->fetch_assoc()) {
+        $row['id'] = (int)$row['id'];
+        $row['total_items'] = (int)$row['total_items'];
+        $row['status'] = (string)($row['status'] ?? '0');
+        $data[] = $row;
+    }
+    $stmt->close();
+    echo json_encode(['success' => true, 'data' => $data, 'total' => $total], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+elseif ($action === 'save_setting') {
+    $ag_id = (int)($_SESSION['sess_user_agency'] ?? 0);
+    $user_id = (string)($_SESSION['sess_user_id_es'] ?? '');
+    $rows = $input['data'] ?? [];
+    if ($ag_id <= 0) { echo json_encode(['success' => false, 'error' => 'ไม่พบหน่วยงานของผู้ใช้'], JSON_UNESCAPED_UNICODE); exit; }
+    if (!is_array($rows) || !count($rows)) { echo json_encode(['success' => false, 'error' => 'ไม่มีข้อมูลที่ต้องบันทึก'], JSON_UNESCAPED_UNICODE); exit; }
+
+    // ชื่อซ้ำกันเองในชุดที่ส่งมา
+    $seen = [];
+    foreach ($rows as $r) {
+        $name = trim((string)($r['wh_name'] ?? ''));
+        if ($name === '') { echo json_encode(['success' => false, 'error' => 'กรุณาระบุชื่อคลังสินค้า / ตึก ให้ครบทุกแถว'], JSON_UNESCAPED_UNICODE); exit; }
+        $k = mb_strtolower($name);
+        if (isset($seen[$k])) { echo json_encode(['success' => false, 'error' => "ชื่อ \"$name\" ซ้ำกันในรายการที่บันทึก"], JSON_UNESCAPED_UNICODE); exit; }
+        $seen[$k] = true;
+    }
+
+    mysqli_begin_transaction($connect);
+    try {
+        $dup = $connect->prepare("SELECT id FROM tb_wh_stock WHERE ag_id = ? AND wh_name = ? AND id <> ? LIMIT 1");
+        $ins = $connect->prepare("INSERT INTO tb_wh_stock (ag_id, wh_name, status, created_by) VALUES (?, ?, ?, ?)");
+        $upd = $connect->prepare("UPDATE tb_wh_stock SET wh_name = ?, status = ?, updated_by = ? WHERE id = ? AND ag_id = ?");
+        foreach ($rows as $r) {
+            $id = (int)($r['id'] ?? 0);
+            $name = trim((string)$r['wh_name']);
+            $status = ((string)($r['status'] ?? '0')) === '1' ? '1' : '0';
+            $dup->bind_param("isi", $ag_id, $name, $id);
+            $dup->execute();
+            if ($dup->get_result()->fetch_assoc()) throw new Exception("ชื่อคลัง \"$name\" มีอยู่แล้วในหน่วยงานนี้ กรุณาใช้ชื่ออื่น");
+            if ($id > 0) {
+                $upd->bind_param("sssii", $name, $status, $user_id, $id, $ag_id);
+                if (!$upd->execute()) throw new Exception('แก้ไขไม่สำเร็จ: ' . $upd->error);
+            } else {
+                $ins->bind_param("isss", $ag_id, $name, $status, $user_id);
+                if (!$ins->execute()) throw new Exception('เพิ่มไม่สำเร็จ: ' . $ins->error);
+            }
+        }
+        mysqli_commit($connect);
+        echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
+    } catch (Exception $e) {
+        mysqli_rollback($connect);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
 elseif ($action === 'delete') {
     $id = $input['id'] ?? $_GET['id'] ?? null; 
 
