@@ -377,7 +377,7 @@ const allMenuItems = [
     { icon: 'package', label: 'จัดการสต็อก', href: 'stock.php', perm: 'stock_manage' },
     { icon: 'notebook-pen', label: 'วางแผน PM', href: 'pm.php', perm: 'pm_plan' },
     { icon: 'settings', label: 'ตั้งค่าข้อมูล', href: 'settings.php', roles: ['admin', 'super_admin'] },
-    // { icon: 'book-open-check', label: 'คู่มือการใช้งาน', href: 'tutorial.php', perm: null }
+    { icon: 'book-open-check', label: 'คู่มือการใช้งาน', href: 'tutorial.php', perm: null }
 ];
 
 const menuItems = allMenuItems.filter(function(item) {

@@ -1,966 +1,974 @@
+<?php
+//tutorial.php — คู่มือการใช้งานเบื้องต้น (เมนู "คู่มือการใช้งาน" ใน main.php)
+// บทเรียนตามเมนูจริง + ภาพหน้าจอจริงพร้อมหมุดตัวเลข (manual/img + ตำแหน่งหมุดใน manual/shots.json)
+// แสดงเฉพาะบทของเมนูที่ผู้ใช้มีสิทธิ์ (เงื่อนไขเดียวกับเมนูใน main.php)
+// เมื่อหน้าจอของระบบเปลี่ยน ให้จับภาพใหม่ทับไฟล์เดิมใน manual/img และปรับตำแหน่งหมุด (x, y, w, h เป็น % ของภาพ) ใน shots.json
+@session_start();
+include_once "config_ctrl/checksession.php";
+include_once "config_ctrl/connect.php";
+
+$manualPerms = array();
+$rsPerm = mysqli_query($connect, "SELECT perm_key FROM tb_agency_role_permission WHERE ag_id = " . (int)$sess_user_agency . " AND can_view = 1");
+if ($rsPerm) {
+    while ($rowPerm = mysqli_fetch_assoc($rsPerm)) $manualPerms[] = $rowPerm['perm_key'];
+}
+$manualLevel = isset($_SESSION['sess_user_level_es']) ? $_SESSION['sess_user_level_es'] : '';
+$manualShots = @file_get_contents(__DIR__ . '/manual/shots.json');
+$manualVer = @filemtime(__DIR__ . '/manual/shots.json');
+if (!$manualVer) $manualVer = time();
+?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EasyPro User Manual</title>
-
+    <title>คู่มือการใช้งาน</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --ep-navy: #074f72;
-            --ep-navy-dark: #043b57;
-            --ep-blue: #0783bd;
-            --ep-blue-strong: #066f9f;
-            --ep-blue-soft: #eaf5fb;
-            --ep-page: #f0f4f8;
-            --ep-panel: #ffffff;
-            --ep-border: #dbe6ed;
-            --ep-border-strong: #c9d9e3;
-            --ep-text: #1c2b36;
-            --ep-muted: #667785;
-            --ep-success: #18845b;
-        }
-
-        * { box-sizing: border-box; }
+        :root { --ep: #006b9f; --ep-dark: #04506f; --ep-soft: #e8f4fa; --ink: #1c2b36; --muted: #64748b; --line: #e2e8f0; }
         html, body { height: 100%; }
+        body { margin: 0; font-family: "Prompt", "Noto Sans Thai", sans-serif; color: var(--ink); background: #f0f4f8; -webkit-font-smoothing: antialiased; }
+        [data-lucide], .lucide { width: 1em; height: 1em; flex: none; }
 
-        body {
-            margin: 0;
-            font-family: "Prompt", "Kanit", "Noto Sans Thai", sans-serif;
-            color: var(--ep-text);
-            background: var(--ep-page);
-            -webkit-font-smoothing: antialiased;
+        /* สารบัญ */
+        .toc-item { display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left; padding: .5rem .65rem; border-radius: .6rem; font-size: 13.5px; color: #334155; }
+        .toc-item:hover { background: #f1f5f9; }
+        .toc-item.active { background: var(--ep-soft); color: var(--ep-dark); font-weight: 600; }
+        .toc-dot { width: 1.25rem; height: 1.25rem; border-radius: 999px; border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center; flex: none; font-size: 11px; color: #fff; }
+        .toc-item.done .toc-dot { background: #10b981; border-color: #10b981; }
+        .toc-item.active:not(.done) .toc-dot { border-color: var(--ep); }
+
+        /* ภาพหน้าจอ + หมุด */
+        .shot { position: relative; border-radius: .9rem; overflow: hidden; border: 1px solid var(--line); background: #fff; box-shadow: 0 10px 30px -12px rgba(15, 23, 42, .25); cursor: zoom-in; }
+        .shot img { display: block; width: 100%; height: auto; }
+        .shot.mobile { max-width: 340px; margin: 0 auto; border-radius: 1.5rem; border-width: 6px; border-color: #1e293b; }
+        .pin { position: absolute; transform: translate(-35%, -35%); width: 26px; height: 26px; border-radius: 999px; background: #f43f5e; color: #fff; font-size: 13px; font-weight: 700;
+               display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 3px #fff, 0 4px 10px rgba(0,0,0,.3); cursor: pointer; transition: transform .15s; z-index: 2; }
+        .pin:hover, .pin.active { transform: translate(-35%, -35%) scale(1.25); background: #e11d48; }
+        .pin-box { position: absolute; border: 3px solid #f43f5e; border-radius: .5rem; background: rgba(244, 63, 94, .08); box-shadow: 0 0 0 9999px rgba(15, 23, 42, .28); pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 1; }
+        .pin-box.show { opacity: 1; }
+        @media (max-width: 640px) { .pin { width: 20px; height: 20px; font-size: 11px; box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(0,0,0,.3); } }
+
+        /* ขั้นตอน */
+        .step { display: flex; gap: .75rem; padding: .75rem .85rem; border-radius: .8rem; border: 1px solid transparent; transition: background .15s, border-color .15s; }
+        .step:hover, .step.active { background: #fff1f2; border-color: #fecdd3; }
+        .step-no { width: 26px; height: 26px; border-radius: 999px; background: #f43f5e; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; margin-top: 1px; }
+        .step-no.plain { background: #e2e8f0; color: #475569; }
+        .step b { font-weight: 600; color: #0f172a; }
+        .lesson-body p { line-height: 1.75; }
+        .kbd { display: inline-flex; align-items: center; gap: .25rem; padding: 0 .4rem; border-radius: .35rem; border: 1px solid #cbd5e1; background: #fff; font-size: 12.5px; font-weight: 600; color: #0f172a; white-space: nowrap; }
+
+        /* ภาพขยาย */
+        /* ภาพขยาย: ภาพด้านบน + กล่องคำอธิบายของหมุดที่เลือกด้านล่าง */
+        #zoom { position: fixed; inset: 0; z-index: 50; background: rgba(15, 23, 42, .88); display: none; flex-direction: column; align-items: center; justify-content: center; gap: .75rem; padding: 1rem; }
+        #zoom.open { display: flex; }
+        #zoom .shot { cursor: default; width: auto; flex: none; }
+        #zoom .shot img { max-height: calc(100vh - 12rem); width: auto; max-width: calc(100vw - 2rem); }
+        #zoom .shot.mobile img { max-height: calc(100vh - 13rem); }
+        /* กล่องคำอธิบาย: สูงคงที่ (ข้อความยาวเลื่อนในกล่อง) => ภาพไม่ขยับเวลาเปลี่ยนจุด */
+        #zoomCap { width: 100%; max-width: 48rem; flex: none; height: 5.75rem; }
+        #zoomCapBody { height: 100%; }
+        #zoomCapBody .cap-text { height: 100%; overflow-y: auto; }
+        @media (max-width: 640px) {
+            #zoomCap { height: 7.5rem; }
+            #zoom .shot img, #zoom .shot.mobile img { max-height: calc(100vh - 14rem); }
         }
+        #zoomCap .cap-text b { color: #0f172a; font-weight: 600; }
 
-        button, input { font: inherit; }
-
-        /* Make Lucide icons drop-in replacements for the old font icons:
-           scale with font-size, inherit text color, align to the baseline. */
-        [data-lucide],
-        .lucide {
-            width: 1em;
-            height: 1em;
-            display: inline-block;
-            vertical-align: -0.125em;
-            stroke-width: 2;
-            flex: 0 0 auto;
-        }
-
-        .app-shell {
-            height: 100vh;
-            overflow: hidden;
-            background: var(--ep-page);
-        }
-
-        .topbar {
-            background: #fff;
-            color: var(--ep-text);
-            border-bottom: 1px solid var(--ep-border);
-        }
-
-        .brand-mark {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            display: grid;
-            place-items: center;
-            color: #fff;
-            background: #006b9f;
-        }
-
-        .topbar-icon-btn {
-            width: 34px;
-            height: 34px;
-            border-radius: 8px;
-            display: grid;
-            place-items: center;
-            color: #748591;
-            border: 1px solid var(--ep-border);
-            background: #fff;
-            transition: 0.2s ease;
-        }
-
-        .topbar-icon-btn:hover {
-            color: var(--ep-blue-strong);
-            background: #f3f8fb;
-        }
-
-        .workspace { flex: 1 1 auto; min-height: 0; }
-
-        .sidebar {
-            width: 300px;
-            background: #fff;
-            border-right: 1px solid var(--ep-border);
-        }
-
-        .sidebar-scroll::-webkit-scrollbar,
-        .main-scroll::-webkit-scrollbar,
-        .thumb-scroll::-webkit-scrollbar {
-            width: 7px;
-            height: 7px;
-        }
-
-        .sidebar-scroll::-webkit-scrollbar-thumb,
-        .main-scroll::-webkit-scrollbar-thumb,
-        .thumb-scroll::-webkit-scrollbar-thumb {
-            background: #c9d8e1;
-            border-radius: 999px;
-        }
-
-        .panel {
-            background: var(--ep-panel);
-            border: 1px solid var(--ep-border);
-            border-radius: 10px;
-        }
-
-        .page-heading-card {
-            background: #fff;
-        }
-
-        .field-shell {
-            border: 1px solid var(--ep-border);
-            background: #f7fafc;
-            transition: 0.2s ease;
-        }
-
-        .field-shell:focus-within {
-            background: #fff;
-            border-color: #77bdda;
-            box-shadow: 0 0 0 3px rgba(7,131,189,0.11);
-        }
-
-        .guide-group-title {
-            color: #71818d;
-            letter-spacing: 0.055em;
-        }
-
-        .guide-item {
-            border: 1px solid transparent;
-            border-left-width: 3px;
-            transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
-        }
-
-        .guide-item:hover {
-            background: #f6fafc;
-            border-color: #e2ebf0;
-            transform: translateX(2px);
-        }
-
-        .guide-active {
-            background: var(--ep-blue-soft);
-            border-color: #cfe8f4;
-            border-left-color: var(--ep-blue);
-            box-shadow: inset 0 0 0 1px rgba(7,131,189,0.03);
-        }
-
-        .guide-active .guide-title {
-            color: #05658f;
-            font-weight: 600;
-        }
-
-        .guide-active .guide-icon-wrap {
-            color: #fff;
-            background: var(--ep-blue);
-            border-color: var(--ep-blue);
-        }
-
-        .guide-icon-wrap {
-            width: 27px;
-            height: 27px;
-            border-radius: 7px;
-            display: grid;
-            place-items: center;
-            flex: 0 0 auto;
-            color: #758692;
-            background: #fff;
-            border: 1px solid #d9e4ea;
-            transition: 0.18s ease;
-        }
-
-        .progress-track {
-            height: 6px;
-            border-radius: 999px;
-            background: #dfeaf0;
-            overflow: hidden;
-        }
-
-        .progress-value {
-            height: 100%;
-            width: 0;
-            border-radius: inherit;
-            background: linear-gradient(90deg, var(--ep-blue), #43a8cf);
-            transition: width 0.3s ease;
-        }
-
-        .soft-badge {
-            color: #05658f;
-            background: var(--ep-blue-soft);
-            border: 1px solid #cee8f4;
-        }
-
-        .btn-primary, .btn-secondary, .btn-success {
-            min-height: 36px;
-            border-radius: 8px;
-            transition: 0.2s ease;
-        }
-
-        .btn-primary {
-            color: #fff;
-            background: var(--ep-blue-strong);
-            border: 1px solid var(--ep-blue-strong);
-        }
-
-        .btn-primary:hover {
-            background: #055f89;
-            border-color: #055f89;
-        }
-
-        .btn-secondary {
-            color: #40515d;
-            background: #fff;
-            border: 1px solid var(--ep-border-strong);
-        }
-
-        .btn-secondary:hover {
-            color: #056f9d;
-            background: #f8fbfd;
-            border-color: #9fc9dd;
-        }
-
-        .btn-success {
-            color: #fff;
-            background: var(--ep-success);
-            border: 1px solid var(--ep-success);
-        }
-
-        .btn-primary:disabled,
-        .btn-secondary:disabled,
-        .btn-success:disabled {
-            cursor: not-allowed;
-            opacity: 0.48;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .content-prose p { margin-bottom: 0.85rem; }
-        .content-prose ul {
-            margin-top: 0.5rem;
-            padding-left: 1.35rem;
-            list-style: disc;
-        }
-        .content-prose li + li { margin-top: 0.35rem; }
-
-        .mobile-overlay {
-            background: rgba(3,29,43,0.58);
-            backdrop-filter: blur(3px);
-        }
-
-        .slide-stage {
-            background: #f7fafc;
-        }
-
-        .slide-canvas {
-            background: #fff;
-            border: 1px solid #dbe7ee;
-        }
-
-        .thumb-item {
-            border: 1px solid #dbe6ed;
-            background: #fff;
-            transition: 0.18s ease;
-        }
-
-        .thumb-item:hover {
-            border-color: #9ec8dc;
-            background: #f9fcfe;
-        }
-
-        .thumb-item.active {
-            border-color: var(--ep-blue);
-            background: #eef8fd;
-            box-shadow: 0 0 0 2px rgba(7,131,189,0.12);
-        }
-
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            border-radius: 999px;
-            padding: 0.35rem 0.7rem;
-            font-size: 11px;
-            font-weight: 600;
-        }
-
-        .status-ready {
-            background: #eaf8f2;
-            color: #16805a;
-        }
-
-        .status-doc {
-            background: #edf6fb;
-            color: #056f9d;
-        }
-
-        @media (max-width: 767px) {
-            .sidebar { width: min(86vw, 320px); }
-        }
+        /* พื้นที่เนื้อหากว้าง: ภาพซ้าย (ค้างไว้ขณะเลื่อนอ่านขั้นตอน) ขั้นตอนขวา => เห็นหมุดบนภาพตลอด */
+        .wide .part-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1.5rem; align-items: start; }
+        .wide .part-grid > .shot { position: sticky; top: 1rem; }
+        .wide .part-grid > ol { margin-top: 0; }
+        .fade-in { animation: fade .25s ease; }
+        @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .scroll-thin::-webkit-scrollbar { width: 6px; } .scroll-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9px; }
     </style>
 </head>
-<body>
-    <div class="app-shell flex h-screen flex-col overflow-hidden">
-        <header class="topbar w-full bg-white shadow-sm flex shrink-0 flex-col flex-none z-50">
-          <!-- <header class="topbar relative z-40 flex shrink-0 items-center justify-between px-4 md:px-6"> -->
+<body class="flex flex-col overflow-hidden">
 
-            <nav class="flex-none px-6 py-4 flex items-center justify-between border-b border-slate-200 bg-white z-20 shadow-sm">
-              <div class="flex items-center gap-4">
-                  <div id="mobile-menu-btn" class="topbar-icon-btn md:hidden" aria-label="เปิดเมนูคู่มือ">
-                    <i data-lucide="panel-right-close"></i>
-                  </div>
-                  <div class="brand-mark shrink-0">
-                      <i data-lucide="book-open-check" class="w-6 h-6"></i>
-                  </div>
-                  <div>
-                      <h2 class="text-lg font-bold text-slate-800 leading-tight" id="header-title">Tutorial</h2>
-                      <p class="text-xs text-slate-500 mt-1" id="header-subtitle">คู่มือการใช้งานโปรแกรมแบบภาพสไลด์สำหรับองค์กร</p>
-                  </div>
-              </div>
-          </nav>
-        </header>
+<!-- หัวหน้า -->
+<header class="flex-none bg-white border-b border-slate-200 px-4 sm:px-6 py-3 flex items-center gap-3">
+    <button id="tocBtn" type="button" class="lg:hidden p-2 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100" title="สารบัญ"><i data-lucide="list" class="w-5 h-5"></i></button>
+    <div class="w-10 h-10 rounded-xl bg-[#006b9f] text-white flex items-center justify-center shadow flex-none"><i data-lucide="book-open-check" class="w-5 h-5"></i></div>
+    <div class="min-w-0 flex-1">
+        <h1 class="text-base sm:text-lg font-bold leading-tight truncate">คู่มือการใช้งาน</h1>
+        <p class="text-[11px] sm:text-xs text-slate-500 truncate">เรียนรู้ทีละบท พร้อมภาพหน้าจอจริงของระบบ</p>
+    </div>
+    <div class="hidden sm:flex items-center gap-3 flex-none">
+        <div class="text-right">
+            <div class="text-[11px] text-slate-500">อ่านแล้ว</div>
+            <div class="text-sm font-semibold"><span id="progText">0/0</span> บท</div>
+        </div>
+        <div class="w-32 h-2 rounded-full bg-slate-100 overflow-hidden"><div id="progBar" class="h-full bg-emerald-500 transition-all" style="width:0"></div></div>
+    </div>
+</header>
 
-        <div class="workspace relative flex min-h-0 overflow-hidden">
-            <aside id="sidebar" class="sidebar absolute inset-y-0 left-0 z-50 flex h-full shrink-0 -translate-x-full flex-col transition-transform duration-300 ease-out md:relative md:translate-x-0">
-                <div class="border-b border-[#e1eaf0] px-4 pb-3.5 pt-2">
-                    <div class="flex items-start justify-between gap-3">
+<div class="flex-1 min-h-0 flex relative">
+    <!-- สารบัญ -->
+    <div id="tocBackdrop" class="lg:hidden fixed inset-0 z-30 bg-slate-900/40 hidden"></div>
+    <aside id="toc" class="fixed lg:static inset-y-0 left-0 z-40 w-[290px] max-w-[85vw] bg-white border-r border-slate-200 flex flex-col -translate-x-full lg:translate-x-0 transition-transform">
+        <div class="p-3 border-b border-slate-100">
+            <div class="relative">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input id="search" type="search" placeholder="ค้นหาในคู่มือ เช่น ปิดงาน, QR, มิเตอร์" class="w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white">
+            </div>
+            <div class="sm:hidden mt-2.5 flex items-center gap-2 text-xs text-slate-500">
+                อ่านแล้ว <b id="progTextM" class="text-slate-700">0/0</b>
+                <div class="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden"><div id="progBarM" class="h-full bg-emerald-500" style="width:0"></div></div>
+            </div>
+        </div>
+        <nav id="tocList" class="flex-1 overflow-y-auto scroll-thin p-2"></nav>
+    </aside>
 
-                        <button id="close-sidebar-btn" class="grid h-8 w-8 place-items-center rounded-lg border border-[#dbe6ed] text-[#748591] hover:bg-[#f3f8fb] md:hidden" aria-label="ปิดเมนูคู่มือ">
-                            <i data-lucide="x"></i>
-                        </button>
-                    </div>
+    <!-- เนื้อหา -->
+    <main id="content" class="flex-1 min-w-0 overflow-y-auto scroll-thin"></main>
+</div>
 
-                    <div class="mt-3 rounded-lg border border-[#dce8ef] bg-[#f7fafc] p-3">
-                        <div class="mb-2 flex items-center justify-between text-xs">
-                            <span class="font-medium text-[#52636f]">ความคืบหน้าการเปิดอ่าน</span>
-                            <span id="progress-percent" class="font-semibold text-[#066f9f]">0%</span>
-                        </div>
-                        <div class="progress-track">
-                            <div id="progress-value" class="progress-value"></div>
-                        </div>
-                        <p id="progress-text" class="mt-2 text-[11px] text-[#7a8994]">เปิดอ่านแล้ว 0 จาก 0 หัวข้อ</p>
-                    </div>
-                </div>
+<div id="zoom" role="dialog" aria-label="ภาพขยาย"></div>
 
-                <div class="border-b border-[#e5edf2] px-3 py-3">
-                    <label class="field-shell flex items-center gap-2 rounded-lg px-3 py-2">
-                        <i data-lucide="search" class="text-xs text-[#8a9aa5]"></i>
-                        <input id="search-guide" type="search" placeholder="ค้นหาหัวข้อหรือฟีเจอร์" class="min-w-0 flex-1 bg-transparent text-sm text-[#263843] outline-none placeholder:text-[#9aa8b1]">
-                    </label>
-                </div>
+<script>
+const PERMS = <?php echo json_encode($manualPerms); ?>;
+const LEVEL = <?php echo json_encode($manualLevel); ?>;
+const SHOTS = <?php echo $manualShots ? $manualShots : '{}'; ?>;
+const VER = '<?php echo $manualVer; ?>';
+const ADMIN = ['admin', 'super_admin'];
+const SUPER = ['super_admin'];   // หมวดผู้ดูแลระบบ (ตั้งค่าข้อมูล) เห็นเฉพาะ super admin
 
-                <div id="guide-list-container" class="sidebar-scroll flex-1 overflow-y-auto px-3 py-3"></div>
-            </aside>
+// ============================================================
+// เนื้อหาคู่มือ: module > lesson > parts (ภาพ + ขั้นตอน) + blocks เพิ่มเติม
+// step.m = เลขหมุดบนภาพ (ลำดับใน manual/shots.json) ไม่มี m = ขั้นตอนที่ไม่มีหมุด
+// ============================================================
+const MODULES = [
+{
+    id: 'start', title: 'เริ่มต้นใช้งาน', icon: 'rocket',
+    lessons: [
+    {
+        id: 'main', title: 'รู้จักหน้าจอหลัก', perm: null,
+        intro: 'หน้าจอของระบบแบ่งเป็น 2 ส่วน คือ <b>เมนูด้านซ้าย</b> สำหรับเลือกงาน และ <b>พื้นที่ทำงานด้านขวา</b> ที่จะเปลี่ยนไปตามเมนูที่เลือก',
+        parts: [{ shot: 'main', steps: [
+            { m: 1, t: '<b>เมนูหลัก</b> — กดเพื่อเปิดหน้าการทำงาน เมนูที่เห็นจะขึ้นกับสิทธิ์ของแต่ละคน ถ้าไม่เห็นเมนูที่ต้องใช้ ให้ติดต่อผู้ดูแลระบบ' },
+            { m: 2, t: '<b>ย่อ / ขยายเมนู</b> — ย่อเมนูให้เหลือแต่ไอคอน เพื่อให้พื้นที่ทำงานกว้างขึ้น บนมือถือให้กดปุ่ม <span class="kbd">☰</span> มุมซ้ายบนเพื่อเปิดเมนู' },
+            { m: 3, t: '<b>หน่วยงาน</b> — ชื่อหน่วยงาน/โครงการที่กำลังใช้งาน ข้อมูลทุกหน้าจะเป็นของหน่วยงานนี้' },
+            { m: 4, t: '<b>ชื่อผู้ใช้</b> — ชื่อบัญชีที่เข้าสู่ระบบอยู่' },
+            { m: 5, t: '<b>การแจ้งเตือน</b> — ตัวเลขสีแดงคือรายการที่ยังไม่อ่าน (เช่น งาน PM ที่ถึงกำหนด) กดเพื่อดูรายการล่าสุด' },
+            { m: 6, t: '<b>ออกจากระบบ</b> — กดทุกครั้งเมื่อใช้เครื่องร่วมกับผู้อื่น' }
+        ] }],
+        tips: ['ระบบใช้งานได้ทั้งคอมพิวเตอร์ แท็บเล็ต และมือถือ หน้าจอจะปรับตามขนาดให้อัตโนมัติ']
+    },
+    {
+        id: 'qr_login', title: 'เข้าสู่ระบบด้วย QR Code (สแกนด้วยมือถือ)', perm: null,
+        intro: 'แจ้งซ่อมได้ทันทีโดยไม่ต้องจำชื่อผู้ใช้และรหัสผ่าน — สแกน QR Code ที่ติดไว้ตามจุดต่างๆ ด้วยกล้องมือถือ ระบบจะเข้าสู่ระบบและเปิดหน้าแจ้งซ่อมให้เลย',
+        parts: [
+        { title: '1. สแกน QR Code', shot: 'qr_login_card', steps: [
+            { t: 'มองหาป้าย <b>ระบบแจ้งซ่อมออนไลน์</b> ที่มี QR Code ติดไว้ (ภาพตัวอย่างถูกเบลอไว้)' },
+            { m: 1, t: 'เปิด <b>กล้องมือถือ</b> (หรือเครื่องสแกน QR ในแอป LINE) เล็งที่ QR Code แล้ว <b>แตะลิงก์</b> ที่ขึ้นมาบนจอ' },
+            { m: 2, t: 'ระบบเข้าสู่ระบบให้ทันที <b>ไม่ต้องกรอกรหัสผ่าน</b>' }
+        ] },
+        { title: '2. แจ้งซ่อมได้เลย', shot: 'qr_login_phone', steps: [
+            { m: 2, t: 'เปิดหน้า <b>แจ้งซ่อม</b> ให้อัตโนมัติ — กรอกตามบท <a href="#repair" class="text-sky-700 font-semibold underline">แจ้งซ่อม</a> แล้วกด <span class="kbd">ยืนยันแจ้งซ่อม</span>' },
+            { m: 1, t: 'เมนู ☰ — การเข้าด้วย QR จะเห็นเฉพาะเมนู <b>แจ้งซ่อม</b>' }
+        ] },
+        { title: 'สร้าง QR Code สำหรับติดประกาศ (ผู้ดูแลระบบ)', roles: SUPER, shot: 'qr_login_admin', steps: [
+            { t: 'ไปที่เมนู <b>ตั้งค่าข้อมูล → ตั้งค่าผู้ใช้งาน</b>' },
+            { m: 1, t: 'คอลัมน์ <b>QR Login</b> — แต่ละบัญชีมี QR ของตัวเอง' },
+            { m: 2, t: 'กดไอคอน QR ของบัญชีที่ใช้สำหรับแจ้งซ่อม จะเปิดหน้า QR ในแท็บใหม่ — สั่งพิมพ์ (Ctrl+P) แล้วติดไว้ตามจุดที่ต้องการ' }
+        ] }],
+        tips: ['QR หนึ่งอันผูกกับบัญชีเดียว ใครสแกนก็เข้าระบบในชื่อบัญชีนั้น — สร้าง QR จากบัญชีที่ตั้งไว้สำหรับแจ้งซ่อมเท่านั้น ห้ามใช้บัญชีผู้ดูแลระบบหรือบัญชีช่าง', 'ใส่ชื่อและเบอร์โทรของคุณในฟอร์มทุกครั้ง เพื่อให้ช่างติดต่อกลับได้ เพราะชื่อบัญชีเป็นชื่อกลาง']
+    },
+    {
+        id: 'notifications', title: 'การแจ้งเตือน', perm: null, href: 'notifications.php',
+        intro: 'ระบบจะแจ้งเตือนงานที่ต้องทำ เช่น งาน PM ที่ถึงกำหนดวันนี้ หรือแจ้งล่วงหน้าตามที่ตั้งไว้ในแผน',
+        parts: [{ shot: 'notifications', steps: [
+            { t: 'กดไอคอน <b>กระดิ่ง</b> มุมขวาบน เพื่อดูการแจ้งเตือนล่าสุด แล้วกด <b>ดูการแจ้งเตือนทั้งหมด</b> เพื่อเปิดหน้านี้' },
+            { t: 'รายการเรียงตามวัน รายการที่มี <b>จุดสีฟ้า</b> คือยังไม่ได้อ่าน' },
+            { t: 'กด <span class="kbd">อ่านทั้งหมด</span> เพื่อทำเครื่องหมายว่าอ่านแล้วทุกรายการ' }
+        ] }]
+    },
+    {
+        id: 'dashboard', title: 'หน้าหลัก (Dashboard)', perm: null, href: 'dashboard.php',
+        intro: 'สรุปภาพรวมงานแจ้งซ่อมตามช่วงเวลาและสถานที่ที่เลือก เหมาะสำหรับดูสถานการณ์อย่างรวดเร็ว',
+        parts: [{ shot: 'dashboard', steps: [
+            { m: 1, t: '<b>ช่วงเวลา</b> — เลือกดูเป็นรายวัน รายเดือน หรือรายปี' },
+            { m: 2, t: '<b>ช่วงวันที่</b> — กำหนดวันเริ่มต้นและวันสิ้นสุดของข้อมูล' },
+            { m: 3, t: '<b>สถานที่</b> — เลือกอาคาร/สาขา หรือดูทั้งหมด' },
+            { m: 4, t: 'กด <span class="kbd">ค้นหา</span> เพื่อแสดงข้อมูลตามตัวเลือก' },
+            { m: 5, t: '<b>การ์ดสรุป</b> — จำนวนงานทั้งหมด รอดำเนินการ กำลังดำเนินการ สำเร็จแล้ว และยกเลิก' },
+            { m: 6, t: '<b>กราฟ</b> — แนวโน้มงานและงานแยกตามอาคาร กด <span class="kbd">เต็มจอ</span> เพื่อดูกราฟขนาดใหญ่' }
+        ] }]
+    }]
+},
+{
+    id: 'repair', title: 'งานแจ้งซ่อม', icon: 'wrench',
+    lessons: [
+    {
+        id: 'repair', title: 'แจ้งซ่อม', perm: 'repair_request', href: 'maintenance_request.php',
+        intro: 'กรอกแบบฟอร์มแจ้งซ่อมเมื่อพบปัญหา ยิ่งระบุตำแหน่งและแนบรูปชัดเจน ช่างก็แก้ไขได้เร็วขึ้น ช่องที่มีเครื่องหมาย <b class="text-rose-500">*</b> ต้องกรอก',
+        parts: [{ shot: 'repair', steps: [
+            { m: 1, t: '<b>วัน/เวลาที่แจ้ง</b> — ระบบใส่วันเวลาปัจจุบันให้อัตโนมัติ' },
+            { m: 2, t: '<b>ชื่อผู้แจ้ง</b> — ชื่อ ฝ่าย หรือสำนักงาน เพื่อให้ช่างติดต่อกลับได้' },
+            { m: 3, t: '<b>เบอร์โทรศัพท์</b> — ถ้าไม่มีเบอร์ ให้ติ๊ก <b>ไม่มีเบอร์โทร</b>' },
+            { m: 4, t: '<b>ตำแหน่งที่แจ้งซ่อม</b> — กดแล้วเลือก อาคาร/สาขา → ชั้น → ห้อง' },
+            { m: 5, t: '<b>ค้นหาเครื่อง/ทรัพย์สิน</b> — ถ้าเป็นปัญหาของเครื่องจักร พิมพ์รหัส ชื่อ หรือห้อง หรือกด <span class="kbd">Browse</span> เพื่อเลือกจากรายการ' },
+            { m: 6, t: '<b>ความเร่งด่วน</b> — ต่ำ / ปานกลาง / สูง / เร่งด่วนมาก' },
+            { m: 7, t: '<b>อาการเสีย/ปัญหาที่พบ</b> — อธิบายสิ่งที่เห็น เช่น "แอร์เปิดไม่ติด มีน้ำหยด"' },
+            { m: 8, t: '<b>รูปภาพ</b> — แนบได้สูงสุด 5 รูป (JPG / PNG / WEBP) กด ADD PHOTO หรือลากรูปมาวาง' },
+            { m: 9, t: '<b>วิดีโอ</b> — แนบได้ 1 คลิป ไม่เกิน 30 วินาที (ตัดช่วงคลิปได้ก่อนส่ง)' },
+            { m: 10, t: 'ตรวจข้อมูลแล้วกด <span class="kbd">ยืนยันแจ้งซ่อม</span>' }
+        ] }],
+        tips: ['ถ่ายรูปให้เห็นทั้งจุดที่เสียและป้าย/รหัสเครื่อง จะช่วยให้ช่างเตรียมอุปกรณ์ได้ถูก', 'กด <b>ล้างข้อมูล</b> หากต้องการเริ่มกรอกใหม่']
+    },
+    {
+        id: 'qr', title: 'แจ้งซ่อมด้วย QR Code ที่ตัวเครื่อง', perm: 'repair_request',
+        intro: 'เครื่องจักรที่ติด QR Code ของระบบ สามารถสแกนด้วยกล้องมือถือเพื่อดูข้อมูลเครื่องและแจ้งซ่อมได้ทันที โดยไม่ต้องค้นหาเครื่องเอง',
+        parts: [{ shot: 'qr', steps: [
+            { t: 'เปิดกล้องมือถือ แล้วสแกน QR Code ที่ติดอยู่บนเครื่อง จะเปิดหน้า <b>ประวัติเครื่องจักร</b> (รหัส ชื่อ ยี่ห้อ สถานที่ติดตั้ง วันหมดประกัน)' },
+            { m: 2, t: '<b>ประวัติการแจ้งซ่อม</b> — ดูก่อนว่ามีคนแจ้งปัญหานี้ไปแล้วหรือยัง' },
+            { m: 1, t: 'กด <span class="kbd">แจ้งซ่อมเครื่องจักรนี้</span> ระบบจะเปิดฟอร์มแจ้งซ่อมพร้อมเลือกเครื่องและสถานที่ให้อัตโนมัติ' }
+        ] }]
+    },
+    {
+        id: 'repair_list', title: 'ติดตามรายการแจ้งซ่อม', perm: 'repair_data', href: 'maintenance_info.php',
+        intro: 'ดูรายการแจ้งซ่อมทั้งหมด สถานะของแต่ละงาน และจัดการใบงาน',
+        parts: [{ shot: 'repair_list', steps: [
+            { m: 1, t: '<b>ค้นหา</b> — พิมพ์ชื่อผู้แจ้ง อาการ อาคาร สถานะ หรือรหัสครุภัณฑ์' },
+            { m: 2, t: '<b>รูป/วิดีโอ</b> — กดเพื่อดูไฟล์ที่แนบมา ตัวเลขที่มุมคือจำนวนไฟล์ ไอคอน ▶ คือมีวิดีโอ' },
+            { m: 3, t: '<b>สถานะ</b> — แถบสีบอกความคืบหน้าของงาน (ดูความหมายด้านล่าง)' },
+            { m: 4, t: '<b>แก้ไขใบงาน</b> — เปิดรายละเอียด สำหรับรับงาน/ปิดงาน (ดูบทถัดไป)' },
+            { m: 5, t: '<b>พิมพ์ใบงาน</b>' },
+            { m: 6, t: '<b>แบบประเมิน</b> — ส่งหรือดูผลการประเมินความพึงพอใจ ปุ่มสีเขียวคือประเมินแล้ว' },
+            { m: 7, t: '<b>ยกเลิกใบงาน</b> — มีเฉพาะงานที่ยังไม่ปิด ระบบจะถามยืนยันก่อน' },
+            { m: 8, t: '<b>เปลี่ยนหน้า</b> และเลือกจำนวนแถวต่อหน้า' }
+        ] }],
+        table: { title: 'ความหมายของสถานะ', rows: [
+            ['<span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 mr-1.5"></span>รอดำเนินการ', 'แจ้งเข้ามาแล้ว ยังไม่มีช่างรับงาน'],
+            ['<span class="inline-block w-2.5 h-2.5 rounded-full bg-sky-500 mr-1.5"></span>กำลังดำเนินการ', 'ช่างรับงานแล้ว กำลังแก้ไข'],
+            ['<span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 mr-1.5"></span>เสร็จสิ้น', 'ช่างปิดงานแล้ว'],
+            ['<span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 mr-1.5"></span>ประเมินแล้ว', 'ผู้แจ้งประเมินความพึงพอใจแล้ว'],
+            ['<span class="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 mr-1.5"></span>ยกเลิก', 'ใบงานถูกยกเลิก']
+        ] },
+        tips: ['กดปุ่มกรอง ▾ บนหัวคอลัมน์ เพื่อกรองเฉพาะอาคาร ชั้น หรือสถานะที่ต้องการ']
+    },
+    {
+        id: 'repair_job', title: 'รับงานและปิดงานซ่อม (สำหรับช่าง)', perm: 'repair_data', href: 'maintenance_info.php',
+        intro: 'ในหน้า <b>ข้อมูลแจ้งซ่อม</b> กดปุ่ม <b>แก้ไขใบงาน</b> ของงานที่ต้องการ จะเปิดหน้ารายละเอียดด้านขวา ฝั่งซ้ายคือข้อมูลที่แจ้ง ฝั่งขวาคือส่วนที่ช่างบันทึก',
+        parts: [{ shot: 'repair_job', steps: [
+            { m: 1, t: '<b>เลขที่เอกสาร</b> ของใบงานที่กำลังเปิด' },
+            { m: 2, t: '<b>สถานที่และทรัพย์สิน</b> — ตรวจสอบตำแหน่งและเครื่อง ถ้าไม่ถูกต้อง แก้ได้ที่ <b>แก้ไขตำแหน่ง</b> หรือปุ่มเปลี่ยนเครื่อง ⇄' },
+            { m: 3, t: '<b>ขั้นที่ 1 รับงาน / จ่ายงาน</b> — ใส่วันที่และเวลาเข้าทำ แล้วเลือกช่างผู้รับผิดชอบ' },
+            { m: 4, t: '<b>ขั้นที่ 2 ปิดงาน / รายงานผล</b> — ใส่วันเวลาที่เสร็จ ชนิดบริการ ประเภทงาน บันทึกผลการดำเนินงาน แนบรูปปิดงาน (สูงสุด 5 รูป) และเพิ่มอะไหล่/วัสดุที่ใช้จากสต็อก' },
+            { m: 5, t: 'กด <span class="kbd">บันทึกข้อมูล (Save)</span> ทุกครั้งหลังกรอก' }
+        ] }],
+        tips: ['รับงานก่อนแล้วกดบันทึกได้เลย จากนั้นกลับมากรอกส่วนปิดงานเมื่อซ่อมเสร็จ', 'ถ่ายรูปหลังซ่อมเสร็จจากมุมเดียวกับรูปที่แจ้ง เพื่อให้เปรียบเทียบผลได้ง่าย']
+    },
+    {
+        id: 'repair_eval', title: 'ส่งแบบประเมินความพึงพอใจ', perm: 'repair_data', href: 'maintenance_info.php',
+        intro: 'หลังปิดงาน ส่งแบบประเมินทางอีเมลให้ผู้เกี่ยวข้องประเมินงานซ่อม — กดปุ่ม <b>ซองจดหมาย</b> ในคอลัมน์จัดการของหน้าข้อมูลแจ้งซ่อม',
+        parts: [{ shot: 'repair_eval', steps: [
+            { m: 1, t: '<b>ข้อมูลใบงาน</b> และสถานะการประเมิน — ส่งได้เมื่อใบงานมีสถานะ <b>เสร็จสิ้น</b> แล้วเท่านั้น' },
+            { m: 2, t: '<b>รายชื่อผู้รับอีเมล</b> — เลือกผู้รับ หรือ <b>เลือกทั้งหมด</b> แต่ละคนแสดงสถานะ ยังไม่ส่ง / ส่งแล้ว / เปิดลิงก์แล้ว' },
+            { m: 3, t: '<b>Mail Logs</b> — ประวัติการส่งล่าสุด' },
+            { m: 4, t: 'กด <span class="kbd">ส่งให้ผู้ที่เลือก</span> — หรือ <b>เลือกที่ยังไม่ส่ง/ล้มเหลว</b> เพื่อส่งซ้ำ และ <b>ตรวจสอบสถานะ</b> เพื่ออัปเดตผล' }
+        ] }],
+        tips: ['ปุ่มเปลี่ยนเป็น <b>สีเขียว</b> เมื่อได้รับผลประเมินแล้ว กดเพื่อดูผลหรือส่งรอบใหม่']
+    },
+    {
+        id: 'work_history', title: 'ประวัติงานช่าง', perm: 'work_history', href: 'work_history.php',
+        intro: 'ติดตามงานของช่างแต่ละคนในรูปแบบปฏิทิน บอร์ดสถานะ และไทม์ไลน์ พร้อมตัวเลขสรุปประสิทธิภาพ',
+        parts: [{ shot: 'work_history', steps: [
+            { m: 1, t: '<b>มุมมอง</b> — ปฏิทินงาน / บอร์ดสถานะงาน / ไทม์ไลน์รายวัน / ไทม์ไลน์ทีม' },
+            { m: 2, t: '<b>ตัวกรอง</b> — ค้นหาเลขที่งานหรือชื่อ (บนมือถือกดแถบ "ตัวกรอง" เพื่อเปิด)' },
+            { m: 3, t: '<b>ช่าง</b> — เลือกดูเฉพาะช่างคนใดคนหนึ่ง หรือทั้งหมด' },
+            { m: 4, t: '<b>ช่วงเวลา</b> — รายวัน / รายเดือน / รายปี และกำหนดวันเริ่มต้น-สิ้นสุดได้' },
+            { m: 5, t: '<b>สถานะงาน</b> — จำนวนงานแต่ละสถานะตามตัวกรอง' },
+            { m: 6, t: 'กด <span class="kbd">วันนี้</span> เพื่อกลับมาดูงานของวันนี้' }
+        ] },
+        { title: 'บอร์ดสถานะงาน', shot: 'wh_kanban', steps: [
+            { m: 1, t: 'ใบงานแบ่งเป็น 4 คอลัมน์ตามสถานะ: <b>รอ/เตรียมการ</b> → <b>กำลังดำเนินการ</b> → <b>เสร็จสิ้น</b> และ <b>ยกเลิก</b> ตัวเลขบนหัวคอลัมน์คือจำนวนงาน' }
+        ] },
+        { title: 'ไทม์ไลน์ (รายวัน)', shot: 'wh_daily', steps: [
+            { m: 1, t: 'แต่ละแถวคือ 1 วัน แนวนอนคือเวลา 24 ชั่วโมง แถบสีคือใบงาน (สีตามสถานะ) — เห็นว่างานเข้าช่วงเวลาไหนบ่อย' },
+            { t: 'ปุ่มด้านบนขวา: ซูม − / + / รีเซ็ต, <span class="kbd">Export Excel</span> และขยายเต็มจอ' }
+        ] },
+        { title: 'ไทม์ไลน์ (ทีม)', shot: 'wh_team', steps: [
+            { m: 1, t: 'แต่ละแถวคือช่าง 1 คน แนวนอนคือวันที่ — เห็นว่าใครมีงานซ้อน ใครว่าง แถว <b>ยังไม่มอบหมายช่าง</b> คืองานที่ยังไม่มีคนรับ' }
+        ] }]
+    }]
+},
+{
+    id: 'pm', title: 'งานบำรุงรักษา (PM)', icon: 'notebook-pen',
+    lessons: [
+    {
+        id: 'pm_calendar', title: 'ปฏิทินงาน PM', perm: 'pm_plan', href: 'pm.php', tab: 'dashboard',
+        intro: 'เมนู <b>วางแผน PM</b> แท็บ <b>ปฏิทิน</b> แสดงงานบำรุงรักษาตามแผนทั้งหมด <span class="text-[#006B9F] font-semibold">สีน้ำเงิน</span> = รอดำเนินการ <span class="text-emerald-600 font-semibold">สีเขียว</span> = ทำแล้ว',
+        parts: [{ shot: 'pm_calendar', steps: [
+            { m: 1, t: '<b>ตัวกรองขั้นสูง</b> — เลือกเครื่องจักร เช็คชีต ประเภท หรือสถานที่ กด « เพื่อซ่อนแผงนี้' },
+            { m: 2, t: 'กด <span class="kbd">กรองข้อมูล</span> เพื่อแสดงตามตัวกรอง (<b>ล้างค่า</b> เพื่อดูทั้งหมด)' },
+            { m: 3, t: '<b>เลื่อนเดือน</b> ‹ › และกลับมา <b>วันนี้</b>' },
+            { m: 4, t: '<b>มุมมอง</b> — รายปี / รายเดือน / รายวัน / กำหนดการ (แบบรายการ)' },
+            { m: 5, t: '<b>กดที่งาน</b> เพื่อดูรายละเอียดและเปิดใบงาน (บทถัดไป)' }
+        ] }]
+    },
+    {
+        id: 'pm_popup', title: 'ดูรายละเอียดงานก่อนเปิดใบงาน', perm: 'pm_plan', href: 'pm.php', tab: 'dashboard',
+        intro: 'เมื่อกดงานในปฏิทิน จะเห็นข้อมูลสรุปที่ช่างควรรู้ก่อนออกไปหน้างาน',
+        parts: [{ shot: 'pm_popup', steps: [
+            { m: 1, t: '<b>สถานะ</b> — รอดำเนินการ / เลยกำหนดกี่วัน / ครบกำหนดวันนี้ / เคยถูกเลื่อน' },
+            { m: 2, t: '<b>ข้อมูลหลัก</b> — วันที่กำหนด ความถี่ เวลาที่ใช้โดยประมาณ และวันที่ทำครั้งล่าสุด' },
+            { m: 3, t: '<b>สิ่งที่ต้องเตรียม</b> — จำนวนจุดตรวจ จุดที่ต้องถ่ายรูป และอะไหล่/วัสดุ' },
+            { m: 4, t: '<b>คู่มือ / ไฟล์แนบ</b> — กดที่ชื่อไฟล์เพื่อดาวน์โหลด' },
+            { m: 5, t: 'กด <span class="kbd">เปิดใบงาน</span> เพื่อบันทึกผล (งานที่ทำแล้วจะเป็นปุ่ม <b>ดูประวัติ</b>)' }
+        ] }]
+    },
+    {
+        id: 'pm_worksheet', title: 'บันทึกใบงาน PM', perm: 'pm_plan',
+        intro: 'ใบงาน PM แบ่งเป็น 4 ขั้นตอน กด <b>ถัดไป</b> / <b>ย้อนกลับ</b> ที่แถบด้านล่าง หรือกดที่แถบขั้นตอนด้านบนเพื่อข้ามไปขั้นที่ต้องการ',
+        parts: [
+        { title: 'ขั้นที่ 1 ข้อมูลงาน', shot: 'pm_worksheet', steps: [
+            { m: 1, t: '<b>แถบขั้นตอน</b> — ข้อมูลงาน → ตรวจสอบ → อะไหล่ → สรุป & ลงชื่อ' },
+            { m: 2, t: '<b>ข้อมูลการปฏิบัติงาน</b> — ตรวจว่าเครื่องและสถานที่ถูกต้อง ด้านล่างมีภาพจุดตรวจและไฟล์คำแนะนำในการทำงาน' },
+            { m: 3, t: 'กด <span class="kbd">ถัดไป</span> เพื่อไปขั้นตรวจสอบ' }
+        ] },
+        { title: 'ขั้นที่ 2 ตรวจสอบ', shot: 'pm_worksheet_check', steps: [
+            { m: 1, t: '<b>รายการจุดตรวจสอบ</b> — แถบด้านบนบอกว่าตรวจแล้วกี่ข้อ กรองดูเฉพาะ <b>ยังไม่ตรวจ</b> หรือ <b>ผิดปกติ</b> ได้' },
+            { m: 2, t: 'เลือกผล <span class="kbd">✓ ปกติ</span> <span class="kbd">✕ ผิดปกติ</span> หรือ <span class="kbd">N/A</span> กรอกค่าที่วัดได้ (ถ้ามี) — กดที่แถวเพื่อดูมาตรฐานและวิธีตรวจด้านขวา' },
+            { m: 3, t: '<b>ป้ายถ่ายรูป</b> — <span class="text-rose-600 font-semibold">บังคับถ่ายรูป</span> ต้องแนบรูปทุกครั้ง, <span class="text-amber-600 font-semibold">ถ่ายรูปเมื่อผิดปกติ</span> ต้องแนบเมื่อเลือกผิดปกติ' }
+        ] },
+        { title: 'ขั้นที่ 3 อะไหล่', shot: 'pm_worksheet_spares', steps: [
+            { m: 1, t: '<b>ขั้นอะไหล่</b> — ถ้าไม่ได้ใช้อะไหล่ในงานนี้ กด <b>ถัดไป</b> ข้ามได้เลย' },
+            { m: 2, t: '<b>รายการอะไหล่/วัสดุที่ใช้จริง</b> — กด <b>⊕ เพิ่มรายการ</b> เลือกจากสต็อกแล้วใส่จำนวนที่ใช้ เพิ่มได้หลายรายการ ระบบรวมค่าวัสดุให้' },
+            { m: 3, t: 'กด <span class="kbd">ถัดไป</span> เพื่อไปขั้นสรุป' }
+        ] },
+        { title: 'ขั้นที่ 4 สรุป & ลงชื่อ', shot: 'pm_worksheet_sign', steps: [
+            { m: 1, t: '<b>สรุปผลการตรวจ</b> — จำนวนข้อที่ตรวจแล้ว ปกติ ผิดปกติ N/A ถ้ายังมีข้อที่ไม่ได้ตรวจ จะแสดงรายการไว้ กดที่ข้อนั้นเพื่อกลับไปตรวจ' },
+            { m: 2, t: '<b>ชื่อผู้ตรวจสอบ</b> — คลิกแล้วเลือกชื่อจากรายการ' },
+            { m: 3, t: '<b>หมายเหตุ / ข้อเสนอแนะ</b> (ถ้ามี)' },
+            { m: 4, t: '<b>ลายมือชื่อผู้ตรวจสอบ</b> — เซ็นด้วยนิ้วหรือเมาส์ในกรอบ กด <b>ล้าง</b> เพื่อเซ็นใหม่' },
+            { m: 5, t: 'กด <span class="kbd">บันทึกผลการปฏิบัติงาน</span> — ระบบตรวจว่ากรอกครบก่อนบันทึก' }
+        ] }]
+    },
+    {
+        id: 'pm_postpone', title: 'เลื่อนแผน PM', perm: 'pm_plan', href: 'pm.php', tab: 'postpone',
+        intro: 'ใช้เมื่อทำงานตามวันที่กำหนดไม่ได้ เช่น เครื่องไม่พร้อม หรือพื้นที่ไม่ว่าง เลื่อนได้หลายรายการพร้อมกัน',
+        parts: [{ shot: 'pm_postpone', steps: [
+            { m: 1, t: '<b>ตัวกรอง</b> — เลือกเดือน/ปีของวันที่แผนเดิม แล้วกรองตามเครื่องจักร เช็คชีต ประเภท หรือสถานที่' },
+            { m: 2, t: 'กด <span class="kbd">กรองข้อมูล</span>' },
+            { m: 3, t: '<b>วันที่เลื่อนใหม่</b> — ดับเบิลคลิกช่องของงานที่จะเลื่อน แล้วเลือกวันใหม่' },
+            { m: 4, t: '<b>เหตุผลที่เลื่อน</b> — ต้องระบุทุกรายการที่เลื่อน' },
+            { m: 5, t: 'กด <span class="kbd">บันทึกการเลื่อนทั้งหมด</span> และยืนยัน' }
+        ] }],
+        tips: ['ดูประวัติการเลื่อนของแต่ละงานได้ที่คอลัมน์ <b>ประวัติเลื่อน</b> ทางขวาสุด']
+    },
+    {
+        id: 'pm_plan', title: 'จัดการแผน PM', perm: 'pm_plan', href: 'pm.php', tab: 'plan',
+        intro: 'แผน PM คือการผูก <b>เครื่องจักร + เช็คชีต + ความถี่</b> เข้าด้วยกัน ระบบจะสร้างกำหนดการในปฏิทินให้อัตโนมัติจนถึงวันสิ้นสุดสัญญา',
+        parts: [
+        { title: 'รายการแผน PM', shot: 'pm_plan', steps: [
+            { m: 1, t: '<span class="kbd">คำนวณแผนใหม่</span> — สร้างกำหนดการล่วงหน้าทั้งหมดใหม่จนถึงวันสิ้นสุดสัญญา (ใช้หลังแก้วันหยุดหรือแก้แผนหลายรายการ)' },
+            { m: 2, t: '<span class="kbd">เพิ่มแผน PM</span> — สร้างแผนใหม่ (ดูขั้นตอนด้านล่าง)' },
+            { m: 3, t: '<b>ความถี่</b> ของแต่ละแผน เช่น ทุกวัน / ทุก 7 วัน / รายเดือน' },
+            { m: 4, t: '<b>เริ่มทำ</b> — วันที่เริ่มแผน' },
+            { m: 5, t: '<b>จัดการ</b> — 📄 เปิดรายงานรายเดือน/รายวัน ✎ แก้ไขแผน (ความถี่ การแจ้งเตือน ระบุวัน วันเริ่ม) 🗑 ลบแผน' }
+        ] },
+        { title: 'สร้างแผน PM ใหม่ — ขั้นที่ 1 เลือกข้อมูลพื้นฐาน', shot: 'pm_plan_add', steps: [
+            { m: 1, t: '<b>แถบขั้นตอน</b> — เลือกข้อมูลพื้นฐาน → ตั้งค่าเช็คชีต → กำหนดวันเริ่มทำ' },
+            { m: 4, t: 'เลือก <b>ประเภทเครื่องจักร</b> — ระบบแสดงเช็คชีตของประเภทนั้น' },
+            { m: 5, t: 'ติ๊ก <b>เช็คชีต</b> ที่จะใช้ (เลือกได้มากกว่า 1) แล้วกด <span class="kbd">ถัดไป</span>' }
+        ] },
+        { title: 'ขั้นที่ 2 ตั้งค่าเช็คชีต', shot: 'pm_plan_add2', steps: [
+            { m: 1, t: 'แต่ละแถวคือเช็คชีตที่เลือกไว้ในขั้นที่ 1' },
+            { m: 2, t: '<b>ความถี่</b> — เช่น ทุกวัน / ทุก 7 วัน / ทุก 30 วัน / ระบุวันในสัปดาห์ / ระบุวันที่ของทุกเดือน' },
+            { m: 3, t: '<b>การแจ้งเตือน</b> — เวลาที่ระบบแจ้งเตือนก่อนถึงงาน (ตัวเลือกขึ้นกับความถี่)' },
+            { t: '<b>ระบุวัน</b> — ติ๊กวันที่ต้องทำ เฉพาะความถี่ที่ต้องระบุวัน (เช่น 2 ครั้งต่อสัปดาห์) ความถี่อื่นจะขึ้นว่า "ไม่ต้องระบุวัน"' },
+            { m: 4, t: 'กด <span class="kbd">ถัดไป</span> (ย้อนกลับไปแก้ขั้นที่ 1 ได้)' }
+        ] },
+        { title: 'ขั้นที่ 3 กำหนดวันเริ่มทำ', shot: 'pm_plan_add3', steps: [
+            { m: 1, t: 'แสดงเครื่องจักรทุกเครื่องของประเภทที่เลือก' },
+            { m: 2, t: 'คอลัมน์สีฟ้าทางขวาคือเช็คชีตแต่ละชุด — ใส่ <b>วันเริ่มทำ</b> ของแต่ละเครื่อง (พิมพ์ YYYY-MM-DD หรือดับเบิลคลิกเพื่อเปิดปฏิทิน) เครื่องที่ไม่ใส่วันจะไม่ถูกสร้างแผน' },
+            { m: 3, t: '<span class="kbd">ขยายเต็มจอ</span> เมื่อมีเครื่องจำนวนมาก' },
+            { t: 'กด <span class="kbd">บันทึกแผน PM</span> (ปุ่มสีเขียวท้ายหน้า) ระบบจะสร้างกำหนดการในปฏิทินจนถึงวันสิ้นสุดสัญญา' }
+        ] }],
+        tips: ['ต้องมีเช็คชีตก่อนจึงจะสร้างแผนได้ — สร้างที่แท็บ <b>สร้างเช็คชีต</b>', 'ตั้งวันหยุดในแท็บ <b>จัดการวันหยุด</b> ก่อนสร้างแผน ระบบจะเลื่อนงานที่ตรงวันหยุดให้อัตโนมัติ']
+    },
+    {
+        id: 'pm_checksheet', title: 'สร้างเช็คชีต', perm: 'pm_plan', href: 'pm.php', tab: 'checksheet',
+        intro: 'เช็คชีตคือแบบฟอร์มตรวจสอบ กำหนดว่าต้องตรวจจุดไหน มาตรฐานเท่าไร และต้องถ่ายรูปหรือไม่ ใช้ซ้ำได้กับเครื่องประเภทเดียวกันทุกเครื่อง ช่องที่มี <b class="text-rose-500">*</b> ต้องกรอก',
+        parts: [
+        { title: 'ข้อมูลเช็คชีต', shot: 'pm_checksheet', steps: [
+            { m: 1, t: '<b>ชื่อเช็คชีต</b> เช่น "ตรวจเช็คแอร์รายเดือน"' },
+            { m: 2, t: '<b>ประเภทเครื่องจักร</b> ที่ใช้เช็คชีตนี้ พร้อมวันที่มีผล เลขที่เอกสาร และ Revision No.' },
+            { m: 3, t: '<b>เวลาที่คาดว่าจะเสร็จ</b> (นาที) — แสดงให้ช่างเห็นก่อนออกไปหน้างาน' },
+            { m: 4, t: '<b>รายการอะไหล่ที่ต้องใช้</b> — ชื่ออะไหล่และจำนวน กด <b>+ เพิ่มแถวอะไหล่</b> เพื่อเพิ่ม' },
+            { m: 5, t: '<b>ภาพจุดตรวจสอบ</b> — แนบได้สูงสุด 5 รูป' },
+            { m: 6, t: '<b>คำแนะนำในการทำงาน</b> — แนบคู่มือได้สูงสุด 5 ไฟล์ ไม่เกิน 5MB ต่อไฟล์ ช่างดาวน์โหลดได้จากปฏิทิน PM' },
+            { m: 7, t: '<b>จัดการแถวเช็คชีต</b> — ใส่จำนวนแล้วกด <b>เพิ่มแถวท้ายตาราง</b> เพื่อเพิ่มจุดตรวจ' },
+            { m: 8, t: 'กรอกครบแล้วกด <span class="kbd">บันทึก Template</span> (<b>ล้างข้อมูล</b> เพื่อเริ่มใหม่)' }
+        ] },
+        { title: 'จุดตรวจสอบ และเช็คชีตที่บันทึกไว้', shot: 'pm_checksheet_rows', steps: [
+            { m: 1, t: 'แต่ละแถวคือ 1 จุดตรวจ — กรอก <b>จุดที่ตรวจสอบ</b> มาตรฐาน วิธีตรวจ/เครื่องมือ และข้อปฏิบัติเมื่อผิดปกติ' },
+            { m: 2, t: '<b>ประเภทจุดตรวจสอบ</b> — ผ่าน / ไม่ผ่าน หรือ ผ่าน / ไม่ผ่าน / ไม่เกี่ยวข้อง (มีตัวเลือก N/A)' },
+            { m: 3, t: '<b>บังคับถ่ายรูป</b> — บังคับ / ไม่บังคับ / บังคับเฉพาะกรณีที่ไม่ผ่าน' },
+            { m: 4, t: 'ถ้าต้องวัดค่า ใส่ <b>ชื่อค่าวัด</b> หน่วย และ <b>ค่าที่คาดหวัง</b>' },
+            { m: 5, t: '<b>รายการเช็คชีตที่บันทึกไว้</b> — ปุ่มด้านขวา: คัดลอก (ทำเช็คชีตใหม่จากของเดิม) / แก้ไข / ลบ' }
+        ] }]
+    },
+    {
+        id: 'pm_holiday', title: 'จัดการวันหยุด', perm: 'pm_plan', href: 'pm.php', tab: 'holiday',
+        intro: 'กำหนดวันที่ไม่ทำ PM และเลือกว่าถ้างานตรงวันหยุดจะให้ทำอย่างไร ระบบจะตรวจเงื่อนไขนี้ก่อนลงตาราง PM',
+        parts: [{ shot: 'pm_holiday', steps: [
+            { m: 1, t: '<b>รูปแบบการหยุด</b> — ครั้งเดียว / ทุกปี / ทุกๆวัน (หยุดประจำสัปดาห์ เช่น ทุกวันอาทิตย์)' },
+            { m: 2, t: '<b>ระบุวันที่</b> (หรือเลือกวันในสัปดาห์ ถ้าเป็นแบบทุกๆวัน)' },
+            { m: 3, t: '<b>การจัดการเมื่อตรงวันหยุด</b> — เลื่อนไป 1 วันทำการถัดไป / เลื่อนมาทำก่อน 1 วันทำการ / หยุดทำ / ไม่หยุดทำ' },
+            { m: 4, t: '<b>ชื่อวันหยุด</b> เช่น วันแรงงาน วันปิดปรับปรุง' },
+            { m: 5, t: '<b>เปิดใช้งาน</b> — ปิดไว้ได้โดยไม่ต้องลบ' },
+            { m: 6, t: 'กด <span class="kbd">เพิ่มรายการ</span>' },
+            { m: 7, t: '<b>รายการวันหยุด</b> — แก้ไข ลบ หรือเปิด/ปิดด้วยสวิตช์ในตาราง (กด « เพื่อซ่อนแผงด้านซ้าย)' }
+        ] }],
+        tips: ['แก้วันหยุดแล้ว ให้กด <b>คำนวณแผนใหม่</b> ในแท็บจัดการแผน PM เพื่อให้กำหนดการที่สร้างไว้แล้วปรับตาม']
+    },
+    {
+        id: 'pm_import', title: 'นำเข้าแผน PM จาก Excel', roles: ADMIN, href: 'pm.php', tab: 'import',
+        intro: 'สร้างเช็คชีตและแผน PM ทีละมากๆ จากไฟล์ Excel ตารางแผน PM รายปี (Yearly PM Schedule)',
+        parts: [{ title: 'ขั้นที่ 1 อ่านไฟล์ และสร้างเช็คชีต', shot: 'pm_import', steps: [
+            { m: 1, t: '<span class="kbd">ดาวน์โหลดไฟล์ Template สำหรับ Import</span> — กรอกตามรูปแบบนี้ (Name / CODE / Location + เดือนละ 4 สัปดาห์)' },
+            { m: 2, t: 'เลือก <b>ไฟล์ Excel (.xlsx)</b>' },
+            { m: 3, t: 'เลือก <b>ชีต</b> ที่มีตาราง' },
+            { m: 4, t: '<b>ปีของตาราง</b> (ค.ศ.) — ระบบอ่านจากไฟล์ให้ แก้ได้ถ้าไม่ถูก' },
+            { m: 5, t: '<b>สรุปผลการอ่านไฟล์</b> — จำนวนเครื่องในไฟล์ พร้อมนำเข้า ไม่พบในระบบ เช็คชีตใหม่/เดิม — ตารางด้านล่างกรองตามสถานะได้ แนบภาพจุดตรวจและคำแนะนำให้เช็คชีตใหม่ได้' },
+            { t: 'กด <span class="kbd">สร้างเช็คชีต และไปกำหนดแผน PM</span> (ท้ายหน้า)' }
+        ] },
+        { title: 'ขั้นที่ 2 กำหนดแผน PM (ภาพข้อมูลตัวอย่าง)', shot: 'pm_import_step2', steps: [
+            { m: 1, t: '<b>คำแนะนำ</b> — ความถี่และวันที่เริ่มตั้งค่าเริ่มต้นจาก Excel ให้แล้ว (เช่น ห่าง 4 สัปดาห์ = ทุก 30 วัน) ตรวจสอบและกรอกการแจ้งเตือนเพิ่ม' },
+            { m: 2, t: '<b>ตาราง</b> — แถวละ 1 เครื่อง + เช็คชีต ช่อง P คือสัปดาห์ที่มีกำหนดใน Excel เลื่อนไปทางขวาเพื่อกรอก <b>ความถี่ แจ้งเตือน ระบุวัน</b> (เช่น จ., พฤ. หรือ 1, 15) และ <b>วันที่เริ่ม</b> ลากมุมเซลล์เพื่อคัดลอกลงแถวถัดไปได้' },
+            { m: 3, t: '<span class="kbd">ขยายเต็มจอ</span> เพื่อดูตารางได้กว้างขึ้น' },
+            { m: 4, t: 'ด้านซ้ายบอกจำนวนแถวที่พร้อมบันทึก แล้วกด <span class="kbd">บันทึกแผน PM</span> — บันทึกเฉพาะแถวที่กรอกครบ แถวที่เหลือยังอยู่ในตารางให้แก้ต่อ' }
+        ] }],
+        blocks: [
+            { icon: 'circle-alert', title: 'เครื่องที่ "ไม่พบในระบบ"', text: 'รหัสใน Excel ไม่ตรงกับทะเบียนเครื่องจักร — ลงทะเบียนเครื่องหรือแก้รหัสในไฟล์ก่อน แล้วนำเข้าใหม่' }
+        ]
+    },
+    {
+        id: 'pm_schedule', title: 'ตารางแผน PM รายปี', roles: ADMIN, href: 'pm.php', tab: 'schedule',
+        intro: 'ดูแผน PM ทั้งปีในตารางเดียว (ดูอย่างเดียว) แต่ละช่องคือ 1 สัปดาห์ — เดือนละ 4 สัปดาห์',
+        parts: [{ shot: 'pm_schedule', steps: [
+            { m: 1, t: '<b>เลือกปี</b> ตามช่วงสัญญา' },
+            { m: 2, t: '<b>สรุป</b> — จำนวนแผน PM และจำนวนแผนที่มีงานเลยกำหนด' },
+            { m: 3, t: '<span class="kbd">Export Excel</span> — ส่งออกตามลำดับและตัวกรองที่แสดงอยู่' },
+            { m: 4, t: '<span class="kbd">ขยายเต็มจอ</span> เพื่อดูตารางได้กว้างขึ้น' },
+            { m: 5, t: '<b>ตาราง</b> — ● รอดำเนินการ ✓ ทำแล้ว ! เลยกำหนด ตัวเลข = จำนวนครั้งในสัปดาห์นั้น กรอบสีแดงคือสัปดาห์นี้' }
+        ] }],
+        tips: ['ต้องการแก้แผน ให้ไปที่แท็บ <b>จัดการแผน PM</b>']
+    }]
+},
+{
+    id: 'asset', title: 'ข้อมูลอาคารและทรัพย์สิน', icon: 'building-2',
+    lessons: [
+    {
+        id: 'meter', title: 'บันทึกค่ามิเตอร์', perm: 'meter_data', href: 'meter_info.php',
+        intro: 'จดค่ามิเตอร์น้ำ ไฟ TOU และแก๊ส ระบบจะคำนวณการใช้ และเตือนเมื่อใช้เกินเกณฑ์',
+        parts: [{ shot: 'meter', steps: [
+            { m: 1, t: '<b>ประเภทมิเตอร์</b> — มิเตอร์น้ำ / ไฟ / TOU / แก๊ส' },
+            { m: 2, t: '<b>ค้นหาและเลือกมิเตอร์</b> จากรายการด้านซ้าย' },
+            { m: 3, t: 'เลือกเดือน/ปีที่ต้องการดู กด <span class="kbd">ปัจจุบัน</span> เพื่อกลับมาเดือนนี้' },
+            { m: 4, t: 'กด <span class="kbd">เพิ่มบันทึกมิเตอร์</span> เพื่อจดค่าใหม่ (ปุ่มเปลี่ยนชื่อตามประเภทที่เลือก)' },
+            { m: 5, t: '<b>สีของแถว</b> — แดง = ใช้เกินเกณฑ์ เขียว = ประหยัดลงจากรอบที่แล้ว กด <b>ดูสูตรคำนวณ</b> เพื่อดูวิธีคิด' }
+        ] },
+        { title: 'เพิ่มบันทึกมิเตอร์', shot: 'meter_add', steps: [
+            { m: 1, t: 'กดปุ่มเพิ่มบันทึก จะเปิดแผงด้านขวาของมิเตอร์ที่เลือกอยู่' },
+            { m: 2, t: 'ใช้ค่าที่อ่านได้จาก <b>หน้าปัดมิเตอร์จริง</b> ทุกครั้ง' },
+            { m: 3, t: '<b>วันที่บันทึก</b> แล้วเลือก <b>ช่วงเวลาบันทึก</b> (รอบที่ต้องจด)' },
+            { t: '<b>เลขมิเตอร์ล่าสุด</b> — ตัวเลขบนหน้าปัด' },
+            { t: '<b>ยืนยันมิเตอร์วนรอบ</b> — ติ๊กเฉพาะเมื่อเลขน้อยกว่ารอบก่อน เพราะหน้าปัดวิ่งครบรอบแล้ว' },
+            { t: '<b>รูปภาพ</b> หน้าปัด (PNG, JPG ไม่เกิน 5MB) และหมายเหตุ' },
+            { m: 5, t: 'กด <span class="kbd">บันทึกข้อมูล</span>' }
+        ] }],
+        tips: ['รอบเวลาที่ต้องจดและค่าที่ยอมรับได้ ตั้งโดยผู้ดูแลระบบในเมนู <b>ตั้งค่าข้อมูล → บันทึกมิเตอร์ น้ำ/ไฟ</b>']
+    },
+    {
+        id: 'machine', title: 'ข้อมูลอุปกรณ์เครื่องจักร', perm: 'machine_data', href: 'machine_info.php',
+        intro: 'ทะเบียนเครื่องจักรและอุปกรณ์ทั้งหมด พร้อม QR Code สำหรับติดที่เครื่อง',
+        parts: [{ shot: 'machine', steps: [
+            { m: 1, t: '<b>ค้นหา</b> — รหัสครุภัณฑ์ ชื่อ หรือซีเรียล' },
+            { m: 2, t: '<span class="kbd">พิมพ์ QR Code</span> — พิมพ์สติกเกอร์ QR ของหลายเครื่องพร้อมกัน' },
+            { m: 3, t: '<span class="kbd">ลงทะเบียนเครื่องจักร</span> — เพิ่มเครื่องใหม่' },
+            { m: 4, t: '<b>สถานะ</b> — ปกติ / แจ้งซ่อม / ชำรุด / สำรอง' },
+            { m: 5, t: '<b>QR Code</b> ของเครื่องนั้น' },
+            { m: 6, t: '<b>ประวัติการแจ้งซ่อม</b> ของเครื่อง' },
+            { m: 7, t: '<b>แก้ไข</b> ข้อมูลเครื่อง' }
+        ] },
+        { title: 'พิมพ์ QR Code ติดเครื่อง', shot: 'machine_print', steps: [
+            { t: 'ค้นหา/กรองตารางเครื่องจักรก่อน แล้วกด <span class="kbd">พิมพ์ QR Code</span> — หน้าพิมพ์จะเปิดในแท็บใหม่ เฉพาะเครื่องที่แสดงอยู่ในตาราง' },
+            { m: 1, t: '<b>ขนาดป้าย</b> — กว้าง × สูง (cm) ให้ตรงกับสติกเกอร์ที่ใช้' },
+            { m: 2, t: '<b>ขนาด QR Code</b> — เลื่อนเพื่อปรับ (ตัวเลขด้านขวาคือขนาดจริง)' },
+            { m: 3, t: '<span class="kbd">สลับเป็นแนวตั้ง</span> / แนวนอน' },
+            { m: 4, t: '<b>ตัวอย่างป้าย</b> — ชื่อ รหัส S/N หน่วยงาน และสถานที่ แล้วกด <span class="kbd">พิมพ์</span>' }
+        ] },
+        { title: 'ลงทะเบียนเครื่องจักร', shot: 'machine_add', steps: [
+            { m: 2, t: '<b>รหัสครุภัณฑ์</b> — ระบบสร้าง QR Code จากรหัสนี้ให้ทันที (ดูตัวอย่างด้านซ้าย)' },
+            { m: 3, t: '<b>ประเภทเครื่องจักร</b> แล้วกรอกชื่อ ซีเรียล ยี่ห้อ รุ่น บริษัทที่ดูแล' },
+            { m: 4, t: '<b>วันหมดรับประกัน</b> และ <b>ตำแหน่งติดตั้ง</b> (อาคาร → ชั้น → ห้อง)' },
+            { m: 5, t: '<b>สถานะการใช้งาน</b> — ปกติ / แจ้งซ่อม / ชำรุด / สำรอง' },
+            { m: 1, t: '<b>รูปภาพเครื่องจักร</b> สูงสุด 3 รูป แล้วกด <span class="kbd">บันทึกข้อมูล</span>' }
+        ] }]
+    },
+    {
+        id: 'stock', title: 'จัดการสต็อก', perm: 'stock_manage', href: 'stock.php',
+        intro: 'จัดการรายการอะไหล่และวัสดุในแต่ละคลัง อะไหล่ที่ช่างใช้ตอนปิดงานจะเลือกจากสต็อกนี้',
+        parts: [{ shot: 'stock', steps: [
+            { m: 1, t: '<b>แสดงรายการสินค้าทั้งหมด</b> จากทุกคลัง' },
+            { m: 2, t: '<b>คลังสินค้า / ตึก</b> — เลือกคลังเพื่อดูเฉพาะสินค้าในคลังนั้น (ตัวเลข = จำนวนรายการ)' },
+            { m: 3, t: '<b>รายงาน</b> — รายงานรับเข้า (PO) และรายงานปรับยอด (AD)' },
+            { m: 4, t: '<b>ค้นหา</b> รหัสหรือชื่อสินค้า' },
+            { m: 5, t: '<span class="kbd">เพิ่มสินค้าใหม่</span>' }
+        ] }],
+        tips: ['ปุ่มสวิตช์ในคอลัมน์สถานะใช้เปิด/ปิดการใช้งานสินค้า ไอคอนนาฬิกาคือประวัติการเคลื่อนไหว (รับเข้า / เบิกใช้ / ปรับยอด)']
+    },
+    {
+        id: 'stock_move', title: 'รับเข้าและปรับยอดสต็อก', perm: 'stock_manage', href: 'stock.php',
+        intro: 'เพิ่มหรือแก้จำนวนคงเหลือผ่าน <b>รับเข้า</b> หรือ <b>ปรับยอด</b> เสมอ เพื่อให้มีประวัติตรวจสอบย้อนหลังได้ (การแก้ข้อมูลสินค้าจะไม่เปลี่ยนจำนวนคงเหลือ)',
+        parts: [
+        { title: 'เลือกสินค้า', shot: 'stock_select', steps: [
+            { m: 1, t: 'ติ๊ก <b>วงกลมหน้าสินค้า</b> ที่ต้องการ เลือกได้หลายรายการ' },
+            { m: 2, t: '<span class="kbd">รับเข้า</span> — เมื่อมีของเข้าคลัง (จำนวนเพิ่มขึ้น)' },
+            { m: 3, t: '<span class="kbd">ปรับยอด</span> — เมื่อนับสต็อกแล้วจำนวนไม่ตรงกับระบบ' }
+        ] },
+        { title: 'ฟอร์มรับสินค้าเข้า', shot: 'stock_receive', steps: [
+            { m: 1, t: '<b>เลขที่ใบรับเข้า</b> ระบบออกให้อัตโนมัติ เลือกวันที่รับ แล้วใส่ <b>จำนวน</b> ของแต่ละรายการ' },
+            { m: 2, t: '<b>หมายเหตุ</b> (เช่น เลขที่ใบสั่งซื้อ) แล้วกด <span class="kbd">บันทึกข้อมูล</span>' }
+        ] },
+        { title: 'รายงาน', shot: 'stock_po', steps: [
+            { m: 1, t: '<b>รายงานรับเข้า (PO)</b> — ประวัติใบรับเข้าทั้งหมด' },
+            { m: 2, t: '<b>รายงานปรับยอด (AD)</b> — ประวัติการปรับยอด' },
+            { m: 3, t: 'กดแถบ <b>รายการสินค้า</b> เพื่อดูว่าในใบนั้นมีสินค้าอะไร จำนวนเท่าไร' }
+        ] }]
+    }]
+},
+{
+    id: 'admin', title: 'ผู้ดูแลระบบ', icon: 'shield-check',
+    lessons: [
+    {
+        id: 'settings', title: 'วิธีใช้หน้าตั้งค่า และผู้ใช้งาน', roles: SUPER, href: 'settings.php',
+        intro: 'เมนู <b>ตั้งค่าข้อมูล</b> แบ่งหัวข้อเป็น 6 หมวด เลือกจากเมนูด้านบน ทุกหน้าที่เป็นตารางใช้งานเหมือนกัน — บทนี้ใช้หน้า <b>ตั้งค่าผู้ใช้งาน</b> เป็นตัวอย่าง',
+        parts: [{ shot: 'settings', steps: [
+            { m: 1, t: '<b>เลือกหัวข้อ</b> — ตั้งค่าข้อมูลพื้นฐาน / อุปกรณ์เครื่องจักร / แจ้งซ่อม / บันทึกมิเตอร์ / อะไหล่และวัสดุ / การประเมินผล PM' },
+            { m: 2, t: '<b>ค้นหา</b> ข้อมูลในตาราง' },
+            { m: 3, t: '<span class="kbd">เพิ่มแถว</span> — ใส่จำนวนแถวที่ต้องการเพิ่มในช่องด้านซ้าย' },
+            { m: 4, t: 'แก้ไขเสร็จแล้วกด <span class="kbd">บันทึกข้อมูล</span> — ถ้าไม่กด การแก้ไขจะไม่ถูกบันทึก' },
+            { m: 5, t: '<b>ดับเบิลคลิกที่ช่อง</b> เพื่อแก้ไข ช่องสีเหลือง = มีการแก้ไข สีเขียว = รายการใหม่' }
+        ] }],
+        table: { title: 'ตั้งค่าผู้ใช้งาน', rows: [
+            ['ระดับผู้ใช้', 'admin = ผู้ดูแลระบบ (เห็นเมนูตั้งค่าและบทเรียน/แท็บสำหรับผู้ดูแล) ระดับอื่นเป็นผู้ใช้ทั่วไป เห็นเมนูตามสิทธิ์ของหน่วยงาน'],
+            ['ตำแหน่ง', 'เช่น ช่าง ผู้ว่าจ้าง เจ้าหน้าที่ธุรการ'],
+            ['สถานะ', 'เอาติ๊ก Active ออกเพื่อปิดบัญชีโดยไม่ต้องลบ'],
+            ['QR Login', 'QR สำหรับเข้าสู่ระบบด้วยมือถือ'],
+            ['จัดการ (🔑)', 'ตั้ง/เปลี่ยนรหัสผ่าน']
+        ] },
+        tips: ['Export ตารางเป็น Excel ได้จากปุ่ม <b>Export</b> ทุกหน้า']
+    },
+    {
+        id: 'settings_agency', title: 'ข้อมูลพื้นที่หน่วยงาน (อาคาร ชั้น ห้อง)', roles: SUPER, href: 'settings.php',
+        intro: 'หมวด <b>ตั้งค่าข้อมูลพื้นฐาน → ข้อมูลพื้นที่หน่วยงาน</b> — อาคาร ชั้น และห้องที่ตั้งไว้ที่นี่ จะเป็นตัวเลือกตำแหน่งในหน้าแจ้งซ่อม ทะเบียนเครื่องจักร และมิเตอร์',
+        parts: [{ shot: 'settings_agency', steps: [
+            { m: 1, t: '<b>รายชื่ออาคาร</b> — กด ⊕ เพื่อเพิ่มอาคารใหม่ กดไอคอน Excel เพื่อ Export ข้อมูลทุกอาคาร' },
+            { m: 2, t: '<b>ค้นหาอาคาร</b> แล้วกดเลือกอาคารที่จะแก้ไข' },
+            { m: 3, t: '<b>ชั้น และห้อง/โซน</b> ของอาคารที่เลือก — ปิดใช้งานชั้นหรือห้องได้ด้วยช่อง Active' },
+            { m: 4, t: '<span class="kbd">เพิ่มแถว</span> เพื่อเพิ่มชั้น/ห้อง' },
+            { m: 5, t: 'กด <span class="kbd">บันทึกทั้งหมด</span>' }
+        ] }]
+    },
+    {
+        id: 'settings_equip', title: 'ตั้งค่าอุปกรณ์เครื่องจักร', roles: SUPER, href: 'settings.php',
+        intro: 'หมวด <b>อุปกรณ์เครื่องจักร</b> — ประเภทอุปกรณ์ใช้จัดกลุ่มเครื่องและผูกกับเช็คชีต PM',
+        parts: [
+        { title: 'ประเภทอุปกรณ์', shot: 'settings_equip_types', steps: [
+            { m: 3, t: 'เพิ่ม/แก้ชื่อประเภท เช่น เครื่องปรับอากาศ ปั๊มน้ำ แล้วกด <span class="kbd">บันทึกข้อมูล</span>' }
+        ] },
+        { title: 'รายการอุปกรณ์', shot: 'settings_equip_list', steps: [
+            { m: 1, t: 'ค้นหาเครื่อง แก้ไขหลายเครื่องพร้อมกันแบบตาราง (รหัส ประเภท ชื่อ ซีเรียล ยี่ห้อ รุ่น วันหมดประกัน บริษัทที่ดูแล)' },
+            { m: 3, t: '<span class="kbd">Export</span> เป็น Excel' },
+            { m: 4, t: '<span class="kbd">บันทึกข้อมูล</span>' }
+        ] }],
+        tips: ['ลงทะเบียนทีละเครื่องพร้อมรูปและตำแหน่งได้ที่เมนู <b>ข้อมูลอุปกรณ์เครื่องจักร</b>']
+    },
+    {
+        id: 'settings_repair', title: 'ตั้งค่างานแจ้งซ่อม', roles: SUPER, href: 'settings.php',
+        intro: 'หมวด <b>แจ้งซ่อม</b> — ตัวเลือกที่ช่างใช้ตอนปิดงาน ระยะเวลา SLA และการแจ้งเตือนทางอีเมล',
+        parts: [
+        { title: 'ประเภทงาน', shot: 'settings_job_type', steps: [
+            { m: 3, t: 'รหัสและชื่อประเภทงาน เช่น AIR ระบบปรับอากาศ ELC ระบบไฟฟ้า — เอาติ๊ก Active ออกเพื่อซ่อนจากตัวเลือก' }
+        ] },
+        { title: 'ชนิดการให้บริการ', shot: 'settings_system_types', steps: [
+            { m: 3, t: 'ตัวเลือก <b>ชนิดของการบริการ</b> ที่ช่างเลือกตอนปิดงาน' }
+        ] },
+        { title: 'กำหนดระยะเวลา SLA', shot: 'settings_job_sla', steps: [
+            { m: 1, t: '<b>ระยะเวลาตอบรับ</b> — นับจากแจ้งเรื่องถึงรับงาน' },
+            { m: 2, t: '<b>ระยะเวลาแก้ไข</b> — นับจากรับงานถึงปิดงาน (พิมพ์ เช่น 1 hrs, 45 mins)' },
+            { m: 3, t: '<span class="kbd">บันทึกข้อมูล</span>' }
+        ] },
+        { title: 'ตั้งค่าเพิ่มเติม', shot: 'settings_job_other', steps: [
+            { m: 1, t: '<b>ตั้งค่าหน้าแจ้งซ่อม</b> — เช่น เปิด/ปิดหัวข้อระดับความเร่งด่วน (ปิดแล้วใช้ "ปานกลาง" เป็นค่าเริ่มต้น)' },
+            { m: 2, t: '<b>อีเมลแจ้งเตือนแจ้งซ่อม</b> — รายชื่ออีเมลที่จะได้รับแจ้งเมื่อมีการแจ้งซ่อมใหม่' },
+            { m: 3, t: '<b>อีเมลแจ้งเตือนประเมินงานซ่อม</b> — รายชื่อผู้รับแบบประเมิน' },
+            { m: 4, t: '<span class="kbd">บันทึกการตั้งค่า</span>' }
+        ] }]
+    },
+    {
+        id: 'settings_meter', title: 'ตั้งค่ามิเตอร์', roles: SUPER, href: 'settings.php',
+        intro: 'หมวด <b>บันทึกมิเตอร์ น้ำ/ไฟ</b>',
+        parts: [
+        { title: 'รายการมิเตอร์', shot: 'settings_meters', steps: [
+            { m: 3, t: 'เพิ่มมิเตอร์: ประเภท (น้ำ / ไฟ / TOU / แก๊ส) ชื่อ ตำแหน่ง <b>ค่าสูงสุดหน้าปัด</b> และ <b>% ที่รับได้</b> — ใช้เตือนเมื่อใช้เกินเกณฑ์' },
+            { m: 4, t: '<span class="kbd">บันทึกข้อมูล</span>' }
+        ] },
+        { title: 'ช่วงเวลาที่บันทึก', shot: 'settings_meters_time', steps: [
+            { m: 3, t: 'รอบเวลาที่ต้องจดมิเตอร์ เช่น "รอบที่ 1 เวลา 08:00 น." — แสดงเป็นตัวเลือกตอนเพิ่มบันทึก' }
+        ] }]
+    },
+    {
+        id: 'settings_other', title: 'อะไหล่และหัวข้อประเมิน PM', roles: SUPER, href: 'settings.php',
+        intro: 'หมวด <b>อะไหล่และวัสดุ</b> และ <b>การประเมินผล PM</b>',
+        parts: [
+        { title: 'รายการอะไหล่และวัสดุ', shot: 'settings_spares', steps: [
+            { m: 3, t: 'แก้ไขรายการสินค้าแบบตาราง: รหัส ประเภทงาน ชื่อ รุ่น ราคา/หน่วย หน่วย และคลังที่จัดเก็บ' },
+            { m: 4, t: '<span class="kbd">บันทึกข้อมูล</span> — จำนวนคงเหลือให้ใช้เมนู <b>จัดการสต็อก</b> (รับเข้า / ปรับยอด)' }
+        ] },
+        { title: 'รายการหัวข้อประเมิน', shot: 'settings_pm_feedback', steps: [
+            { m: 3, t: 'หัวข้อที่ใช้ประเมินผลการปฏิบัติงาน PM และ <b>ลำดับการแสดงผล</b> — เอาติ๊ก Active ออกเพื่อไม่ใช้หัวข้อนั้น' }
+        ] }]
+    }]
+}];
 
-            <div id="sidebar-overlay" class="mobile-overlay fixed inset-0 z-40 hidden md:hidden"></div>
+const FAQ = [
+    ['ไม่เห็นเมนูที่ต้องใช้', 'เมนูแสดงตามสิทธิ์ของบัญชี ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์'],
+    ['แนบรูปไม่ได้', 'ตรวจชนิดไฟล์ (JPG / PNG / WEBP) และจำนวนรูปที่แนบได้ในแต่ละฟอร์ม'],
+    ['ข้อมูลไม่อัปเดต', 'กดปุ่มรีเฟรช/โหลดใหม่ของหน้านั้น หรือเลือกเมนูเดิมอีกครั้ง'],
+    ['บนมือถือหาเมนูไม่เจอ', 'กดปุ่ม ☰ มุมซ้ายบนของจอ']
+];
 
-            <main class="main-scroll min-w-0 flex-1 overflow-y-auto">
-                <div class="mx-auto w-full max-w-8xl p-3 md:p-4">
-                    <div class="space-y-4">
-                            <article class="panel overflow-hidden">
-                                <div class="flex flex-col justify-between gap-2.5 border-b border-[#e1eaf0] px-4 py-3 sm:flex-row sm:items-center md:px-5">
-                                    <div class="flex min-w-0 items-center gap-2.5">
-                                        <div class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#e8f5fb] text-[#0676a7]">
-                                            <i data-lucide="image"></i>
-                                        </div>
-                                        <div class="min-w-0">
-                                            <p class="text-xs font-semibold uppercase tracking-[0.08em] text-[#7a8994]">Slide Preview</p>
-                                            <h3 id="slide-header-title" class="truncate text-sm font-semibold text-[#263843]">กำลังโหลดคู่มือ</h3>
-                                        </div>
-                                    </div>
-                                    <div class="flex flex-wrap items-center gap-2 text-xs text-[#6f7f8a]">
-                                        <span class="inline-flex items-center gap-1.5 rounded-lg bg-[#f2f7fa] px-2.5 py-1.5"><i data-lucide="file-text" class="text-[#0783bd]"></i><span id="guide-page-count-top">0 หน้า</span></span>
-                                        <span class="inline-flex items-center gap-1.5 rounded-lg bg-[#f2f7fa] px-2.5 py-1.5"><i data-lucide="image" class="text-[#0783bd]"></i><span id="current-slide-label-top">สไลด์ 1/1</span></span>
-                                    </div>
-                                </div>
+// ============================================================
+// สิทธิ์ / ความคืบหน้า
+// ============================================================
+const allowed = l => l.roles ? l.roles.includes(LEVEL) : (l.perm === null || PERMS.includes(l.perm));
+const modules = MODULES.map(m => ({ ...m, lessons: m.lessons.filter(allowed) })).filter(m => m.lessons.length);
+const flat = modules.flatMap(m => m.lessons.map(l => ({ ...l, module: m })));
+const byId = Object.fromEntries(flat.map(l => [l.id, l]));
 
-                                <div class="p-3 md:p-4">
-                                    <div class="slide-stage rounded-xl border border-[#e2edf3] p-2.5 md:p-3">
-                                        <div class="slide-canvas overflow-hidden rounded-lg">
-                                            <div class="relative aspect-[16/9] w-full bg-white">
-                                                <img id="slide-image" src="" alt="ภาพสไลด์" class="h-full w-full object-contain">
-                                            </div>
-                                        </div>
+const DONE_KEY = 'easypro_manual_done';
+let done = new Set();
+try { done = new Set(JSON.parse(localStorage.getItem(DONE_KEY) || '[]')); } catch (e) {}
+const saveDone = () => { try { localStorage.setItem(DONE_KEY, JSON.stringify([...done])); } catch (e) {} };
 
-                                        <div class="mt-3 flex flex-col gap-2.5 md:flex-row md:items-center md:justify-between">
-                                            <div class="min-w-0">
-                                                <div class="mb-1 flex items-center gap-2 text-xs text-[#7a8994]">
-                                                    <span id="current-slide-pill" class="soft-badge rounded-lg px-2 py-0.5 font-semibold">สไลด์ 1</span>
-                                                    <span class="status-pill status-doc"><i data-lucide="book-open-check"></i> คู่มือภาพประกอบ</span>
-                                                </div>
-                                                <h3 id="slide-title" class="truncate text-base font-bold text-[#243641]">หัวข้อสไลด์</h3>
-                                                <p id="slide-caption" class="mt-0.5 text-xs leading-5 text-[#63747f]">คำอธิบายสไลด์</p>
-                                            </div>
-                                            <div class="flex flex-wrap items-center gap-2">
-                                                <button id="btn-prev-slide" class="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold"><i data-lucide="chevron-left"></i> สไลด์ก่อนหน้า</button>
-                                                <button id="btn-next-slide" class="btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold">สไลด์ถัดไป <i data-lucide="chevron-right"></i></button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+const $ = id => document.getElementById(id);
+const stripTags = s => String(s || '').replace(/<[^>]+>/g, ' ');
+const icons = () => window.lucide && lucide.createIcons();
 
-                                <div class="border-t border-[#e1eaf0] px-4 py-3 md:px-5">
-                                    <div class="mb-2.5 flex items-center justify-between">
-                                        <h4 class="text-sm font-bold text-[#263843]">รายการสไลด์ในหัวข้อนี้</h4>
-                                        <span id="slide-total-inline" class="text-xs text-[#7b8b95]">0 สไลด์</span>
-                                    </div>
-                                    <div id="slide-thumbnails" class="thumb-scroll flex gap-2.5 overflow-x-auto pb-1"></div>
-                                </div>
-                            </article>
+function updateProgress() {
+    const n = flat.filter(l => done.has(l.id)).length;
+    const pct = flat.length ? Math.round(n / flat.length * 100) : 0;
+    ['progText', 'progTextM'].forEach(id => $(id).textContent = `${n}/${flat.length}`);
+    ['progBar', 'progBarM'].forEach(id => $(id).style.width = pct + '%');
+}
 
-                            <article class="panel overflow-hidden">
-                                <div class="border-b border-[#e2ebf0] px-4 py-4 md:px-5">
-                                    <div class="mb-2.5 flex flex-wrap items-center gap-2">
-                                        <span id="guide-badge" class="soft-badge rounded-lg px-2 py-0.5 text-xs font-semibold">หัวข้อที่ 1</span>
-                                        <span id="guide-slide-count" class="inline-flex items-center gap-1.5 text-xs text-[#72828d]"><i data-lucide="images"></i> 0 สไลด์</span>
-                                        <span class="inline-flex items-center gap-1.5 text-xs text-[#72828d]"><i data-lucide="languages"></i> ภาษาไทย</span>
-                                    </div>
-                                    <h2 id="guide-title" class="text-lg font-bold leading-snug text-[#1f303b] md:text-xl">หัวข้อคู่มือ</h2>
-                                </div>
+// ============================================================
+// สารบัญ + ค้นหา
+// ============================================================
+let currentId = null;
+function renderToc() {
+    const q = $('search').value.trim().toLowerCase();
+    const match = l => !q || [l.title, l.intro, l.module.title, ...(l.parts || []).filter(p => !p.roles || p.roles.includes(LEVEL)).flatMap(p => p.steps.map(s => s.t)), ...(l.tips || []), ...(l.blocks || []).map(b => b.title + ' ' + b.text)]
+        .some(t => stripTags(t).toLowerCase().includes(q));
+    let html = `<button type="button" class="toc-item ${currentId === null ? 'active' : ''}" data-go=""><i data-lucide="home" class="w-4 h-4 text-slate-500"></i>เริ่มต้นที่นี่</button>`;
+    let any = false;
+    modules.forEach(m => {
+        const ls = flat.filter(l => l.module.id === m.id && match(l));
+        if (!ls.length) return;
+        any = true;
+        html += `<div class="mt-3 mb-1 px-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400"><i data-lucide="${m.icon}" class="w-3.5 h-3.5"></i>${m.title}</div>`;
+        html += ls.map(l => `<button type="button" class="toc-item ${l.id === currentId ? 'active' : ''} ${done.has(l.id) ? 'done' : ''}" data-go="${l.id}">
+            <span class="toc-dot">${done.has(l.id) ? '✓' : ''}</span><span class="min-w-0">${l.title}</span></button>`).join('');
+    });
+    if (!any) html += `<div class="px-3 py-6 text-center text-sm text-slate-400">ไม่พบหัวข้อที่ตรงกับ "${q.replace(/[<>&"]/g, '')}"</div>`;
+    $('tocList').innerHTML = html;
+    icons();
+}
+$('tocList').addEventListener('click', e => {
+    const b = e.target.closest('[data-go]');
+    if (!b) return;
+    location.hash = b.dataset.go ? '#' + b.dataset.go : '#';
+    closeToc();
+});
+$('search').addEventListener('input', renderToc);
 
-                                <div id="guide-description" class="content-prose px-4 py-4 text-sm leading-7 text-[#5c6d78] md:px-5">
-                                    รายละเอียดของหัวข้อคู่มือจะแสดงที่นี่
-                                </div>
+// สารบัญบนมือถือ (แผงเลื่อนจากซ้าย)
+const openToc = () => { $('toc').classList.remove('-translate-x-full'); $('tocBackdrop').classList.remove('hidden'); };
+const closeToc = () => { if (innerWidth < 1024) { $('toc').classList.add('-translate-x-full'); $('tocBackdrop').classList.add('hidden'); } };
+$('tocBtn').addEventListener('click', openToc);
+$('tocBackdrop').addEventListener('click', closeToc);
 
-                                <div class="flex flex-col-reverse justify-between gap-2.5 border-t border-[#e2ebf0] bg-[#fbfdfe] px-4 py-3 sm:flex-row md:px-5">
-                                    <button id="btn-prev-guide" class="btn-secondary inline-flex w-full items-center justify-center gap-2 px-4 py-2 text-xs font-semibold sm:w-auto">
-                                        <i data-lucide="arrow-left"></i> หัวข้อก่อนหน้า
-                                    </button>
-                                    <button id="btn-next-guide" class="btn-primary inline-flex w-full items-center justify-center gap-2 px-4 py-2 text-xs font-semibold sm:w-auto">
-                                        หัวข้อถัดไป <i data-lucide="arrow-right"></i>
-                                    </button>
-                                </div>
-                            </article>
-                    </div>
+// ============================================================
+// ภาพหน้าจอ + หมุด
+// ============================================================
+function shotHtml(key, partIdx) {
+    const s = SHOTS[key];
+    if (!s) return '';
+    const pins = (s.markers || []).map((m, i) => m ? `
+        <div class="pin-box" data-box="${partIdx}-${i + 1}" style="left:${m.x}%;top:${m.y}%;width:${m.w}%;height:${m.h}%"></div>
+        <button type="button" class="pin" data-pin="${partIdx}-${i + 1}" style="left:${Math.min(97, Math.max(1.5, m.x))}%;top:${Math.min(97, Math.max(1.5, m.y))}%">${i + 1}</button>` : '').join('');
+    return `<div class="shot ${s.mobile ? 'mobile' : ''}" data-shot="${key}" data-part="${partIdx}">
+        <img src="${s.src}?v=${VER}" alt="ภาพหน้าจอ" loading="lazy" width="${s.w}" height="${s.h}">${pins}</div>`;
+}
 
-                    <footer class="py-4 text-center text-[11px] text-[#8897a1]">
-                        EasyPro User Manual · Enterprise Guide Platform
-                    </footer>
-                </div>
-            </main>
+function setActive(root, key, on) {
+    root.querySelectorAll(`[data-pin="${key}"], [data-step="${key}"]`).forEach(el => el.classList.toggle('active', on));
+    root.querySelectorAll(`[data-box="${key}"]`).forEach(el => el.classList.toggle('show', on));
+}
+
+// ============================================================
+// หน้าบทเรียน
+// ============================================================
+function goButton(l) {
+    if (!l.href) return '';
+    return `<button type="button" data-open="${l.id}" class="inline-flex items-center gap-2 rounded-lg bg-[#006b9f] hover:bg-[#04506f] text-white px-4 py-2 text-sm font-medium shadow-sm">
+        <i data-lucide="external-link" class="w-4 h-4"></i> ไปที่หน้านี้</button>`;
+}
+
+function renderLesson(l) {
+    const idx = flat.indexOf(l);
+    const prev = flat[idx - 1], next = flat[idx + 1];
+    const adminChip = l.roles ? `<span class="inline-flex items-center gap-1 rounded-full bg-violet-50 text-violet-700 border border-violet-200 px-2 py-0.5 text-[11px] font-semibold"><i data-lucide="shield-check" class="w-3 h-3"></i>${l.roles.includes('admin') ? 'สำหรับผู้ดูแลระบบ' : 'สำหรับ Super Admin'}</span>` : '';
+
+    const parts = (l.parts || []).filter(p => !p.roles || p.roles.includes(LEVEL)).map((p, pi) => `
+        <section class="mt-6">
+            ${p.title ? `<h3 class="text-base font-semibold text-slate-800 mb-3">${p.title}</h3>` : ''}
+            <div class="${SHOTS[p.shot]?.mobile ? 'grid md:grid-cols-[minmax(0,360px)_1fr] gap-6 items-start' : 'part-grid'}">
+                ${shotHtml(p.shot, pi)}
+                <ol class="${SHOTS[p.shot]?.mobile ? '' : 'mt-4'} grid gap-1">
+                    ${p.steps.map(s => `<li class="step" ${s.m ? `data-step="${pi}-${s.m}" tabindex="0"` : ''}>
+                        <span class="step-no ${s.m ? '' : 'plain'}">${s.m || '•'}</span><div class="text-[14px] leading-relaxed text-slate-600">${s.t}</div></li>`).join('')}
+                </ol>
+            </div>
+        </section>`).join('');
+
+    const blocks = (l.blocks || []).map(b => `
+        <div class="flex gap-3 p-4 rounded-xl bg-white border border-slate-200">
+            <div class="w-9 h-9 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center flex-none"><i data-lucide="${b.icon}" class="w-4 h-4"></i></div>
+            <div><div class="font-semibold text-slate-800 text-[14px]">${b.title}</div><div class="text-[14px] text-slate-600 leading-relaxed mt-0.5">${b.text}</div></div>
+        </div>`).join('');
+
+    const table = l.table ? `
+        <section class="mt-6">
+            <h3 class="text-base font-semibold text-slate-800 mb-2">${l.table.title}</h3>
+            <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                ${l.table.rows.map(r => `<div class="flex gap-4 px-4 py-2.5 border-t first:border-t-0 border-slate-100 text-[14px]"><div class="w-40 flex-none font-medium text-slate-800 flex items-center">${r[0]}</div><div class="text-slate-600">${r[1]}</div></div>`).join('')}
+            </div>
+        </section>` : '';
+
+    const tips = l.tips ? `
+        <div class="mt-6 rounded-xl bg-amber-50 border border-amber-200 p-4">
+            <div class="flex items-center gap-2 text-amber-800 font-semibold text-sm mb-1.5"><i data-lucide="lightbulb" class="w-4 h-4"></i> เคล็ดลับ</div>
+            <ul class="list-disc pl-5 space-y-1 text-[14px] text-amber-900/90">${l.tips.map(t => `<li>${t}</li>`).join('')}</ul>
+        </div>` : '';
+
+    // แถบล่าง (ค้างที่ขอบล่างของจอ): บทก่อนหน้า | อ่านแล้ว | บทถัดไป — จอเล็กเหลือแค่ไอคอน
+    const isDone = done.has(l.id);
+    const navBtn = (x, dir) => x ? `<button type="button" data-nav="${x.id}" title="${dir === 'prev' ? 'บทก่อนหน้า' : 'บทถัดไป'}: ${x.title}"
+        class="group flex items-center gap-2 min-w-0 h-10 sm:h-auto rounded-xl border border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50 px-2.5 sm:px-3.5 sm:py-2 ${dir === 'prev' ? 'justify-self-start' : 'justify-self-end flex-row-reverse'}">
+        <i data-lucide="${dir === 'prev' ? 'chevron-left' : 'chevron-right'}" class="w-5 h-5 text-slate-500 group-hover:text-sky-700"></i>
+        <span class="hidden sm:block min-w-0 ${dir === 'prev' ? 'text-left' : 'text-right'}">
+            <span class="block text-[11px] text-slate-400">${dir === 'prev' ? 'บทก่อนหน้า' : 'บทถัดไป'}</span>
+            <span class="block text-sm font-semibold text-slate-700 truncate max-w-[16rem]">${x.title}</span>
+        </span></button>` : '<span></span>';
+
+    $('content').innerHTML = `
+    <div class="min-h-full flex flex-col">
+    <article class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8 fade-in lesson-body">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span class="inline-flex items-center gap-1"><i data-lucide="${l.module.icon}" class="w-3.5 h-3.5"></i>${l.module.title}</span>
+            <span>·</span><span>บทที่ ${idx + 1} จาก ${flat.length}</span>${adminChip}
+        </div>
+        <div class="mt-2 flex flex-wrap items-start justify-between gap-3">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900">${l.title}</h2>
+            ${goButton(l)}
+        </div>
+        <p class="mt-2 text-[15px] text-slate-600">${l.intro}</p>
+        ${parts}
+        ${blocks ? `<div class="mt-6 grid gap-3 md:grid-cols-2">${blocks}</div>` : ''}
+        ${table}
+        ${tips}
+    </article>
+    <div class="sticky bottom-0 z-10 border-t border-slate-200 bg-white/95 backdrop-blur shadow-[0_-6px_16px_-10px_rgba(15,23,42,.25)]">
+        <div class="max-w-5xl mx-auto px-3 sm:px-8 py-2 sm:py-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            ${navBtn(prev, 'prev')}
+            <button type="button" id="doneBtn" title="${isDone ? 'อ่านบทนี้แล้ว (กดเพื่อยกเลิก)' : 'ทำเครื่องหมายว่าอ่านแล้ว'}" aria-pressed="${isDone}"
+                class="inline-flex items-center justify-center gap-2 h-10 min-w-10 rounded-full px-2.5 sm:px-4 text-sm font-medium border ${isDone ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'}">
+                <i data-lucide="${isDone ? 'circle-check' : 'circle'}" class="w-5 h-5"></i><span class="hidden sm:inline">${isDone ? 'อ่านบทนี้แล้ว' : 'ทำเครื่องหมายว่าอ่านแล้ว'}</span>
+            </button>
+            ${navBtn(next, 'next')}
         </div>
     </div>
+    </div>`;
+    icons();
+}
 
-    <script>
-        function createSlideSvg(step, title, caption, tag) {
-            const svg = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
-                    <defs>
-                        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0%" stop-color="#f8fbfd"/>
-                            <stop offset="100%" stop-color="#eaf4f9"/>
-                        </linearGradient>
-                        <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-                            <stop offset="0%" stop-color="#074f72"/>
-                            <stop offset="100%" stop-color="#0783bd"/>
-                        </linearGradient>
-                    </defs>
-                    <rect width="1600" height="900" fill="url(#bg)"/>
-                    <rect x="0" y="0" width="1600" height="94" fill="url(#accent)"/>
-                    <rect x="0" y="842" width="1600" height="58" fill="#e8f2f8"/>
-                    <text x="80" y="57" fill="#ffffff" font-size="34" font-family="Inter, Noto Sans Thai, sans-serif" font-weight="700">EasyPro Enterprise Manual</text>
-                    <rect x="80" y="145" width="160" height="44" rx="12" fill="#e8f5fb" stroke="#c6e2ef"/>
-                    <text x="160" y="174" text-anchor="middle" fill="#056f9d" font-size="22" font-family="Inter, Noto Sans Thai, sans-serif" font-weight="700">${step}</text>
-                    <text x="80" y="245" fill="#1f303b" font-size="42" font-family="Inter, Noto Sans Thai, sans-serif" font-weight="700">${title}</text>
-                    <text x="80" y="292" fill="#60707c" font-size="22" font-family="Inter, Noto Sans Thai, sans-serif">${caption}</text>
+function renderHome() {
+    const card = m => {
+        const ls = flat.filter(l => l.module.id === m.id);
+        const n = ls.filter(l => done.has(l.id)).length;
+        return `<button type="button" data-nav="${(ls.find(l => !done.has(l.id)) || ls[0]).id}" class="flex flex-col text-left rounded-2xl border border-slate-200 bg-white p-4 hover:border-sky-300 hover:shadow-md transition">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-sky-50 text-[#006b9f] flex items-center justify-center flex-none"><i data-lucide="${m.icon}" class="w-5 h-5"></i></div>
+                <div class="min-w-0"><div class="font-semibold text-slate-800">${m.title}</div><div class="text-xs text-slate-500">${ls.length} บท · อ่านแล้ว ${n}</div></div>
+            </div>
+            <ul class="mt-3 space-y-1 text-[13px] text-slate-600">${ls.map(l => `<li class="flex items-center gap-1.5"><i data-lucide="${done.has(l.id) ? 'circle-check' : 'circle'}" class="w-3.5 h-3.5 ${done.has(l.id) ? 'text-emerald-500' : 'text-slate-300'}"></i>${l.title}</li>`).join('')}</ul>
+        </button>`;
+    };
+    const first = flat.find(l => !done.has(l.id)) || flat[0];
+    $('content').innerHTML = `
+    <div class="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-8 fade-in">
+        <div class="rounded-2xl bg-gradient-to-br from-[#006b9f] to-[#04506f] text-white p-6 sm:p-8 shadow-lg relative overflow-hidden">
+            <i data-lucide="book-open-check" class="absolute -right-6 -bottom-6 w-40 h-40 text-white/10"></i>
+            <h2 class="text-xl sm:text-2xl font-bold">ยินดีต้อนรับสู่คู่มือการใช้งาน</h2>
+            <p class="mt-2 text-white/85 text-[15px] max-w-2xl">แต่ละบทอธิบายหน้าจอจริงของระบบ ตัวเลข <span class="inline-flex w-5 h-5 rounded-full bg-rose-500 text-white text-xs font-bold items-center justify-center align-middle">1</span> บนภาพตรงกับขั้นตอนด้านล่าง ชี้หรือแตะที่ขั้นตอนเพื่อดูตำแหน่งบนภาพ กดที่ภาพเพื่อขยาย</p>
+            ${first ? `<button type="button" data-nav="${first.id}" class="mt-5 inline-flex items-center gap-2 rounded-lg bg-white text-[#04506f] px-4 py-2 text-sm font-semibold shadow hover:bg-sky-50">
+                <i data-lucide="play" class="w-4 h-4"></i> ${done.size ? 'อ่านต่อ: ' + first.title : 'เริ่มบทแรก'}</button>` : ''}
+        </div>
+        <h3 class="mt-8 mb-3 font-semibold text-slate-800">หัวข้อทั้งหมด</h3>
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">${modules.map(card).join('')}</div>
+        <h3 class="mt-8 mb-3 font-semibold text-slate-800">คำถามที่พบบ่อย</h3>
+        <div class="rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
+            ${FAQ.map(([q, a]) => `<details class="group px-4 py-3"><summary class="cursor-pointer list-none flex items-center justify-between gap-3 text-[14px] font-medium text-slate-800">${q}<i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform"></i></summary><p class="mt-2 text-[14px] text-slate-600">${a}</p></details>`).join('')}
+        </div>
+    </div>`;
+    icons();
+}
 
-                    <rect x="80" y="340" width="930" height="420" rx="24" fill="#ffffff" stroke="#d6e5ee"/>
-                    <rect x="80" y="340" width="930" height="66" rx="24" fill="#f2f8fb" stroke="#d6e5ee"/>
-                    <circle cx="118" cy="373" r="8" fill="#d06464"/>
-                    <circle cx="146" cy="373" r="8" fill="#e4b44b"/>
-                    <circle cx="174" cy="373" r="8" fill="#7dbf8f"/>
-                    <rect x="230" y="356" width="300" height="32" rx="10" fill="#ffffff" stroke="#d6e5ee"/>
-                    <text x="255" y="377" fill="#7b8b95" font-size="16" font-family="Inter, Noto Sans Thai, sans-serif">หน้าจอระบบ / ตัวอย่างพื้นที่การทำงาน</text>
+// ============================================================
+// เหตุการณ์ในเนื้อหา (ใช้ event delegation)
+// ============================================================
+const content = $('content');
+content.addEventListener('mouseover', e => { const s = e.target.closest('[data-step]'); if (s) setActive(content, s.dataset.step, true); });
+content.addEventListener('mouseout', e => { const s = e.target.closest('[data-step]'); if (s) setActive(content, s.dataset.step, false); });
+content.addEventListener('focusin', e => { const s = e.target.closest('[data-step]'); if (s) setActive(content, s.dataset.step, true); });
+content.addEventListener('focusout', e => { const s = e.target.closest('[data-step]'); if (s) setActive(content, s.dataset.step, false); });
+content.addEventListener('click', e => {
+    const nav = e.target.closest('[data-nav]');
+    if (nav) {
+        if (currentId) { done.add(currentId); saveDone(); }   // ไปบทถัดไป = อ่านบทนี้แล้ว
+        location.hash = '#' + nav.dataset.nav; return;
+    }
+    const pin = e.target.closest('[data-pin]');
+    if (pin) {
+        // แตะหมุด => เลื่อนไปที่ขั้นตอนนั้นและไฮไลต์
+        const step = content.querySelector(`[data-step="${pin.dataset.pin}"]`);
+        content.querySelectorAll('.step.active, .pin.active').forEach(el => el.classList.remove('active'));
+        content.querySelectorAll('.pin-box.show').forEach(el => el.classList.remove('show'));
+        setActive(content, pin.dataset.pin, true);
+        step?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+    }
+    const step = e.target.closest('[data-step]');
+    if (step) {
+        content.querySelectorAll('.pin-box.show').forEach(el => el.classList.remove('show'));
+        content.querySelectorAll('.step.active, .pin.active').forEach(el => el.classList.remove('active'));
+        setActive(content, step.dataset.step, true);
+        return;
+    }
+    const shot = e.target.closest('.shot');
+    if (shot) { openZoom(shot); return; }
+    if (e.target.closest('#doneBtn')) {
+        done.has(currentId) ? done.delete(currentId) : done.add(currentId);
+        saveDone(); route(); return;
+    }
+    const open = e.target.closest('[data-open]');
+    if (open) openPage(byId[open.dataset.open]);
+});
 
-                    <rect x="110" y="440" width="220" height="270" rx="16" fill="#f7fbfd" stroke="#d7e5ec"/>
-                    <rect x="355" y="440" width="300" height="64" rx="14" fill="#ecf6fb" stroke="#d0e6f1"/>
-                    <rect x="355" y="525" width="590" height="42" rx="12" fill="#f5f9fb" stroke="#dce9ef"/>
-                    <rect x="355" y="585" width="590" height="42" rx="12" fill="#f5f9fb" stroke="#dce9ef"/>
-                    <rect x="355" y="645" width="420" height="42" rx="12" fill="#f5f9fb" stroke="#dce9ef"/>
-                    <rect x="795" y="645" width="150" height="42" rx="12" fill="#0783bd"/>
-                    <text x="870" y="672" text-anchor="middle" fill="#ffffff" font-size="16" font-family="Inter, Noto Sans Thai, sans-serif" font-weight="700">บันทึก</text>
+// ไปที่หน้าจริงในระบบ (หน้านี้อยู่ใน iframe ของ main.php)
+function openPage(l) {
+    try { if (l.tab) localStorage.setItem('activePMTab', l.tab); } catch (e) {}
+    if (window.parent && window.parent !== window && typeof window.parent.navigate === 'function') window.parent.navigate(l.href);
+    else location.href = l.href;
+}
 
-                    <rect x="1055" y="215" width="445" height="545" rx="24" fill="#ffffff" stroke="#d6e5ee"/>
-                    <rect x="1085" y="252" width="160" height="36" rx="10" fill="#074f72"/>
-                    <text x="1165" y="276" text-anchor="middle" fill="#ffffff" font-size="18" font-family="Inter, Noto Sans Thai, sans-serif" font-weight="700">คู่มือย่อ</text>
-                    <text x="1088" y="332" fill="#1f303b" font-size="22" font-family="Inter, Noto Sans Thai, sans-serif" font-weight="700">${tag}</text>
-                    <text x="1088" y="376" fill="#60707c" font-size="19" font-family="Inter, Noto Sans Thai, sans-serif">1. ตรวจสอบข้อมูลในหน้าจอ</text>
-                    <text x="1088" y="415" fill="#60707c" font-size="19" font-family="Inter, Noto Sans Thai, sans-serif">2. กรอกข้อมูลให้ครบถ้วน</text>
-                    <text x="1088" y="454" fill="#60707c" font-size="19" font-family="Inter, Noto Sans Thai, sans-serif">3. กดปุ่มยืนยันหรือบันทึก</text>
-                    <text x="1088" y="493" fill="#60707c" font-size="19" font-family="Inter, Noto Sans Thai, sans-serif">4. ตรวจสอบผลลัพธ์หรือสถานะ</text>
-                    <rect x="1088" y="548" width="354" height="138" rx="18" fill="#eef8fd" stroke="#d0e7f2"/>
-                    <text x="1114" y="590" fill="#056f9d" font-size="20" font-family="Inter, Noto Sans Thai, sans-serif" font-weight="700">หมายเหตุ</text>
-                    <text x="1114" y="628" fill="#5f707c" font-size="18" font-family="Inter, Noto Sans Thai, sans-serif">สไลด์ตัวอย่างนี้สามารถแทนที่</text>
-                    <text x="1114" y="660" fill="#5f707c" font-size="18" font-family="Inter, Noto Sans Thai, sans-serif">ด้วยภาพหน้าจอจริงของระบบได้ทันที</text>
-                </svg>`;
-            return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+// ภาพขยาย: แตะตัวเลขบนภาพ => แสดงคำอธิบายของขั้นตอนนั้นใต้ภาพ เลื่อนทีละจุดด้วยปุ่ม ‹ › หรือปุ่มลูกศรบนคีย์บอร์ด
+let zoomSteps = [];   // [{ m, html }] เรียงตามเลขหมุด
+let zoomIdx = -1;
+function openZoom(shot) {
+    const z = $('zoom');
+    const l = byId[currentId];
+    const part = l ? (l.parts || []).filter(p => !p.roles || p.roles.includes(LEVEL))[+shot.dataset.part] : null;
+    const byM = {};
+    (part ? part.steps : []).forEach(st => { if (st.m) (byM[st.m] = byM[st.m] || []).push(st.t); });
+    zoomSteps = Object.keys(byM).map(Number).sort((a, b) => a - b).map(m => ({ m, html: byM[m].join('<br>') }));
+    zoomIdx = -1;
+    z.innerHTML = `<button type="button" data-close class="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center" title="ปิด (Esc)"><i data-lucide="x" class="w-5 h-5"></i></button>`
+        + shotHtml(shot.dataset.shot, 'z')
+        + (zoomSteps.length ? `<div id="zoomCap" class="bg-white rounded-2xl shadow-xl p-2 sm:p-3 flex items-center gap-2 sm:gap-3">
+            <button type="button" data-zstep="-1" class="w-10 h-10 flex-none rounded-full border border-slate-200 hover:bg-slate-50 text-slate-600 flex items-center justify-center" title="จุดก่อนหน้า (←)"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+            <div id="zoomCapBody" class="flex-1 min-w-0 flex items-start gap-2.5 py-0.5"></div>
+            <button type="button" data-zstep="1" class="w-10 h-10 flex-none rounded-full border border-slate-200 hover:bg-slate-50 text-slate-600 flex items-center justify-center" title="จุดถัดไป (→)"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+        </div>` : '');
+    z.classList.add('open');
+    showZoomStep(-1);
+    icons();
+}
+function showZoomStep(i) {
+    const z = $('zoom');
+    zoomIdx = i;
+    const st = zoomSteps[i];
+    z.querySelectorAll('.pin').forEach(p => p.classList.toggle('active', !!st && p.dataset.pin === 'z-' + st.m));
+    z.querySelectorAll('.pin-box').forEach(b => b.classList.toggle('show', !!st && b.dataset.box === 'z-' + st.m));
+    const body = $('zoomCapBody');
+    if (!body) return;
+    body.innerHTML = st
+        ? `<span class="step-no">${st.m}</span><div class="cap-text flex-1 min-w-0 text-[14px] leading-relaxed text-slate-600">${st.html}</div><span class="ml-auto pl-2 text-[11px] text-slate-400 whitespace-nowrap self-center">${i + 1}/${zoomSteps.length}</span>`
+        : `<div class="self-center text-[14px] text-slate-500"><i data-lucide="mouse-pointer-click" class="w-4 h-4 inline -mt-0.5 mr-1 text-rose-500"></i>แตะตัวเลขบนภาพ หรือกด ‹ › เพื่อดูคำอธิบายทีละจุด</div>`;
+    icons();
+}
+$('zoom').addEventListener('click', e => {
+    const pin = e.target.closest('[data-pin]');
+    if (pin) {
+        const m = +pin.dataset.pin.split('-')[1];
+        const i = zoomSteps.findIndex(s => s.m === m);
+        if (i >= 0) showZoomStep(i);
+        else {   // หมุดที่ไม่มีคำอธิบาย: ไฮไลต์อย่างเดียว
+            $('zoom').querySelectorAll('.pin-box').forEach(b => b.classList.toggle('show', b.dataset.box === pin.dataset.pin));
         }
+        return;
+    }
+    const nav = e.target.closest('[data-zstep]');
+    if (nav) { stepZoom(+nav.dataset.zstep); return; }
+    if (e.target === $('zoom') || e.target.closest('[data-close]')) $('zoom').classList.remove('open');
+});
+function stepZoom(d) {
+    if (!zoomSteps.length) return;
+    showZoomStep(zoomIdx < 0 ? (d > 0 ? 0 : zoomSteps.length - 1) : (zoomIdx + d + zoomSteps.length) % zoomSteps.length);
+}
+document.addEventListener('keydown', e => {
+    if (!$('zoom').classList.contains('open')) return;
+    if (e.key === 'Escape') $('zoom').classList.remove('open');
+    else if (e.key === 'ArrowRight') stepZoom(1);
+    else if (e.key === 'ArrowLeft') stepZoom(-1);
+});
 
-        const manualData = [
-            {
-                moduleId: "m1",
-                moduleTitle: "เริ่มต้นใช้งานระบบ",
-                guides: [
-                    {
-                        id: "g1-1",
-                        title: "ภาพรวมหน้าจอหลักของระบบ",
-                        description: `
-                            <p>หัวข้อนี้อธิบายส่วนประกอบของหน้าจอหลัก เช่น เมนูหลัก แถบสถานะ พื้นที่การทำงาน และปุ่มสำคัญที่ผู้ใช้งานต้องพบเป็นประจำ</p>
-                            <ul>
-                                <li>รู้จักโครงสร้างของหน้าจอและเมนูหลัก</li>
-                                <li>เข้าใจตำแหน่งของปุ่มใช้งานที่สำคัญ</li>
-                                <li>ใช้เป็นคู่มือสำหรับพนักงานใหม่ได้ทันที</li>
-                            </ul>
-                        `,
-                        slides: [
-                            { title: "ภาพรวมหน้าจอหลัก", caption: "ทำความเข้าใจองค์ประกอบหลักของระบบ EasyPro", image: createSlideSvg("STEP 01", "ภาพรวมหน้าจอหลัก", "ทำความเข้าใจองค์ประกอบหลักของระบบ EasyPro", "รู้จักเมนูหลัก") },
-                            { title: "เมนูด้านซ้าย", caption: "ดูโครงสร้างเมนูเพื่อเข้าถึงแต่ละฟังก์ชันได้รวดเร็ว", image: createSlideSvg("STEP 02", "เมนูด้านซ้าย", "ดูโครงสร้างเมนูเพื่อเข้าถึงแต่ละฟังก์ชันได้รวดเร็ว", "การนำทางในระบบ") },
-                            { title: "แถบเครื่องมือด้านบน", caption: "แสดงชื่อผู้ใช้งาน การแจ้งเตือน และปุ่มลัดที่สำคัญ", image: createSlideSvg("STEP 03", "แถบเครื่องมือด้านบน", "แสดงชื่อผู้ใช้งาน การแจ้งเตือน และปุ่มลัดที่สำคัญ", "ส่วนหัวของระบบ") }
-                        ]
-                    },
-                    {
-                        id: "g1-2",
-                        title: "การเข้าสู่ระบบและสิทธิ์ผู้ใช้งาน",
-                        description: `
-                            <p>หัวข้อนี้แสดงขั้นตอนการเข้าสู่ระบบ การเลือกหน่วยงาน และการตรวจสอบสิทธิ์ของผู้ใช้งานภายในองค์กร</p>
-                            <ul>
-                                <li>เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน</li>
-                                <li>ตรวจสอบบทบาทของผู้ใช้งาน</li>
-                                <li>กำหนดการเข้าถึงเมนูตามสิทธิ์</li>
-                            </ul>
-                        `,
-                        slides: [
-                            { title: "หน้าจอเข้าสู่ระบบ", caption: "กรอกชื่อผู้ใช้และรหัสผ่านที่ได้รับจากผู้ดูแลระบบ", image: createSlideSvg("STEP 01", "หน้าจอเข้าสู่ระบบ", "กรอกชื่อผู้ใช้และรหัสผ่านที่ได้รับจากผู้ดูแลระบบ", "การเข้าสู่ระบบ") },
-                            { title: "เลือกหน่วยงาน", caption: "หากมีหลายหน่วยงาน สามารถเลือกบริบทการทำงานได้", image: createSlideSvg("STEP 02", "เลือกหน่วยงาน", "หากมีหลายหน่วยงาน สามารถเลือกบริบทการทำงานได้", "เลือกบริบทการทำงาน") },
-                            { title: "ตรวจสอบสิทธิ์การใช้งาน", caption: "สิทธิ์ของแต่ละบทบาทจะกำหนดเมนูที่มองเห็นและแก้ไขได้", image: createSlideSvg("STEP 03", "ตรวจสอบสิทธิ์การใช้งาน", "สิทธิ์ของแต่ละบทบาทจะกำหนดเมนูที่มองเห็นและแก้ไขได้", "สิทธิ์และบทบาท") }
-                        ]
-                    }
-                ]
-            },
-            {
-                moduleId: "m2",
-                moduleTitle: "การทำงานประจำวัน",
-                guides: [
-                    {
-                        id: "g2-1",
-                        title: "การสร้างรายการงานใหม่",
-                        description: `
-                            <p>ใช้หัวข้อนี้เป็นคู่มือสร้างรายการงานใหม่ ตั้งแต่การกรอกข้อมูลเบื้องต้น การเลือกผู้รับผิดชอบ และการบันทึกรายการเข้าระบบ</p>
-                            <ul>
-                                <li>กรอกข้อมูลผู้แจ้งและรายละเอียดงาน</li>
-                                <li>กำหนดประเภทงานและระดับความสำคัญ</li>
-                                <li>บันทึกรายการและตรวจสอบสถานะ</li>
-                            </ul>
-                        `,
-                        slides: [
-                            { title: "เริ่มสร้างรายการงาน", caption: "กดปุ่มเพิ่มรายการใหม่จากหน้ารายการงาน", image: createSlideSvg("STEP 01", "เริ่มสร้างรายการงาน", "กดปุ่มเพิ่มรายการใหม่จากหน้ารายการงาน", "สร้างรายการใหม่") },
-                            { title: "กรอกข้อมูลรายละเอียด", caption: "ระบุหัวข้องาน สถานที่ ผู้ติดต่อ และรายละเอียดที่จำเป็น", image: createSlideSvg("STEP 02", "กรอกข้อมูลรายละเอียด", "ระบุหัวข้องาน สถานที่ ผู้ติดต่อ และรายละเอียดที่จำเป็น", "กรอกข้อมูลให้ครบ") },
-                            { title: "บันทึกและตรวจสอบ", caption: "เมื่อบันทึกแล้ว ระบบจะสร้างเลขอ้างอิงและสถานะงานให้อัตโนมัติ", image: createSlideSvg("STEP 03", "บันทึกและตรวจสอบ", "เมื่อบันทึกแล้ว ระบบจะสร้างเลขอ้างอิงและสถานะงานให้อัตโนมัติ", "ยืนยันการบันทึก") },
-                            { title: "ติดตามสถานะงาน", caption: "สามารถค้นหาและติดตามการดำเนินงานย้อนหลังได้จากรายการงาน", image: createSlideSvg("STEP 04", "ติดตามสถานะงาน", "สามารถค้นหาและติดตามการดำเนินงานย้อนหลังได้จากรายการงาน", "ตรวจสอบผลลัพธ์") }
-                        ]
-                    },
-                    {
-                        id: "g2-2",
-                        title: "การแนบไฟล์ รูปภาพ และเอกสารประกอบ",
-                        description: `
-                            <p>คู่มือนี้อธิบายการแนบรูปภาพ เอกสาร หรือไฟล์ประกอบการทำงาน เพื่อให้ข้อมูลครบถ้วนและตรวจสอบย้อนหลังได้ง่าย</p>
-                            <ul>
-                                <li>เพิ่มไฟล์แนบในฟอร์มรายการงาน</li>
-                                <li>รองรับรูปภาพและเอกสารประกอบ</li>
-                                <li>ช่วยให้การตรวจสอบย้อนหลังทำได้สะดวกขึ้น</li>
-                            </ul>
-                        `,
-                        slides: [
-                            { title: "เปิดส่วนแนบไฟล์", caption: "เลื่อนไปยังส่วนไฟล์แนบหรือรูปภาพภายในฟอร์ม", image: createSlideSvg("STEP 01", "เปิดส่วนแนบไฟล์", "เลื่อนไปยังส่วนไฟล์แนบหรือรูปภาพภายในฟอร์ม", "ส่วนแนบเอกสาร") },
-                            { title: "เลือกไฟล์จากเครื่อง", caption: "กดปุ่มเลือกไฟล์และอัปโหลดข้อมูลที่ต้องการแนบ", image: createSlideSvg("STEP 02", "เลือกไฟล์จากเครื่อง", "กดปุ่มเลือกไฟล์และอัปโหลดข้อมูลที่ต้องการแนบ", "อัปโหลดไฟล์") },
-                            { title: "ตรวจสอบไฟล์แนบ", caption: "หลังอัปโหลดแล้วควรตรวจสอบชื่อไฟล์และความถูกต้องก่อนบันทึก", image: createSlideSvg("STEP 03", "ตรวจสอบไฟล์แนบ", "หลังอัปโหลดแล้วควรตรวจสอบชื่อไฟล์และความถูกต้องก่อนบันทึก", "ตรวจสอบก่อนบันทึก") }
-                        ]
-                    }
-                ]
-            },
-            {
-                moduleId: "m3",
-                moduleTitle: "รายงานและการติดตามผล",
-                guides: [
-                    {
-                        id: "g3-1",
-                        title: "การค้นหาและกรองข้อมูล",
-                        description: `
-                            <p>หัวข้อนี้ช่วยให้ผู้ใช้งานสามารถค้นหาข้อมูลย้อนหลัง กรองตามสถานะ หน่วยงาน หรือช่วงเวลา และสรุปผลได้รวดเร็ว</p>
-                            <ul>
-                                <li>ค้นหาจากคำสำคัญหรือเลขอ้างอิง</li>
-                                <li>ใช้ตัวกรองเพื่อลดจำนวนข้อมูลที่แสดง</li>
-                                <li>เหมาะกับผู้ดูแลระบบและหัวหน้างาน</li>
-                            </ul>
-                        `,
-                        slides: [
-                            { title: "ค้นหาด้วยคำสำคัญ", caption: "ใช้ช่องค้นหาเพื่อระบุเลขที่งานหรือข้อความสำคัญ", image: createSlideSvg("STEP 01", "ค้นหาด้วยคำสำคัญ", "ใช้ช่องค้นหาเพื่อระบุเลขที่งานหรือข้อความสำคัญ", "ค้นหาข้อมูล") },
-                            { title: "เลือกตัวกรอง", caption: "กำหนดสถานะ วันที่ หรือหน่วยงานเพื่อกรองผลลัพธ์", image: createSlideSvg("STEP 02", "เลือกตัวกรอง", "กำหนดสถานะ วันที่ หรือหน่วยงานเพื่อกรองผลลัพธ์", "กรองผลลัพธ์") },
-                            { title: "ตรวจสอบรายการที่พบ", caption: "ผลลัพธ์ที่ได้สามารถเปิดดูรายละเอียดต่อได้ทันที", image: createSlideSvg("STEP 03", "ตรวจสอบรายการที่พบ", "ผลลัพธ์ที่ได้สามารถเปิดดูรายละเอียดต่อได้ทันที", "ตรวจสอบข้อมูล") }
-                        ]
-                    },
-                    {
-                        id: "g3-2",
-                        title: "การส่งออกข้อมูลและรายงาน",
-                        description: `
-                            <p>ใช้สำหรับสรุปผลการทำงานและส่งออกข้อมูลในรูปแบบเอกสาร เช่น PDF หรือ Excel เพื่อใช้ในงานบริหารและการประชุม</p>
-                            <ul>
-                                <li>ส่งออกข้อมูลเป็นรายงานหรือไฟล์ตาราง</li>
-                                <li>ตรวจสอบเงื่อนไขก่อน Export</li>
-                                <li>เหมาะกับงานติดตาม KPI และงานผู้บริหาร</li>
-                            </ul>
-                        `,
-                        slides: [
-                            { title: "เลือกเมนูรายงาน", caption: "เข้าสู่หน้ารายงานหรือสรุปผลจากเมนูระบบ", image: createSlideSvg("STEP 01", "เลือกเมนูรายงาน", "เข้าสู่หน้ารายงานหรือสรุปผลจากเมนูระบบ", "เริ่มต้นจากรายงาน") },
-                            { title: "กำหนดช่วงข้อมูล", caption: "เลือกช่วงเวลา ประเภทงาน หรือเงื่อนไขที่ต้องการสรุป", image: createSlideSvg("STEP 02", "กำหนดช่วงข้อมูล", "เลือกช่วงเวลา ประเภทงาน หรือเงื่อนไขที่ต้องการสรุป", "ตั้งค่าก่อนส่งออก") },
-                            { title: "กดส่งออกเอกสาร", caption: "Export รายงานเป็น PDF หรือ Excel ตามรูปแบบที่องค์กรใช้งาน", image: createSlideSvg("STEP 03", "กดส่งออกเอกสาร", "Export รายงานเป็น PDF หรือ Excel ตามรูปแบบที่องค์กรใช้งาน", "ส่งออกข้อมูล") }
-                        ]
-                    }
-                ]
-            }
-        ];
-
-        let currentGuideId = null;
-        let currentSlideIndex = 0;
-        let flatGuideList = [];
-        const openedGuides = new Set();
-
-        // Render any <i data-lucide="..."> placeholders (static or dynamically injected) into SVG icons.
-        function refreshIcons() {
-            if (window.lucide) {
-                lucide.createIcons();
-            }
-        }
-
-        // Safe DOM setters: no-op if the element was removed from the markup,
-        // so trimming sections from the UI never breaks the viewer.
-        function setText(id, value) {
-            const el = document.getElementById(id);
-            if (el) el.textContent = value;
-        }
-
-        function setHTML(id, value) {
-            const el = document.getElementById(id);
-            if (el) el.innerHTML = value;
-        }
-
-        function init() {
-            flattenGuides();
-            renderSidebar();
-            setupEventListeners();
-            updateGlobalSummary();
-
-            if (flatGuideList.length > 0) {
-                loadGuide(flatGuideList[0].id);
-            }
-
-            refreshIcons();
-        }
-
-        function flattenGuides() {
-            flatGuideList = [];
-            manualData.forEach((module) => {
-                module.guides.forEach((guide) => {
-                    flatGuideList.push({
-                        ...guide,
-                        moduleId: module.moduleId,
-                        moduleTitle: module.moduleTitle,
-                        displayIndex: flatGuideList.length + 1
-                    });
-                });
-            });
-        }
-
-        function updateGlobalSummary() {
-            const totalSlides = flatGuideList.reduce((sum, guide) => sum + guide.slides.length, 0);
-            setText("module-count", `${manualData.length} หมวด`);
-            setText("guide-count", `${flatGuideList.length} หัวข้อ`);
-            setText("slide-count-global", `${totalSlides} สไลด์`);
-            updateProgress();
-        }
-
-        function updateProgress() {
-            const total = flatGuideList.length;
-            const viewed = openedGuides.size;
-            const percent = total ? Math.round((viewed / total) * 100) : 0;
-            setText("progress-text", `เปิดอ่านแล้ว ${viewed} จาก ${total} หัวข้อ`);
-            setText("progress-percent", `${percent}%`);
-            const bar = document.getElementById("progress-value");
-            if (bar) bar.style.width = `${percent}%`;
-        }
-
-        function renderSidebar(searchTerm = "") {
-            const container = document.getElementById("guide-list-container");
-            const keyword = searchTerm.trim().toLowerCase();
-            container.innerHTML = "";
-
-            manualData.forEach((module, moduleIndex) => {
-                const filteredGuides = module.guides.filter((guide) => {
-                    return guide.title.toLowerCase().includes(keyword) || module.moduleTitle.toLowerCase().includes(keyword);
-                });
-
-                if (!filteredGuides.length) return;
-
-                const group = document.createElement("section");
-                group.className = "mb-5";
-
-                const title = document.createElement("div");
-                title.className = "guide-group-title mb-2 flex items-center justify-between px-2 text-[11px] font-bold uppercase";
-                title.innerHTML = `
-                    <span>${String(moduleIndex + 1).padStart(2, "0")} · ${module.moduleTitle}</span>
-                    <span class="rounded-md bg-[#f0f5f8] px-1.5 py-0.5 text-[10px] font-semibold text-[#87959f]">${filteredGuides.length}</span>
-                `;
-                group.appendChild(title);
-
-                const list = document.createElement("div");
-                list.className = "space-y-1.5";
-
-                filteredGuides.forEach((guide) => {
-                    const isActive = guide.id === currentGuideId;
-                    const flatItem = flatGuideList.find((item) => item.id === guide.id);
-                    const isOpened = openedGuides.has(guide.id);
-
-                    const button = document.createElement("button");
-                    button.type = "button";
-                    button.className = `guide-item ${isActive ? "guide-active" : ""} w-full rounded-xl px-3 py-3 text-left`;
-                    button.onclick = () => loadGuide(guide.id);
-                    button.innerHTML = `
-                        <div class="flex items-start gap-3">
-                            <span class="guide-icon-wrap mt-0.5">
-                                <i data-lucide="${isActive ? "book-open" : isOpened ? "check" : "file-text"}" class="text-[11px]"></i>
-                            </span>
-                            <div class="min-w-0 flex-1">
-                                <p class="guide-title text-[13px] leading-5 text-[#4b5c67]">${guide.title}</p>
-                                <div class="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-[#8a98a2]">
-                                    <span>หัวข้อที่ ${flatItem.displayIndex}</span>
-                                    <span><i data-lucide="images" class="mr-1"></i>${guide.slides.length} หน้า</span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    list.appendChild(button);
-                });
-
-                group.appendChild(list);
-                container.appendChild(group);
-            });
-
-            if (!container.children.length) {
-                container.innerHTML = `
-                    <div class="mx-2 mt-4 rounded-xl border border-dashed border-[#cad9e2] bg-[#f8fbfd] px-4 py-8 text-center">
-                        <div class="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-full bg-white text-[#93a3ad] shadow-sm"><i data-lucide="search"></i></div>
-                        <p class="text-sm font-medium text-[#5d6e79]">ไม่พบหัวข้อคู่มือ</p>
-                        <p class="mt-1 text-xs text-[#8b99a3]">ลองค้นหาด้วยคำอื่น</p>
-                    </div>
-                `;
-            }
-
-            refreshIcons();
-        }
-
-        function loadGuide(guideId) {
-            currentGuideId = guideId;
-            currentSlideIndex = 0;
-            openedGuides.add(guideId);
-
-            const guide = flatGuideList.find((item) => item.id === guideId);
-            if (!guide) return;
-
-            const searchInput = document.getElementById("search-guide");
-            renderSidebar(searchInput ? searchInput.value : "");
-            updateProgress();
-
-            setText("guide-badge", `หัวข้อที่ ${guide.displayIndex}`);
-            setText("guide-title", guide.title);
-            setText("slide-header-title", guide.title);
-            setHTML("guide-slide-count", `<i data-lucide="images"></i> ${guide.slides.length} สไลด์`);
-            setText("guide-page-count-top", `${guide.slides.length} หน้า`);
-            setHTML("guide-description", guide.description);
-            setText("bc-module-name", guide.moduleTitle);
-            setText("bc-guide-name", guide.title);
-            setText("summary-module", guide.moduleTitle);
-            setText("summary-index", `${guide.displayIndex} / ${flatGuideList.length}`);
-            setText("summary-slide-count", `${guide.slides.length} สไลด์`);
-            setText("slide-total-inline", `${guide.slides.length} สไลด์`);
-
-            renderSlides(guide);
-            updateGuideNavigationButtons(guide.displayIndex - 1);
-            refreshIcons();
-
-            document.querySelector("main").scrollTo({ top: 0, behavior: "smooth" });
-            if (window.innerWidth < 768) toggleMobileSidebar(false);
-        }
-
-        function renderSlides(guide) {
-            renderSlide(guide, currentSlideIndex);
-            renderThumbnails(guide);
-            updateSlideNavigationButtons(guide);
-        }
-
-        function renderSlide(guide, slideIndex) {
-            const slide = guide.slides[slideIndex];
-            if (!slide) return;
-
-            document.getElementById("slide-image").src = slide.image;
-            document.getElementById("slide-image").alt = slide.title;
-            document.getElementById("slide-title").textContent = slide.title;
-            document.getElementById("slide-caption").textContent = slide.caption;
-            document.getElementById("current-slide-pill").textContent = `สไลด์ ${slideIndex + 1}`;
-            document.getElementById("current-slide-label-top").textContent = `สไลด์ ${slideIndex + 1}/${guide.slides.length}`;
-        }
-
-        function renderThumbnails(guide) {
-            const container = document.getElementById("slide-thumbnails");
-            container.innerHTML = "";
-
-            guide.slides.forEach((slide, index) => {
-                const button = document.createElement("button");
-                button.type = "button";
-                button.className = `thumb-item ${index === currentSlideIndex ? "active" : ""} min-w-[210px] rounded-xl p-2 text-left`;
-                button.onclick = () => {
-                    currentSlideIndex = index;
-                    renderSlides(guide);
-                };
-                button.innerHTML = `
-                    <div class="overflow-hidden rounded-lg border border-[#e1eaf0] bg-white">
-                        <img src="${slide.image}" alt="${slide.title}" class="aspect-[16/9] w-full object-cover">
-                    </div>
-                    <div class="pt-2">
-                        <div class="mb-1 text-[11px] font-semibold text-[#06729f]">สไลด์ ${index + 1}</div>
-                        <div class="line-clamp-2 text-xs font-medium leading-5 text-[#425561]">${slide.title}</div>
-                    </div>
-                `;
-                container.appendChild(button);
-            });
-        }
-
-        function updateSlideNavigationButtons(guide) {
-            const prevButton = document.getElementById("btn-prev-slide");
-            const nextButton = document.getElementById("btn-next-slide");
-
-            prevButton.disabled = currentSlideIndex <= 0;
-            prevButton.onclick = currentSlideIndex > 0 ? () => {
-                currentSlideIndex -= 1;
-                renderSlides(guide);
-            } : null;
-
-            nextButton.disabled = false;
-            nextButton.classList.remove("btn-success");
-            nextButton.classList.add(currentSlideIndex >= guide.slides.length - 1 ? "btn-success" : "btn-primary");
-
-            if (currentSlideIndex < guide.slides.length - 1) {
-                nextButton.innerHTML = `สไลด์ถัดไป <i data-lucide="chevron-right"></i>`;
-                nextButton.onclick = () => {
-                    currentSlideIndex += 1;
-                    renderSlides(guide);
-                };
-            } else {
-                nextButton.innerHTML = `<i data-lucide="circle-check"></i> อ่านครบหัวข้อนี้`;
-                nextButton.onclick = () => {
-                    Swal.fire({
-                        title: "อ่านครบหัวข้อนี้แล้ว",
-                        text: `คุณเปิดดูคู่มือหัวข้อ “${guide.title}” ครบทุกสไลด์แล้ว`,
-                        icon: "success",
-                        confirmButtonText: "รับทราบ",
-                        confirmButtonColor: "#066f9f",
-                        customClass: { popup: "rounded-2xl" }
-                    });
-                };
-            }
-
-            refreshIcons();
-        }
-
-        function updateGuideNavigationButtons(index) {
-            const prevButton = document.getElementById("btn-prev-guide");
-            const nextButton = document.getElementById("btn-next-guide");
-
-            prevButton.disabled = index <= 0;
-            prevButton.onclick = index > 0 ? () => loadGuide(flatGuideList[index - 1].id) : null;
-
-            nextButton.classList.remove("btn-primary", "btn-success");
-
-            if (index < flatGuideList.length - 1) {
-                nextButton.disabled = false;
-                nextButton.classList.add("btn-primary");
-                nextButton.innerHTML = `หัวข้อถัดไป <i data-lucide="arrow-right"></i>`;
-                nextButton.onclick = () => loadGuide(flatGuideList[index + 1].id);
-            } else {
-                nextButton.disabled = false;
-                nextButton.classList.add("btn-success");
-                nextButton.innerHTML = `<i data-lucide="circle-check"></i> จบคู่มือทั้งหมด`;
-                nextButton.onclick = () => {
-                    Swal.fire({
-                        title: "เปิดอ่านครบทุกหัวข้อแล้ว",
-                        text: "คุณได้เปิดอ่านคู่มือการใช้งานระบบครบถ้วนแล้ว",
-                        icon: "success",
-                        confirmButtonText: "รับทราบ",
-                        confirmButtonColor: "#066f9f",
-                        customClass: { popup: "rounded-2xl" }
-                    });
-                };
-            }
-        }
-
-        function setupEventListeners() {
-            const searchInput = document.getElementById("search-guide");
-            const mobileMenuButton = document.getElementById("mobile-menu-btn");
-            const closeSidebarButton = document.getElementById("close-sidebar-btn");
-            const overlay = document.getElementById("sidebar-overlay");
-
-            searchInput.addEventListener("input", (event) => renderSidebar(event.target.value));
-            mobileMenuButton.addEventListener("click", () => toggleMobileSidebar(true));
-            closeSidebarButton.addEventListener("click", () => toggleMobileSidebar(false));
-            overlay.addEventListener("click", () => toggleMobileSidebar(false));
-
-            document.addEventListener("keydown", (event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-                    event.preventDefault();
-                    searchInput.focus();
-                }
-                if (event.key === "Escape" && window.innerWidth < 768) {
-                    toggleMobileSidebar(false);
-                }
-                if (event.key === "ArrowRight") {
-                    document.getElementById("btn-next-slide")?.click();
-                }
-                if (event.key === "ArrowLeft") {
-                    document.getElementById("btn-prev-slide")?.click();
-                }
-            });
-        }
-
-        function toggleMobileSidebar(show) {
-            const sidebar = document.getElementById("sidebar");
-            const overlay = document.getElementById("sidebar-overlay");
-
-            if (show) {
-                sidebar.classList.remove("-translate-x-full");
-                overlay.classList.remove("hidden");
-            } else {
-                sidebar.classList.add("-translate-x-full");
-                overlay.classList.add("hidden");
-            }
-        }
-
-        window.addEventListener("DOMContentLoaded", init);
-    </script>
+// ============================================================
+// เส้นทาง (#lesson-id)
+// ============================================================
+function route() {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const l = byId[id];
+    currentId = l ? l.id : null;
+    l ? renderLesson(l) : renderHome();
+    renderToc();
+    updateProgress();
+    content.scrollTop = 0;
+}
+window.addEventListener('hashchange', route);
+new ResizeObserver(() => content.classList.toggle('wide', content.clientWidth >= 700)).observe(content);
+route();
+</script>
 </body>
 </html>
