@@ -56,7 +56,8 @@ if ($action === 'get_all') {
                 m.asset_name AS machine_name,
                 g.TGroupName AS machine_type,
                 a.area_name AS location_name,
-                c.name AS checksheet_name
+                c.name AS checksheet_name,
+                p.checksheet_id
             FROM pm_plan_events p
             LEFT JOIN tb_ass_list m ON p.machine_id = m.ass_id
             LEFT JOIN tb_asset_group g ON m.asset_type = g.GroupId
@@ -126,6 +127,7 @@ if ($action === 'get_all') {
                         'type' => $row['machine_type'],      // ส่งออกไปหน้าบ้าน
                         'location' => $row['location_name'], // ส่งออกไปหน้าบ้าน
                         'checksheet' => $row['checksheet_name'],
+                        'checksheet_id' => $row['checksheet_id'],   // จัดกลุ่ม / บันทึกพร้อมกันหลายเครื่อง
                         'status' => $row['status'],
                         'completed_at' => $row['completed_at']
                     ]

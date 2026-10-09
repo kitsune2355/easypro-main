@@ -218,6 +218,686 @@ function saveResultImage($base64_string, $base_folder) {
 }
 
 // =========================================
+// บันทึกผลการปฏิบัติงาน 1 ใบ (ใช้ทั้งบันทึกทีละใบ และบันทึกพร้อมกันหลายเครื่อง)
+//  - ผู้เรียกเปิด/ปิด transaction เอง, ผิดพลาด => throw Exception
+//  - $photos = [checksheet_item_id => base64], $signature_path = ไฟล์ลายเซ็นที่บันทึกไว้แล้ว (ถ้ามี)
+// =========================================
+function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users, $inspector_signature, $remarks, $created_by, $submitted_items, $parts, $photos, $signature_path = null) {
+    $event_id = intval($event_id);
+    // 1. กันบันทึกซ้ำ
+    $sql_duplicate = "
+        SELECT id
+        FROM pm_work_records
+        WHERE plan_event_id = $event_id
+        LIMIT 1
+    ";
+    $res_duplicate = mysqli_query($connect, $sql_duplicate);
+
+    if (!$res_duplicate) {
+        throw new Exception('SQL Error (Check Duplicate): ' . mysqli_error($connect));
+    }
+
+    if (mysqli_num_rows($res_duplicate) > 0) {
+        throw new Exception('แผนงานนี้ถูกบันทึกผลการปฏิบัติงานแล้ว');
+    }
+
+    // 2. ดึง snapshot หัวใบงานจาก master
+    $sql_info = "
+        SELECT 
+            e.id AS plan_event_id,
+            e.ag_id,
+            e.plan_id,
+            e.machine_id,
+            e.mac_type_id,
+            e.checksheet_id,
+            e.event_date AS plan_date,
+
+            c.name AS checksheet_name,
+            c.doc_no,
+            c.rev_no,
+
+            a.asset_name AS machine_name,
+            a.ass_code AS machine_code,
+            a.asset_sn AS machine_sn,
+
+            g.TGroupName AS machine_type,
+
+            CONCAT_WS(' / ', ar.area_name, ac.ac_name, rm.ar_name) AS location
+
+        FROM pm_plan_events e
+        LEFT JOIN pm_checksheets c ON e.checksheet_id = c.id
+        LEFT JOIN tb_ass_list a ON e.machine_id = a.ass_id
+        LEFT JOIN tb_asset_group g ON a.asset_type = g.GroupId
+        LEFT JOIN tb_area ar ON a.asset_rp_area_id = ar.area_id
+        LEFT JOIN tb_area_class ac ON a.asset_rp_ac_id = ac.ac_id
+        LEFT JOIN tb_area_room rm ON a.asset_rp_ar_id = rm.ar_id
+        WHERE e.id = $event_id
+        LIMIT 1
+    ";
+
+    $res_info = mysqli_query($connect, $sql_info);
+
+    if (!$res_info) {
+        throw new Exception('SQL Error (Info Snapshot): ' . mysqli_error($connect));
+    }
+
+    $info = mysqli_fetch_assoc($res_info);
+
+    if (!$info) {
+        throw new Exception('ไม่พบข้อมูลแผนงาน');
+    }
+
+    $checksheet_id = intval($info['checksheet_id']);
+
+    if ($checksheet_id <= 0) {
+        throw new Exception('ไม่พบรหัสเช็คชีตของแผนงานนี้');
+    }
+
+    // 3. บันทึกลายเซ็นผู้ตรวจสอบ
+    // บันทึกหลายใบพร้อมกัน: ใช้ไฟล์ลายเซ็นที่บันทึกไว้แล้วร่วมกัน
+    $inspector_signature_path = $signature_path ? $signature_path : saveBase64ImageToPath(
+        $inspector_signature,
+        'uploads/pm_work_records/signatures',
+        'inspector_sign'
+    );
+
+    if (!$inspector_signature_path) {
+        throw new Exception('ไม่สามารถบันทึกลายเซ็นผู้ตรวจสอบได้');
+    }
+
+    // 4. insert pm_work_records
+    $ag_id = dbEsc($connect, $info['ag_id']);
+    $plan_id_real = intval($info['plan_id']);
+    $machine_id = dbEsc($connect, $info['machine_id']);
+    $mac_type_id = dbEsc($connect, $info['mac_type_id']);
+
+    $checksheet_name_raw = isset($info['checksheet_name']) ? trim((string)$info['checksheet_name']) : '';
+
+		$generated_doc_no = generatePmWorkDocNo(
+			$connect,
+			$checksheet_name_raw,
+			(string)$info['ag_id']
+		);
+		
+		if ($generated_doc_no === null || $generated_doc_no === '') {
+			throw new Exception('ไม่สามารถสร้างเลขที่เอกสาร PM ได้ เนื่องจากไม่พบชื่อเช็คชีต');
+		}
+		
+		$base_doc_no_raw = isset($info['doc_no']) ? trim((string)$info['doc_no']) : '';
+		$checksheet_name_raw = isset($info['checksheet_name']) ? trim((string)$info['checksheet_name']) : '';
+		
+		$generated_doc_no = generatePmWorkDocNo(
+			$connect,
+			$base_doc_no_raw,
+			(string)$info['ag_id']
+		);
+		
+		if ($generated_doc_no === null || $generated_doc_no === '') {
+			throw new Exception('ไม่สามารถสร้างเลขที่เอกสาร PM ได้ เนื่องจากไม่พบ doc_no จากตาราง pm_checksheets');
+		}
+		
+		$doc_no = dbEsc($connect, $generated_doc_no);
+		$rev_no = dbEsc($connect, $info['rev_no']);
+		$checksheet_name = dbEsc($connect, $checksheet_name_raw);
+
+    $machine_code = dbEsc($connect, $info['machine_code']);
+    $machine_name = dbEsc($connect, $info['machine_name']);
+    $machine_sn = dbEsc($connect, $info['machine_sn']);
+    $machine_type = dbEsc($connect, $info['machine_type']);
+    $location = dbEsc($connect, $info['location']);
+
+    $plan_date = dbEsc($connect, $info['plan_date']);
+    $actual_date = date('Y-m-d');
+
+    $inspector_name_db = dbEsc($connect, $inspector_name);
+    $inspector_signature_path_db = dbEsc($connect, $inspector_signature_path);
+    $remarks_db = dbEsc($connect, $remarks);
+    $created_by_db = dbEsc($connect, $created_by);
+
+    $sql_insert_record = "
+        INSERT INTO pm_work_records (
+            ag_id,
+            plan_event_id,
+            plan_id,
+            checksheet_id,
+            machine_id,
+            mac_type_id,
+
+            doc_no,
+            rev_no,
+            checksheet_name,
+
+            machine_code,
+            machine_name,
+            machine_sn,
+            machine_type,
+            location,
+
+            plan_date,
+            actual_date,
+
+            inspector_name,
+            inspector_signature_path,
+            remarks,
+
+            status,
+            created_by,
+            created_at
+        ) VALUES (
+            '$ag_id',
+            $event_id,
+            $plan_id_real,
+            $checksheet_id,
+            '$machine_id',
+            '$mac_type_id',
+
+            '$doc_no',
+            '$rev_no',
+            '$checksheet_name',
+
+            '$machine_code',
+            '$machine_name',
+            '$machine_sn',
+            '$machine_type',
+            '$location',
+
+            " . ($plan_date !== '' ? "'$plan_date'" : "NULL") . ",
+            '$actual_date',
+
+            '$inspector_name_db',
+            '$inspector_signature_path_db',
+            '$remarks_db',
+
+            1,
+            '$created_by_db',
+            NOW()
+        )
+    ";
+
+    if (!mysqli_query($connect, $sql_insert_record)) {
+        throw new Exception('SQL Error (Insert Work Record): ' . mysqli_error($connect));
+    }
+
+    $work_record_id = mysqli_insert_id($connect);
+
+    if ($work_record_id <= 0) {
+        throw new Exception('ไม่สามารถสร้างเลขที่บันทึกผลการปฏิบัติงานได้');
+    }
+
+    // 4.1 บันทึกผู้ตรวจสอบหลายคนลงตารางลูก
+    $sql_insert_inspector = "
+        INSERT INTO pm_work_record_inspectors (
+            work_record_id,
+            plan_event_id,
+            user_id,
+            user_pk_id,
+            inspector_name_snapshot,
+            created_at
+        ) VALUES (?, ?, ?, ?, ?, NOW())
+    ";
+
+    $stmt_inspector = $connect->prepare($sql_insert_inspector);
+
+    if (!$stmt_inspector) {
+        throw new Exception('Prepare insert pm_work_record_inspectors failed: ' . $connect->error);
+    }
+
+    foreach ($inspector_users as $inspector) {
+        $inspector_user_id = isset($inspector['user_id']) ? trim((string)$inspector['user_id']) : '';
+        $inspector_user_pk_id = isset($inspector['user_pk_id']) ? intval($inspector['user_pk_id']) : 0;
+        $inspector_name_snapshot = isset($inspector['name']) ? trim((string)$inspector['name']) : '';
+
+        if ($inspector_user_id === '') {
+            $stmt_inspector->close();
+            throw new Exception('พบผู้ตรวจสอบที่ไม่มี user_id');
+        }
+
+        $stmt_inspector->bind_param(
+            'iisis',
+            $work_record_id,
+            $event_id,
+            $inspector_user_id,
+            $inspector_user_pk_id,
+            $inspector_name_snapshot
+        );
+
+        if (!$stmt_inspector->execute()) {
+            $err = $stmt_inspector->error;
+            $stmt_inspector->close();
+            throw new Exception('Insert pm_work_record_inspectors failed: ' . $err);
+        }
+    }
+
+    $stmt_inspector->close();
+
+    // 5. บันทึกอะไหล่/วัสดุที่ใช้จริง + ตัด stock ให้ติดลบได้
+    if (!empty($parts)) {
+        $sql_insert_part = "
+            INSERT INTO pm_work_record_actual_spares (
+                work_record_id,
+                plan_event_id,
+                rpd_product_id,
+                wh_id,
+                pd_gen_code,
+                rpd_details_head,
+                rpd_details,
+                rpd_brand,
+                rpd_qty,
+                rpd_price,
+                pd_unit,
+                rpd_sum_money,
+                created_by,
+                created_at
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW()
+            )
+        ";
+
+        $stmt_part = $connect->prepare($sql_insert_part);
+
+        if (!$stmt_part) {
+            throw new Exception('Prepare insert pm_work_record_actual_spares failed: ' . $connect->error);
+        }
+
+        $sql_stock = "
+            UPDATE product_stocks
+            SET qty = qty - ?,
+                updated_at = NOW()
+            WHERE pd_id = ?
+              AND wh_id = ?
+        ";
+
+        $stmt_stock = $connect->prepare($sql_stock);
+
+        if (!$stmt_stock) {
+            $stmt_part->close();
+            throw new Exception('Prepare update product_stocks failed: ' . $connect->error);
+        }
+
+        foreach ($parts as $p) {
+            $rpd_product_id = intval($p['rpd_product_id'] ?? 0);
+            $wh_id = intval($p['wh_id'] ?? 0);
+
+            $pd_gen_code = (string)($p['pd_gen_code'] ?? '');
+            $rpd_details_head = (string)($p['rpd_details_head'] ?? '');
+            $rpd_details = (string)($p['rpd_details'] ?? '');
+            $rpd_brand = (string)($p['rpd_brand'] ?? '');
+
+            $rpd_qty = floatval($p['rpd_qty'] ?? 0);
+            $rpd_price = floatval($p['rpd_price'] ?? 0);
+            $pd_unit = (string)($p['pd_unit'] ?? '');
+            $rpd_sum_money = floatval($p['rpd_sum_money'] ?? ($rpd_qty * $rpd_price));
+
+            if ($rpd_qty <= 0) {
+                continue;
+            }
+
+            if ($rpd_product_id <= 0 || $wh_id <= 0) {
+                $stmt_part->close();
+                $stmt_stock->close();
+                throw new Exception('ข้อมูลอะไหล่/วัสดุที่ใช้จริงไม่ครบถ้วน');
+            }
+
+            if ($rpd_details_head === '') {
+                $stmt_part->close();
+                $stmt_stock->close();
+                throw new Exception('ไม่พบชื่ออะไหล่/วัสดุที่ใช้จริง');
+            }
+
+            $stmt_part->bind_param(
+                'iiiissssddsds',
+                $work_record_id,
+                $event_id,
+                $rpd_product_id,
+                $wh_id,
+                $pd_gen_code,
+                $rpd_details_head,
+                $rpd_details,
+                $rpd_brand,
+                $rpd_qty,
+                $rpd_price,
+                $pd_unit,
+                $rpd_sum_money,
+                $created_by_db
+            );
+
+            if (!$stmt_part->execute()) {
+                $err = $stmt_part->error;
+                $stmt_part->close();
+                $stmt_stock->close();
+                throw new Exception('Insert pm_work_record_actual_spares failed: ' . $err);
+            }
+
+            $stmt_stock->bind_param('dii', $rpd_qty, $rpd_product_id, $wh_id);
+
+            if (!$stmt_stock->execute()) {
+                $err = $stmt_stock->error;
+                $stmt_part->close();
+                $stmt_stock->close();
+                throw new Exception('Update product_stocks failed: ' . $err);
+            }
+
+            if ($stmt_stock->affected_rows <= 0) {
+                $stmt_part->close();
+                $stmt_stock->close();
+                throw new Exception('ไม่พบสินค้าในสต๊อก: ' . $rpd_details_head);
+            }
+        }
+
+        $stmt_part->close();
+        $stmt_stock->close();
+    }
+
+    // 6. map ผลตรวจจาก frontend
+    $submitted_map = [];
+
+    foreach ($submitted_items as $submitted) {
+        if (!isset($submitted['item_id'])) {
+            continue;
+        }
+
+        $item_id = intval($submitted['item_id']);
+
+        if ($item_id <= 0) {
+            continue;
+        }
+
+        $photo_base64 = isset($photos[$item_id]) ? trim((string)$photos[$item_id]) : '';
+        $photo_base64 = preg_replace('/[\x00-\x1F\x7F]/', '', $photo_base64);
+
+        $submitted_map[$item_id] = [
+            'status' => isset($submitted['status']) ? trim($submitted['status']) : '',
+            'value' => isset($submitted['value']) ? trim($submitted['value']) : '',
+            'photo_base64' => $photo_base64
+        ];
+    }
+
+    if (count($submitted_map) === 0) {
+        throw new Exception('ข้อมูลผลการตรวจสอบไม่ถูกต้อง');
+    }
+
+    // 7. ดึง master items เพื่อ snapshot
+    $sql_master_items = "
+        SELECT 
+            id,
+            checksheet_id,
+            check_point,
+            standard_text,
+            method_text,
+            action_abnormal,
+            check_type_id,
+            illustration_path,
+            photo_required_id,
+            value_name,
+            unit,
+            expected_value,
+            sort_order
+        FROM pm_checksheet_items
+        WHERE checksheet_id = $checksheet_id
+        ORDER BY sort_order ASC, id ASC
+    ";
+
+    $res_master_items = mysqli_query($connect, $sql_master_items);
+
+    if (!$res_master_items) {
+        throw new Exception('SQL Error (Master Items): ' . mysqli_error($connect));
+    }
+
+    $master_item_count = 0;
+
+    while ($item = mysqli_fetch_assoc($res_master_items)) {
+        $master_item_count++;
+
+        $checksheet_item_id = intval($item['id']);
+
+        if (!isset($submitted_map[$checksheet_item_id])) {
+            throw new Exception('รายการตรวจสอบไม่ครบ กรุณาตรวจสอบข้อมูลอีกครั้ง');
+        }
+
+        $submitted = $submitted_map[$checksheet_item_id];
+
+        $result_status = $submitted['status'];
+        $actual_value = $submitted['value'];
+        $photo_base64 = $submitted['photo_base64'];
+
+        $check_type_id = intval($item['check_type_id']);
+        $photo_required_id = intval($item['photo_required_id']);
+
+        if ($check_type_id === 1 && !in_array($result_status, ['Pass', 'Fail'])) {
+            throw new Exception('ผลการตรวจไม่ถูกต้องในรายการ: ' . $item['check_point']);
+        }
+
+        if ($check_type_id === 2 && !in_array($result_status, ['Pass', 'Fail', 'N/A'])) {
+            throw new Exception('ผลการตรวจไม่ถูกต้องในรายการ: ' . $item['check_point']);
+        }
+
+        $has_measurement = trim((string)$item['expected_value']) !== '' 
+               && trim((string)$item['expected_value']) !== '-';
+
+        if ($has_measurement && $actual_value === '') {
+            throw new Exception('กรุณากรอกค่า: ' . $item['value_name'] . ' ในรายการ ' . $item['check_point']);
+        }
+
+        if ($actual_value === '') {
+            $actual_value = '-';
+        }
+
+        $need_photo = false;
+
+        if ($photo_required_id === 1) {
+            $need_photo = true;
+        }
+
+        if ($photo_required_id === 3 && $result_status === 'Fail') {
+            $need_photo = true;
+        }
+
+        if ($need_photo && $photo_base64 === '') {
+            throw new Exception('กรุณาแนบรูปภาพหลักฐานในรายการ: ' . $item['check_point']);
+        }
+
+        $result_photo_path = null;
+
+        if ($photo_base64 !== '') {
+            $result_photo_path = saveBase64ImageToPath(
+                $photo_base64,
+                'uploads/pm_work_records/result_photos',
+                'result'
+            );
+
+            if (!$result_photo_path) {
+                throw new Exception('ไม่สามารถบันทึกรูปภาพหลักฐานในรายการ: ' . $item['check_point']);
+            }
+        }
+
+        $sort_order = intval($item['sort_order']);
+
+        $check_point = dbEsc($connect, $item['check_point']);
+        $standard_text = dbEsc($connect, $item['standard_text']);
+        $method_text = dbEsc($connect, $item['method_text']);
+        $action_abnormal = dbEsc($connect, $item['action_abnormal']);
+        $illustration_path = dbEsc($connect, $item['illustration_path']);
+        $value_name = dbEsc($connect, $item['value_name']);
+        $unit = dbEsc($connect, $item['unit']);
+        $expected_value = dbEsc($connect, $item['expected_value']);
+
+        $result_status_db = dbEsc($connect, $result_status);
+        $actual_value_db = dbEsc($connect, $actual_value);
+        $result_photo_path_db = dbEsc($connect, $result_photo_path);
+
+        $sql_insert_item = "
+            INSERT INTO pm_work_record_items (
+                work_record_id,
+                plan_event_id,
+                checksheet_item_id,
+
+                sort_order,
+
+                check_point,
+                standard_text,
+                method_text,
+                action_abnormal,
+
+                check_type_id,
+                photo_required_id,
+                illustration_path,
+
+                value_name,
+                unit,
+                expected_value,
+
+                result_status,
+                actual_value,
+                result_photo_path,
+
+                created_at
+            ) VALUES (
+                $work_record_id,
+                $event_id,
+                $checksheet_item_id,
+
+                $sort_order,
+
+                '$check_point',
+                '$standard_text',
+                '$method_text',
+                '$action_abnormal',
+
+                $check_type_id,
+                $photo_required_id,
+                '$illustration_path',
+
+                '$value_name',
+                '$unit',
+                '$expected_value',
+
+                '$result_status_db',
+                '$actual_value_db',
+                " . ($result_photo_path_db !== '' ? "'$result_photo_path_db'" : "NULL") . ",
+
+                NOW()
+            )
+        ";
+
+        if (!mysqli_query($connect, $sql_insert_item)) {
+            throw new Exception('SQL Error (Insert Work Item): ' . mysqli_error($connect));
+        }
+    }
+
+    if ($master_item_count === 0) {
+        throw new Exception('ไม่พบรายการจุดตรวจสอบของเช็คชีตนี้');
+    }
+
+    // 8. snapshot อะไหล่ที่ต้องเตรียม
+    $sql_spares = "
+        SELECT id, part_name, quantity
+        FROM pm_checksheet_spares
+        WHERE checksheet_id = $checksheet_id
+        ORDER BY id ASC
+    ";
+
+    $res_spares = mysqli_query($connect, $sql_spares);
+
+    if (!$res_spares) {
+        throw new Exception('SQL Error (Spares Snapshot): ' . mysqli_error($connect));
+    }
+
+    while ($spare = mysqli_fetch_assoc($res_spares)) {
+        $checksheet_spare_id = intval($spare['id']);
+        $part_name = dbEsc($connect, $spare['part_name']);
+        $quantity = floatval($spare['quantity']);
+
+        $sql_insert_spare_snapshot = "
+            INSERT INTO pm_work_record_spares_snapshot (
+                work_record_id,
+                plan_event_id,
+                checksheet_spare_id,
+                part_name,
+                quantity,
+                created_at
+            ) VALUES (
+                $work_record_id,
+                $event_id,
+                $checksheet_spare_id,
+                '$part_name',
+                $quantity,
+                NOW()
+            )
+        ";
+
+        if (!mysqli_query($connect, $sql_insert_spare_snapshot)) {
+            throw new Exception('SQL Error (Insert Spare Snapshot): ' . mysqli_error($connect));
+        }
+    }
+
+    // 9. snapshot ไฟล์แนบ
+    $sql_files = "
+        SELECT id, file_type, file_name, file_path, uploaded_at
+        FROM pm_checksheet_files
+        WHERE checksheet_id = $checksheet_id
+        ORDER BY id ASC
+    ";
+
+    $res_files = mysqli_query($connect, $sql_files);
+
+    if (!$res_files) {
+        throw new Exception('SQL Error (Files Snapshot): ' . mysqli_error($connect));
+    }
+
+    while ($file = mysqli_fetch_assoc($res_files)) {
+        $checksheet_file_id = intval($file['id']);
+        $file_type = dbEsc($connect, $file['file_type']);
+        $file_name = dbEsc($connect, $file['file_name']);
+        $file_path = dbEsc($connect, $file['file_path']);
+        $uploaded_at = dbEsc($connect, $file['uploaded_at']);
+
+        $sql_insert_file_snapshot = "
+            INSERT INTO pm_work_record_files_snapshot (
+                work_record_id,
+                plan_event_id,
+                checksheet_file_id,
+                file_type,
+                file_name,
+                file_path,
+                uploaded_at,
+                created_at
+            ) VALUES (
+                $work_record_id,
+                $event_id,
+                $checksheet_file_id,
+                '$file_type',
+                '$file_name',
+                '$file_path',
+                " . ($uploaded_at !== '' ? "'$uploaded_at'" : "NULL") . ",
+                NOW()
+            )
+        ";
+
+        if (!mysqli_query($connect, $sql_insert_file_snapshot)) {
+            throw new Exception('SQL Error (Insert File Snapshot): ' . mysqli_error($connect));
+        }
+    }
+
+    // 10. update pm_plan_events
+    $sql_update_event = "
+        UPDATE pm_plan_events
+        SET 
+            status = 1,
+            status_feedback = 1,
+            work_record_id = $work_record_id,
+            completed_at = NOW(),
+            updated_at = NOW()
+        WHERE id = $event_id
+    ";
+
+    if (!mysqli_query($connect, $sql_update_event)) {
+        throw new Exception('SQL Error (Update Plan Event): ' . mysqli_error($connect));
+    }
+
+    return $work_record_id;
+}
+
+// =========================================
 // ACTION: โหลดข้อมูลแผนและจุดตรวจสอบมาแสดง
 // =========================================
 if ($action === 'get_data') {
@@ -331,7 +1011,7 @@ if ($action === 'save') {
     $items_json = isset($_POST['items']) ? $_POST['items'] : '';
     $parts_json = isset($_POST['parts']) ? $_POST['parts'] : '[]';
 
-    $created_by = isset($_SESSION['sess_user_id']) ? $_SESSION['sess_user_id'] : '';
+    $created_by = isset($_SESSION['sess_user_id']) ? $_SESSION['sess_user_id'] : (isset($_SESSION['sess_user_id_es']) ? $_SESSION['sess_user_id_es'] : '');
 
     if ($event_id <= 0) {
         echo json_encode(['success' => false, 'error' => 'ไม่พบรหัสแผนงาน'], JSON_UNESCAPED_UNICODE);
@@ -391,675 +1071,14 @@ if ($action === 'save') {
     mysqli_begin_transaction($connect);
 
     try {
-        // 1. กันบันทึกซ้ำ
-        $sql_duplicate = "
-            SELECT id
-            FROM pm_work_records
-            WHERE plan_event_id = $event_id
-            LIMIT 1
-        ";
-        $res_duplicate = mysqli_query($connect, $sql_duplicate);
-
-        if (!$res_duplicate) {
-            throw new Exception('SQL Error (Check Duplicate): ' . mysqli_error($connect));
+        // รูปผลตรวจรายข้อ (photo_{item_id})
+        $photos = [];
+        foreach ($submitted_items as $si) {
+            $iid = isset($si['item_id']) ? intval($si['item_id']) : 0;
+            if ($iid > 0 && isset($_POST['photo_' . $iid])) $photos[$iid] = $_POST['photo_' . $iid];
         }
 
-        if (mysqli_num_rows($res_duplicate) > 0) {
-            throw new Exception('แผนงานนี้ถูกบันทึกผลการปฏิบัติงานแล้ว');
-        }
-
-        // 2. ดึง snapshot หัวใบงานจาก master
-        $sql_info = "
-            SELECT 
-                e.id AS plan_event_id,
-                e.ag_id,
-                e.plan_id,
-                e.machine_id,
-                e.mac_type_id,
-                e.checksheet_id,
-                e.event_date AS plan_date,
-
-                c.name AS checksheet_name,
-                c.doc_no,
-                c.rev_no,
-
-                a.asset_name AS machine_name,
-                a.ass_code AS machine_code,
-                a.asset_sn AS machine_sn,
-
-                g.TGroupName AS machine_type,
-
-                CONCAT_WS(' / ', ar.area_name, ac.ac_name, rm.ar_name) AS location
-
-            FROM pm_plan_events e
-            LEFT JOIN pm_checksheets c ON e.checksheet_id = c.id
-            LEFT JOIN tb_ass_list a ON e.machine_id = a.ass_id
-            LEFT JOIN tb_asset_group g ON a.asset_type = g.GroupId
-            LEFT JOIN tb_area ar ON a.asset_rp_area_id = ar.area_id
-            LEFT JOIN tb_area_class ac ON a.asset_rp_ac_id = ac.ac_id
-            LEFT JOIN tb_area_room rm ON a.asset_rp_ar_id = rm.ar_id
-            WHERE e.id = $event_id
-            LIMIT 1
-        ";
-
-        $res_info = mysqli_query($connect, $sql_info);
-
-        if (!$res_info) {
-            throw new Exception('SQL Error (Info Snapshot): ' . mysqli_error($connect));
-        }
-
-        $info = mysqli_fetch_assoc($res_info);
-
-        if (!$info) {
-            throw new Exception('ไม่พบข้อมูลแผนงาน');
-        }
-
-        $checksheet_id = intval($info['checksheet_id']);
-
-        if ($checksheet_id <= 0) {
-            throw new Exception('ไม่พบรหัสเช็คชีตของแผนงานนี้');
-        }
-
-        // 3. บันทึกลายเซ็นผู้ตรวจสอบ
-        $inspector_signature_path = saveBase64ImageToPath(
-            $inspector_signature,
-            'uploads/pm_work_records/signatures',
-            'inspector_sign'
-        );
-
-        if (!$inspector_signature_path) {
-            throw new Exception('ไม่สามารถบันทึกลายเซ็นผู้ตรวจสอบได้');
-        }
-
-        // 4. insert pm_work_records
-        $ag_id = dbEsc($connect, $info['ag_id']);
-        $plan_id_real = intval($info['plan_id']);
-        $machine_id = dbEsc($connect, $info['machine_id']);
-        $mac_type_id = dbEsc($connect, $info['mac_type_id']);
-
-        $checksheet_name_raw = isset($info['checksheet_name']) ? trim((string)$info['checksheet_name']) : '';
-
-		$generated_doc_no = generatePmWorkDocNo(
-			$connect,
-			$checksheet_name_raw,
-			(string)$info['ag_id']
-		);
-		
-		if ($generated_doc_no === null || $generated_doc_no === '') {
-			throw new Exception('ไม่สามารถสร้างเลขที่เอกสาร PM ได้ เนื่องจากไม่พบชื่อเช็คชีต');
-		}
-		
-		$base_doc_no_raw = isset($info['doc_no']) ? trim((string)$info['doc_no']) : '';
-		$checksheet_name_raw = isset($info['checksheet_name']) ? trim((string)$info['checksheet_name']) : '';
-		
-		$generated_doc_no = generatePmWorkDocNo(
-			$connect,
-			$base_doc_no_raw,
-			(string)$info['ag_id']
-		);
-		
-		if ($generated_doc_no === null || $generated_doc_no === '') {
-			throw new Exception('ไม่สามารถสร้างเลขที่เอกสาร PM ได้ เนื่องจากไม่พบ doc_no จากตาราง pm_checksheets');
-		}
-		
-		$doc_no = dbEsc($connect, $generated_doc_no);
-		$rev_no = dbEsc($connect, $info['rev_no']);
-		$checksheet_name = dbEsc($connect, $checksheet_name_raw);
-
-        $machine_code = dbEsc($connect, $info['machine_code']);
-        $machine_name = dbEsc($connect, $info['machine_name']);
-        $machine_sn = dbEsc($connect, $info['machine_sn']);
-        $machine_type = dbEsc($connect, $info['machine_type']);
-        $location = dbEsc($connect, $info['location']);
-
-        $plan_date = dbEsc($connect, $info['plan_date']);
-        $actual_date = date('Y-m-d');
-
-        $inspector_name_db = dbEsc($connect, $inspector_name);
-        $inspector_signature_path_db = dbEsc($connect, $inspector_signature_path);
-        $remarks_db = dbEsc($connect, $remarks);
-        $created_by_db = dbEsc($connect, $created_by);
-
-        $sql_insert_record = "
-            INSERT INTO pm_work_records (
-                ag_id,
-                plan_event_id,
-                plan_id,
-                checksheet_id,
-                machine_id,
-                mac_type_id,
-
-                doc_no,
-                rev_no,
-                checksheet_name,
-
-                machine_code,
-                machine_name,
-                machine_sn,
-                machine_type,
-                location,
-
-                plan_date,
-                actual_date,
-
-                inspector_name,
-                inspector_signature_path,
-                remarks,
-
-                status,
-                created_by,
-                created_at
-            ) VALUES (
-                '$ag_id',
-                $event_id,
-                $plan_id_real,
-                $checksheet_id,
-                '$machine_id',
-                '$mac_type_id',
-
-                '$doc_no',
-                '$rev_no',
-                '$checksheet_name',
-
-                '$machine_code',
-                '$machine_name',
-                '$machine_sn',
-                '$machine_type',
-                '$location',
-
-                " . ($plan_date !== '' ? "'$plan_date'" : "NULL") . ",
-                '$actual_date',
-
-                '$inspector_name_db',
-                '$inspector_signature_path_db',
-                '$remarks_db',
-
-                1,
-                '$created_by_db',
-                NOW()
-            )
-        ";
-
-        if (!mysqli_query($connect, $sql_insert_record)) {
-            throw new Exception('SQL Error (Insert Work Record): ' . mysqli_error($connect));
-        }
-
-        $work_record_id = mysqli_insert_id($connect);
-
-        if ($work_record_id <= 0) {
-            throw new Exception('ไม่สามารถสร้างเลขที่บันทึกผลการปฏิบัติงานได้');
-        }
-
-        // 4.1 บันทึกผู้ตรวจสอบหลายคนลงตารางลูก
-        $sql_insert_inspector = "
-            INSERT INTO pm_work_record_inspectors (
-                work_record_id,
-                plan_event_id,
-                user_id,
-                user_pk_id,
-                inspector_name_snapshot,
-                created_at
-            ) VALUES (?, ?, ?, ?, ?, NOW())
-        ";
-
-        $stmt_inspector = $connect->prepare($sql_insert_inspector);
-
-        if (!$stmt_inspector) {
-            throw new Exception('Prepare insert pm_work_record_inspectors failed: ' . $connect->error);
-        }
-
-        foreach ($inspector_users as $inspector) {
-            $inspector_user_id = isset($inspector['user_id']) ? trim((string)$inspector['user_id']) : '';
-            $inspector_user_pk_id = isset($inspector['user_pk_id']) ? intval($inspector['user_pk_id']) : 0;
-            $inspector_name_snapshot = isset($inspector['name']) ? trim((string)$inspector['name']) : '';
-
-            if ($inspector_user_id === '') {
-                $stmt_inspector->close();
-                throw new Exception('พบผู้ตรวจสอบที่ไม่มี user_id');
-            }
-
-            $stmt_inspector->bind_param(
-                'iisis',
-                $work_record_id,
-                $event_id,
-                $inspector_user_id,
-                $inspector_user_pk_id,
-                $inspector_name_snapshot
-            );
-
-            if (!$stmt_inspector->execute()) {
-                $err = $stmt_inspector->error;
-                $stmt_inspector->close();
-                throw new Exception('Insert pm_work_record_inspectors failed: ' . $err);
-            }
-        }
-
-        $stmt_inspector->close();
-
-        // 5. บันทึกอะไหล่/วัสดุที่ใช้จริง + ตัด stock ให้ติดลบได้
-        if (!empty($parts)) {
-            $sql_insert_part = "
-                INSERT INTO pm_work_record_actual_spares (
-                    work_record_id,
-                    plan_event_id,
-                    rpd_product_id,
-                    wh_id,
-                    pd_gen_code,
-                    rpd_details_head,
-                    rpd_details,
-                    rpd_brand,
-                    rpd_qty,
-                    rpd_price,
-                    pd_unit,
-                    rpd_sum_money,
-                    created_by,
-                    created_at
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW()
-                )
-            ";
-
-            $stmt_part = $connect->prepare($sql_insert_part);
-
-            if (!$stmt_part) {
-                throw new Exception('Prepare insert pm_work_record_actual_spares failed: ' . $connect->error);
-            }
-
-            $sql_stock = "
-                UPDATE product_stocks
-                SET qty = qty - ?,
-                    updated_at = NOW()
-                WHERE pd_id = ?
-                  AND wh_id = ?
-            ";
-
-            $stmt_stock = $connect->prepare($sql_stock);
-
-            if (!$stmt_stock) {
-                $stmt_part->close();
-                throw new Exception('Prepare update product_stocks failed: ' . $connect->error);
-            }
-
-            foreach ($parts as $p) {
-                $rpd_product_id = intval($p['rpd_product_id'] ?? 0);
-                $wh_id = intval($p['wh_id'] ?? 0);
-
-                $pd_gen_code = (string)($p['pd_gen_code'] ?? '');
-                $rpd_details_head = (string)($p['rpd_details_head'] ?? '');
-                $rpd_details = (string)($p['rpd_details'] ?? '');
-                $rpd_brand = (string)($p['rpd_brand'] ?? '');
-
-                $rpd_qty = floatval($p['rpd_qty'] ?? 0);
-                $rpd_price = floatval($p['rpd_price'] ?? 0);
-                $pd_unit = (string)($p['pd_unit'] ?? '');
-                $rpd_sum_money = floatval($p['rpd_sum_money'] ?? ($rpd_qty * $rpd_price));
-
-                if ($rpd_qty <= 0) {
-                    continue;
-                }
-
-                if ($rpd_product_id <= 0 || $wh_id <= 0) {
-                    $stmt_part->close();
-                    $stmt_stock->close();
-                    throw new Exception('ข้อมูลอะไหล่/วัสดุที่ใช้จริงไม่ครบถ้วน');
-                }
-
-                if ($rpd_details_head === '') {
-                    $stmt_part->close();
-                    $stmt_stock->close();
-                    throw new Exception('ไม่พบชื่ออะไหล่/วัสดุที่ใช้จริง');
-                }
-
-                $stmt_part->bind_param(
-                    'iiiissssddsds',
-                    $work_record_id,
-                    $event_id,
-                    $rpd_product_id,
-                    $wh_id,
-                    $pd_gen_code,
-                    $rpd_details_head,
-                    $rpd_details,
-                    $rpd_brand,
-                    $rpd_qty,
-                    $rpd_price,
-                    $pd_unit,
-                    $rpd_sum_money,
-                    $created_by_db
-                );
-
-                if (!$stmt_part->execute()) {
-                    $err = $stmt_part->error;
-                    $stmt_part->close();
-                    $stmt_stock->close();
-                    throw new Exception('Insert pm_work_record_actual_spares failed: ' . $err);
-                }
-
-                $stmt_stock->bind_param('dii', $rpd_qty, $rpd_product_id, $wh_id);
-
-                if (!$stmt_stock->execute()) {
-                    $err = $stmt_stock->error;
-                    $stmt_part->close();
-                    $stmt_stock->close();
-                    throw new Exception('Update product_stocks failed: ' . $err);
-                }
-
-                if ($stmt_stock->affected_rows <= 0) {
-                    $stmt_part->close();
-                    $stmt_stock->close();
-                    throw new Exception('ไม่พบสินค้าในสต๊อก: ' . $rpd_details_head);
-                }
-            }
-
-            $stmt_part->close();
-            $stmt_stock->close();
-        }
-
-        // 6. map ผลตรวจจาก frontend
-        $submitted_map = [];
-
-        foreach ($submitted_items as $submitted) {
-            if (!isset($submitted['item_id'])) {
-                continue;
-            }
-
-            $item_id = intval($submitted['item_id']);
-
-            if ($item_id <= 0) {
-                continue;
-            }
-
-            $photo_key = 'photo_' . $item_id;
-            $photo_base64 = isset($_POST[$photo_key]) ? trim($_POST[$photo_key]) : '';
-            $photo_base64 = preg_replace('/[\x00-\x1F\x7F]/', '', $photo_base64);
-
-            $submitted_map[$item_id] = [
-                'status' => isset($submitted['status']) ? trim($submitted['status']) : '',
-                'value' => isset($submitted['value']) ? trim($submitted['value']) : '',
-                'photo_base64' => $photo_base64
-            ];
-        }
-
-        if (count($submitted_map) === 0) {
-            throw new Exception('ข้อมูลผลการตรวจสอบไม่ถูกต้อง');
-        }
-
-        // 7. ดึง master items เพื่อ snapshot
-        $sql_master_items = "
-            SELECT 
-                id,
-                checksheet_id,
-                check_point,
-                standard_text,
-                method_text,
-                action_abnormal,
-                check_type_id,
-                illustration_path,
-                photo_required_id,
-                value_name,
-                unit,
-                expected_value,
-                sort_order
-            FROM pm_checksheet_items
-            WHERE checksheet_id = $checksheet_id
-            ORDER BY sort_order ASC, id ASC
-        ";
-
-        $res_master_items = mysqli_query($connect, $sql_master_items);
-
-        if (!$res_master_items) {
-            throw new Exception('SQL Error (Master Items): ' . mysqli_error($connect));
-        }
-
-        $master_item_count = 0;
-
-        while ($item = mysqli_fetch_assoc($res_master_items)) {
-            $master_item_count++;
-
-            $checksheet_item_id = intval($item['id']);
-
-            if (!isset($submitted_map[$checksheet_item_id])) {
-                throw new Exception('รายการตรวจสอบไม่ครบ กรุณาตรวจสอบข้อมูลอีกครั้ง');
-            }
-
-            $submitted = $submitted_map[$checksheet_item_id];
-
-            $result_status = $submitted['status'];
-            $actual_value = $submitted['value'];
-            $photo_base64 = $submitted['photo_base64'];
-
-            $check_type_id = intval($item['check_type_id']);
-            $photo_required_id = intval($item['photo_required_id']);
-
-            if ($check_type_id === 1 && !in_array($result_status, ['Pass', 'Fail'])) {
-                throw new Exception('ผลการตรวจไม่ถูกต้องในรายการ: ' . $item['check_point']);
-            }
-
-            if ($check_type_id === 2 && !in_array($result_status, ['Pass', 'Fail', 'N/A'])) {
-                throw new Exception('ผลการตรวจไม่ถูกต้องในรายการ: ' . $item['check_point']);
-            }
-
-            $has_measurement = trim((string)$item['expected_value']) !== '' 
-                   && trim((string)$item['expected_value']) !== '-';
-
-            if ($has_measurement && $actual_value === '') {
-                throw new Exception('กรุณากรอกค่า: ' . $item['value_name'] . ' ในรายการ ' . $item['check_point']);
-            }
-
-            if ($actual_value === '') {
-                $actual_value = '-';
-            }
-
-            $need_photo = false;
-
-            if ($photo_required_id === 1) {
-                $need_photo = true;
-            }
-
-            if ($photo_required_id === 3 && $result_status === 'Fail') {
-                $need_photo = true;
-            }
-
-            if ($need_photo && $photo_base64 === '') {
-                throw new Exception('กรุณาแนบรูปภาพหลักฐานในรายการ: ' . $item['check_point']);
-            }
-
-            $result_photo_path = null;
-
-            if ($photo_base64 !== '') {
-                $result_photo_path = saveBase64ImageToPath(
-                    $photo_base64,
-                    'uploads/pm_work_records/result_photos',
-                    'result'
-                );
-
-                if (!$result_photo_path) {
-                    throw new Exception('ไม่สามารถบันทึกรูปภาพหลักฐานในรายการ: ' . $item['check_point']);
-                }
-            }
-
-            $sort_order = intval($item['sort_order']);
-
-            $check_point = dbEsc($connect, $item['check_point']);
-            $standard_text = dbEsc($connect, $item['standard_text']);
-            $method_text = dbEsc($connect, $item['method_text']);
-            $action_abnormal = dbEsc($connect, $item['action_abnormal']);
-            $illustration_path = dbEsc($connect, $item['illustration_path']);
-            $value_name = dbEsc($connect, $item['value_name']);
-            $unit = dbEsc($connect, $item['unit']);
-            $expected_value = dbEsc($connect, $item['expected_value']);
-
-            $result_status_db = dbEsc($connect, $result_status);
-            $actual_value_db = dbEsc($connect, $actual_value);
-            $result_photo_path_db = dbEsc($connect, $result_photo_path);
-
-            $sql_insert_item = "
-                INSERT INTO pm_work_record_items (
-                    work_record_id,
-                    plan_event_id,
-                    checksheet_item_id,
-
-                    sort_order,
-
-                    check_point,
-                    standard_text,
-                    method_text,
-                    action_abnormal,
-
-                    check_type_id,
-                    photo_required_id,
-                    illustration_path,
-
-                    value_name,
-                    unit,
-                    expected_value,
-
-                    result_status,
-                    actual_value,
-                    result_photo_path,
-
-                    created_at
-                ) VALUES (
-                    $work_record_id,
-                    $event_id,
-                    $checksheet_item_id,
-
-                    $sort_order,
-
-                    '$check_point',
-                    '$standard_text',
-                    '$method_text',
-                    '$action_abnormal',
-
-                    $check_type_id,
-                    $photo_required_id,
-                    '$illustration_path',
-
-                    '$value_name',
-                    '$unit',
-                    '$expected_value',
-
-                    '$result_status_db',
-                    '$actual_value_db',
-                    " . ($result_photo_path_db !== '' ? "'$result_photo_path_db'" : "NULL") . ",
-
-                    NOW()
-                )
-            ";
-
-            if (!mysqli_query($connect, $sql_insert_item)) {
-                throw new Exception('SQL Error (Insert Work Item): ' . mysqli_error($connect));
-            }
-        }
-
-        if ($master_item_count === 0) {
-            throw new Exception('ไม่พบรายการจุดตรวจสอบของเช็คชีตนี้');
-        }
-
-        // 8. snapshot อะไหล่ที่ต้องเตรียม
-        $sql_spares = "
-            SELECT id, part_name, quantity
-            FROM pm_checksheet_spares
-            WHERE checksheet_id = $checksheet_id
-            ORDER BY id ASC
-        ";
-
-        $res_spares = mysqli_query($connect, $sql_spares);
-
-        if (!$res_spares) {
-            throw new Exception('SQL Error (Spares Snapshot): ' . mysqli_error($connect));
-        }
-
-        while ($spare = mysqli_fetch_assoc($res_spares)) {
-            $checksheet_spare_id = intval($spare['id']);
-            $part_name = dbEsc($connect, $spare['part_name']);
-            $quantity = floatval($spare['quantity']);
-
-            $sql_insert_spare_snapshot = "
-                INSERT INTO pm_work_record_spares_snapshot (
-                    work_record_id,
-                    plan_event_id,
-                    checksheet_spare_id,
-                    part_name,
-                    quantity,
-                    created_at
-                ) VALUES (
-                    $work_record_id,
-                    $event_id,
-                    $checksheet_spare_id,
-                    '$part_name',
-                    $quantity,
-                    NOW()
-                )
-            ";
-
-            if (!mysqli_query($connect, $sql_insert_spare_snapshot)) {
-                throw new Exception('SQL Error (Insert Spare Snapshot): ' . mysqli_error($connect));
-            }
-        }
-
-        // 9. snapshot ไฟล์แนบ
-        $sql_files = "
-            SELECT id, file_type, file_name, file_path, uploaded_at
-            FROM pm_checksheet_files
-            WHERE checksheet_id = $checksheet_id
-            ORDER BY id ASC
-        ";
-
-        $res_files = mysqli_query($connect, $sql_files);
-
-        if (!$res_files) {
-            throw new Exception('SQL Error (Files Snapshot): ' . mysqli_error($connect));
-        }
-
-        while ($file = mysqli_fetch_assoc($res_files)) {
-            $checksheet_file_id = intval($file['id']);
-            $file_type = dbEsc($connect, $file['file_type']);
-            $file_name = dbEsc($connect, $file['file_name']);
-            $file_path = dbEsc($connect, $file['file_path']);
-            $uploaded_at = dbEsc($connect, $file['uploaded_at']);
-
-            $sql_insert_file_snapshot = "
-                INSERT INTO pm_work_record_files_snapshot (
-                    work_record_id,
-                    plan_event_id,
-                    checksheet_file_id,
-                    file_type,
-                    file_name,
-                    file_path,
-                    uploaded_at,
-                    created_at
-                ) VALUES (
-                    $work_record_id,
-                    $event_id,
-                    $checksheet_file_id,
-                    '$file_type',
-                    '$file_name',
-                    '$file_path',
-                    " . ($uploaded_at !== '' ? "'$uploaded_at'" : "NULL") . ",
-                    NOW()
-                )
-            ";
-
-            if (!mysqli_query($connect, $sql_insert_file_snapshot)) {
-                throw new Exception('SQL Error (Insert File Snapshot): ' . mysqli_error($connect));
-            }
-        }
-
-        // 10. update pm_plan_events
-        $sql_update_event = "
-            UPDATE pm_plan_events
-            SET 
-                status = 1,
-                status_feedback = 1,
-                work_record_id = $work_record_id,
-                completed_at = NOW(),
-                updated_at = NOW()
-            WHERE id = $event_id
-        ";
-
-        if (!mysqli_query($connect, $sql_update_event)) {
-            throw new Exception('SQL Error (Update Plan Event): ' . mysqli_error($connect));
-        }
+        $work_record_id = pmws_save_event($connect, $event_id, $inspector_name, $inspector_users, $inspector_signature, $remarks, $created_by, $submitted_items, $parts, $photos);
 
         mysqli_commit($connect);
 
@@ -1082,6 +1101,152 @@ if ($action === 'save') {
     }
 }
 
+// =========================================
+// ACTION: ข้อมูลสำหรับบันทึกพร้อมกัน — เช็คชีต + เครื่องที่ยังไม่ได้ทำ (เช็คชีตเดียวกัน วันเดียวกัน)
+// =========================================
+if ($action === 'get_batch_data') {
+    $checksheet_id = isset($_GET['checksheet_id']) ? intval($_GET['checksheet_id']) : 0;
+    $date = isset($_GET['date']) ? $_GET['date'] : '';
+    $ag_id = isset($_SESSION['sess_user_agency']) ? (string)$_SESSION['sess_user_agency'] : '';
+
+    if ($checksheet_id <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $ag_id === '') {
+        echo json_encode(['success' => false, 'error' => 'ข้อมูลไม่ครบ (เช็คชีต / วันที่ / หน่วยงาน)'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $stmt = $connect->prepare("SELECT id, name, doc_no, rev_no FROM pm_checksheets WHERE id = ?");
+    $stmt->bind_param('i', $checksheet_id);
+    $stmt->execute();
+    $checksheet = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$checksheet) {
+        echo json_encode(['success' => false, 'error' => 'ไม่พบเช็คชีต'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $items = [];
+    $res = mysqli_query($connect, "SELECT id, check_point, standard_text, method_text, action_abnormal AS action_text, check_type_id,
+                                          illustration_path AS reference_image, photo_required_id, value_name AS measurement_name, unit, expected_value, sort_order
+                                   FROM pm_checksheet_items WHERE checksheet_id = $checksheet_id ORDER BY sort_order ASC, id ASC");
+    while ($res && ($row = mysqli_fetch_assoc($res))) $items[] = $row;
+
+    $spares = [];
+    $res = mysqli_query($connect, "SELECT part_name, quantity FROM pm_checksheet_spares WHERE checksheet_id = $checksheet_id ORDER BY id ASC");
+    while ($res && ($row = mysqli_fetch_assoc($res))) $spares[] = $row;
+
+    $events = [];
+    $stmt = $connect->prepare("
+        SELECT e.id, e.event_date, a.asset_name AS machine_name, a.ass_code AS machine_code, a.asset_sn AS machine_sn,
+               CONCAT_WS(' / ', ar.area_name, ac.ac_name, rm.ar_name) AS location
+        FROM pm_plan_events e
+        LEFT JOIN tb_ass_list a ON e.machine_id = a.ass_id
+        LEFT JOIN tb_area ar ON a.asset_rp_area_id = ar.area_id
+        LEFT JOIN tb_area_class ac ON a.asset_rp_ac_id = ac.ac_id
+        LEFT JOIN tb_area_room rm ON a.asset_rp_ar_id = rm.ar_id
+        WHERE e.ag_id = ? AND e.checksheet_id = ? AND e.event_date = ? AND (e.status IS NULL OR e.status <> 1) AND e.work_record_id IS NULL
+        ORDER BY location ASC, a.ass_code ASC, e.id ASC
+    ");
+    $cs = (string)$checksheet_id;
+    $stmt->bind_param('sss', $ag_id, $cs, $date);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) $events[] = $row;
+    $stmt->close();
+
+    echo json_encode(['success' => true, 'checksheet' => $checksheet, 'items' => $items, 'spares' => $spares, 'events' => $events, 'date' => $date], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// =========================================
+// ACTION: บันทึกพร้อมกันหลายเครื่อง (เช็คชีตเดียวกัน) — หน้าเว็บส่งมาเป็นชุด ๆ ละไม่กี่สิบเครื่อง
+//  ผลตรวจเหมือนกันทุกเครื่อง (ปกติ / ไม่เกี่ยวข้อง เท่านั้น — เครื่องผิดปกติให้ทำทีละใบ)
+//  ค่าที่วัดได้ / รูปที่บังคับ ส่งมาแยกรายเครื่อง; แต่ละเครื่องแยก transaction และรายงานผลรายเครื่อง
+// =========================================
+if ($action === 'save_batch') {
+    @set_time_limit(0);
+    $ag_id = isset($_SESSION['sess_user_agency']) ? (string)$_SESSION['sess_user_agency'] : '';
+    $checksheet_id = isset($_POST['checksheet_id']) ? intval($_POST['checksheet_id']) : 0;
+    $clean = function ($v) { $v = preg_replace('/^\xEF\xBB\xBF/', '', (string)$v); return preg_replace('/[\x00-\x1F\x7F]/', '', $v); };
+
+    $event_ids = json_decode($clean($_POST['event_ids'] ?? '[]'), true);
+    $inspector_name = trim($_POST['inspector_name'] ?? '');
+    $inspector_users = json_decode($clean($_POST['inspector_users_json'] ?? ''), true);
+    $remarks = trim($_POST['remarks'] ?? '');
+    $inspector_signature = trim($_POST['inspector_signature'] ?? '');
+    $signature_path = trim($_POST['signature_path'] ?? '');
+    $common_items = json_decode($clean($_POST['items'] ?? ''), true);
+    $per_event = json_decode($clean($_POST['per_event'] ?? '{}'), true);
+    $created_by = isset($_SESSION['sess_user_id']) ? $_SESSION['sess_user_id'] : (isset($_SESSION['sess_user_id_es']) ? $_SESSION['sess_user_id_es'] : '');
+
+    $fail = function ($msg) { echo json_encode(['success' => false, 'error' => $msg], JSON_UNESCAPED_UNICODE); exit; };
+    if ($ag_id === '') $fail('ไม่พบหน่วยงานของผู้ใช้');
+    if ($checksheet_id <= 0) $fail('ไม่พบรหัสเช็คชีต');
+    if (!is_array($event_ids) || !count($event_ids)) $fail('ไม่ได้เลือกเครื่อง');
+    if (count($event_ids) > 100) $fail('ส่งได้ครั้งละไม่เกิน 100 เครื่อง');
+    if ($inspector_name === '') $fail('กรุณาเลือกชื่อผู้ตรวจสอบ');
+    if (!is_array($inspector_users) || !count($inspector_users)) $fail('ไม่พบข้อมูล user_id ของผู้ตรวจสอบ');
+    if (!is_array($common_items) || !count($common_items)) $fail('ไม่พบข้อมูลผลการตรวจสอบ');
+    if (!is_array($per_event)) $per_event = [];
+
+    // บันทึกพร้อมกันได้เฉพาะผล ปกติ / ไม่เกี่ยวข้อง
+    foreach ($common_items as $ci) {
+        if (!in_array(($ci['status'] ?? ''), ['Pass', 'N/A'], true)) $fail('บันทึกพร้อมกันได้เฉพาะผล "ปกติ" หรือ "ไม่เกี่ยวข้อง" — เครื่องที่ผิดปกติให้บันทึกทีละใบ');
+    }
+
+    // ลายเซ็น: ชุดแรกส่งรูปมา => บันทึกไฟล์ครั้งเดียว ชุดต่อไปส่ง path กลับมาใช้ร่วมกัน (ต้องอยู่ในโฟลเดอร์ลายเซ็นเท่านั้น)
+    if ($signature_path !== '') {
+        $base = realpath('uploads/pm_work_records/signatures');
+        $real = realpath($signature_path);
+        if (!$base || !$real || strpos($real, $base) !== 0 || !is_file($real)) $fail('ไฟล์ลายเซ็นไม่ถูกต้อง กรุณาเซ็นใหม่');
+    } else {
+        if ($inspector_signature === '') $fail('กรุณาลงลายมือชื่อผู้ตรวจสอบ');
+        $signature_path = saveBase64ImageToPath($clean($inspector_signature), 'uploads/pm_work_records/signatures', 'inspector_sign');
+        if (!$signature_path) $fail('ไม่สามารถบันทึกลายเซ็นผู้ตรวจสอบได้');
+    }
+
+    $results = [];
+    foreach ($event_ids as $eid) {
+        $eid = intval($eid);
+        if ($eid <= 0) continue;
+        try {
+            // งานต้องเป็นของหน่วยงานนี้ และเช็คชีตเดียวกับที่เลือก
+            $stmt = $connect->prepare("SELECT id FROM pm_plan_events WHERE id = ? AND ag_id = ? AND checksheet_id = ?");
+            $cs = (string)$checksheet_id;
+            $stmt->bind_param('iss', $eid, $ag_id, $cs);
+            $stmt->execute();
+            $ok = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$ok) throw new Exception('ไม่พบงานนี้ในหน่วยงาน หรือเป็นคนละเช็คชีต');
+
+            $mine = isset($per_event[(string)$eid]) && is_array($per_event[(string)$eid]) ? $per_event[(string)$eid] : [];
+            $values = isset($mine['values']) && is_array($mine['values']) ? $mine['values'] : [];
+            $submitted = [];
+            $photos = [];
+            foreach ($common_items as $ci) {
+                $iid = intval($ci['item_id'] ?? 0);
+                if ($iid <= 0) continue;
+                $submitted[] = [
+                    'item_id' => $iid,
+                    'status' => (string)$ci['status'],
+                    'value' => isset($values[(string)$iid]) ? trim((string)$values[(string)$iid]) : trim((string)($ci['value'] ?? '')),
+                ];
+                $pk = 'photo_' . $eid . '_' . $iid;
+                if (isset($_POST[$pk]) && $_POST[$pk] !== '') $photos[$iid] = $clean($_POST[$pk]);
+            }
+
+            mysqli_begin_transaction($connect);
+            $wid = pmws_save_event($connect, $eid, $inspector_name, $inspector_users, '', $remarks, $created_by, $submitted, [], $photos, $signature_path);
+            mysqli_commit($connect);
+            $results[] = ['event_id' => $eid, 'success' => true, 'work_record_id' => $wid];
+        } catch (Exception $e) {
+            @mysqli_rollback($connect);
+            $results[] = ['event_id' => $eid, 'success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    echo json_encode(['success' => true, 'results' => $results, 'signature_path' => $signature_path], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 // =========================================
 // ACTION: บันทึกข้อมูลการประเมิน (ส่วนผู้ประเมิน)
 // =========================================

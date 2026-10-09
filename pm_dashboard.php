@@ -249,6 +249,15 @@ include "config_ctrl/checksession.php";
         }
         .sidebar-overlay.active { display: block; }
     }
+    /* ปุ่ม +N (งานที่เหลือของวัน) ตีกรอบเป็นชิปเต็มความกว้างช่อง ให้เห็นชัดว่ากดได้ */
+    #pm-calendar .fc-daygrid-more-link {
+        display: block; float: none !important; box-sizing: border-box; width: calc(100% - 6px); margin: 2px 3px 0; padding: 1px 6px;
+        border: 1px solid #bae6fd; background: #f0f9ff; color: #0369a1;
+        border-radius: 6px; font-size: 12px; font-weight: 600; line-height: 1.5; text-align: center;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, border-color .15s;
+    }
+    #pm-calendar .fc-daygrid-more-link:hover { background: #e0f2fe; border-color: #7dd3fc; text-decoration: none; }
+    #pm-calendar .fc-daygrid-day-bottom { margin-top: 0 !important; }
     /* popup รายละเอียดงาน PM */
     .pm-dt-body { margin: 1.25rem 1rem 0 !important; padding: 0 !important; }
     .pm-dt-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .6rem; border-radius: 9999px; border: 1px solid; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
@@ -961,7 +970,131 @@ include "config_ctrl/checksession.php";
     // Popup รายละเอียดงาน PM (คลิก event ในปฏิทิน): แสดงข้อมูลจาก event ทันที แล้วโหลดรายละเอียดเพิ่ม
     // (สิ่งที่ต้องเตรียม / ทำครั้งล่าสุด / ประวัติเลื่อน / ผลการทำงาน) จาก handle_pm_dashboard.php?action=get_event_detail
     // ==========================================
-    function openPmEventDetail(eventId, props, start) {
+    // ===== บันทึกพร้อมกันหลายเครื่อง (เช็คชีตเดียวกัน วันเดียวกัน) =====
+    function pmDayEvents(dateStr) {
+        return (window.calendar ? window.calendar.getEvents() : [])
+            .filter(ev => String(ev.id).startsWith('pm_') && moment(ev.start).format('YYYY-MM-DD') === dateStr);
+    }
+    function pmSameDayPending(csId, dateStr) {
+        if (!csId) return 0;
+        return pmDayEvents(dateStr).filter(ev => String(ev.extendedProps.checksheet_id) === String(csId) && ev.extendedProps.status != 1).length;
+    }
+    function openPmBatch(csId, dateStr) {
+        openPmFullWindow('pm_worksheet_batch.php?checksheet_id=' + encodeURIComponent(csId) + '&date=' + encodeURIComponent(dateStr));
+    }
+
+    // กด "+N" ในปฏิทิน: รายการงานของวันนั้น จัดกลุ่มตามเช็คชีต + ปุ่มบันทึกพร้อมกัน
+    function openPmDayPanel(dateStr) {
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const evs = pmDayEvents(dateStr);
+        const holidays = (window.calendar ? window.calendar.getEvents() : [])
+            .filter(ev => String(ev.id).startsWith('hol_') && moment(ev.start).format('YYYY-MM-DD') === dateStr).map(ev => ev.title);
+        const groups = {};
+        evs.forEach(ev => {
+            const p = ev.extendedProps, k = String(p.checksheet_id || p.checksheet || '-');
+            (groups[k] = groups[k] || { id: p.checksheet_id, name: p.checksheet || 'ไม่ระบุเช็คชีต', list: [] }).list.push(ev);
+        });
+        const arr = Object.values(groups).map(g => ({ ...g, pending: g.list.filter(e => e.extendedProps.status != 1).length }))
+            .sort((a, b) => b.pending - a.pending || a.name.localeCompare(b.name, 'th'));
+        const pendingAll = arr.reduce((s, g) => s + g.pending, 0);
+        const html = `
+            <div class="text-left">
+                <div class="text-sm text-slate-500 mb-3">งาน PM ${evs.length} งาน · ยังไม่ทำ <b class="text-[#006B9F]">${pendingAll}</b> · ทำแล้ว <b class="text-emerald-600">${evs.length - pendingAll}</b></div>
+                ${holidays.length ? `<div class="mb-3 flex flex-wrap gap-1.5">${holidays.map(h => `<span class="pm-dt-chip bg-red-50 text-red-700 border-red-200"><i class="fas fa-calendar-times"></i> ${esc(h)}</span>`).join('')}</div>` : ''}
+                <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+                ${arr.map((g, gi) => `
+                    <div class="border border-slate-200 rounded-xl p-3">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="flex-1 min-w-[10rem]">
+                                <div class="font-semibold text-slate-800 text-sm">${esc(g.name)}</div>
+                                <div class="text-xs text-slate-500 mt-0.5">${g.list.length} เครื่อง · ยังไม่ทำ <b class="${g.pending ? 'text-[#006B9F]' : ''}">${g.pending}</b>${g.list.length - g.pending ? ` · ทำแล้ว <b class="text-emerald-600">${g.list.length - g.pending}</b>` : ''}</div>
+                            </div>
+                            ${g.pending >= 2 && g.id ? `<button type="button" data-batch="${esc(g.id)}" class="px-3 py-2 rounded-lg bg-[#006B9F] hover:bg-[#005a87] text-white text-xs font-semibold inline-flex items-center gap-1.5"><i class="fas fa-layer-group"></i> บันทึกพร้อมกัน ${g.pending} เครื่อง</button>` : ''}
+                            ${g.list.length === 1
+                                ? (() => { const ev = g.list[0], d = ev.extendedProps.status == 1; return `<button type="button" data-open="${esc(String(ev.id).replace('pm_', ''))}" data-done="${d ? 1 : 0}" class="px-3 py-2 rounded-lg ${d ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-sky-600 hover:bg-sky-700'} text-white text-xs font-semibold inline-flex items-center gap-1.5"><i class="fas ${d ? 'fa-search' : 'fa-external-link-alt'}"></i> ${d ? 'ดูประวัติ' : 'เปิดใบงาน'}</button>`; })()
+                                : `<button type="button" data-toggle="${gi}" class="px-3 py-2 rounded-lg border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 inline-flex items-center gap-1.5">รายเครื่อง <i class="fas fa-chevron-down text-[10px]"></i></button>`}
+                        </div>
+                        <div data-list="${gi}" class="hidden mt-2.5 grid gap-1.5 sm:grid-cols-2 max-h-64 overflow-y-auto"></div>
+                    </div>`).join('') || '<div class="text-center text-slate-400 py-6 text-sm">ไม่มีงาน PM ในวันนี้</div>'}
+                </div>
+            </div>`;
+        Swal.fire({
+            title: `<span class="text-lg font-bold text-slate-800">งาน PM วันที่ ${new Date(dateStr + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</span>`,
+            html, width: '40rem', showConfirmButton: false, showCloseButton: true,
+            customClass: { popup: 'rounded-3xl border-none shadow-2xl' },
+            didOpen: (popup) => {
+                popup.addEventListener('click', e => {
+                    const b = e.target.closest('[data-batch]');
+                    if (b) { Swal.close(); openPmBatch(b.dataset.batch, dateStr); return; }
+                    const op = e.target.closest('[data-open]');
+                    if (op) { Swal.close(); openPmFullWindow('pm_worksheet.php?plan_id=' + encodeURIComponent(op.dataset.open) + (op.dataset.done === '1' ? '&mode=history' : '')); return; }
+                    const tg = e.target.closest('[data-toggle]');
+                    if (tg) {
+                        const box = popup.querySelector(`[data-list="${tg.dataset.toggle}"]`);
+                        if (!box.dataset.ready) {   // สร้างรายการเมื่อเปิดดู (กลุ่มหนึ่งอาจมีหลายร้อยเครื่อง)
+                            box.innerHTML = arr[+tg.dataset.toggle].list.map(ev => {
+                                const d = ev.extendedProps.status == 1;
+                                return `<button type="button" data-ev="${esc(String(ev.id).replace('pm_', ''))}" class="text-left px-2.5 py-1.5 rounded-lg border ${d ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200'} hover:bg-sky-50 text-xs flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full flex-none ${d ? 'bg-emerald-500' : 'bg-[#006B9F]'}"></span><span class="truncate">${esc(ev.extendedProps.machine || ev.title)}</span></button>`;
+                            }).join('');
+                            box.dataset.ready = '1';
+                        }
+                        box.classList.toggle('hidden');
+                        return;
+                    }
+                    const one = e.target.closest('[data-ev]');
+                    if (one) {
+                        const ev = window.calendar.getEventById('pm_' + one.dataset.ev);
+                        if (ev) openPmEventDetail(one.dataset.ev, ev.extendedProps, ev.start, { back: () => openPmDayPanel(dateStr) });
+                    }
+                });
+            }
+        });
+    }
+
+    // กดอีเว้นท์ที่ยังไม่ทำ และวันนั้นมีเครื่องอื่นในเช็คชีตเดียวกันที่ยังไม่ทำ => ถามก่อน: บันทึกพร้อมกันหลายเครื่อง / รายเครื่อง
+    function openPmEventChooser(eventId, props, start) {
+        const dateStr = moment(start).format('YYYY-MM-DD');
+        const same = props.status == 1 ? 0 : pmSameDayPending(props.checksheet_id, dateStr);
+        if (same < 2) { openPmEventDetail(eventId, props, start); return; }
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const dTh = new Date(dateStr + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+        const card = (act, icon, color, title, desc) => `
+            <button type="button" data-choose="${act}" class="w-full text-left p-4 rounded-2xl border-2 border-slate-200 hover:border-${color}-400 hover:bg-${color}-50/60 transition-all flex items-center gap-3.5 group">
+                <span class="w-11 h-11 shrink-0 rounded-xl bg-${color}-100 text-${color}-600 flex items-center justify-center text-lg"><i class="${icon}"></i></span>
+                <span class="flex-1 min-w-0">
+                    <span class="block font-semibold text-slate-800">${title}</span>
+                    <span class="block text-xs text-slate-500 mt-0.5">${desc}</span>
+                </span>
+                <i class="fas fa-chevron-right text-slate-300 group-hover:text-${color}-500"></i>
+            </button>`;
+        Swal.fire({
+            html: `
+                <div class="text-left">
+                    <div class="text-lg font-bold text-slate-800 pr-8">${esc(props.checksheet || 'งาน PM')}</div>
+                    <div class="text-sm text-slate-500 mt-0.5">วันที่ ${dTh} · มีงานเช็คชีตนี้ที่ยังไม่ทำ <b class="text-[#006B9F]">${same} เครื่อง</b></div>
+                    <div class="mt-4 space-y-2.5">
+                        ${card('batch', 'fas fa-layer-group', 'sky', `บันทึกพร้อมกันหลายเครื่อง (${same} เครื่อง)`, 'ผลตรวจปกติเหมือนกัน กรอกผล เลือกผู้ตรวจ และเซ็นครั้งเดียว')}
+                        ${card('one', 'fas fa-file-alt', 'emerald', 'รายเครื่อง', `ดูรายละเอียดและเปิดใบงานของ ${esc(props.machine || 'เครื่องนี้')}`)}
+                    </div>
+                </div>`,
+            width: '32rem', showConfirmButton: false, showCloseButton: true,
+            customClass: { popup: 'rounded-3xl border-none shadow-2xl' },
+            didOpen: (popup) => {
+                popup.addEventListener('click', e => {
+                    const b = e.target.closest('[data-choose]');
+                    if (!b) return;
+                    Swal.close();
+                    if (b.dataset.choose === 'batch') openPmBatch(props.checksheet_id, dateStr);
+                    else openPmEventDetail(eventId, props, start, { back: () => openPmEventChooser(eventId, props, start) });
+                });
+            }
+        });
+    }
+
+    // opts.back = ฟังก์ชันของปุ่ม "ย้อนกลับ" (กลับไปป๊อปอัปก่อนหน้า)
+    function openPmEventDetail(eventId, props, start, opts) {
+        opts = opts || {};
         const token = openPmEventDetail.token = {};   // กันผลของ popup ก่อนหน้ามาเขียนทับ popup ใหม่
         const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         const fmt = d => d ? moment(d).format('DD/MM/YYYY') : '-';
@@ -1084,6 +1217,8 @@ include "config_ctrl/checksession.php";
             width: '34rem',
             showCloseButton: true,
             showCancelButton: true,
+            showDenyButton: !!opts.back,
+            denyButtonText: '<i class="fas fa-arrow-left mr-2"></i> ย้อนกลับ',
             confirmButtonText: done ? '<i class="fas fa-search mr-2"></i> ดูประวัติ' : '<i class="fas fa-external-link-alt mr-2"></i> เปิดใบงาน',
             cancelButtonText: 'ปิด',
             reverseButtons: true,
@@ -1091,12 +1226,15 @@ include "config_ctrl/checksession.php";
             customClass: {
                 confirmButton: (done ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100' : 'bg-sky-600 hover:bg-sky-700 shadow-sky-100') + ' text-white px-6 py-2.5 rounded-lg font-semibold text-sm mx-1.5 shadow-lg transition-all',
                 cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-2.5 rounded-lg font-semibold text-sm mx-1.5 transition-all',
+                denyButton: 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-5 py-2.5 rounded-lg font-semibold text-sm mx-1.5 transition-all',
+                actions: 'flex-wrap gap-y-2',
                 popup: 'rounded-3xl border-none shadow-2xl',
                 htmlContainer: 'pm-dt-body'
             },
             showClass: { popup: 'animate__animated animate__fadeInUp animate__faster' },
             hideClass: { popup: 'animate__animated animate__fadeOutDown animate__faster' }
         }).then(result => {
+            if (result.isDenied) { opts.back(); return; }
             if (!result.isConfirmed) return;
             openPmFullWindow('pm_worksheet.php?plan_id=' + encodeURIComponent(eventId) + (done ? '&mode=history' : ''));
         });
@@ -1122,8 +1260,11 @@ include "config_ctrl/checksession.php";
             window.calendar = new FullCalendar.Calendar(calendarEl, {
                 // มือถือ: เริ่มที่มุมมองกำหนดการ (รายการ) อ่านง่ายกว่าตารางเดือน
                 initialView: isMobile ? 'listMonth' : 'dayGridMonth',
-                dayMaxEvents: isMobile ? 2 : false,
+                dayMaxEvents: isMobile ? 2 : true,   // จอใหญ่: แสดงเท่าที่ช่องพอ ที่เหลือเป็น +N (บางวันมีหลายร้อยงาน)
                 allDayText: 'ทั้งวัน',
+                // กด +N: รายการงานของวันแบบจัดกลุ่มตามเช็คชีต พร้อมปุ่มบันทึกพร้อมกัน (แทนกล่องรายการเดิม)
+                //  คืนชื่อมุมมองปัจจุบัน = ไม่ต้องเปิดกล่องรายการเดิมของปฏิทินซ้อนอีกอัน
+                moreLinkClick: info => { openPmDayPanel(moment(info.date).format('YYYY-MM-DD')); return info.view.type; },
                 moreLinkText: n => '+' + n,
                 locale: 'th',
                 height: '100%',
@@ -1161,7 +1302,7 @@ include "config_ctrl/checksession.php";
                     // 1. กรณีคลิกที่ "แผนงาน PM" (ID ขึ้นต้นด้วย pm_)
                     // ==========================================
                     if (eventId && eventId.startsWith('pm_')) {
-                        openPmEventDetail(eventId.replace('pm_', ''), props, info.event.start);
+                        openPmEventChooser(eventId.replace('pm_', ''), props, info.event.start);
                     }
 
                     // ==========================================
