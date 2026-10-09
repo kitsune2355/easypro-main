@@ -3024,7 +3024,7 @@ async function loadActionDropdowns() {
         if (status) {
             model.status = {
                 filterType: 'set',
-                values: [status]
+                values: status.split(',').map(v => v.trim()).filter(Boolean)
             };
         }
 
@@ -4174,6 +4174,7 @@ const MobileList = (() => {
   const PAGE = 15;
   const CHIPS = [
     { key: '',           label: 'ทั้งหมด' },
+    { key: 'pending,inprogress', label: 'งานค้าง' },
     { key: 'pending',    label: 'รอดำเนินการ' },
     { key: 'inprogress', label: 'กำลังดำเนินการ' },
     { key: 'completed',  label: 'เสร็จสิ้น' },
@@ -4181,7 +4182,9 @@ const MobileList = (() => {
     { key: 'cancel',     label: 'ยกเลิก' }
   ];
   const isMobile = () => window.innerWidth < 768;
-  let status = '', rows = [], total = 0, loading = false, reqId = 0, loaded = false, observer = null;
+  // เริ่มต้นตามสถานะที่ส่งมาจาก Dashboard (เช่น งานค้าง = pending,inprogress)
+  const urlStatus = (typeof getDashboardFilterParam === 'function' && getDashboardFilterParam('status')) || '';
+  let status = CHIPS.some(c => c.key === urlStatus) ? urlStatus : '', rows = [], total = 0, loading = false, reqId = 0, loaded = false, observer = null;
   const $ = id => document.getElementById(id);
 
   function renderChips() {
@@ -4259,7 +4262,7 @@ const MobileList = (() => {
       url.searchParams.set('startRow', rows.length);
       url.searchParams.set('endRow', rows.length + PAGE);
       url.searchParams.set('search', document.getElementById('grid-search')?.value || '');
-      url.searchParams.set('filterModel', JSON.stringify(status ? { status: { filterType: 'set', values: [status] } } : {}));
+      url.searchParams.set('filterModel', JSON.stringify(status ? { status: { filterType: 'set', values: status.split(',') } } : {}));
       const res = await (await fetch(url)).json();
       if (my !== reqId) return;   // มีการค้นหา/เปลี่ยนตัวกรองใหม่ระหว่างโหลด
       const start = rows.length;

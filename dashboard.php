@@ -51,7 +51,8 @@ include "config_ctrl/checksession.php";
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
         }
 
-        .kpi-card {
+        #backlogAlert.hidden-backlog { display: none; }
+    .kpi-card {
             background: white;
             border-radius: 1rem;
             padding: 1.5rem;
@@ -272,6 +273,19 @@ include "config_ctrl/checksession.php";
 
     <main class="max-w-full mx-auto px-3 sm:px-6 pb-12">
         
+        <!-- เตือนงานค้างที่แจ้งก่อนช่วงวันที่ที่กรอง (กันงานตกหล่นข้ามเดือน) -->
+        <div id="backlogAlert" class="hidden-backlog mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div class="flex items-start gap-3 flex-1 min-w-0">
+                <div class="w-9 h-9 shrink-0 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center"><i data-lucide="alarm-clock" class="w-5 h-5"></i></div>
+                <div class="min-w-0">
+                    <p class="text-sm font-bold text-amber-800">มีงานค้างจากก่อนช่วงที่เลือก <span id="backlogCount">0</span> รายการ</p>
+                    <p class="text-xs text-amber-700/80">ยังไม่ปิดงาน · เก่าสุดแจ้งเมื่อ <span id="backlogOldest">-</span> (<span id="backlogAge">0</span> วันที่แล้ว)</p>
+                </div>
+            </div>
+            <button type="button" onclick="goToMaintenanceInfo('pending,inprogress', true)" class="shrink-0 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold transition-colors">
+                ดูรายการ <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </button>
+        </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('')" title="คลิกเพื่อดูรายการ">
                 <div id="loader-stat-1" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
@@ -287,13 +301,13 @@ include "config_ctrl/checksession.php";
                 </div>
             </div>
             
-            <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('pending')" title="คลิกเพื่อดูรายการ">
+            <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('pending', true)" title="คลิกเพื่อดูรายการ">
                 <div id="loader-stat-2" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
                 <div class="flex justify-between items-center">
                     <div>
                         <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">รอดำเนินการ</p>
                         <h3 id="stat-pending" class="text-4xl font-black text-amber-500 tracking-tight">0</h3>
-                        <p class="text-xs text-slate-400 mt-2">รายการค้าง</p>
+                        <p id="stat-pending-note" class="text-xs text-slate-400 mt-2">ค้างทั้งหมด · ไม่จำกัดช่วงเวลา</p>
                     </div>
                     <div class="kpi-icon-wrapper bg-amber-50 text-amber-500 group-hover:bg-amber-500 group-hover:text-white transition-colors duration-300">
                         <i data-lucide="clock" class="w-6 h-6"></i>
@@ -301,13 +315,13 @@ include "config_ctrl/checksession.php";
                 </div>
             </div>
 
-            <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('inprogress')" title="คลิกเพื่อดูรายการ">
+            <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('inprogress', true)" title="คลิกเพื่อดูรายการ">
                 <div id="loader-stat-3" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
                 <div class="flex justify-between items-center">
                     <div>
                         <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">กำลังดำเนินการ</p>
                         <h3 id="stat-doing" class="text-4xl font-black text-sky-500 tracking-tight">0</h3>
-                        <p class="text-xs text-slate-400 mt-2">กำลังซ่อม</p>
+                        <p class="text-xs text-slate-400 mt-2">ทั้งหมด · ไม่จำกัดช่วงเวลา</p>
                     </div>
                     <div class="kpi-icon-wrapper bg-sky-50 text-sky-500 group-hover:bg-sky-500 group-hover:text-white transition-colors duration-300">
                         <i data-lucide="hammer" class="w-6 h-6"></i>
@@ -527,8 +541,27 @@ include "config_ctrl/checksession.php";
 
     const formatNum = (num) => new Intl.NumberFormat().format(num);
 
+    // แถบเตือน: งานที่ยังไม่ปิดแต่แจ้งก่อนช่วงวันที่ที่กรอง
+    function renderBacklogAlert(b) {
+        const el = document.getElementById('backlogAlert');
+        if (!el) return;
+        const n = b ? Number(b.before_range || 0) : 0;
+        el.classList.toggle('hidden-backlog', n === 0);
+                if (!n) return;
+        const m = moment(b.oldest_date);
+        $('#backlogCount').text(formatNum(n));
+        $('#backlogOldest').text(m.isValid() ? m.format('DD/MM/') + (m.year() + 543) : '-');
+        $('#backlogAge').text(m.isValid() ? Math.max(0, moment().startOf('day').diff(m, 'days')) : 0);
+        if (window.lucide) lucide.createIcons();
+    }
+
     // ✅ กดที่การ์ด KPI แล้วไปหน้า maintenance_info พร้อม filter ช่วงวันที่ + สถานะ
-    function goToMaintenanceInfo(status) {
+    function goToMaintenanceInfo(status, allDates) {
+        if (allDates) {
+            // งานค้าง: ไม่จำกัดช่วงวันที่ เพื่อให้เห็นงานที่แจ้งก่อนช่วงที่กรองด้วย
+            window.location.href = 'maintenance_info.php?status=' + encodeURIComponent(status);
+            return;
+        }
         const type = $('#filterType').val();
         let s, e;
 
@@ -1288,8 +1321,11 @@ include "config_ctrl/checksession.php";
 
                 $('#stat-total').text(formatNum(data.reduce((s, i) => s + Number(i.repairs || 0), 0)));
                 $('#stat-completed').text(formatNum(data.reduce((s, i) => s + Number(i.completed || 0), 0)));
-                $('#stat-pending').text(formatNum(data.reduce((s, i) => s + Number(i.pending || 0), 0)));
-                $('#stat-doing').text(formatNum(data.reduce((s, i) => s + Number(i.inprogress || 0), 0)));
+                // งานค้าง/กำลังซ่อม = สถานะ ณ ปัจจุบัน ไม่ขึ้นกับช่วงวันที่ที่กรอง
+                const backlog = response.backlog || null;
+                $('#stat-pending').text(formatNum(backlog ? backlog.pending : data.reduce((s, i) => s + Number(i.pending || 0), 0)));
+                $('#stat-doing').text(formatNum(backlog ? backlog.inprogress : data.reduce((s, i) => s + Number(i.inprogress || 0), 0)));
+                renderBacklogAlert(backlog);
                 $('#stat-cancel').text(formatNum(data.reduce((s, i) => s + Number(i.canceled || 0), 0)));
 
                 const jobDates = data.map(i => {

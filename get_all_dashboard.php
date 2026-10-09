@@ -605,6 +605,41 @@ foreach ($dailyDates as $d) {
 }
 
 /* --------------------------
+   6.5) งานค้าง ณ ปัจจุบัน (ไม่ขึ้นกับช่วงวันที่ที่กรอง)
+        กันงานตกหล่นข้ามเดือน เช่น แจ้ง 31/01 แต่ดู dashboard วันที่ 01/02
+-------------------------- */
+$backlog = array("pending" => 0, "inprogress" => 0, "before_range" => 0, "oldest_date" => null);
+if ($ag_id) {
+    $sql = "
+		SELECT SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_all,
+			   SUM(CASE WHEN status = 'inprogress' THEN 1 ELSE 0 END) AS inprogress_all,
+			   SUM(CASE WHEN created_at < ? THEN 1 ELSE 0 END) AS before_range,
+			   MIN(CASE WHEN created_at < ? THEN created_at END) AS oldest_before
+		FROM repair_requests
+		WHERE ag_id = ?
+		  AND status IN ('pending', 'inprogress')
+		  $buildingFilterSQL
+	";
+    $stmt = $connect->prepare($sql);
+    if ($buildingParam !== null) {
+        $stmt->bind_param("ssss", $startDT, $startDT, $ag_id, $buildingParam);
+    } else {
+        $stmt->bind_param("sss", $startDT, $startDT, $ag_id);
+    }
+    $stmt->execute();
+    $row = fetch_one_assoc($stmt);
+    $stmt->close();
+    if ($row) {
+        $backlog = array(
+            "pending" => (int)$row['pending_all'],
+            "inprogress" => (int)$row['inprogress_all'],
+            "before_range" => (int)$row['before_range'],
+            "oldest_date" => $row['oldest_before'] ? date('Y-m-d', strtotime($row['oldest_before'])) : null
+        );
+    }
+}
+
+/* --------------------------
    7) Output (same structure)
 -------------------------- */
 $dailyData = array();
@@ -614,6 +649,7 @@ foreach ($dailyDates as $d) {
 
 $response = array(
     "data" => $dailyData,
+    "backlog" => $backlog,
     "summary" => array(
         "sum_tou_total" => round($sum_tou_total, 2),
         "sum_tou_on_peak" => round($sum_tou_on_peak, 2),
