@@ -25,6 +25,9 @@ if (!$manualVer) $manualVer = time();
     <title>คู่มือการใช้งาน</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- ส่งออก PDF: วาดเนื้อหาเป็นภาพ (html2canvas) แล้วรวมเป็นไฟล์ (jsPDF) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -86,7 +89,27 @@ if (!$manualVer) $manualVer = time();
         .wide .part-grid > ol { margin-top: 0; }
         .fade-in { animation: fade .25s ease; }
         @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-        .scroll-thin::-webkit-scrollbar { width: 6px; } .scroll-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9px; }
+
+        /* ===== ส่งออก PDF: เนื้อหาถูกวาดใน #printArea (นอกจอ กว้างคงที่ = ความกว้างหน้า A4) แล้วแปลงเป็นภาพ ===== */
+        #printArea { position: absolute; left: -12000px; top: 0; width: 760px; padding-bottom: 28px; background: #fff; color: #1c2b36; font-size: 15px; }
+        /* html2canvas จัดกึ่งกลางแนวตั้งด้วย flex ได้ไม่ตรง => ตัวเลขในวงกลมใช้ line-height แทน */
+        #printArea .pin, #printArea .step-no { display: block !important; text-align: center; padding: 0; }
+        #printArea .pin, #printArea .step-no { font-family: Arial, Helvetica, sans-serif; }   /* ตัวเลขล้วน: ฟอนต์ Prompt ทำให้ html2canvas วางตัวเลขต่ำกว่ากึ่งกลาง */
+        #printArea .pin { line-height: 22px; }
+        #printArea .step-no { line-height: 22px; flex: none; }
+        #printArea:empty { display: none; }
+        #printArea .pp-part { margin-top: 22px; }
+        #printArea .pp-fig { margin: 10px 0; }
+        #printArea .pp-fig .shot { box-shadow: none; cursor: default; }
+        #printArea .pp-fig.pp-mobile .shot { max-width: 240px; }
+        #printArea .pp-fig .pin { width: 22px; height: 22px; font-size: 12px; box-shadow: 0 0 0 2px #fff; transform: translate(-35%, -35%); }
+        #printArea .pp-fig .pin-box { display: none; }
+        #printArea .pp-steps .step-no { width: 22px; height: 22px; font-size: 12px; }
+        #printArea details > summary { list-style: none; }
+        #printArea details > summary svg { display: none; }
+        #printArea .pp-ref { color: #0369a1; font-size: 13px; font-weight: 500; }
+        #pdfModal { position: fixed; inset: 0; z-index: 60; background: rgba(15, 23, 42, .55); display: none; align-items: center; justify-content: center; padding: 1rem; }
+        #pdfModal.open { display: flex; }        .scroll-thin::-webkit-scrollbar { width: 6px; } .scroll-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9px; }
     </style>
 </head>
 <body class="flex flex-col overflow-hidden">
@@ -99,6 +122,9 @@ if (!$manualVer) $manualVer = time();
         <h1 class="text-base sm:text-lg font-bold leading-tight truncate">คู่มือการใช้งาน</h1>
         <p class="text-[11px] sm:text-xs text-slate-500 truncate">เรียนรู้ทีละบท พร้อมภาพหน้าจอจริงของระบบ</p>
     </div>
+    <button type="button" id="pdfBtn" title="ดาวน์โหลดคู่มือทั้งหมดเป็น PDF" class="flex-none inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-medium text-slate-700 hover:bg-emerald-50 hover:border-emerald-300">
+        <i data-lucide="file-down" class="w-4 h-4 text-emerald-700"></i><span class="hidden md:inline">ดาวน์โหลด PDF</span>
+    </button>
     <a href="#faq" id="faqBtn" title="คำถามที่พบบ่อย" class="flex-none inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm font-medium text-slate-700 hover:bg-sky-50 hover:border-sky-300">
         <i data-lucide="circle-help" class="w-4 h-4 text-sky-700"></i><span class="hidden md:inline">คำถามที่พบบ่อย</span>
     </a>
@@ -134,6 +160,31 @@ if (!$manualVer) $manualVer = time();
 
 <div id="zoom" role="dialog" aria-label="ภาพขยาย"></div>
 
+<!-- ส่งออก PDF: กล่องแนะนำ + พื้นที่สำหรับพิมพ์ (แสดงเฉพาะตอนพิมพ์) -->
+<div id="pdfModal" role="dialog" aria-label="ดาวน์โหลด PDF">
+    <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl p-5">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center flex-none"><i data-lucide="file-down" class="w-5 h-5"></i></div>
+            <div class="min-w-0">
+                <h2 class="font-bold text-slate-800">ดาวน์โหลดคู่มือเป็น PDF</h2>
+                <p id="pdfInfo" class="text-[13px] text-slate-500">รวมทุกบทในไฟล์เดียว</p>
+            </div>
+        </div>
+        <p class="mt-4 text-[14px] text-slate-600">ระบบจะสร้างไฟล์ PDF แล้วดาวน์โหลดลงเครื่องให้อัตโนมัติ (ใช้เวลาประมาณครึ่งนาที)</p>
+        <div id="pdfProgress" class="hidden mt-4">
+            <div class="flex items-center justify-between text-[13px] text-slate-600 mb-1.5"><span id="pdfStep">กำลังเตรียม...</span><span id="pdfPct">0%</span></div>
+            <div class="h-2 rounded-full bg-slate-100 overflow-hidden"><div id="pdfBar" class="h-full bg-emerald-500 transition-all" style="width:0"></div></div>
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+            <button type="button" id="pdfCancel" class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">ยกเลิก</button>
+            <button type="button" id="pdfGo" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-semibold disabled:opacity-60">
+                <i data-lucide="download" class="w-4 h-4"></i><span>ดาวน์โหลด PDF</span>
+            </button>
+        </div>
+    </div>
+</div>
+<div id="printArea"></div>
+
 <script>
 const PERMS = <?php echo json_encode($manualPerms); ?>;
 const LEVEL = <?php echo json_encode($manualLevel); ?>;
@@ -154,7 +205,7 @@ const MODULES = [
         id: 'main', title: 'รู้จักหน้าจอหลัก', perm: null,
         intro: 'หน้าจอของระบบแบ่งเป็น 2 ส่วน คือ <b>เมนูด้านซ้าย</b> สำหรับเลือกงาน และ <b>พื้นที่ทำงานด้านขวา</b> ที่จะเปลี่ยนไปตามเมนูที่เลือก',
         parts: [{ shot: 'main', steps: [
-            { m: 1, t: '<b>เมนูหลัก</b> — กดเพื่อเปิดหน้าการทำงาน เมนูที่เห็นจะขึ้นกับสิทธิ์ของแต่ละคน ถ้าไม่เห็นเมนูที่ต้องใช้ ให้ติดต่อผู้ดูแลระบบ' },
+            { m: 1, t: '<b>เมนูหลัก</b> — กดเพื่อเปิดหน้าการทำงาน เมนูที่เห็นจะขึ้นกับสิทธิ์ของแต่ละคน ถ้าไม่เห็นเมนูที่ต้องใช้ ให้ติดต่อผู้ดูแลระบบ (ทุกคนมีเมนู <b>ตั้งค่าการแสดงผล</b> และ <b>คู่มือการใช้งาน</b>)' },
             { m: 2, t: '<b>ย่อ / ขยายเมนู</b> — ย่อเมนูให้เหลือแต่ไอคอน เพื่อให้พื้นที่ทำงานกว้างขึ้น บนมือถือให้กดปุ่ม <span class="kbd">☰</span> มุมซ้ายบนเพื่อเปิดเมนู' },
             { m: 3, t: '<b>หน่วยงาน</b> — ชื่อหน่วยงาน/โครงการที่กำลังใช้งาน ข้อมูลทุกหน้าจะเป็นของหน่วยงานนี้' },
             { m: 4, t: '<b>ชื่อผู้ใช้</b> — ชื่อบัญชีที่เข้าสู่ระบบอยู่' },
@@ -182,6 +233,18 @@ const MODULES = [
             { m: 2, t: 'กดไอคอน QR ของบัญชีที่ใช้สำหรับแจ้งซ่อม จะเปิดหน้า QR ในแท็บใหม่ — สั่งพิมพ์ (Ctrl+P) แล้วติดไว้ตามจุดที่ต้องการ' }
         ] }],
         tips: ['QR หนึ่งอันผูกกับบัญชีเดียว ใครสแกนก็เข้าระบบในชื่อบัญชีนั้น — สร้าง QR จากบัญชีที่ตั้งไว้สำหรับแจ้งซ่อมเท่านั้น ห้ามใช้บัญชีผู้ดูแลระบบหรือบัญชีช่าง', 'ใส่ชื่อและเบอร์โทรของคุณในฟอร์มทุกครั้ง เพื่อให้ช่างติดต่อกลับได้ เพราะชื่อบัญชีเป็นชื่อกลาง']
+    },
+    {
+        id: 'display_settings', title: 'ปรับขนาดตัวอักษร', perm: null, href: 'display_settings.php',
+        intro: 'ตัวอักษรเล็กหรือใหญ่เกินไป ปรับได้ที่เมนู <b>ตั้งค่าการแสดงผล</b> — มีผลทันทีกับทุกหน้าในโปรแกรม ทั้งเมนูด้านซ้าย แถบด้านบน และใบงาน PM',
+        parts: [{ shot: 'display_settings', steps: [
+            { m: 1, t: 'เปิดเมนู <b>ตั้งค่าการแสดงผล</b> ที่แถบด้านซ้าย (ทุกคนใช้ได้)' },
+            { m: 2, t: '<b>แถบเลื่อน</b> — ปรับได้ตั้งแต่ 80% ถึง 150% (ทีละ 5%) ระหว่างเลื่อนดูผลได้ที่กล่องตัวอย่าง <b>ปล่อยแล้วทั้งโปรแกรมขยายตามทันที</b> ไม่ต้องบันทึก — ปุ่ม <span class="kbd">ก-</span> <span class="kbd">ก+</span> ปรับทีละ 5%' },
+            { m: 3, t: '<b>ขนาดที่ใช้บ่อย</b> — กดเลือกเร็ว: เล็ก 90% / ปกติ 100% / ใหญ่ 115% / ใหญ่มาก 130%' },
+            { m: 5, t: '<b>ตัวอย่าง</b> — ดูความอ่านง่ายของข้อความก่อนใช้งานจริง' },
+            { m: 4, t: '<span class="kbd">กลับเป็นค่าเริ่มต้น</span> — กลับไปขนาดปกติ 100%' }
+        ] }],
+        tips: ['ค่าที่เลือกจำไว้ใน<b>เบราว์เซอร์ของเครื่องนั้น</b> — เปิดครั้งหน้ายังเป็นขนาดเดิม แต่ถ้าใช้เครื่องอื่นต้องเลือกใหม่', 'ขนาดใหญ่จะเห็นข้อมูลต่อหน้าจอน้อยลง ตารางบางหน้าอาจต้องเลื่อนมากขึ้น']
     },
     {
         id: 'dashboard', title: 'หน้าหลัก (Dashboard)', perm: null, href: 'dashboard.php',
@@ -671,6 +734,7 @@ const FAQ = [
     ['ทั่วไป', 'ไม่เห็นเมนูที่ต้องใช้', 'เมนูแสดงตามสิทธิ์ของบัญชี ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์', 'main'],
     ['ทั่วไป', 'ลืมรหัสผ่าน / ต้องการเปลี่ยนรหัสผ่าน', 'ติดต่อผู้ดูแลระบบให้ตั้งรหัสผ่านใหม่ (ปุ่มรูปกุญแจในหน้าตั้งค่าผู้ใช้งาน)', 'settings'],
     ['ทั่วไป', 'บนมือถือหาเมนูไม่เจอ', 'กดปุ่ม ☰ มุมซ้ายบนของจอ', 'main'],
+    ['ทั่วไป', 'ตัวอักษรเล็ก (หรือใหญ่) เกินไป', 'เลือกขนาดตัวอักษรที่เมนู "ตั้งค่าการแสดงผล" มีผลทันทีกับทุกหน้า และจำไว้ในเครื่องนั้น', 'display_settings'],
     ['ทั่วไป', 'ข้อมูลไม่อัปเดต', 'กดปุ่มรีเฟรช/โหลดใหม่ของหน้านั้น หรือเลือกเมนูเดิมอีกครั้ง', null],
     ['ทั่วไป', 'ตัวเลขสีแดงบนกระดิ่งคืออะไร', 'จำนวนการแจ้งเตือนที่ยังไม่อ่าน กดกระดิ่งเพื่อดู หรือกด "อ่านทั้งหมด" ในหน้าการแจ้งเตือน', 'notifications'],
     ['ทั่วไป', 'ใช้บนมือถือได้ไหม', 'ได้ทุกเมนู หน้าจอปรับตามขนาดอัตโนมัติ และเข้าสู่ระบบด้วยการสแกน QR Code ได้', 'qr_login'],
@@ -1038,6 +1102,196 @@ function route() {
     updateProgress();
     content.scrollTop = 0;
 }
+// ============================================================
+// ส่งออก PDF: รวมทุกบทที่ผู้ใช้มีสิทธิ์ + คำถามที่พบบ่อย ในไฟล์เดียว (หน้าต่างพิมพ์ของเบราว์เซอร์ => บันทึกเป็น PDF)
+// ============================================================
+function printLessonHtml(l, no) {
+    const parts = (l.parts || []).filter(p => !p.roles || p.roles.includes(LEVEL)).map((p, pi) => `
+        <section class="pp-part">
+            ${p.title ? `<h3 class="text-[13pt] font-semibold text-slate-800">${p.title}</h3>` : ''}
+            <div class="pp-fig ${SHOTS[p.shot]?.mobile ? 'pp-mobile' : ''}">${shotHtml(p.shot, 'pp-' + l.id + '-' + pi).replace('loading="lazy"', 'loading="eager"')}</div>
+            <ol class="pp-steps space-y-1.5">
+                ${p.steps.map(st => `<li class="flex gap-2.5"><span class="step-no ${st.m ? '' : 'plain'}">${st.m || '•'}</span><div class="leading-relaxed text-slate-700">${st.t}</div></li>`).join('')}
+            </ol>
+        </section>`).join('');
+    const blocks = (l.blocks || []).map(b => `<div class="pp-keep mt-3 rounded-lg border border-slate-200 p-3"><div class="font-semibold">${b.title}</div><div class="text-slate-600 mt-0.5">${b.text}</div></div>`).join('');
+    const table = l.table ? `<div class="pp-keep mt-5"><h3 class="text-[12pt] font-semibold mb-1.5">${l.table.title}</h3>
+        <table class="w-full border-collapse text-[10.5pt]">${l.table.rows.map(r => `<tr><td class="border border-slate-200 px-2 py-1.5 w-[45mm] font-medium">${r[0]}</td><td class="border border-slate-200 px-2 py-1.5 text-slate-600">${r[1]}</td></tr>`).join('')}</table></div>` : '';
+    const tips = l.tips ? `<div class="pp-keep mt-5 rounded-lg bg-amber-50 border border-amber-200 p-3"><div class="font-semibold text-amber-800 mb-1">เคล็ดลับ</div>
+        <ul class="list-disc pl-5 space-y-0.5 text-amber-900">${l.tips.map(t => `<li>${t}</li>`).join('')}</ul></div>` : '';
+    return `<article class="pp-page">
+        <div class="text-[10pt] text-slate-500">${l.module.title} · บทที่ ${no}</div>
+        <h2 class="text-[18pt] font-bold text-slate-900 mt-1">${no}. ${l.title}</h2>
+        <p class="mt-2 text-slate-600 leading-relaxed">${l.intro}</p>
+        ${parts}${blocks}${table}${tips}
+    </article>`;
+}
+
+function coverHtml(pageOf) {
+    const dateTh = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+    const toc = modules.map(m => `<div class="mt-2.5"><div class="font-semibold text-slate-800">${m.title}</div>
+        <ol class="mt-0.5">${flat.filter(l => l.module.id === m.id).map(l => `<li class="flex gap-2 text-slate-600"><span class="w-7 text-right">${flat.indexOf(l) + 1}.</span><span class="flex-1">${l.title}</span><span class="w-10 text-right text-slate-400">${pageOf ? pageOf[l.id] : ''}</span></li>`).join('')}</ol></div>`).join('');
+    return `<section>
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-[#006b9f] text-white flex items-center justify-center"><i data-lucide="book-open-check" class="w-6 h-6"></i></div>
+            <div><div class="text-[28px] font-bold text-slate-900 leading-tight">คู่มือการใช้งาน EasyPro</div>
+            <div class="text-slate-500">ระบบแจ้งซ่อม บำรุงรักษา (PM) และข้อมูลอาคาร</div></div>
+        </div>
+        <div class="mt-2 text-[13px] text-slate-400">จัดทำเมื่อ ${dateTh} · ${flat.length} บท</div>
+        <h2 class="mt-6 text-[19px] font-bold text-slate-800 flex"><span class="flex-1">สารบัญ</span><span class="text-[12px] font-normal text-slate-400 self-end">หน้า</span></h2>
+        ${toc}
+        <div class="mt-3"><div class="font-semibold text-slate-800">ภาคผนวก</div><div class="flex text-slate-600 pl-9"><span class="flex-1">คำถามที่พบบ่อย</span><span class="w-10 text-right text-slate-400">${pageOf ? pageOf.faq : ''}</span></div></div>
+    </section>`;
+}
+const faqSectionHtml = () => `<section><h2 class="text-[24px] font-bold text-slate-900">คำถามที่พบบ่อย</h2><div class="mt-4">${faqListHtml('', true)}</div></section>`;
+
+// วาด HTML หนึ่งส่วนลง #printArea => {canvas, cuts (จุดที่ตัดหน้าได้, หน่วย px ของ canvas)}
+async function renderSection(html) {
+    const root = $('printArea');
+    root.innerHTML = html;
+    root.querySelectorAll('img').forEach(im => im.loading = 'eager');
+    // ลิงก์ "ดูบท" กดไม่ได้ใน PDF => เปลี่ยนเป็นเลขบทที่อ้างอิง
+    root.querySelectorAll('[data-nav]').forEach(b => {
+        const l = byId[b.dataset.nav];
+        const ref = document.createElement('div');
+        ref.className = 'pp-ref mt-1';
+        ref.textContent = l ? `→ ดูบทที่ ${flat.indexOf(l) + 1}: ${l.title}` : '';
+        b.replaceWith(ref);
+    });
+    // ตัวเลขในวงกลม (หมุด/ขั้นตอน) => SVG: html2canvas วางตัวอักษรในวงกลมได้ไม่ตรงกึ่งกลาง
+    root.querySelectorAll('.pin, .step-no').forEach(el => {
+        const t = el.textContent.trim(), plain = el.classList.contains('plain'), pin = el.classList.contains('pin');
+        const fill = plain ? '#e2e8f0' : '#f43f5e', ink = plain ? '#475569' : '#ffffff';
+        el.innerHTML = `<svg width="22" height="22" viewBox="0 0 22 22" style="display:block"><circle cx="11" cy="11" r="${pin ? 10 : 11}" fill="${fill}" ${pin ? 'stroke="#ffffff" stroke-width="2"' : ''}/><text x="11" y="15.2" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="${ink}">${t}</text></svg>`;
+        el.style.background = 'transparent'; el.style.boxShadow = 'none';
+    });
+    icons();
+    await Promise.all([...root.querySelectorAll('img')].map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const scale = 1.5;
+    const top = root.getBoundingClientRect().top;
+    // จุดตัดหน้า: ใต้บล็อก (ภาพ/ขั้นตอน/กล่อง/รายการ) หรือเหนือหัวข้อ (ไม่ให้หัวข้อค้างท้ายหน้าโดยไม่มีเนื้อหา)
+    const cuts = [
+        ...[...root.querySelectorAll('p, .pp-fig, .pp-steps > li, .pp-keep, details, ol > li, table tr')].map(el => el.getBoundingClientRect().bottom - top + 6),
+        ...[...root.querySelectorAll('h2, h3, .pp-part, section:not(.pp-part) > div')].map(el => el.getBoundingClientRect().top - top - 4)
+    ].filter(v => v > 0).map(v => Math.round(v * scale));
+    const canvas = await html2canvas(root, { scale, backgroundColor: '#ffffff', useCORS: true, logging: false, windowWidth: 1280 });
+    return { canvas, cuts };
+}
+
+const PDF = { w: 210, h: 297, mx: 12, mt: 12, mb: 16 };   // A4 (มม.)
+// แบ่ง canvas เป็นหน้า ๆ — ตัดที่ขอบบล็อกที่ใกล้ขอบล่างที่สุด (ไม่ตัดกลางภาพ/ขั้นตอน)
+function slicePages({ canvas, cuts }) {
+    const contentW = PDF.w - PDF.mx * 2, contentH = PDF.h - PDF.mt - PDF.mb;
+    const pageH = Math.floor(canvas.width * contentH / contentW);
+    const out = [];
+    for (let y = 0; y < canvas.height - 2;) {
+        let end = Math.min(canvas.height, y + pageH);
+        if (end < canvas.height) {
+            const best = cuts.filter(c => c > y + pageH * 0.35 && c <= end).sort((a, b) => b - a)[0];
+            if (best) end = best;
+        }
+        out.push([y, end]);
+        y = end;
+    }
+    return out;
+}
+function addSlices(pdf, canvas, slices, first) {
+    const contentW = PDF.w - PDF.mx * 2;
+    slices.forEach(([y0, y1], i) => {
+        if (!(first && i === 0)) pdf.addPage();
+        const c = document.createElement('canvas');
+        c.width = canvas.width; c.height = y1 - y0;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(canvas, 0, y0, canvas.width, y1 - y0, 0, 0, canvas.width, y1 - y0);
+        pdf.addImage(c.toDataURL('image/jpeg', 0.82), 'JPEG', PDF.mx, PDF.mt, contentW, (y1 - y0) * contentW / canvas.width, undefined, 'FAST');
+    });
+}
+
+let pdfBusy = false, pdfCancelled = false;
+async function exportPdf() {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const total = flat.length + 2;
+    const progress = (n, text) => {
+        const pct = Math.round(n / total * 100);
+        $('pdfStep').textContent = text; $('pdfPct').textContent = pct + '%'; $('pdfBar').style.width = pct + '%';
+    };
+    // ปกวาดทีหลัง (ต้องรู้เลขหน้าของแต่ละบทก่อน) — วัดจำนวนหน้าของปกไว้ก่อน
+    progress(0, 'กำลังเตรียมหน้าปก...');
+    const coverPages = slicePages(await renderSection(coverHtml(null))).length;
+    const pageOf = {};
+    let page = 0, first = true;
+    for (let i = 0; i < flat.length; i++) {
+        if (pdfCancelled) return false;
+        progress(i + 1, `บทที่ ${i + 1}/${flat.length}: ${flat[i].title}`);
+        const r = await renderSection(printLessonHtml(flat[i], i + 1));
+        const sl = slicePages(r);
+        pageOf[flat[i].id] = coverPages + page + 1;
+        addSlices(pdf, r.canvas, sl, first); first = false;
+        page += sl.length;
+    }
+    if (pdfCancelled) return false;
+    progress(flat.length + 1, 'คำถามที่พบบ่อย');
+    const rf = await renderSection(faqSectionHtml());
+    const sf = slicePages(rf);
+    pageOf.faq = coverPages + page + 1;
+    addSlices(pdf, rf.canvas, sf, false);
+    // หน้าปก (พร้อมเลขหน้าในสารบัญ) ย้ายไปไว้หน้าแรก
+    progress(total, 'หน้าปกและสารบัญ');
+    // ถ้าปกจริง (มีเลขหน้า) ยาวไม่เท่าที่วัดไว้ => เลื่อนเลขหน้าในสารบัญแล้ววาดใหม่
+    let rc, sc, coverNow = coverPages;
+    for (let tries = 0; tries < 3; tries++) {
+        rc = await renderSection(coverHtml(pageOf));
+        sc = slicePages(rc);
+        if (sc.length === coverNow) break;
+        const diff = sc.length - coverNow;
+        Object.keys(pageOf).forEach(k => { pageOf[k] += diff; });
+        coverNow = sc.length;
+    }
+    addSlices(pdf, rc.canvas, sc, false);
+    const n = pdf.getNumberOfPages();
+    for (let k = 0; k < sc.length; k++) pdf.movePage(n - sc.length + 1 + k, 1 + k);
+    // เลขหน้าท้ายกระดาษ
+    for (let p = 1; p <= n; p++) {
+        pdf.setPage(p);
+        pdf.setFontSize(9); pdf.setTextColor(148, 163, 184);
+        pdf.text(`${p} / ${n}`, PDF.w / 2, PDF.h - 7, { align: 'center' });
+    }
+    $('printArea').innerHTML = '';
+    pdf.save(`คู่มือการใช้งาน EasyPro ${new Date().toISOString().slice(0, 10)}.pdf`);
+    return true;
+}
+
+const pdfModal = $('pdfModal');
+const closePdf = () => { if (pdfBusy) pdfCancelled = true; pdfModal.classList.remove('open'); };
+$('pdfBtn').addEventListener('click', () => {
+    $('pdfInfo').textContent = `รวม ${flat.length} บท พร้อมภาพประกอบ และคำถามที่พบบ่อย ในไฟล์เดียว`;
+    $('pdfProgress').classList.add('hidden');
+    pdfModal.classList.add('open'); icons();
+});
+$('pdfCancel').addEventListener('click', closePdf);
+pdfModal.addEventListener('click', e => { if (e.target === pdfModal && !pdfBusy) closePdf(); });
+$('pdfGo').addEventListener('click', async () => {
+    if (pdfBusy) return;
+    const btn = $('pdfGo');
+    pdfBusy = true; pdfCancelled = false;
+    btn.disabled = true; btn.querySelector('span').textContent = 'กำลังสร้าง PDF...';
+    $('pdfProgress').classList.remove('hidden');
+    try {
+        const ok = await exportPdf();
+        if (ok) { $('pdfStep').textContent = 'ดาวน์โหลดเรียบร้อย'; setTimeout(() => pdfModal.classList.remove('open'), 900); }
+    } catch (e) {
+        console.error(e);
+        $('pdfStep').textContent = 'สร้าง PDF ไม่สำเร็จ: ' + e.message;
+    } finally {
+        $('printArea').innerHTML = '';
+        pdfBusy = false;
+        btn.disabled = false; btn.querySelector('span').textContent = 'ดาวน์โหลด PDF';
+    }
+});
+
 window.addEventListener('hashchange', route);
 new ResizeObserver(() => content.classList.toggle('wide', content.clientWidth >= 700)).observe(content);
 route();

@@ -39,6 +39,19 @@ $rolePerms = array();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EasyPro</title>
+    <script>
+        // ขนาดตัวอักษรที่บันทึกไว้ในเครื่อง (ตั้งได้ที่เมนู ตั้งค่าการแสดงผล) — ใช้ก่อนวาดหน้า
+        window.FONT_SCALE_KEY = 'easypro_font_scale';
+        window.applyFontScale = function (z) {
+            z = Math.min(1.5, Math.max(0.8, parseFloat(z) || 1));
+            const h = document.documentElement;
+            h.style.setProperty('--fs', z);
+            h.classList.toggle('fs-scaled', z !== 1);
+            try { localStorage.setItem(window.FONT_SCALE_KEY, String(z)); } catch (e) {}
+            return z;
+        };
+        (function () { let z = 1; try { z = parseFloat(localStorage.getItem(window.FONT_SCALE_KEY)) || 1; } catch (e) {} if (z !== 1) window.applyFontScale(z); })();
+    </script>
     <link rel="icon" type="image/png" href="../es/logo - easypro2.png">
     <!-- <link rel="icon" type="image/png" href="../es/Pro_EP1.jpg"> -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.0.1/dist/driver.css"/>
@@ -96,6 +109,15 @@ $rolePerms = array();
         
         .sidebar-expanded { width: 240px; }
         .sidebar-collapsed { width: 70px; }
+
+        /* ===== ขนาดตัวอักษรทั้งโปรแกรม (เมนู ตั้งค่าการแสดงผล) — --fs = ตัวคูณ (1 = ปกติ) =====
+           หน้าใน iframe: ขยายด้วย transform แล้วลดขนาดกรอบลงตามสัดส่วน => หน้าข้างในเห็นพื้นที่เล็กลง จัดหน้าใหม่ได้เอง (เหมือนซูมเบราว์เซอร์)
+           ไม่ใช้ zoom กับ iframe เพราะ Chrome คำนวณตำแหน่งคลิกในกรอบที่ zoom ผิด
+           เมนูด้านซ้าย/แถบด้านบน: zoom ที่ลูกของ sidebar (sidebar เองสูงเต็มจอ ถ้า zoom จะยาวเกินจอ) และขยายความกว้าง sidebar ตาม */
+        html.fs-scaled .sidebar-expanded { width: calc(240px * var(--fs)); }
+        html.fs-scaled .sidebar-collapsed { width: calc(70px * var(--fs)); }
+        html.fs-scaled #sidebar > :not(#toggle-btn), html.fs-scaled main > header { zoom: var(--fs); }
+        html.fs-scaled #content-iframe { transform-origin: 0 0; transform: scale(var(--fs)); width: calc(100% / var(--fs)) !important; height: calc(100% / var(--fs)) !important; }
 
         /* มือถือ/แท็บเล็ต: 100vh ของ Safari รวมแถบเครื่องมือด้วย ทำให้ส่วนล่างโดนบัง
            จึงใช้ 100dvh (ความสูงที่มองเห็นจริง) ให้กรอบหลักพอดีจอ แล้วให้ iframe กินพื้นที่ที่เหลือทั้งหมด
@@ -377,6 +399,7 @@ const allMenuItems = [
     { icon: 'package', label: 'จัดการสต็อก', href: 'stock.php', perm: 'stock_manage' },
     { icon: 'notebook-pen', label: 'วางแผน PM', href: 'pm.php', perm: 'pm_plan' },
     { icon: 'settings', label: 'ตั้งค่าข้อมูล', href: 'settings.php', roles: ['admin', 'super_admin'] },
+    { icon: 'type', label: 'ตั้งค่าการแสดงผล', href: 'display_settings.php', perm: null },
     { icon: 'book-open-check', label: 'คู่มือการใช้งาน', href: 'tutorial.php', perm: null }
 ];
 
@@ -500,7 +523,9 @@ window.navigate = function(href, queryString) {
     // ไปยังหน้าที่โหลดใน iframe ด้วย ไม่เช่นนั้นหน้าปลายทาง (เช่น maintenance_request.php)
     // จะไม่เห็นค่าที่ใช้สำหรับเลือกเครื่องจักร/สถานที่ให้อัตโนมัติ
     const targetSrc = href + (queryString || '');
-    if (iframe.src.indexOf(href) === -1 || (queryString && iframe.src.indexOf(queryString) === -1)) {
+    // เทียบชื่อไฟล์ตรงตัว (เดิมใช้ indexOf => display_settings.php ถูกนับว่าเป็น settings.php แล้วไม่เปลี่ยนหน้า)
+    const curFile = (iframe.src.split('?')[0].split('#')[0].split('/').pop()) || '';
+    if (curFile !== href || (queryString && iframe.src.indexOf(queryString) === -1)) {
         loader.classList.remove('hidden');
         iframe.src = targetSrc;
     }

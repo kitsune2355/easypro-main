@@ -13,6 +13,10 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ใบงานบำรุงรักษาเชิงป้องกัน (PM Worksheet)</title>
+    <script>
+        // ขนาดตัวอักษรทั้งโปรแกรม (เมนู ตั้งค่าการแสดงผล) — หน้านี้เปิดเป็นหน้าต่างแยก จึงขยายเองด้วย zoom
+        (function () { let z = 1; try { z = parseFloat(localStorage.getItem('easypro_font_scale')) || 1; } catch (e) {} if (z !== 1) document.documentElement.style.zoom = Math.min(1.5, Math.max(0.8, z)); })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
