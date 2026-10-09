@@ -446,7 +446,7 @@ const MODULES = [
         tips: ['แก้วันหยุดแล้ว ให้กด <b>คำนวณแผนใหม่</b> ในแท็บจัดการแผน PM เพื่อให้กำหนดการที่สร้างไว้แล้วปรับตาม']
     },
     {
-        id: 'pm_import', title: 'นำเข้าแผน PM จาก Excel', roles: ADMIN, href: 'pm.php', tab: 'import',
+        id: 'pm_import', title: 'นำเข้าแผน PM จาก Excel', perm: 'pm_plan', href: 'pm.php', tab: 'import',
         intro: 'สร้างเช็คชีตและแผน PM ทีละมากๆ จากไฟล์ Excel ตารางแผน PM รายปี (Yearly PM Schedule)',
         parts: [{ title: 'ขั้นที่ 1 อ่านไฟล์ และสร้างเช็คชีต', shot: 'pm_import', steps: [
             { m: 1, t: '<span class="kbd">ดาวน์โหลดไฟล์ Template สำหรับ Import</span> — กรอกตามรูปแบบนี้ (Name / CODE / Location + เดือนละ 4 สัปดาห์)' },
@@ -467,7 +467,7 @@ const MODULES = [
         ]
     },
     {
-        id: 'pm_schedule', title: 'ตารางแผน PM รายปี', roles: ADMIN, href: 'pm.php', tab: 'schedule',
+        id: 'pm_schedule', title: 'ตารางแผน PM รายปี', perm: 'pm_plan', href: 'pm.php', tab: 'schedule',
         intro: 'ดูแผน PM ทั้งปีในตารางเดียว (ดูอย่างเดียว) แต่ละช่องคือ 1 สัปดาห์ — เดือนละ 4 สัปดาห์',
         parts: [{ shot: 'pm_schedule', steps: [
             { m: 1, t: '<b>เลือกปี</b> ตามช่วงสัญญา' },

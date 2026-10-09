@@ -1,8 +1,7 @@
 <?php
-//pm_import.php — แท็บนำเข้าแผน PM จาก Excel (เฉพาะผู้ดูแลระบบ) ถูก include จาก pm.php
+//pm_import.php — แท็บนำเข้าแผน PM จาก Excel ถูก include จาก pm.php (ผู้ใช้ทุกคนที่เข้าเมนูวางแผน PM ได้)
 @session_start();
 include_once "config_ctrl/checksession.php";
-if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
 ?>
 <style>
     #imp-plan-hot .htInvalid { background-color: #fee2e2 !important; }

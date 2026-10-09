@@ -30,10 +30,6 @@ if (!$user_id) {
     http_response_code(401);
     jsonOut(['success' => false, 'error' => 'กรุณาเข้าสู่ระบบใหม่']);
 }
-if (!in_array($user_level, ['admin', 'super_admin'], true)) {
-    http_response_code(403);
-    jsonOut(['success' => false, 'error' => 'เมนูนี้สำหรับผู้ดูแลระบบเท่านั้น']);
-}
 if (!$ag_id) {
     jsonOut(['success' => false, 'error' => 'ไม่พบหน่วยงาน (AG_ID) กรุณาเลือกหน่วยงานก่อน']);
 }

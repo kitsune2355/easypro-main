@@ -1,8 +1,7 @@
 <?php
-//pm_schedule.php — แท็บตารางแผน PM รายปี: ดูแผน PM ที่บันทึกแล้ว + กำหนดการรายสัปดาห์ (อ่านอย่างเดียว, เฉพาะผู้ดูแลระบบ) ถูก include จาก pm.php
+//pm_schedule.php — แท็บตารางแผน PM รายปี: ดูแผน PM ที่บันทึกแล้ว + กำหนดการรายสัปดาห์ (อ่านอย่างเดียว) ถูก include จาก pm.php (ผู้ใช้ทุกคนที่เข้าเมนูวางแผน PM ได้)
 @session_start();
 include_once "config_ctrl/checksession.php";
-if (!in_array($sess_user_level, array('admin', 'super_admin'), true)) return;
 ?>
 <style>
     /* ช่องสัปดาห์: ใช้ !important เพราะธีม Handsontable บังคับสีพื้นของ .htDimmed ด้วย !important
