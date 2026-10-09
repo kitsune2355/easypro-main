@@ -48,7 +48,7 @@ include "config_ctrl/checksession.php";
         @media (max-width: 767.98px) {
             #gridWrap { display: none !important; }
             #main-list { padding: .75rem; gap: .75rem; }
-            #row-count-wrap { display: none !important; }
+            #row-count-wrap > .row-count-box { display: none !important; }
         }
         @media (min-width: 768px) { #mList { display: none !important; } }
         .m-chip { flex: none; padding: .35rem .8rem; border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; font-size: 13px; color: #475569; white-space: nowrap; }
@@ -211,14 +211,20 @@ include "config_ctrl/checksession.php";
     <main id="main-list" class="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
         
         <!-- Action Bar -->
-        <div class="flex flex-col md:flex-row items-center justify-between gap-4 flex-none">
-            <div class="relative w-full md:w-96">
+        <div class="flex flex-row items-center justify-between gap-2 md:gap-4 flex-none">
+            <div class="relative flex-1 min-w-0 md:flex-none md:w-96">
                 <i data-lucide="search" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
                 <input type="text" id="grid-search" oninput="onFilterTextBoxChanged()" placeholder="ค้นหาครุภัณฑ์, ชื่อ, หรือซีเรียล..." 
                     class="w-full bg-white border border-slate-200 rounded-xl pl-11 pr-4 py-2.5 text-sm shadow-sm focus:ring-2 focus:ring-sky-500 outline-none transition-all">
             </div>
-            <div id="row-count-wrap" class="flex gap-2 text-xs font-bold text-slate-500">
-                <div class="bg-white border border-slate-200 rounded-xl px-4 py-2 flex items-center gap-2">
+            <div id="row-count-wrap" class="flex items-center gap-2 text-xs font-bold text-slate-500">
+                <!-- ปุ่มส่งออก Excel (เดิมมีแค่คลิกขวาที่ตาราง ผู้ใช้หาไม่เจอ) -->
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="exportToExcelWithImages()" title="ส่งออกข้อมูลในตารางเป็นไฟล์ Excel" aria-label="ส่งออก Excel" class="inline-flex items-center justify-center gap-1.5 p-3 sm:px-3 sm:py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold shadow-sm transition-colors whitespace-nowrap">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span class="hidden sm:inline">ส่งออก Excel</span>
+                    </button>
+                </div>
+                <div class="row-count-box bg-white border border-slate-200 rounded-xl px-4 py-2 flex items-center gap-2">
                     <span id="row-count" class="text-sky-600 font-bold">0</span> รายการทั้งหมด
                 </div>
             </div>

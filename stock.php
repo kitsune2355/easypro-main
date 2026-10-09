@@ -253,11 +253,17 @@ include "config_ctrl/checksession.php";
 
             <div class="flex-1 overflow-hidden flex flex-col p-4 bg-slate-50/30">
                 <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col h-full relative">
-                    <div class="p-4 border-b border-slate-100 flex flex-col md:flex-row justify-between gap-4">
-                        <div class="relative w-full max-w-sm">
+                    <div class="p-4 border-b border-slate-100 flex flex-row items-center justify-between gap-2 md:gap-4">
+                        <div class="relative flex-1 min-w-0 max-w-sm">
                             <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
                             <input type="text" id="grid-search" placeholder="ค้นหารหัส หรือ ชื่อสินค้า..." oninput="AppController.onFilterChanged()"
                                 class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-sky-500/20 transition-all text-sm font-medium">
+                        </div>
+                        <!-- ปุ่มส่งออก Excel (เดิมมีแค่คลิกขวาที่ตาราง ผู้ใช้หาไม่เจอ) -->
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="exportToExcel()" title="ส่งออกข้อมูลในตารางเป็นไฟล์ Excel" aria-label="ส่งออก Excel" class="inline-flex items-center justify-center gap-1.5 p-3 sm:px-3 sm:py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold shadow-sm transition-colors whitespace-nowrap">
+                                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span class="hidden sm:inline">ส่งออก Excel</span>
+                            </button>
                         </div>
                     </div>
 

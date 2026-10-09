@@ -256,6 +256,14 @@ include "config_ctrl/checksession.php";
 
             <div class="flex-1 overflow-hidden min-h-[420px] lg:min-h-[300px]">
                 <div class="bg-white h-full w-full rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
+                    <div class="hidden md:flex flex-none justify-end px-3 py-2 border-b border-slate-100">
+                        <!-- ปุ่มส่งออก Excel (เดิมมีแค่คลิกขวาที่ตาราง ผู้ใช้หาไม่เจอ) -->
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="exportToExcelWithImages()" title="ส่งออกข้อมูลในตารางเป็นไฟล์ Excel" aria-label="ส่งออก Excel" class="inline-flex items-center justify-center gap-1.5 p-3 sm:px-3 sm:py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold shadow-sm transition-colors whitespace-nowrap">
+                                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span class="hidden sm:inline">ส่งออก Excel</span>
+                            </button>
+                        </div>
+                    </div>
                     <div id="myGrid" class="ag-theme-alpine flex-1 w-full"></div>
                     <!-- มือถือ: รายการบันทึกแบบการ์ด (ข้อมูลชุดเดียวกับตาราง) -->
                     <div id="mMeter" class="flex-1 min-h-0 flex-col">
@@ -1200,7 +1208,9 @@ include "config_ctrl/checksession.php";
                 if (!box) return;
                 const over = rows.filter(r => r.is_exceeded).length;
                 head.innerHTML = `<span class="font-bold text-slate-600">${rows.length} รายการบันทึก</span>`
-                    + (over ? `<span class="px-2 py-0.5 rounded-full bg-red-50 text-red-700 font-bold">เกินเกณฑ์ ${over}</span>` : '');
+                    + `<span class="flex items-center gap-2">`
+                    + (over ? `<span class="px-2 py-0.5 rounded-full bg-red-50 text-red-700 font-bold">เกินเกณฑ์ ${over}</span>` : '')
+                    + `<button type="button" onclick="exportToExcelWithImages()" title="ส่งออกข้อมูลในตารางเป็นไฟล์ Excel" aria-label="ส่งออก Excel" class="w-8 h-8 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 flex items-center justify-center"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i></button></span>`;
                 box.innerHTML = rows.length
                     ? rows.map((r, i) => [r, i]).sort((x, y) => key(y[0]).localeCompare(key(x[0]))).map(([r, i]) => card(r, i)).join('')
                     : `<div class="py-16 text-center text-slate-400 text-sm"><i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2"></i>ยังไม่มีข้อมูลบันทึกในช่วงนี้</div>`;
