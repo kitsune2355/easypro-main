@@ -21,14 +21,14 @@ if ($levelCheck == '1') {
     INNER JOIN tb_agency a ON a.ag_id = e.age_ag_id
     WHERE e.age_user_id = '".mysqli_real_escape_string($connect, $userId)."'
       AND a.ag_status = 1
-    ORDER BY a.ag_contract ASC
+    ORDER BY a.ag_ins ASC, a.ag_id ASC   -- เรียงตามลำดับที่เพิ่มเข้ามา (เก่า -> ใหม่)
   ";
 } else {
   $sql = "
     SELECT ag_id, ag_job, ag_contract, ag_end_date
     FROM tb_agency
     WHERE ag_status = 1
-    ORDER BY ag_format DESC
+    ORDER BY ag_ins ASC, ag_id ASC   -- เรียงตามลำดับที่เพิ่มเข้ามา (เก่า -> ใหม่)
   ";
 }
 
