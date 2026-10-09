@@ -44,6 +44,19 @@ include "config_ctrl/checksession.php";
             overflow: hidden; 
         }
 
+        /* ===== มือถือ (< 768px): แสดงรายการเป็นการ์ดแทนตาราง ===== */
+        @media (max-width: 767.98px) {
+            #gridWrap { display: none !important; }
+            #main-list { padding: .75rem; gap: .75rem; }
+            #row-count-wrap { display: none !important; }
+        }
+        @media (min-width: 768px) { #mList { display: none !important; } }
+        .m-chip { flex: none; padding: .35rem .8rem; border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; font-size: 13px; color: #475569; white-space: nowrap; }
+        .m-chip.is-active { background: #0284c7; border-color: #0284c7; color: #fff; font-weight: 600; }
+        .m-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
+        .m-act { width: 40px; height: 40px; border-radius: .75rem; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+        .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { scrollbar-width: none; }
+
         .btn-gradient {
             background: linear-gradient(to right, #006B9F, #04ADFF);
             color: white;
@@ -195,7 +208,7 @@ include "config_ctrl/checksession.php";
     </nav>
 
     <!-- Main Content Area -->
-    <main class="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
+    <main id="main-list" class="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
         
         <!-- Action Bar -->
         <div class="flex flex-col md:flex-row items-center justify-between gap-4 flex-none">
@@ -204,7 +217,7 @@ include "config_ctrl/checksession.php";
                 <input type="text" id="grid-search" oninput="onFilterTextBoxChanged()" placeholder="ค้นหาครุภัณฑ์, ชื่อ, หรือซีเรียล..." 
                     class="w-full bg-white border border-slate-200 rounded-xl pl-11 pr-4 py-2.5 text-sm shadow-sm focus:ring-2 focus:ring-sky-500 outline-none transition-all">
             </div>
-            <div class="flex gap-2 text-xs font-bold text-slate-500">
+            <div id="row-count-wrap" class="flex gap-2 text-xs font-bold text-slate-500">
                 <div class="bg-white border border-slate-200 rounded-xl px-4 py-2 flex items-center gap-2">
                     <span id="row-count" class="text-sky-600 font-bold">0</span> รายการทั้งหมด
                 </div>
@@ -212,9 +225,22 @@ include "config_ctrl/checksession.php";
         </div>
 
         <!-- Grid Container -->
-        <div class="flex-1 overflow-hidden p-1 relative">
+        <div id="gridWrap" class="flex-1 overflow-hidden p-1 relative">
             <div id="myGrid" class="ag-theme-alpine w-full h-full"></div>
         </div>
+
+        <!-- มือถือ: รายการแบบการ์ด (โหลดเพิ่มเมื่อเลื่อนถึงท้าย) -->
+        <section id="mList" class="flex-1 min-h-0 flex flex-col gap-2.5">
+            <div id="mChips" class="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5"></div>
+            <div class="flex items-center justify-between text-[12px] text-slate-500 px-0.5">
+                <span>ทั้งหมด <b id="mTotal" class="text-sky-700">0</b> รายการ</span>
+                <span class="text-slate-400">แตะรูปเพื่อดูภาพเครื่อง</span>
+            </div>
+            <div id="mScroll" class="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 pb-4">
+                <div id="mCards" class="flex flex-col gap-2.5"></div>
+                <div id="mMore" class="py-4 text-center text-[13px] text-slate-400"></div>
+            </div>
+        </section>
     </main>
 
     <!-- Drawer Panel -->
@@ -847,6 +873,9 @@ include "config_ctrl/checksession.php";
         window.onload = async () => {
             const gridDiv = document.querySelector('#myGrid');
             gridApi = agGrid.createGrid(gridDiv, gridOptions);
+            const _refreshSS = gridApi.refreshServerSide.bind(gridApi);
+            gridApi.refreshServerSide = (p) => { const r = _refreshSS(p); MobileList.reloadIfActive(); return r; };
+            MobileList.init();
             
             await loadGridData();
         };
@@ -1374,6 +1403,121 @@ include "config_ctrl/checksession.php";
             LocationSelector.init();
             loadMachineTypes();
         });
+        /* =========================================================
+           มือถือ: ทะเบียนเครื่องจักรแบบการ์ด (ใช้ API เดียวกับตาราง: get_all)
+           ชิปกรองสถานะ / ค้นหาจากช่องค้นหาเดิม / โหลดทีละ 15 รายการ
+           ปุ่มในการ์ดเรียกฟังก์ชันเดียวกับตาราง (QR / ประวัติแจ้งซ่อม / แก้ไข)
+           ========================================================= */
+        const MobileList = (() => {
+            const PAGE = 15;
+            const CHIPS = [
+                { key: '', label: 'ทั้งหมด' }, { key: 'ปกติ', label: 'ปกติ' }, { key: 'แจ้งซ่อม', label: 'แจ้งซ่อม' },
+                { key: 'ชำรุด', label: 'ชำรุด' }, { key: 'สำรอง', label: 'สำรอง' }
+            ];
+            const TONE = { 'ปกติ': 'emerald', 'แจ้งซ่อม': 'amber', 'ชำรุด': 'rose', 'สำรอง': 'sky' };
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const isMobile = () => window.innerWidth < 768;
+            const $ = id => document.getElementById(id);
+            let status = '', rows = [], total = 0, loading = false, reqId = 0, loaded = false;
+
+            const renderChips = () => {
+                $('mChips').innerHTML = CHIPS.map(c => `<button type="button" class="m-chip ${c.key === status ? 'is-active' : ''}" data-st="${esc(c.key)}">${c.label}</button>`).join('');
+            };
+
+            function cardHtml(row, idx) {
+                const imgs = row.images || [];
+                const tone = TONE[row.status] || 'slate';
+                const loc = [row.location, row.floor, row.room].filter(v => v && v !== '-').join(' · ') || 'ไม่ระบุสถานที่';
+                const thumb = imgs.length
+                    ? `<button type="button" data-act="img" data-i="${idx}" class="relative w-16 h-16 flex-none" aria-label="ดูรูปเครื่อง">
+                           <img src="${esc(imgs[0])}" loading="lazy" class="w-full h-full rounded-xl object-cover border border-slate-200" onerror="this.outerHTML='<div class=&quot;w-full h-full rounded-xl bg-slate-100&quot;></div>'">
+                           ${imgs.length > 1 ? `<span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-sky-600 text-white text-[10px] font-bold flex items-center justify-center shadow">${imgs.length}</span>` : ''}
+                       </button>`
+                    : `<div class="w-16 h-16 flex-none rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300"><i data-lucide="cpu" class="w-6 h-6"></i></div>`;
+                return `
+                    <article class="m-card p-3">
+                        <div class="flex gap-3">
+                            ${thumb}
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-start justify-between gap-2">
+                                    <span class="font-mono text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100 truncate">${esc(row.asset_id || '-')}</span>
+                                    <span class="flex-none inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold bg-${tone}-50 text-${tone}-700 border border-${tone}-100"><span class="w-1.5 h-1.5 rounded-full bg-${tone}-500"></span>${esc(row.status || 'ไม่ทราบสถานะ')}</span>
+                                </div>
+                                <div class="mt-1 text-[14px] font-bold text-slate-800 leading-snug truncate">${esc(row.machine_name || '-')}</div>
+                                <div class="text-[11.5px] text-slate-400 truncate">${esc(row.type_name || 'ไม่ระบุประเภท')}${row.serial ? ' · S/N ' + esc(row.serial) : ''}</div>
+                            </div>
+                        </div>
+                        <div class="mt-2 flex items-center gap-1.5 min-w-0 text-[12.5px] text-slate-500"><i data-lucide="map-pin" class="w-3.5 h-3.5 flex-none text-rose-400"></i><span class="truncate">${esc(loc)}</span></div>
+                        <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-2">
+                            <button type="button" data-act="edit" data-i="${idx}" class="flex-1 h-10 rounded-xl bg-[#006b9f] text-white text-[13px] font-semibold inline-flex items-center justify-center gap-1.5"><i data-lucide="pen" class="w-4 h-4"></i>แก้ไข / ดูข้อมูล</button>
+                            <button type="button" data-act="qr" data-i="${idx}" class="m-act border border-sky-200 bg-sky-50 text-sky-700" aria-label="ดู QR Code" title="ดู QR Code"><i data-lucide="qr-code" class="w-4 h-4"></i></button>
+                            <button type="button" data-act="history" data-i="${idx}" class="m-act border border-emerald-200 bg-emerald-50 text-emerald-700" aria-label="ประวัติการแจ้งซ่อม" title="ประวัติการแจ้งซ่อม"><i data-lucide="history" class="w-4 h-4"></i></button>
+                        </div>
+                    </article>`;
+            }
+
+            async function load(reset) {
+                if (loading && !reset) return;
+                if (!reset && loaded && rows.length >= total) return;
+                const my = ++reqId;
+                loading = true;
+                if (reset) { rows = []; total = 0; $('mCards').innerHTML = ''; }
+                $('mMore').innerHTML = '<span class="inline-flex items-center gap-2"><span class="w-4 h-4 rounded-full border-2 border-sky-500 border-t-transparent animate-spin"></span>กำลังโหลด...</span>';
+                try {
+                    const url = new URL('handle_machine_info.php', window.location.href);
+                    url.searchParams.set('action', 'get_all');
+                    url.searchParams.set('ag_id', AG_ID);
+                    url.searchParams.set('startRow', rows.length);
+                    url.searchParams.set('endRow', rows.length + PAGE);
+                    url.searchParams.set('search', $('grid-search')?.value || '');
+                    url.searchParams.set('filterModel', JSON.stringify(status ? { status: { filterType: 'set', values: [status] } } : {}));
+                    const res = await (await fetch(url)).json();
+                    if (my !== reqId) return;
+                    const start = rows.length, list = res.rows || [];
+                    rows = rows.concat(list);
+                    total = res.lastRow ?? rows.length;
+                    loaded = true;
+                    $('mCards').insertAdjacentHTML('beforeend', list.map((r, i) => cardHtml(r, start + i)).join(''));
+                    $('mTotal').textContent = total.toLocaleString();
+                    $('mMore').innerHTML = !rows.length
+                        ? '<div class="py-10 flex flex-col items-center gap-2 text-slate-400"><i data-lucide="inbox" class="w-8 h-8"></i>ไม่พบรายการ</div>'
+                        : (rows.length >= total ? `แสดงครบ ${total.toLocaleString()} รายการ` : '<button type="button" data-act="more" class="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-[13px]">โหลดเพิ่ม</button>');
+                    lucide.createIcons();
+                } catch (e) {
+                    console.error(e);
+                    if (my === reqId) $('mMore').innerHTML = '<button type="button" data-act="more" class="text-rose-600 text-[13px] underline">โหลดไม่สำเร็จ — แตะเพื่อลองใหม่</button>';
+                } finally {
+                    if (my === reqId) loading = false;
+                }
+            }
+
+            function onClick(e) {
+                const chip = e.target.closest('[data-st]');
+                if (chip) { status = chip.dataset.st; renderChips(); load(true); $('mScroll').scrollTop = 0; return; }
+                const el = e.target.closest('[data-act]');
+                if (!el) return;
+                if (el.dataset.act === 'more') { load(false); return; }
+                const row = rows[+el.dataset.i];
+                if (!row) return;
+                const act = el.dataset.act;
+                if (act === 'img') ImageCarousel.open(row.images || []);
+                else if (act === 'edit') editMachine(row.id);
+                else if (act === 'qr') viewQuickQR(row.asset_id || '');
+                else if (act === 'history' && typeof viewHistory === 'function') viewHistory(row.id);
+            }
+
+            return {
+                init() {
+                    renderChips();
+                    $('mList').addEventListener('click', onClick);
+                    new IntersectionObserver(en => { if (en[0].isIntersecting && isMobile() && loaded && !loading && rows.length < total) load(false); },
+                                             { root: $('mScroll'), rootMargin: '200px' }).observe($('mMore'));
+                    window.addEventListener('resize', () => { if (isMobile() && !loaded && !loading) load(true); });
+                    if (isMobile()) load(true);
+                },
+                reloadIfActive() { if (isMobile()) load(true); else loaded = false; }
+            };
+        })();
     </script>
 </body>
 </html>

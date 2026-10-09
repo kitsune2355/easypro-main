@@ -51,6 +51,16 @@ include "config_ctrl/checksession.php";
         }
         body { font-family: 'Kanit', sans-serif; background-color: #F8FAFC; }
 
+        /* ===== มือถือ (< 768px): การ์ดแทนตาราง — ตารางย้ายไปนอกจอ (ยังโหลดข้อมูล/แบ่งหน้า/เลือกแถวได้ตามปกติ) ===== */
+        #mStock { display: none; }
+        @media (max-width: 767.98px) {
+            #mainGrid { position: absolute !important; left: -12000px; top: 0; width: 1000px !important; height: 900px !important; flex: none !important; }
+            #mStock { display: flex; }
+        }
+        .ms-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
+        .ms-card.is-selected { border-color: #0284c7; box-shadow: 0 0 0 2px rgba(2,132,199,.2); }
+        .ms-act { width: 40px; height: 40px; border-radius: .75rem; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+
         .btn-gradient {
             background: linear-gradient(135deg, #006B9F, #04ADFF);
             color: white;
@@ -252,6 +262,16 @@ include "config_ctrl/checksession.php";
                     </div>
 
                     <div id="mainGrid" class="ag-theme-alpine flex-1 w-full font-medium"></div>
+
+                    <!-- มือถือ: การ์ดของแถวในหน้าปัจจุบัน + ปุ่มเปลี่ยนหน้า -->
+                    <div id="mStock" class="flex-1 min-h-0 flex-col">
+                        <div id="msCards" class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2.5 bg-slate-50/60"></div>
+                        <div class="flex-none flex items-center justify-between gap-2 px-3 py-2 border-t border-slate-100 bg-white text-[13px] text-slate-600">
+                            <button type="button" id="msPrev" class="ms-act border border-slate-200 bg-white disabled:opacity-40" aria-label="หน้าก่อน"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                            <span id="msPage" class="text-center">-</span>
+                            <button type="button" id="msNext" class="ms-act border border-slate-200 bg-white disabled:opacity-40" aria-label="หน้าถัดไป"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                        </div>
+                    </div>
 
                     <div id="selection-bar" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[3] bg-slate-900/95 backdrop-blur-md text-white px-4 py-3 md:px-6 rounded-2xl md:rounded-full shadow-2xl flex flex-col md:flex-row items-center gap-3 md:gap-6 selection-bar-hidden w-[90%] md:w-auto transition-all duration-300">
                         <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start border-b border-slate-700 pb-2 md:border-none md:pb-0">
@@ -1210,6 +1230,7 @@ if (targetPdId) {
 
             initGrid: () => {
                 const gridDiv = document.querySelector('#mainGrid');
+                setTimeout(() => MobileStock.attach(), 0);   // มือถือ: การ์ดจากแถวของตาราง
                 gridApi = agGrid.createGrid(gridDiv, {
                     rowModelType: 'serverSide',
                     columnDefs: GridConfig.getStockCols(),
@@ -2937,6 +2958,137 @@ if (targetPdId) {
     }
 });
 
+        /* =========================================================
+           มือถือ: การ์ดจากแถวในหน้าปัจจุบันของตาราง (สต็อก / รายงานรับเข้า / รายงานปรับยอด)
+           แตะวงกลมเพื่อเลือกสินค้า (ใช้แถบ รับเข้า/ปรับยอด เดิม) / ปุ่มเรียกฟังก์ชันเดียวกับตาราง
+           ========================================================= */
+        const MobileStock = (() => {
+            const isMobile = () => window.innerWidth < 768;
+            const $ = id => document.getElementById(id);
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const thDate = v => v ? new Date(v).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-';
+            let nodes = [];
+
+            function stockCard(d, i, node) {
+                const stock = parseInt(d.pd_qty) || 0, total = parseInt(d.pd_qty_all) || 0, min = parseInt(d.pd_qty_min) || 0;
+                const low = stock <= min;
+                const pct = total > 0 ? Math.min(stock / total * 100, 100) : 0;
+                const active = d.ps_status === '0';
+                const sel = node.isSelected();
+                return `
+                    <article class="ms-card p-3 ${sel ? 'is-selected' : ''}">
+                        <div class="flex items-start gap-3">
+                            <button type="button" data-act="select" data-i="${i}" class="flex-none mt-0.5 w-6 h-6 rounded-full border-2 ${sel ? 'bg-sky-600 border-sky-600 text-white' : 'border-slate-300 bg-white'} flex items-center justify-center" aria-label="เลือกสินค้า">${sel ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}</button>
+                            <div class="min-w-0 flex-1">
+                                <div class="text-[14px] font-bold text-slate-800 leading-snug">${esc(d.pd_details_head)}</div>
+                                <div class="mt-1 flex flex-wrap gap-1">
+                                    <span class="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 font-bold rounded">${esc(d.pd_gen_code)}</span>
+                                    ${d.pd_model ? `<span class="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-600 font-bold rounded">${esc(d.pd_model)}</span>` : ''}
+                                    ${d.rps_name ? `<span class="text-[10px] px-1.5 py-0.5 bg-sky-50 text-sky-700 rounded">${esc(d.rps_name)}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2.5 grid grid-cols-2 gap-2 text-[12px]">
+                            <div class="rounded-xl bg-slate-50 px-2.5 py-2">
+                                <div class="text-slate-400 text-[11px]">คงเหลือ / ทั้งหมด</div>
+                                <div class="font-bold ${low ? 'text-rose-600' : 'text-slate-800'}">${stock.toLocaleString()} / ${total.toLocaleString()} <span class="font-normal text-slate-400">${esc(d.pd_unit || '')}</span></div>
+                                <div class="mt-1 h-1 rounded-full bg-slate-200 overflow-hidden"><div class="h-full ${low ? 'bg-rose-500' : 'bg-emerald-500'}" style="width:${pct}%"></div></div>
+                            </div>
+                            <div class="rounded-xl bg-slate-50 px-2.5 py-2">
+                                <div class="text-slate-400 text-[11px]">คลัง · ราคา</div>
+                                <div class="font-semibold text-slate-700 truncate">${esc(d.wh_name || '-')}</div>
+                                <div class="text-slate-600">${d.pd_price ? parseFloat(d.pd_price).toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '0.00'} ฿</div>
+                            </div>
+                        </div>
+                        ${low ? '<div class="mt-2 text-[11.5px] font-semibold text-rose-600 inline-flex items-center gap-1"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>ต่ำกว่าจุดสั่งซื้อขั้นต่ำ (' + min.toLocaleString() + ')</div>' : ''}
+                        <div class="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center gap-2">
+                            ${d.ps_id ? `<label class="flex-1 inline-flex items-center gap-2 cursor-pointer select-none">
+                                <input type="checkbox" class="sr-only peer" ${active ? 'checked' : ''} data-act="status" data-i="${i}">
+                                <span class="relative w-10 h-5 rounded-full bg-slate-200 peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-4 after:h-4 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
+                                <span class="text-[12.5px] ${active ? 'text-emerald-700 font-semibold' : 'text-slate-400'}">${active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}</span>
+                            </label>` : '<span class="flex-1"></span>'}
+                            <button type="button" data-act="history" data-i="${i}" class="ms-act border border-slate-200 bg-white text-slate-500" aria-label="ประวัติสินค้า" title="ประวัติสินค้า"><i data-lucide="history" class="w-4 h-4"></i></button>
+                            <button type="button" data-act="edit" data-i="${i}" class="ms-act bg-[#006b9f] text-white" aria-label="แก้ไข" title="แก้ไข"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                        </div>
+                    </article>`;
+            }
+
+            function reportCard(d, isPo) {
+                const items = d.items || [];
+                const rows = items.map(it => {
+                    const diff = Number(it.qty_change) || 0;
+                    const sign = diff > 0 ? '+' : '';
+                    const tone = isPo || diff > 0 ? 'text-emerald-600' : (diff < 0 ? 'text-rose-600' : 'text-slate-500');
+                    return `<div class="flex items-start justify-between gap-2 py-1.5 border-b border-slate-100 last:border-0">
+                        <div class="min-w-0"><div class="text-[12.5px] font-medium text-slate-700 truncate">${esc(it.pd_details_head)}</div>
+                            <div class="text-[10.5px] text-slate-400">${esc(it.pd_gen_code)} · ${esc(it.wh_name || '')}</div></div>
+                        <div class="flex-none text-[13px] font-bold ${tone}">${sign}${diff.toLocaleString()} <span class="text-[10px] font-normal text-slate-400">${esc(it.pd_unit || '')}</span></div>
+                    </div>`;
+                }).join('');
+                return `
+                    <article class="ms-card p-3">
+                        <div class="flex items-start justify-between gap-2">
+                            <div><div class="text-[14px] font-bold text-sky-700">${esc(d.doc_no || '-')}</div>
+                                <div class="text-[11.5px] text-slate-500">${thDate(d.trans_date)} · ${esc(d.user_id || '-')}</div></div>
+                            <span class="flex-none rounded-full px-2 py-0.5 text-[11px] font-bold ${isPo ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">${isPo ? 'รับเข้า' : 'ปรับยอด'} ${items.length} รายการ</span>
+                        </div>
+                        ${d.details ? `<div class="mt-1.5 text-[12.5px] text-slate-600">${esc(d.details)}</div>` : ''}
+                        <div class="mt-2 rounded-xl border border-slate-100 px-2.5">${rows || '<div class="py-2 text-[12px] text-slate-400">ไม่มีรายการ</div>'}</div>
+                    </article>`;
+            }
+
+            function render() {
+                if (!isMobile() || !gridApi) return;
+                const size = gridApi.paginationGetPageSize();
+                const page = gridApi.paginationGetCurrentPage();
+                const pages = gridApi.paginationGetTotalPages();
+                const totalRows = gridApi.paginationGetRowCount();
+                const menu = State.selectedMenuId;
+                const isReport = menu === 'report-po' || menu === 'report-adjust';
+                nodes = [];
+                for (let i = page * size; i < Math.min((page + 1) * size, totalRows); i++) {
+                    const n = gridApi.getDisplayedRowAtIndex(i);
+                    if (n && n.data) nodes.push(n);
+                }
+                $('msCards').innerHTML = nodes.length
+                    ? nodes.map((n, i) => isReport ? reportCard(n.data, menu === 'report-po') : stockCard(n.data, i, n)).join('')
+                    : `<div class="py-12 flex flex-col items-center gap-2 text-slate-400 text-[13px]"><i data-lucide="${totalRows ? 'loader-2' : 'inbox'}" class="w-8 h-8 ${totalRows ? 'animate-spin' : ''}"></i>${totalRows ? 'กำลังโหลด...' : 'ไม่พบรายการ'}</div>`;
+                $('msPage').innerHTML = totalRows ? `หน้า <b>${page + 1}</b> / ${Math.max(pages, 1)} · ${totalRows.toLocaleString()} รายการ` : '-';
+                $('msPrev').disabled = page <= 0;
+                $('msNext').disabled = page >= pages - 1;
+                lucide.createIcons();
+            }
+
+            function onClick(e) {
+                const el = e.target.closest('[data-act]');
+                if (!el || el.dataset.act === 'status') return;
+                const n = nodes[+el.dataset.i];
+                if (!n) return;
+                const d = n.data;
+                if (el.dataset.act === 'select') n.setSelected(!n.isSelected());
+                else if (el.dataset.act === 'history') HistoryManager.open(d.pd_id, d.wh_id, d.pd_details_head || '', d.pd_gen_code || '');
+                else if (el.dataset.act === 'edit') DrawerManager.open('stock', d.pd_id, d.wh_id);
+            }
+
+            let timer = null;
+            const later = () => { clearTimeout(timer); timer = setTimeout(render, 30); };
+            return {
+                attach() {
+                    if (!gridApi) return;
+                    ['modelUpdated', 'paginationChanged', 'selectionChanged', 'rowDataUpdated'].forEach(ev => gridApi.addEventListener(ev, later));
+                    $('msCards').addEventListener('click', onClick);
+                    $('msCards').addEventListener('change', e => {
+                        const el = e.target.closest('[data-act="status"]');
+                        const n = el && nodes[+el.dataset.i];
+                        if (n && n.data.ps_id) updateStockStatus(n.data.ps_id, el.checked);
+                    });
+                    $('msPrev').addEventListener('click', () => { gridApi.paginationGoToPreviousPage(); $('msCards').scrollTop = 0; });
+                    $('msNext').addEventListener('click', () => { gridApi.paginationGoToNextPage(); $('msCards').scrollTop = 0; });
+                    window.addEventListener('resize', later);
+                    later();
+                }
+            };
+        })();
     </script>
     
 </body>

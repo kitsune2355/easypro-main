@@ -12,11 +12,11 @@ include "config_ctrl/checksession.php";
                             <p class="text-sm text-slate-500">กำหนดหัวข้อและมาตรฐานการตรวจสอบเชิงเทคนิค</p> 
                         </div>
                         <div class="flex flex-row items-center gap-2">
-                            <button class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors" onclick="resetChecksheetForm()">
-                                <i data-lucide="refresh-cw" class="w-4 h-4"></i> ล้างข้อมูล
+                            <button title="ล้างข้อมูล" aria-label="ล้างข้อมูล" class="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 sm:px-4 sm:py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors" onclick="resetChecksheetForm()">
+                                <i data-lucide="refresh-cw" class="w-4 h-4"></i> <span class="hidden sm:inline">ล้างข้อมูล</span>
                             </button>
-                            <button class="btn-gradient px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2" onclick="saveChecksheet()">
-                                <i data-lucide="save" class="w-4 h-4"></i> บันทึก Template
+                            <button title="บันทึก Template" aria-label="บันทึก Template" class="btn-gradient p-2 sm:px-4 sm:py-2 rounded-lg text-sm font-medium flex items-center gap-2" onclick="saveChecksheet()">
+                                <i data-lucide="save" class="w-4 h-4"></i> <span class="hidden sm:inline">บันทึก Template</span>
                             </button>
                         </div>
                     </div>

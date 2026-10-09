@@ -43,6 +43,17 @@ include "config_ctrl/checksession.php";
         }
     </script>
     <style>
+        /* มือถือ: ซ่อนตาราง แสดงเป็นการ์ดแทน */
+        #mMeter { display: none; }
+        @media (max-width: 767.98px) {
+            #myGrid { display: none !important; }
+            #mMeter { display: flex; }
+        }
+        .mm-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: .75rem; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+        .mm-card.is-over { border-color: #fecaca; background: #fffafa; }
+        .mm-kv { background: #f8fafc; border-radius: .6rem; padding: .4rem .55rem; min-width: 0; }
+        .mm-kv b { display: block; font-size: 10px; font-weight: 600; color: #94a3b8; }
+        .mm-kv span { display: block; font-size: 13px; font-weight: 700; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sidebar-active {
             background: white;
             box-shadow: 0 4px 12px rgba(0, 107, 159, 0.08);
@@ -246,6 +257,11 @@ include "config_ctrl/checksession.php";
             <div class="flex-1 overflow-hidden min-h-[420px] lg:min-h-[300px]">
                 <div class="bg-white h-full w-full rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
                     <div id="myGrid" class="ag-theme-alpine flex-1 w-full"></div>
+                    <!-- มือถือ: รายการบันทึกแบบการ์ด (ข้อมูลชุดเดียวกับตาราง) -->
+                    <div id="mMeter" class="flex-1 min-h-0 flex-col">
+                        <div id="mmHead" class="flex-none px-3 py-2 border-b border-slate-100 flex items-center justify-between gap-2 text-xs"></div>
+                        <div id="mmCards" class="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2.5 bg-slate-50/60"></div>
+                    </div>
                 </div>
             </div>
 
@@ -1113,8 +1129,93 @@ include "config_ctrl/checksession.php";
 
                 gridApi = agGrid.createGrid(document.querySelector('#myGrid'), gridOptions);
             }
+            MobileMeter.set(cat, flatData);
         }
 
+        /* มือถือ: การ์ดรายการบันทึกมิเตอร์ (ใช้ข้อมูลชุดเดียวกับ AG Grid) */
+        const MobileMeter = (() => {
+            let rows = [], cat = 'wt';
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+            const num = (v, d = 2) => (v === null || v === undefined || v === '') ? '-' : (isNaN(parseFloat(v)) ? esc(v) : parseFloat(v).toLocaleString('th-TH', { minimumFractionDigits: d, maximumFractionDigits: d }));
+            const pctBadge = r => {
+                if (r.percent_diff === undefined || r.percent_diff === null) return '';
+                const v = r.percent_diff, txt = v > 0 ? `+${v}%` : `${v}%`;
+                const cls = r.is_exceeded ? 'bg-red-100 text-red-700' : (v < 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600');
+                return `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${cls}">${txt}</span>`;
+            };
+            const usageColor = r => r.is_exceeded ? '!text-red-700' : (r.percent_diff !== null && r.percent_diff < 0 ? '!text-emerald-700' : '!text-slate-800');
+            const thumb = (r, i) => {
+                const imgs = r.images || [];
+                if (!imgs.length) return `<div class="w-14 h-14 shrink-0 rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300"><i data-lucide="image" class="w-5 h-5"></i></div>`;
+                return `<button type="button" data-act="img" data-i="${i}" class="relative w-14 h-14 shrink-0 rounded-xl overflow-hidden border border-slate-200">
+                            <img src="${esc(imgs[0])}" class="w-full h-full object-cover" loading="lazy">
+                            ${imgs.length > 1 ? `<span class="absolute bottom-0.5 right-0.5 px-1.5 rounded-full bg-black/60 text-white text-[10px] font-bold">${imgs.length}</span>` : ''}
+                        </button>`;
+            };
+            const card = (r, i) => {
+                const unit = (METER_CONFIGS[cat] && METER_CONFIGS[cat].unit) || '';
+                const body = cat === 'tou'
+                    ? `<div class="grid grid-cols-3 gap-1.5 mt-2">
+                           <div class="mm-kv"><b>Total 010</b><span>${num(r.total_val)}</span></div>
+                           <div class="mm-kv"><b>On Peak 011</b><span>${num(r.on_val)}</span></div>
+                           <div class="mm-kv"><b>Off Peak 012</b><span>${num(r.off_val)}</span></div>
+                           <div class="mm-kv"><b>หน่วยที่ใช้</b><span class="${usageColor(r)}">${num(r.total_unit)}</span></div>
+                           <div class="mm-kv"><b>On (Units)</b><span>${num(r.on_unit)}</span></div>
+                           <div class="mm-kv"><b>Off (Units)</b><span>${num(r.off_unit)}</span></div>
+                       </div>
+                       <div class="grid grid-cols-2 gap-1.5 mt-1.5">
+                           <div class="mm-kv"><b>Demand On 031</b><span>${num(r.on_peak_demand)}</span></div>
+                           <div class="mm-kv"><b>Demand Off 032</b><span>${num(r.off_peak_demand)}</span></div>
+                       </div>
+                       <div class="grid grid-cols-2 gap-1.5 mt-1.5">
+                           <div class="mm-kv"><b>Reactive On 071</b><span>${num(r.on_reactive)}</span></div>
+                           <div class="mm-kv"><b>Reactive Off 072</b><span>${num(r.off_reactive)}</span></div>
+                       </div>`
+                    : `<div class="grid grid-cols-2 gap-1.5 mt-2">
+                           <div class="mm-kv"><b>เลขมิเตอร์</b><span class="!text-[#006B9F]">${num(r.curr)}</span></div>
+                           <div class="mm-kv"><b>ใช้ไป (${esc(unit)})</b><span class="${usageColor(r)}">${num(r.usage)}</span></div>
+                       </div>`;
+                return `<div class="mm-card ${r.is_exceeded ? 'is-over' : ''}">
+                    <div class="flex items-start gap-3">
+                        ${thumb(r, i)}
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="font-bold text-slate-800 text-sm truncate">${esc(r.date)}</div>
+                                ${pctBadge(r)}
+                            </div>
+                            <div class="mt-0.5 text-xs text-slate-500 flex items-center gap-1.5 min-w-0">
+                                <i data-lucide="clock" class="w-3.5 h-3.5 shrink-0"></i><span>${esc(r.time || '-')}</span>
+                                <i data-lucide="user" class="w-3.5 h-3.5 shrink-0 ml-1"></i><span class="truncate">${esc(r.recorder || '-')}</span>
+                            </div>
+                        </div>
+                        <button type="button" data-act="edit" data-i="${i}" title="แก้ไข" aria-label="แก้ไข" class="shrink-0 w-9 h-9 rounded-xl border border-slate-200 text-slate-500 flex items-center justify-center active:bg-slate-100"><i data-lucide="pen" class="w-4 h-4"></i></button>
+                    </div>
+                    ${body}
+                    ${r.note ? `<div class="mt-2 text-xs text-slate-600 bg-amber-50/70 border border-amber-100 rounded-lg px-2 py-1.5"><i data-lucide="sticky-note" class="w-3.5 h-3.5 inline -mt-0.5 mr-1 text-amber-500"></i>${esc(r.note)}</div>` : ''}
+                </div>`;
+            };
+            const key = r => { const m = String(r.date || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return (m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : String(r.date || '')) + ' ' + (r.time || ''); };
+            function render() {
+                const box = document.getElementById('mmCards'), head = document.getElementById('mmHead');
+                if (!box) return;
+                const over = rows.filter(r => r.is_exceeded).length;
+                head.innerHTML = `<span class="font-bold text-slate-600">${rows.length} รายการบันทึก</span>`
+                    + (over ? `<span class="px-2 py-0.5 rounded-full bg-red-50 text-red-700 font-bold">เกินเกณฑ์ ${over}</span>` : '');
+                box.innerHTML = rows.length
+                    ? rows.map((r, i) => [r, i]).sort((x, y) => key(y[0]).localeCompare(key(x[0]))).map(([r, i]) => card(r, i)).join('')
+                    : `<div class="py-16 text-center text-slate-400 text-sm"><i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2"></i>ยังไม่มีข้อมูลบันทึกในช่วงนี้</div>`;
+                if (window.lucide) lucide.createIcons();
+            }
+            document.addEventListener('click', e => {
+                const b = e.target.closest('#mmCards [data-act]');
+                if (!b) return;
+                const r = rows[+b.dataset.i];
+                if (!r) return;
+                if (b.dataset.act === 'edit') openDrawer(r);
+                else if (b.dataset.act === 'img' && typeof ImageCarousel !== 'undefined') ImageCarousel.open(r.images || []);
+            });
+            return { set(c, data) { cat = c; rows = data || []; render(); } };
+        })();
         function openDrawer(data = null) {
             isPhotoDeleted = false;
             editingRecordId = data ? data.id : null;

@@ -122,6 +122,23 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
       --ag-font-size:13px;
     }
     body{ font-family:'Kanit',sans-serif; background:var(--color-bg-light); height:100vh; overflow:hidden; }
+
+    /* ===== มือถือ (< 768px): แสดงรายการเป็นการ์ดแทนตาราง ===== */
+    @media (max-width: 767.98px) {
+      #gridWrap { display: none !important; }
+      #main-list { padding: .75rem; gap: .75rem; }
+      #row-count-wrap { display: none !important; }
+    }
+    @media (min-width: 768px) { #mList { display: none !important; } }
+    .m-chip { flex: none; padding: .35rem .8rem; border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; font-size: 13px; color: #475569; white-space: nowrap; }
+    .m-chip.is-active { background: #0284c7; border-color: #0284c7; color: #fff; font-weight: 600; }
+    .m-chip .m-cnt { margin-left: .25rem; opacity: .75; font-size: 11px; }
+    .m-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
+    .m-card:active { background: #f8fafc; }
+    .m-clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .m-act { width: 40px; height: 40px; border-radius: .75rem; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+    .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { scrollbar-width: none; }
+    .ud-jump { color: #64748b; } .ud-jump.is-active { background: #fff; color: #0369a1; box-shadow: 0 1px 2px rgba(15,23,42,.12); }
     .btn-gradient{ background:linear-gradient(to right,#006B9F,#04ADFF); color:#fff; transition:all .3s ease; }
     .btn-gradient:hover{ box-shadow:0 10px 20px -5px rgba(0,107,159,.4); transform:translateY(-1px); }
     .ag-theme-alpine{ --ag-border-color:#e2e8f0; --ag-border-radius:12px; width:100%; height:100%; }
@@ -370,7 +387,7 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
   </nav>
 
   <!-- Main -->
-  <main class="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
+  <main id="main-list" class="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
     <div class="flex flex-col md:flex-row items-center justify-between gap-4 flex-none">
       <div class="relative w-full md:w-96">
         <i data-lucide="search" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
@@ -379,16 +396,31 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
                class="w-full bg-white border border-slate-200 rounded-xl pl-11 pr-4 py-2.5 text-sm shadow-sm focus:ring-2 focus:ring-sky-500 outline-none transition-all">
       </div>
 
-      <div class="flex gap-2 text-xs font-bold text-slate-500">
+      <div id="row-count-wrap" class="flex gap-2 text-xs font-bold text-slate-500">
         <div class="bg-white border border-slate-200 rounded-xl px-4 py-2 flex items-center gap-2">
           <span id="row-count" class="text-sky-600 font-bold">0</span> รายการทั้งหมด
         </div>
       </div>
     </div>
 
-    <div class="flex-1 overflow-hidden p-1 relative">
+    <div id="gridWrap" class="flex-1 overflow-hidden p-1 relative">
       <div id="myGrid" class="ag-theme-alpine w-full h-full"></div>
     </div>
+
+    <!-- มือถือ: รายการแบบการ์ด (โหลดเพิ่มเมื่อเลื่อนถึงท้าย) -->
+    <section id="mList" class="flex-1 min-h-0 flex flex-col gap-2.5">
+      <div class="flex items-center gap-2">
+        <div id="mChips" class="flex-1 min-w-0 flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5"></div>
+      </div>
+      <div class="flex items-center justify-between text-[12px] text-slate-500 px-0.5">
+        <span>ทั้งหมด <b id="mTotal" class="text-sky-700">0</b> รายการ</span>
+        <span class="text-slate-400">แตะการ์ดเพื่อเปิดใบงาน</span>
+      </div>
+      <div id="mScroll" class="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 pb-4">
+        <div id="mCards" class="flex flex-col gap-2.5"></div>
+        <div id="mMore" class="py-4 text-center text-[13px] text-slate-400"></div>
+      </div>
+    </section>
   </main>
   
    
@@ -2888,6 +2920,10 @@ async function loadActionDropdowns() {
     document.addEventListener('DOMContentLoaded', () => {
         const gridDiv = document.querySelector('#myGrid');
         gridApi = agGrid.createGrid(gridDiv, gridOptions);
+        // ทุกครั้งที่ตารางโหลดใหม่ (รีเฟรช/บันทึก/ยกเลิก/รีเฟรชอัตโนมัติ) => โหลดรายการการ์ดบนมือถือใหม่ด้วย
+        const _refreshSS = gridApi.refreshServerSide.bind(gridApi);
+        gridApi.refreshServerSide = (p) => { const r = _refreshSS(p); MobileList.reloadIfActive(); return r; };
+        MobileList.init();
         initCloseUploader();
         safeIcons();
         AssetSelector.updateRestoreUI?.();
@@ -4128,6 +4164,187 @@ document.addEventListener('click', (e) => {
   }
 });
 
+/* =========================================================
+   มือถือ: รายการแจ้งซ่อมแบบการ์ด (ใช้ API เดียวกับตาราง: get_all)
+   - ตัวกรองสถานะเป็นชิปด้านบน / ค้นหาใช้ช่องค้นหาเดิม
+   - โหลดทีละ 15 รายการ เลื่อนถึงท้ายแล้วโหลดเพิ่มเอง
+   - ปุ่มในการ์ดเรียกฟังก์ชันเดียวกับตาราง (เปิดใบงาน / พิมพ์ / แบบประเมิน / ยกเลิก)
+   ========================================================= */
+const MobileList = (() => {
+  const PAGE = 15;
+  const CHIPS = [
+    { key: '',           label: 'ทั้งหมด' },
+    { key: 'pending',    label: 'รอดำเนินการ' },
+    { key: 'inprogress', label: 'กำลังดำเนินการ' },
+    { key: 'completed',  label: 'เสร็จสิ้น' },
+    { key: 'feedback',   label: 'ประเมินแล้ว' },
+    { key: 'cancel',     label: 'ยกเลิก' }
+  ];
+  const isMobile = () => window.innerWidth < 768;
+  let status = '', rows = [], total = 0, loading = false, reqId = 0, loaded = false, observer = null;
+  const $ = id => document.getElementById(id);
+
+  function renderChips() {
+    $('mChips').innerHTML = CHIPS.map(c =>
+      `<button type="button" class="m-chip ${c.key === status ? 'is-active' : ''}" data-st="${c.key}">${c.label}</button>`).join('');
+  }
+
+  function mediaThumb(row, idx) {
+    const media = (typeof collectRowMedia === 'function') ? collectRowMedia(row) : [];
+    if (!media.length) {
+      return `<div class="w-14 h-14 flex-none rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center text-slate-300"><i data-lucide="image" class="w-5 h-5"></i></div>`;
+    }
+    const first = media[0];
+    const inner = first.type === 'video'
+      ? `<video src="${escapeHtml(first.src)}#t=0.1" muted playsinline preload="metadata" class="w-full h-full rounded-xl object-cover bg-slate-900 border border-slate-200"></video><span class="absolute inset-0 rounded-xl bg-slate-900/35 text-white flex items-center justify-center"><i data-lucide="play" class="w-5 h-5"></i></span>`
+      : `<img src="${escapeHtml(first.src)}" class="w-full h-full rounded-xl object-cover border border-slate-200" loading="lazy" onerror="this.outerHTML='<div class=&quot;w-full h-full rounded-xl bg-slate-100&quot;></div>'">`;
+    return `<button type="button" data-act="media" data-i="${idx}" class="relative w-14 h-14 flex-none" aria-label="ดูรูป/วิดีโอ">${inner}${media.length > 1
+      ? `<span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-sky-600 text-white text-[10px] font-bold flex items-center justify-center shadow">${media.length}</span>` : ''}</button>`;
+  }
+
+  function cardHtml(row, idx) {
+    const st = normalizeStatus(row.status);
+    const meta = STATUS_META[st] || { th: 'ไม่ทราบสถานะ', bg: 'bg-slate-50', text: 'text-slate-600' };
+    const urg = urgencyMeta(row.urgency);
+    const loc = [row.building_name, row.floor_name, row.room_name].filter(v => v && v !== '-' && v !== 'ไม่ระบุ').join(' · ') || 'ไม่ระบุสถานที่';
+    const phone = String(row.phone || '').trim();
+    const tel = phone.replace(/[^\d+]/g, '');
+    const evaluated = Number(row.has_feedback || 0) === 1 || st === 'feedback' || String(row.evaluation_status || '').toLowerCase() === 'completed';
+    const canCancel = !['cancel', 'completed', 'feedback'].includes(st);
+    const asset = row.asset_code ? `<div class="flex items-center gap-1.5 min-w-0"><i data-lucide="cpu" class="w-3.5 h-3.5 flex-none text-slate-400"></i><span class="truncate"><b class="font-semibold text-slate-700">${escapeHtml(row.asset_code)}</b> ${escapeHtml(row.asset_name || '')}</span></div>` : '';
+    return `
+      <article class="m-card p-3" data-i="${idx}">
+        <div class="flex gap-3">
+          ${mediaThumb(row, idx)}
+          <div class="min-w-0 flex-1" data-act="open" data-i="${idx}">
+            <div class="flex items-start justify-between gap-2">
+              <div class="text-[13px] font-bold text-slate-900 truncate">${escapeHtml(row.rp_format || '-')}</div>
+              <span class="flex-none rounded-full px-2 py-0.5 text-[11px] font-bold ${meta.bg} ${meta.text}">${escapeHtml(meta.th)}</span>
+            </div>
+            <div class="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-slate-500">
+              <span>${escapeHtml(formatThaiDate(row.report_date))}</span>
+              ${row.report_time ? `<span>· ${escapeHtml(formatThaiTime(row.report_time))}</span>` : ''}
+              <span class="inline-flex items-center gap-1 ml-auto"><span class="w-2 h-2 rounded-full ${urg.dotClass}"></span>${escapeHtml(urg.label)}</span>
+            </div>
+            <div class="mt-1.5 text-[14px] font-semibold text-slate-800 leading-snug m-clamp2">${escapeHtml(row.problem_detail || '-')}</div>
+          </div>
+        </div>
+        <div class="mt-2.5 space-y-1 text-[12.5px] text-slate-500" data-act="open" data-i="${idx}">
+          <div class="flex items-center gap-1.5 min-w-0"><i data-lucide="map-pin" class="w-3.5 h-3.5 flex-none text-rose-400"></i><span class="truncate">${escapeHtml(loc)}</span></div>
+          <div class="flex items-center gap-1.5 min-w-0"><i data-lucide="user" class="w-3.5 h-3.5 flex-none text-slate-400"></i><span class="truncate">${escapeHtml(row.name || '-')}</span>
+            ${tel ? `<a href="tel:${escapeHtml(tel)}" data-act="tel" class="ml-auto flex-none inline-flex items-center gap-1 rounded-lg bg-emerald-50 text-emerald-700 px-2 py-0.5 font-semibold"><i data-lucide="phone" class="w-3.5 h-3.5"></i>${escapeHtml(phone)}</a>` : ''}
+          </div>
+          ${asset}
+        </div>
+        <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-2">
+          <button type="button" data-act="open" data-i="${idx}" class="flex-1 h-10 rounded-xl bg-[#006b9f] text-white text-[13px] font-semibold inline-flex items-center justify-center gap-1.5"><i data-lucide="panel-right-open" class="w-4 h-4"></i>เปิดใบงาน</button>
+          <button type="button" data-act="print" data-i="${idx}" class="m-act border border-slate-200 bg-white text-indigo-600" aria-label="พิมพ์ใบงาน" title="พิมพ์ใบงาน"><i data-lucide="printer" class="w-4 h-4"></i></button>
+          <button type="button" data-act="eval" data-i="${idx}" class="m-act relative ${evaluated ? 'bg-emerald-600 text-white' : 'border border-sky-200 bg-sky-50 text-sky-700'}" aria-label="แบบประเมิน" title="${evaluated ? 'ประเมินแล้ว' : 'ส่งแบบประเมิน'}"><i data-lucide="${evaluated ? 'badge-check' : 'mail-check'}" class="w-4 h-4"></i></button>
+          ${canCancel ? `<button type="button" data-act="cancel" data-i="${idx}" class="m-act border border-rose-200 bg-rose-50 text-rose-600" aria-label="ยกเลิกใบงาน" title="ยกเลิกใบงาน"><i data-lucide="x-circle" class="w-4 h-4"></i></button>` : ''}
+        </div>
+      </article>`;
+  }
+
+  async function load(reset) {
+    if (loading && !reset) return;
+    if (!reset && loaded && rows.length >= total) return;
+    const my = ++reqId;
+    loading = true;
+    if (reset) { rows = []; total = 0; $('mCards').innerHTML = ''; }
+    $('mMore').innerHTML = '<span class="inline-flex items-center gap-2"><span class="w-4 h-4 rounded-full border-2 border-sky-500 border-t-transparent animate-spin"></span>กำลังโหลด...</span>';
+    try {
+      const url = new URL('handle_repair_requests.php', window.location.href);
+      url.searchParams.set('action', 'get_all');
+      url.searchParams.set('ag_id', AG_ID);
+      url.searchParams.set('startRow', rows.length);
+      url.searchParams.set('endRow', rows.length + PAGE);
+      url.searchParams.set('search', document.getElementById('grid-search')?.value || '');
+      url.searchParams.set('filterModel', JSON.stringify(status ? { status: { filterType: 'set', values: [status] } } : {}));
+      const res = await (await fetch(url)).json();
+      if (my !== reqId) return;   // มีการค้นหา/เปลี่ยนตัวกรองใหม่ระหว่างโหลด
+      const start = rows.length;
+      const list = res.rows || [];
+      rows = rows.concat(list);
+      total = res.lastRow ?? rows.length;
+      loaded = true;
+      $('mCards').insertAdjacentHTML('beforeend', list.map((r, i) => cardHtml(r, start + i)).join(''));
+      $('mTotal').textContent = total.toLocaleString();
+      $('mMore').innerHTML = !rows.length
+        ? '<div class="py-10 flex flex-col items-center gap-2 text-slate-400"><i data-lucide="inbox" class="w-8 h-8"></i>ไม่พบรายการ</div>'
+        : (rows.length >= total ? `แสดงครบ ${total.toLocaleString()} รายการ` : '<button type="button" data-act="more" class="px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 text-[13px]">โหลดเพิ่ม</button>');
+      safeIcons();
+    } catch (e) {
+      console.error(e);
+      if (my === reqId) $('mMore').innerHTML = '<button type="button" data-act="more" class="text-rose-600 text-[13px] underline">โหลดไม่สำเร็จ — แตะเพื่อลองใหม่</button>';
+    } finally {
+      if (my === reqId) loading = false;
+    }
+  }
+
+  function printRow(row) {
+    const rpId = row.id || row.rp_id;
+    if (rpId) window.open('print_ver2.php?rp_id=' + encodeURIComponent(rpId), '_blank');
+  }
+
+  function onClick(e) {
+    const chip = e.target.closest('[data-st]');
+    if (chip) { status = chip.dataset.st; renderChips(); load(true); $('mScroll').scrollTop = 0; return; }
+    const el = e.target.closest('[data-act]');
+    if (!el) return;
+    const act = el.dataset.act;
+    if (act === 'tel') return;                 // โทรออก (ลิงก์ปกติ)
+    if (act === 'more') { load(false); return; }
+    const row = rows[+el.dataset.i];
+    if (!row) return;
+    e.preventDefault();
+    if (act === 'open') openDrawer('edit', row);
+    else if (act === 'print') printRow(row);
+    else if (act === 'eval') window.RepairEvaluationCenter?.open ? window.RepairEvaluationCenter.open(row) : Swal.fire('ผิดพลาด', 'ไม่พบโมดูลส่งแบบประเมิน กรุณารีเฟรชหน้า', 'error');
+    else if (act === 'cancel') cancelRepair(row);
+    else if (act === 'media') {
+      const media = collectRowMedia(row);
+      // img-carousel.js ประกาศเป็น const (ไม่อยู่บน window) จึงเช็กด้วย typeof
+      if (media.length && typeof ImageCarousel !== 'undefined') ImageCarousel.open(media);
+    }
+  }
+
+  return {
+    init() {
+      renderChips();
+      $('mList').addEventListener('click', onClick);
+      // เลื่อนใกล้ท้ายรายการ => โหลดเพิ่ม
+      observer = new IntersectionObserver(en => { if (en[0].isIntersecting && isMobile() && loaded && !loading && rows.length < total) load(false); },
+                                          { root: $('mScroll'), rootMargin: '200px' });
+      observer.observe($('mMore'));
+      // ค้นหา: ช่องค้นหาเรียก refreshServerSide ของตาราง => reloadIfActive (ผูกไว้ตอนสร้างตาราง)
+      // หมุนจอ/ย่อหน้าต่างมาเป็นขนาดมือถือ => โหลดถ้ายังไม่เคยโหลด
+      window.addEventListener('resize', () => { if (isMobile() && !loaded && !loading) load(true); });
+      if (isMobile()) load(true);
+    },
+    reloadIfActive() { if (isMobile()) load(true); else loaded = false; }
+  };
+})();
+/* drawer บนจอเล็ก: ปุ่มกระโดดไปส่วนรายละเอียด / รับงาน-ปิดงาน และไฮไลต์ตามส่วนที่กำลังดู */
+(function () {
+  const scroller = () => document.getElementById('ud_body_scroll');
+  // ตำแหน่งของส่วนภายในกล่องเลื่อน (offsetTop อ้างอิงคนละ parent จึงคำนวณจากตำแหน่งบนจอ)
+  const posIn = (el, sc) => el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
+  const setActive = id => document.querySelectorAll('.ud-jump').forEach(b => b.classList.toggle('is-active', b.dataset.jump === id));
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.ud-jump');
+    if (!b) return;
+    const sec = document.getElementById(b.dataset.jump), sc = scroller();
+    if (!sec || !sc) return;
+    sc.scrollTo({ top: posIn(sec, sc), behavior: 'smooth' });
+    setActive(b.dataset.jump);
+  });
+  document.addEventListener('scroll', e => {
+    if (e.target.id !== 'ud_body_scroll') return;
+    const act = document.getElementById('ud_sec_action');
+    if (act) setActive(e.target.scrollTop + 80 >= posIn(act, e.target) ? 'ud_sec_action' : 'ud_sec_detail');
+  }, true);
+})();
+
   </script>
  
   <!-- =========================
@@ -4169,12 +4386,20 @@ document.addEventListener('click', (e) => {
     </button>
   </div>
 
+  <!-- มือถือ/แท็บเล็ต: กระโดดไปส่วนรายละเอียด / ดำเนินการ (drawer เป็นคอลัมน์เดียวยาว) -->
+  <div id="ud_jump" class="lg:hidden flex-none px-3 py-2 bg-white border-b border-slate-200">
+    <div class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100 text-[13px] font-semibold">
+      <button type="button" data-jump="ud_sec_detail" class="ud-jump is-active rounded-lg py-1.5 inline-flex items-center justify-center gap-1.5"><i data-lucide="file-text" class="w-4 h-4"></i>รายละเอียด</button>
+      <button type="button" data-jump="ud_sec_action" class="ud-jump rounded-lg py-1.5 inline-flex items-center justify-center gap-1.5"><i data-lucide="wrench" class="w-4 h-4"></i>รับงาน / ปิดงาน</button>
+    </div>
+  </div>
+
   <!-- BODY (สกอลล์เดียวทั้ง Drawer) -->
   <div id="ud_body_scroll" class="flex-1 min-h-0 overflow-y-auto bg-[#F8FAFC]">
   <div class="grid grid-cols-1 lg:grid-cols-12 min-h-full lg:gap-0">
 
     <!-- LEFT: REQUEST DETAILS (มี padding เฉพาะฝั่งซ้าย) -->
-    <div class="lg:col-span-6 px-6 py-6">
+    <div id="ud_sec_detail" class="lg:col-span-6 px-3 sm:px-6 py-4 sm:py-6">
       <div class="max-w-4xl mx-auto space-y-5">
 
         <div class="flex items-center gap-2 pb-2 border-b border-slate-200/60">
@@ -4537,7 +4762,7 @@ document.addEventListener('click', (e) => {
       </div> 
 
     <!-- RIGHT: ACTIONS (แนบติด + เต็มแผง + ติดขอบแบบรูป) -->
-    <div class="lg:col-span-6 bg-white border-l border-slate-200">
+    <div id="ud_sec_action" class="lg:col-span-6 bg-white border-l border-slate-200">
       <!-- ทำหัว sticky ได้ (เหมือน enterprise) -->
       <div class="px-5 py-3 border-b border-slate-100 bg-slate-50 lg:sticky lg:top-0 z-10">
         <h3 class="text-xs font-black text-slate-700 uppercase tracking-wide flex items-center gap-2">
