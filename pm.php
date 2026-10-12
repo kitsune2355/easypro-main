@@ -244,6 +244,11 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                 </button>
             </li>
             <li>
+                <button onclick="switchTab('daily')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
+                    <i data-lucide="list-checks" class="w-4 h-4"></i> งานที่ต้องทำ
+                </button>
+            </li>
+            <li>
                 <button onclick="switchTab('postpone')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
                     <i data-lucide="calendar-clock" class="w-4 h-4"></i> เลื่อนแผน PM
                 </button>
@@ -291,6 +296,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
     <div class="flex-1 flex flex-col overflow-hidden bg-[var(--color-bg-light)]">
         <main class="flex-1 overflow-y-auto px-2 sm:px-4 pt-3 sm:pt-4 pb-4 relative">
             <?php include 'pm_dashboard.php'; ?>
+            <?php include 'pm_daily.php'; ?>
             <?php include 'pm_postpone.php'; ?>
             <?php include 'pm_plan.php'; ?>
             <?php include 'pm_checksheet.php'; ?>
@@ -439,6 +445,10 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                 // เพิ่มเงื่อนไขนี้เข้าไป
                 if (typeof window.initFeedbackTab === 'function') {
                     window.initFeedbackTab();
+                }
+            } else if (tabId === 'daily') {
+                if (typeof window.initDailyTab === 'function') {
+                    window.initDailyTab();
                 }
             } else if (tabId === 'schedule') {
                 if (typeof window.initScheduleTab === 'function') {

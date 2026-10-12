@@ -160,6 +160,35 @@ function suggestPlan($cells, $year, $freqOptions, $contractStart, $contractEnd) 
     return $out;
 }
 
+/**
+ * จุดตรวจที่ผู้ใช้กำหนดในหน้านำเข้า => รายการที่บันทึกได้ (ไม่มีรายการที่ใช้ได้ => จุดตรวจ default)
+ * item: {check_point, standard_text, method_text, action_abnormal, check_type_id (1-2), photo_required_id (1-3), value_name, unit, expected_value}
+ */
+function cleanSheetItems($items) {
+    global $DEFAULT_ITEM;
+    $cut = function ($v, $len) { return mb_substr(trim((string)$v), 0, $len); };
+    $out = [];
+    foreach ((array)$items as $it) {
+        if (!is_array($it)) continue;
+        $point = $cut($it['check_point'] ?? '', 255);
+        if ($point === '') continue;
+        $type = intval($it['check_type_id'] ?? 1);
+        $photo = intval($it['photo_required_id'] ?? 2);
+        $out[] = [
+            'check_point'       => $point,
+            'standard_text'     => trim((string)($it['standard_text'] ?? '')),
+            'method_text'       => trim((string)($it['method_text'] ?? '')),
+            'action_abnormal'   => trim((string)($it['action_abnormal'] ?? '')),
+            'check_type_id'     => in_array($type, [1, 2], true) ? $type : 1,
+            'photo_required_id' => in_array($photo, [1, 2, 3], true) ? $photo : 2,
+            'value_name'        => $cut($it['value_name'] ?? '', 150),
+            'unit'              => $cut($it['unit'] ?? '', 50),
+            'expected_value'    => $cut($it['expected_value'] ?? '', 100),
+        ];
+    }
+    return $out ?: [$DEFAULT_ITEM + ['value_name' => '', 'unit' => '', 'expected_value' => '']];
+}
+
 function normCode($s) {
     return strtoupper(preg_replace('/\s+/u', ' ', trim((string)$s)));
 }
@@ -317,7 +346,8 @@ try {
         mysqli_begin_transaction($connect);
         try {
             $stmtSheet = mysqli_prepare($connect, "INSERT INTO pm_checksheets (name, ass_type_id, effective_date, doc_no, rev_no, estimated_time, ag_id, created_by, updated_by) VALUES (?, ?, NULL, '', '', 0, ?, ?, ?)");
-            $stmtItem = mysqli_prepare($connect, "INSERT INTO pm_checksheet_items (checksheet_id, check_point, standard_text, method_text, action_abnormal, check_type_id, illustration_path, photo_required_id, value_name, unit, expected_value, sort_order) VALUES (?, ?, ?, ?, ?, ?, '', ?, '', '', '', 1)");
+            $stmtItem = mysqli_prepare($connect, "INSERT INTO pm_checksheet_items (checksheet_id, check_point, standard_text, method_text, action_abnormal, check_type_id, illustration_path, photo_required_id, value_name, unit, expected_value, sort_order) VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?)");
+            $sheetItems = $input['items'] ?? [];   // sheet key => [จุดตรวจ] ที่กำหนดในหน้านำเข้า
             foreach ($a['sheets'] as $key => $s) {
                 if ($s['existing_id']) { $sheetIds[$key] = $s['existing_id']; continue; }
                 mysqli_stmt_bind_param($stmtSheet, "sisss", $s['name'], $s['ass_type_id'], $ag_id, $user_id, $user_id);
@@ -326,9 +356,12 @@ try {
                 $sheetIds[$key] = $sid;
                 $createdIds[$key] = $sid;
 
-                mysqli_stmt_bind_param($stmtItem, "issssii", $sid, $DEFAULT_ITEM['check_point'], $DEFAULT_ITEM['standard_text'],
-                    $DEFAULT_ITEM['method_text'], $DEFAULT_ITEM['action_abnormal'], $DEFAULT_ITEM['check_type_id'], $DEFAULT_ITEM['photo_required_id']);
-                if (!mysqli_stmt_execute($stmtItem)) throw new Exception('สร้างจุดตรวจไม่สำเร็จ: ' . mysqli_error($connect));
+                foreach (cleanSheetItems($sheetItems[$key] ?? []) as $n => $it) {
+                    $sort = $n + 1;
+                    mysqli_stmt_bind_param($stmtItem, "issssiisssi", $sid, $it['check_point'], $it['standard_text'], $it['method_text'],
+                        $it['action_abnormal'], $it['check_type_id'], $it['photo_required_id'], $it['value_name'], $it['unit'], $it['expected_value'], $sort);
+                    if (!mysqli_stmt_execute($stmtItem)) throw new Exception('สร้างจุดตรวจไม่สำเร็จ: ' . mysqli_error($connect));
+                }
             }
             mysqli_commit($connect);
         } catch (Exception $e) {

@@ -49,7 +49,7 @@ include_once "config_ctrl/checksession.php";
 
             <h4 class="text-sm font-semibold text-slate-700 mb-1">เช็คชีต</h4>
             <p class="text-[12px] text-slate-500 mb-2">
-                เช็คชีตใหม่จะมีจุดตรวจ default "ตรวจสอบอุปกรณ์" · ผ่าน/ไม่ผ่าน · ไม่บังคับถ่ายรูป (แก้ไขได้ที่แท็บสร้างเช็คชีต) ·
+                เช็คชีตใหม่มีจุดตรวจ default "ตรวจสอบอุปกรณ์" · ผ่าน/ไม่ผ่าน · ไม่บังคับถ่ายรูป — กด <b>แก้ไขจุดตรวจ</b> เพื่อเพิ่ม/แก้ไขจุดตรวจก่อนสร้าง (แก้ไขภายหลังได้ที่แท็บสร้างเช็คชีต) ·
                 แนบภาพจุดตรวจสอบได้สูงสุด 5 รูป และคำแนะนำในการทำงานสูงสุด 5 ไฟล์ ไม่เกิน 5MB/ไฟล์
             </p>
             <div class="overflow-auto border border-slate-200 rounded-lg mb-5" style="max-height: 420px;">
@@ -60,6 +60,7 @@ include_once "config_ctrl/checksession.php";
                             <th class="px-3 py-2 text-left">ประเภทเครื่องจักร</th>
                             <th class="px-3 py-2 text-left w-20">เครื่อง</th>
                             <th class="px-3 py-2 text-left w-28">สถานะ</th>
+                            <th class="px-3 py-2 text-left min-w-[200px]">จุดตรวจ</th>
                             <th class="px-3 py-2 text-left min-w-[220px]">ภาพจุดตรวจสอบ</th>
                             <th class="px-3 py-2 text-left min-w-[220px]">คำแนะนำในการทำงาน</th>
                         </tr>
@@ -129,6 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const LEGEND = 'D = Day W= Week M = Month Q = Quarter H = Half Year Y = Year R = Reading * =Multiple check Work Order Load';
     let sheetList = [];
     let attachState = {};   // sheet key => { images: File[], docs: File[] }
+    let itemState = {};     // sheet key => [จุดตรวจ] ของเช็คชีตใหม่ (ส่งไปตอน create_sheets)
     let rowGridApi = null;
     const MAX_IMAGES = 5, MAX_DOCS = 5, MAX_DOC_BYTES = 5 * 1024 * 1024;
     let hot = null;
@@ -341,8 +343,14 @@ document.addEventListener('DOMContentLoaded', function() {
         sheetList = sheets;
         // เก็บไฟล์ที่เลือกไว้แล้วของเช็คชีตที่ยังอยู่
         const keep = {};
-        sheets.forEach(s => { if (!s.existing_id) keep[s.key] = attachState[s.key] || { images: [], docs: [] }; });
+        const keepItems = {};
+        sheets.forEach(s => {
+            if (s.existing_id) return;
+            keep[s.key] = attachState[s.key] || { images: [], docs: [] };
+            keepItems[s.key] = itemState[s.key] || [defaultItem()];
+        });
         attachState = keep;
+        itemState = keepItems;
 
         $('imp-sheet-body').innerHTML = sheets.map((s, i) => {
             const isNew = !s.existing_id;
@@ -359,6 +367,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td class="px-3 py-2">${escHtml(s.group_name)}</td>
                 <td class="px-3 py-2">${s.machines}</td>
                 <td class="px-3 py-2 ${isNew ? 'text-sky-700 font-medium' : 'text-slate-500'}">${isNew ? 'สร้างใหม่' : 'ใช้เช็คชีตเดิม'}</td>
+                <td class="px-3 py-2" id="imp-items-${i}">${isNew ? itemsCell(i) : `<span class="text-[11px] text-slate-400">ใช้จุดตรวจของเช็คชีตเดิม</span>`}</td>
                 <td class="px-3 py-2">${attachCell('images', 'accept="image/*"', 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100', 'เลือกรูป')}</td>
                 <td class="px-3 py-2">${attachCell('docs', '', 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100', 'เลือกไฟล์')}</td>
             </tr>`;
@@ -378,6 +387,146 @@ document.addEventListener('DOMContentLoaded', function() {
             (files.length ? `<span class="text-[11px] text-slate-400">${files.length}/${kind === 'images' ? MAX_IMAGES : MAX_DOCS}</span>` : '');
         lucide.createIcons();
     }
+
+    // ---------- จุดตรวจของเช็คชีตใหม่ ----------
+    const CHECK_TYPES = [{ id: 1, label: 'ผ่าน / ไม่ผ่าน' }, { id: 2, label: 'ผ่าน / ไม่ผ่าน / ไม่เกี่ยวข้อง' }];
+    const PHOTO_REQS = [{ id: 2, label: 'ไม่บังคับ' }, { id: 1, label: 'บังคับ' }, { id: 3, label: 'บังคับเฉพาะกรณีที่ไม่ผ่าน' }];
+    // คอลัมน์ในหน้าต่างแก้ไข (ลำดับเดียวกับการวางจาก Excel)
+    const ITEM_COLS = [
+        { f: 'check_point', label: 'จุดตรวจ', req: true, w: 180 },
+        { f: 'standard_text', label: 'มาตรฐาน', w: 160 },
+        { f: 'method_text', label: 'วิธีตรวจ', w: 160 },
+        { f: 'action_abnormal', label: 'การแก้ไขเมื่อผิดปกติ', w: 160 },
+        { f: 'check_type_id', label: 'ผลตรวจ', opts: CHECK_TYPES, w: 170 },
+        { f: 'photo_required_id', label: 'ถ่ายรูป', opts: PHOTO_REQS, w: 170 },
+        { f: 'value_name', label: 'ค่าที่วัด', w: 110 },
+        { f: 'unit', label: 'หน่วย', w: 80 },
+        { f: 'expected_value', label: 'ค่ามาตรฐาน', w: 100 },
+    ];
+    const defaultItem = () => ({ check_point: 'ตรวจสอบอุปกรณ์', standard_text: 'ตรวจสอบอุปกรณ์', method_text: 'ตรวจสอบอุปกรณ์', action_abnormal: '',
+                                 check_type_id: 1, photo_required_id: 2, value_name: '', unit: '', expected_value: '' });
+    const blankItem = () => ({ check_point: '', standard_text: '', method_text: '', action_abnormal: '', check_type_id: 1, photo_required_id: 2, value_name: '', unit: '', expected_value: '' });
+
+    function itemsCell(i) {
+        const items = itemState[sheetList[i].key] || [];
+        const names = items.slice(0, 3).map(it => `<li class="truncate max-w-[220px]" title="${escHtml(it.check_point)}">${escHtml(it.check_point)}</li>`).join('');
+        return `<ul class="text-[12px] text-slate-600 list-disc pl-4">${names}${items.length > 3 ? `<li class="list-none -ml-4 text-slate-400">และอีก ${items.length - 3} จุด</li>` : ''}</ul>
+            <button type="button" class="imp-items-edit mt-1 inline-flex items-center gap-1 px-2 py-1 rounded border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 text-xs" data-idx="${i}">
+                <i data-lucide="list-plus" class="w-3 h-3"></i> แก้ไขจุดตรวจ (${items.length})</button>`;
+    }
+
+    function refreshItemsCells() {
+        sheetList.forEach((s, i) => { const td = $(`imp-items-${i}`); if (td && !s.existing_id) td.innerHTML = itemsCell(i); });
+        lucide.createIcons();
+    }
+
+    function itemRowHtml(it, r) {
+        return `<tr data-r="${r}" class="border-t border-slate-100 align-top">
+            <td class="px-1 py-1 text-center text-slate-400 text-xs pt-2.5">${r + 1}</td>
+            ${ITEM_COLS.map(c => `<td class="px-1 py-1">${c.opts
+                ? `<select data-f="${c.f}" class="w-full border border-slate-300 rounded px-1.5 py-1.5 text-[13px]">${c.opts.map(o => `<option value="${o.id}" ${+it[c.f] === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}</select>`
+                : `<input data-f="${c.f}" value="${escHtml(it[c.f])}" class="w-full border border-slate-300 rounded px-2 py-1.5 text-[13px]" style="min-width:${c.w}px">`}</td>`).join('')}
+            <td class="px-1 py-1"><button type="button" class="imp-it-del p-1.5 text-rose-500 hover:bg-rose-50 rounded" title="ลบจุดตรวจ">&times;</button></td>
+        </tr>`;
+    }
+
+    // อ่านค่าจากตารางในหน้าต่างแก้ไข
+    function readItemRows(tbody) {
+        return [...tbody.querySelectorAll('tr')].map(tr => {
+            const it = {};
+            tr.querySelectorAll('[data-f]').forEach(el => { it[el.dataset.f] = el.tagName === 'SELECT' ? +el.value : el.value.trim(); });
+            return it;
+        });
+    }
+
+    async function editSheetItems(i) {
+        const sheet = sheetList[i];
+        const newCount = sheetList.filter(s => !s.existing_id).length;
+        let rows = (itemState[sheet.key] || []).map(it => ({ ...it }));
+        if (!rows.length) rows = [blankItem()];
+
+        const res = await Swal.fire({
+            title: 'จุดตรวจ: ' + escHtml(sheet.name),
+            width: '95vw',
+            html: `<div class="text-left">
+                <p class="text-[12px] text-slate-500 mb-2">วางข้อมูลจาก Excel ได้ (คัดลอกหลายแถว/หลายคอลัมน์ ตามลำดับคอลัมน์ด้านล่าง แล้ววางในช่องเริ่มต้น) ·
+                    กรอก <b>ค่ามาตรฐาน</b> เมื่อต้องการให้ช่างกรอกค่าที่วัดได้</p>
+                <div class="overflow-auto border border-slate-200 rounded-lg" style="max-height:55vh">
+                    <table class="w-full text-sm"><thead class="bg-slate-50 text-slate-600 text-[12px] sticky top-0 z-10"><tr>
+                        <th class="px-1 py-2 w-8">#</th>
+                        ${ITEM_COLS.map(c => `<th class="px-1 py-2 text-left font-medium whitespace-nowrap">${c.label}${c.req ? ' <span class="text-rose-500">*</span>' : ''}</th>`).join('')}
+                        <th class="w-8"></th></tr></thead>
+                    <tbody id="imp-it-body">${rows.map(itemRowHtml).join('')}</tbody></table>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 mt-3">
+                    <button type="button" id="imp-it-add" class="px-3 py-1.5 rounded-lg border border-sky-300 text-sky-700 hover:bg-sky-50 text-sm">+ เพิ่มจุดตรวจ</button>
+                    ${newCount > 1 ? `<label class="ml-auto inline-flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="imp-it-all"> ใช้จุดตรวจชุดนี้กับเช็คชีตใหม่ทั้งหมด (${newCount} ชุด)</label>` : ''}
+                </div></div>`,
+            showCancelButton: true, confirmButtonText: 'บันทึกจุดตรวจ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#006B9F',
+            didOpen: () => {
+                const body = $('imp-it-body');
+                const renumber = () => body.querySelectorAll('tr').forEach((tr, r) => { tr.dataset.r = r; tr.cells[0].textContent = r + 1; });
+                $('imp-it-add').addEventListener('click', () => {
+                    body.insertAdjacentHTML('beforeend', itemRowHtml(blankItem(), body.rows.length));
+                    body.lastElementChild.querySelector('input').focus();
+                });
+                body.addEventListener('click', e => {
+                    const del = e.target.closest('.imp-it-del');
+                    if (!del) return;
+                    del.closest('tr').remove();
+                    if (!body.rows.length) body.insertAdjacentHTML('beforeend', itemRowHtml(blankItem(), 0));
+                    renumber();
+                });
+                // วางหลายแถว/หลายคอลัมน์จาก Excel: กระจายลงตาราง เริ่มจากช่องที่วาง
+                body.addEventListener('paste', e => {
+                    const el = e.target.closest('[data-f]');
+                    const text = (e.clipboardData || window.clipboardData).getData('text');
+                    if (!el || !/[\t\n]/.test(text.trim())) return;
+                    e.preventDefault();
+                    const lines = text.replace(/\r/g, '').replace(/\n+$/, '').split('\n').map(l => l.split('\t'));
+                    const r0 = +el.closest('tr').dataset.r, c0 = ITEM_COLS.findIndex(c => c.f === el.dataset.f);
+                    lines.forEach((cells, dr) => {
+                        while (body.rows.length <= r0 + dr) body.insertAdjacentHTML('beforeend', itemRowHtml(blankItem(), body.rows.length));
+                        const tr = body.rows[r0 + dr];
+                        cells.forEach((v, dc) => {
+                            const col = ITEM_COLS[c0 + dc];
+                            if (!col) return;
+                            const target = tr.querySelector(`[data-f="${col.f}"]`);
+                            v = v.trim();
+                            if (col.opts) {
+                                const o = col.opts.find(o => o.label === v || String(o.id) === v);
+                                if (o) target.value = o.id;
+                            } else target.value = v;
+                        });
+                    });
+                });
+            },
+            preConfirm: () => {
+                const all = readItemRows($('imp-it-body'));
+                const items = all.filter(it => ITEM_COLS.some(c => !c.opts && it[c.f] !== ''));
+                const errs = [];
+                items.forEach(it => {
+                    const n = all.indexOf(it) + 1;
+                    if (!it.check_point) errs.push(`แถว ${n}: กรุณากรอกจุดตรวจ`);
+                    if (it.expected_value && it.expected_value !== '-' && !it.value_name) errs.push(`แถว ${n}: มีค่ามาตรฐาน กรุณากรอกชื่อค่าที่วัด`);
+                });
+                if (!items.length) errs.push('ต้องมีจุดตรวจอย่างน้อย 1 จุด');
+                if (errs.length) { Swal.showValidationMessage(errs.slice(0, 5).join('<br>')); return false; }
+                return { items, all: !!$('imp-it-all')?.checked };
+            }
+        });
+        if (!res.isConfirmed) return;
+        const { items, all } = res.value;
+        sheetList.forEach(s => {
+            if (!s.existing_id && (all || s.key === sheet.key)) itemState[s.key] = items.map(it => ({ ...it }));
+        });
+        refreshItemsCells();
+    }
+
+    $('imp-sheet-body').addEventListener('click', (ev) => {
+        const btn = ev.target.closest('.imp-items-edit');
+        if (btn) editSheetItems(+btn.dataset.idx);
+    });
 
     $('imp-sheet-body').addEventListener('change', (ev) => {
         const input = ev.target.closest('.imp-attach');
@@ -424,7 +573,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         Swal.fire({ title: 'กำลังสร้างเช็คชีต...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         try {
-            const res = await axios.post('handle_pm_import.php?action=create_sheets', { rows: parsedRows, year: parseInt($('imp-year').value, 10) });
+            const res = await axios.post('handle_pm_import.php?action=create_sheets', { rows: parsedRows, year: parseInt($('imp-year').value, 10), items: itemState });
             if (!res.data.success) throw new Error(res.data.error);
             const d = res.data.data;
 
@@ -456,6 +605,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             await Swal.fire({ icon: failed.length ? 'warning' : 'success', title: 'สร้างเช็คชีตเรียบร้อย', html: msg.join('<br>') });
             attachState = {};
+            itemState = {};
             renderPlanTable(d.plan_rows);
         } catch (e) {
             Swal.fire('ข้อผิดพลาด', e.message, 'error');
