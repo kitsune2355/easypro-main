@@ -391,14 +391,26 @@ try {
         // อ่านก่อนเริ่ม transaction (CREATE TABLE IF NOT EXISTS จะ commit อัตโนมัติ)
         $agencyItems = agencyDefaultItems($connect, $ag_id)[0];   // ไม่ได้กำหนด => จุดตรวจเริ่มต้นของหน่วยงาน
 
+        // ข้อมูลหัวเช็คชีตที่สร้างให้อัตโนมัติ (แก้ไขภายหลังได้ที่แท็บสร้างเช็คชีต)
+        //  เลขที่เอกสาร CS-YYYYMM-NNN (เรียงต่อจากเลขเดิมของหน่วยงานในเดือนนี้), Rev 00, วันที่มีผล = วันที่นำเข้า, เวลา 60 นาที
+        $docPrefix = 'CS-' . date('Ym') . '-';
+        $docSeq = 0;
+        foreach (fetchAll($connect, "SELECT doc_no FROM pm_checksheets WHERE ag_id = ? AND doc_no LIKE ?", "ss", [$ag_id, $docPrefix . '%']) as $d) {
+            $docSeq = max($docSeq, intval(substr($d['doc_no'], strlen($docPrefix))));
+        }
+        $effectiveDate = date('Y-m-d');
+        $revNo = '00';
+        $estimatedTime = 60;
+
         mysqli_begin_transaction($connect);
         try {
-            $stmtSheet = mysqli_prepare($connect, "INSERT INTO pm_checksheets (name, ass_type_id, effective_date, doc_no, rev_no, estimated_time, ag_id, created_by, updated_by) VALUES (?, ?, NULL, '', '', 0, ?, ?, ?)");
+            $stmtSheet = mysqli_prepare($connect, "INSERT INTO pm_checksheets (name, ass_type_id, effective_date, doc_no, rev_no, estimated_time, ag_id, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmtItem = mysqli_prepare($connect, "INSERT INTO pm_checksheet_items (checksheet_id, check_point, standard_text, method_text, action_abnormal, check_type_id, illustration_path, photo_required_id, value_name, unit, expected_value, sort_order) VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?)");
             $sheetItems = $input['items'] ?? [];   // sheet key => [จุดตรวจ] ที่กำหนดในหน้านำเข้า
             foreach ($a['sheets'] as $key => $s) {
                 if ($s['existing_id']) { $sheetIds[$key] = $s['existing_id']; continue; }
-                mysqli_stmt_bind_param($stmtSheet, "sisss", $s['name'], $s['ass_type_id'], $ag_id, $user_id, $user_id);
+                $docNo = $docPrefix . str_pad((string)(++$docSeq), 3, '0', STR_PAD_LEFT);
+                mysqli_stmt_bind_param($stmtSheet, "sisssisss", $s['name'], $s['ass_type_id'], $effectiveDate, $docNo, $revNo, $estimatedTime, $ag_id, $user_id, $user_id);
                 if (!mysqli_stmt_execute($stmtSheet)) throw new Exception('สร้างเช็คชีตไม่สำเร็จ: ' . mysqli_error($connect));
                 $sid = mysqli_insert_id($connect);
                 $sheetIds[$key] = $sid;

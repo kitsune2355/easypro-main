@@ -55,6 +55,7 @@ include_once "config_ctrl/checksession.php";
             <h4 class="text-sm font-semibold text-slate-700 mb-1">เช็คชีต</h4>
             <p class="text-[12px] text-slate-500 mb-2">
                 เช็คชีตใหม่ใช้<span id="imp-default-desc">จุดตรวจเริ่มต้นของหน่วยงาน</span> — กด <b>แก้ไขจุดตรวจ</b> เพื่อเพิ่ม/แก้ไขเฉพาะเช็คชีตก่อนสร้าง (แก้ไขภายหลังได้ที่แท็บสร้างเช็คชีต) ·
+                ระบบกำหนดเลขที่เอกสาร (CS-ปีเดือน-ลำดับ), Rev. 00, วันที่มีผล = วันที่นำเข้า และเวลาที่ใช้ 60 นาที ให้อัตโนมัติ ·
                 แนบภาพจุดตรวจสอบได้สูงสุด 5 รูป และคำแนะนำในการทำงานสูงสุด 5 ไฟล์ ไม่เกิน 5MB/ไฟล์
             </p>
             <div class="overflow-auto border border-slate-200 rounded-lg mb-5" style="max-height: 420px;">
