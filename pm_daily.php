@@ -341,7 +341,7 @@
         const more = e.target.closest('[data-more]'), retry = e.target.closest('[data-retry]');
         if (op) openWin('pm_worksheet.php?plan_id=' + encodeURIComponent(op.dataset.open));
         else if (hi) openWin('pm_worksheet.php?plan_id=' + encodeURIComponent(hi.dataset.history) + '&mode=history');
-        else if (ba) openWin('pm_worksheet_batch.php?checksheet_id=' + encodeURIComponent(ba.dataset.batch) + '&date=' + encodeURIComponent(ba.dataset.date));
+        else if (ba) window.openPmBatchDialog('pm_worksheet_batch.php?checksheet_id=' + encodeURIComponent(ba.dataset.batch) + '&date=' + encodeURIComponent(ba.dataset.date));
         else if (more) loadItems(more.dataset.more, true);
         else if (retry) loadItems(retry.dataset.retry);
     });
@@ -351,6 +351,11 @@
         if (!refreshOnFocus || !summary || $('tab-daily').classList.contains('hidden')) return;
         refreshOnFocus = false;
         load(true);
+    });
+
+    // ปิด dialog บันทึกพร้อมกัน => โหลดสถานะใหม่ (เฉพาะตอนแท็บนี้เปิดอยู่)
+    window.addEventListener('pm:batch-closed', () => {
+        if (summary && !$('tab-daily').classList.contains('hidden')) load(true);
     });
 
     // switchTab('daily', opts) — เปิดจากหน้าภาพรวม: กรองสถานะที่ต้องการ

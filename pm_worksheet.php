@@ -80,7 +80,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
         .ws-sheet .ws-col-value { width: 11rem; min-width: 9rem; }
         .ws-sheet .ws-col-photo { width: 7rem; min-width: 6.5rem; }
         .ws-sheet tbody tr.ws-item { cursor: pointer; }
-        @media (hover: hover) and (min-width: 768px) {
+        @media not all {   /* hover ของตารางเดิม: ไม่ใช้แล้ว */
             .ws-sheet tbody tr.ws-item:hover td { background: #f8fafc; }
         }
         .ws-sheet td:focus-within { outline: 2px solid #006b9f; outline-offset: -2px; }
@@ -98,25 +98,25 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
         .ws-more-btn { display: none; }
 
         /* แผงรายละเอียด: จอ lg ขึ้นไปอยู่ด้านขวาของตาราง, จอเล็กกว่าเป็นแผ่นเลื่อนขึ้นจากด้านล่าง */
-        @media (min-width: 1024px) {
+        @media not all {   /* แผงรายละเอียดด้านขวา: ไม่ใช้แล้ว (แสดงเป็นแผ่นเลื่อนขึ้นทุกขนาดจอ) */
             .ws-body { display: grid; grid-template-columns: minmax(0, 1fr) 21rem; }
             .ws-detail { position: sticky; top: var(--ws-detail-top, 9rem); align-self: start; max-height: calc(100vh - var(--ws-detail-top, 9rem) - 5.5rem); overflow-y: auto; border-left: 1px solid #e2e8f0; background: #fff; border-radius: 0 0 .75rem 0; }
             .ws-detail-head, .ws-backdrop { display: none !important; }
         }
-        @media (max-width: 1023.98px) {
+        @media all {
             .ws-detail { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: 82vh; overflow-y: auto; background: #fff; border-radius: 1rem 1rem 0 0; box-shadow: 0 -10px 30px rgba(15, 23, 42, .18); transform: translateY(105%); visibility: hidden; transition: transform .25s ease, visibility .25s; }
             .ws-detail.is-open { transform: translateY(0); visibility: visible; }
             .ws-backdrop { position: fixed; inset: 0; z-index: 55; background: rgba(15, 23, 42, .45); opacity: 0; pointer-events: none; transition: opacity .2s; }
             .ws-backdrop.is-open { opacity: 1; pointer-events: auto; }
             .ws-more-btn { display: inline-flex; align-items: center; gap: .375rem; margin-top: .5rem; font-size: .75rem; font-weight: 500; color: #006b9f; }
         }
-        @media (min-width: 768px) and (max-width: 1023.98px) {
+        @media (min-width: 768px) {
             .ws-detail { left: 50%; right: auto; width: 36rem; max-width: 100%; transform: translate(-50%, 105%); }
             .ws-detail.is-open { transform: translate(-50%, 0); }
         }
 
-        /* มือถือ: แต่ละข้อเป็นการ์ด */
-        @media (max-width: 767.98px) {
+        /* แต่ละข้อเป็นการ์ด ทุกขนาดจอ — แบบเดียวกับหน้าบันทึกพร้อมกัน (pm_worksheet_batch.php) */
+        @media all {
             .ws-sheet-wrap { overflow: visible; padding: .75rem; background: #f8fafc; border-radius: 0 0 .75rem .75rem; }
             .ws-sheet, .ws-sheet tbody { display: block; }
             .ws-sheet thead, .ws-sheet tr.ws-item > td.ws-col-no, .ws-sheet tr.ws-item > td.ws-empty { display: none; }
@@ -135,6 +135,44 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             .ws-choice { min-height: 2.75rem; }
             .ws-photo { min-height: 4.5rem; }
         }
+
+        /* ===== หน้าตาแบบเดียวกับหน้าบันทึกพร้อมกัน (pm_worksheet_batch.php) ===== */
+        body { background: #f8fafc; }
+        .ws-topbar { padding-top: env(safe-area-inset-top, 0px); }
+        .ws-topbtn { width: 2.25rem; height: 2.25rem; border-radius: .75rem; background: rgba(255, 255, 255, .15); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+        .ws-topbtn:hover { background: rgba(255, 255, 255, .25); }
+        .ws-pbar { height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .25); overflow: hidden; }
+        .ws-pbar > span { display: block; height: 100%; background: #fff; border-radius: 99px; transition: width .3s; }
+        .ws-blk { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: .9rem; }
+        .ws-info-lbl { display: block; font-size: .6875rem; color: #64748b; font-weight: 500; margin-bottom: .125rem; }
+        /* กล่องของแต่ละส่วน: มุมมน ไม่มีเงา ระยะห่างแบบหน้าบันทึกพร้อมกัน */
+        #pmForm .ws-step > div.bg-white { border-radius: 1rem; box-shadow: none; margin-bottom: .75rem; }
+        #pmForm .ws-step > div.bg-white > div:first-child h2 { font-size: .9375rem; }
+        #pmForm .ws-step > div.bg-white > div:first-child { padding: .75rem 1rem; }
+        .ws-sheet-wrap { padding: .75rem; }
+        /* จอกว้าง: ผลการตรวจ | ค่าที่วัดได้จริง | รูปภาพหลักฐาน เรียงในแถวเดียว */
+        @media (min-width: 640px) {
+            .ws-sheet tbody tr.ws-item { flex-direction: row; flex-wrap: wrap; }
+            .ws-sheet tr.ws-item > td.ws-col-point { flex: 0 0 100%; }
+            .ws-sheet tr.ws-item > td.ws-col-status { flex: 1 1 0; }
+            .ws-sheet tr.ws-item > td.ws-col-value { flex: 0 0 11rem; border-left: 1px solid #f1f5f9; }
+            .ws-sheet tr.ws-item > td.ws-col-photo { flex: 0 0 8.5rem; border-left: 1px solid #f1f5f9; }
+            .ws-sheet tr.ws-item img[id^="img_preview_"] { height: 4.25rem; }
+        }
+        /* แถบปุ่มล่าง */
+        .ws-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: #fff; border-top: 1px solid #e2e8f0; padding: .6rem .75rem; padding-bottom: calc(.6rem + env(safe-area-inset-bottom, 0px)); }
+        .ws-btn { border-radius: .8rem; padding: .75rem 1rem; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; transition: background .15s; }
+        .ws-btn:disabled { opacity: .5; cursor: not-allowed; }
+        /* แผ่นลงชื่อและบันทึก (โหมดบันทึกเท่านั้น) */
+        .ws-edit-only { display: none !important; }
+        body.ws-edit .ws-edit-only { display: flex !important; }
+        body.ws-edit .ws-signsheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-width: 56rem; margin: 0 auto; max-height: 92vh; overflow-y: auto; background: #f8fafc; border-radius: 1.25rem 1.25rem 0 0; padding: 1rem; padding-bottom: 0; box-shadow: 0 -10px 30px rgba(15, 23, 42, .2); transform: translateY(105%); visibility: hidden; transition: transform .22s ease, visibility .22s; }
+        body.ws-edit .ws-signsheet.open { transform: none; visibility: visible; }
+        .ws-sign-foot { position: sticky; bottom: 0; gap: .5rem; background: #f8fafc; padding: .6rem 0 calc(.75rem + env(safe-area-inset-bottom, 0px)); margin-top: .25rem; }
+        .ws-scrim { position: fixed; inset: 0; z-index: 55; background: rgba(15, 23, 42, .5); opacity: 0; pointer-events: none; transition: opacity .2s; }
+        body.ws-edit .ws-scrim.open { opacity: 1; pointer-events: auto; }
+        body.ws-sheet-open { overflow: hidden; }
+        @media (prefers-reduced-motion: reduce) { .ws-signsheet, .ws-scrim, .ws-pbar > span { transition: none !important; } }
 
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
@@ -216,82 +254,59 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 </head>
 <body class="text-slate-700 pb-28">
 
-    <nav class="bg-primary text-white shadow-md sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex justify-between items-center gap-3">
-            <h1 class="text-base sm:text-xl font-semibold flex items-center gap-2 min-w-0">
-                <i class="fa-solid fa-clipboard-check flex-shrink-0"></i> 
-                <span class="truncate">บันทึกผลการบำรุงรักษา (PM Worksheet)</span>
-            </h1>
-			<div class="flex flex-shrink-0 gap-2">
-				<button type="button"
-						onclick="openPmEventMatrixReport()" title="รายงาน PM ตามรอบงาน"
-						class="bg-white text-primary px-3 md:px-4 py-2 rounded-lg flex-shrink-0 text-sm font-semibold hover:bg-slate-100 transition flex items-center gap-2">
-					<i class="fa-solid fa-table-cells-large"></i>
-					<span class="hidden md:inline">รายงาน PM ตามรอบงาน</span>
-				</button>
-				<button type="button"
-						onclick="openPmMonthlyReport()" title="รายงาน PM รายเดือน"
-						class="bg-white text-primary px-3 md:px-4 py-2 rounded-lg flex-shrink-0 text-sm font-semibold hover:bg-slate-100 transition flex items-center gap-2">
-					<i class="fa-solid fa-table"></i>
-					<span class="hidden md:inline">รายงาน PM รายเดือน</span>
-				</button>
-			</div>
-			
-		<?php if (!empty($mode)): ?>
-		<button type="button"
-				onclick="openPmPrintPage()" title="พิมพ์ใบงาน PM"
-				class="bg-white text-primary px-3 md:px-4 py-2 rounded-lg flex-shrink-0 text-sm font-semibold hover:bg-slate-100 transition flex items-center gap-2">
-			<i class="fa-solid fa-print"></i>
-			<span class="hidden md:inline">พิมพ์ใบงาน PM</span>
-		</button>
-        <?php endif; ?>
+    <!-- หัวหน้า: แบบเดียวกับหน้าบันทึกพร้อมกัน (pm_worksheet_batch.php) — ชื่อเช็คชีต · เครื่อง/วันที่ · ความคืบหน้า -->
+    <nav class="ws-topbar bg-primary text-white sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 pt-3 pb-2.5">
+            <div class="flex items-center gap-2">
+                <div class="min-w-0 flex-1">
+                    <h1 class="text-base sm:text-lg font-semibold leading-tight truncate"><span>บันทึกผลการบำรุงรักษา (PM Worksheet)</span></h1>
+                    <p id="ws-nav-sub" class="text-xs opacity-90 truncate">กำลังโหลด...</p>
+                </div>
+                <button type="button" onclick="openPmEventMatrixReport()" title="รายงาน PM ตามรอบงาน" class="ws-topbtn"><i class="fa-solid fa-table-cells-large"></i></button>
+                <button type="button" onclick="openPmMonthlyReport()" title="รายงาน PM รายเดือน" class="ws-topbtn"><i class="fa-solid fa-table"></i></button>
+                <?php if (!empty($mode)): ?>
+                <button type="button" onclick="openPmPrintPage()" title="พิมพ์ใบงาน PM" class="ws-topbtn"><i class="fa-solid fa-print"></i></button>
+                <?php endif; ?>
+                <button type="button" onclick="window.close()" title="ปิด" class="ws-topbtn"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="ws-pbar mt-2"><span id="ws-nav-bar" style="width:0%"></span></div>
+            <div class="flex items-center justify-between mt-1.5 text-[11px] opacity-90">
+                <span id="ws-nav-mode"><?php echo !empty($mode) ? 'ประวัติที่บันทึกแล้ว' : 'ใบงานรายเครื่อง'; ?></span>
+                <span class="tabular-nums" id="ws-nav-count"></span>
+            </div>
         </div>
     </nav>
 
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-6" id="app-container" style="display: none;">
+    <div class="max-w-4xl mx-auto px-3 sm:px-4 mt-3 space-y-3" id="app-container" style="display: none;">
         
         <form id="pmForm" onSubmit="event.preventDefault();">
             <input type="hidden" id="plan_id" name="plan_id" value="<?php echo htmlspecialchars($plan_id); ?>">
 
-            <!-- ===== หัวงาน ===== -->
-            <div class="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 flex items-center gap-3">
-                <span class="hidden sm:flex flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 text-primary items-center justify-center"><i class="fa-solid fa-gears"></i></span>
-                <div class="min-w-0">
-                    <div id="ws-job-machine" class="font-semibold text-slate-800 truncate">-</div>
-                    <div class="text-xs text-slate-500 truncate">เลขที่เอกสาร <span id="ws-job-doc">-</span> · กำหนดการ <span id="ws-job-date">-</span></div>
-                </div>
+            <!-- แถบขั้นตอนเดิม: ไม่แสดงแล้ว (หน้าเป็นแบบเลื่อนหน้าเดียวเหมือนหน้าบันทึกพร้อมกัน) — คง id ไว้ให้โค้ดเดิมอ้างอิงได้ -->
+            <div id="ws-stepper" class="hidden">
+                <button type="button" class="ws-step-btn" data-ws-step-go="2"><span class="ws-step-num">2</span><span id="ws-step-sub-2"></span></button>
             </div>
 
-            <!-- ===== แถบขั้นตอน (ติดด้านบนใต้ nav) ===== -->
-            <div id="ws-stepper" class="sticky z-30 py-3 mb-3 bg-slate-100">
-                <nav aria-label="ขั้นตอนการบันทึก">
-                    <ol class="grid grid-cols-4 gap-1.5 sm:gap-2">
-                        <li><button type="button" class="ws-step-btn" data-ws-step-go="1"><span class="ws-step-num">1</span><span class="min-w-0"><span class="ws-step-title">ข้อมูลงาน</span><span class="ws-step-sub">เครื่องจักร · ไฟล์แนบ</span></span></button></li>
-                        <li><button type="button" class="ws-step-btn" data-ws-step-go="2"><span class="ws-step-num">2</span><span class="min-w-0"><span class="ws-step-title">ตรวจสอบ</span><span class="ws-step-sub" id="ws-step-sub-2">จุดตรวจสอบ</span></span></button></li>
-                        <li><button type="button" class="ws-step-btn" data-ws-step-go="3"><span class="ws-step-num">3</span><span class="min-w-0"><span class="ws-step-title">อะไหล่</span><span class="ws-step-sub">อะไหล่/วัสดุที่ใช้</span></span></button></li>
-                        <li><button type="button" class="ws-step-btn" data-ws-step-go="4"><span class="ws-step-num">4</span><span class="min-w-0"><span class="ws-step-title">สรุป &amp; ลงชื่อ</span><span class="ws-step-sub">ผู้ตรวจสอบ · ลายเซ็น</span></span></button></li>
-                    </ol>
-                </nav>
-            </div>
-
-            <!-- ===== ขั้นที่ 1: ข้อมูลงาน ===== -->
+            <!-- ===== ขั้นที่ 1: ข้อมูลงาน — การ์ดเครื่องแบบเดียวกับหน้าบันทึกพร้อมกัน ===== -->
             <section class="ws-step" data-ws-step="1">
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-                <div class="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center gap-2.5">
-                    <i class="fa-solid fa-circle-info text-primary text-lg"></i>
-                    <h2 class="text-lg font-semibold text-slate-800">ข้อมูลการปฏิบัติงาน</h2>
-                </div>
-                <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5">
-                    <div><label class="block text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">เลขที่เอกสาร</label><div id="info-doc-no" class="font-semibold text-slate-900">-</div></div>
-                    <div><label class="block text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Revision No</label><div id="info-rev-no" class="font-semibold text-slate-900">-</div></div>
-                    <div class="lg:col-span-2"><label class="block text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">ชื่อเช็คชีต</label><div id="info-checksheet-name" class="font-semibold text-slate-900">-</div></div>
-                    <div class="lg:col-span-2"><label class="block text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">ชื่อเครื่องจักร</label><div id="info-machine-name" class="font-semibold text-primary text-base">-</div></div>
-					<div><label class="block text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">ซีเรียล (Serial Number)</label><div id="info-machine-sn" class="font-semibold text-slate-900">-</div></div>
-                    <div><label class="block text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">ประเภทเครื่องจักร</label><div id="info-machine-type" class="font-semibold text-slate-900">-</div></div>
-                    <div><label class="block text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">สถานที่ตั้งเครื่องจักร</label><div id="info-location" class="font-semibold text-slate-900">-</div></div>
-                    <div><label class="block text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">วันที่ตามกำหนดการ</label><div id="info-plan-date" class="font-semibold text-amber-700 flex items-center gap-1.5"><i class="fa-solid fa-calendar-day"></i><span>-</span></div></div>
-                    <div><label class="block text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">วันที่ดำเนินการจริง</label><div id="info-actual-date" class="font-semibold text-green-700 flex items-center gap-1.5"><i class="fa-solid fa-calendar-check"></i><span><?php echo date('Y-m-d'); ?></span></div></div>
-                </div>
+            <div class="ws-blk">
+                <div id="ws-job-machine" class="text-xl font-semibold text-slate-800 leading-tight break-words">-</div>
+                <div class="text-sm text-slate-600 mt-0.5" id="ws-job-sub"></div>
+                <div class="text-xs text-slate-400 mt-0.5">เลขที่เอกสาร <span id="ws-job-doc">-</span> · กำหนดการ <span id="ws-job-date">-</span></div>
+                <details class="mt-2 group">
+                    <summary class="inline-flex items-center gap-1.5 text-xs text-primary font-semibold cursor-pointer select-none"><i class="fa-solid fa-circle-info"></i>ข้อมูลงานทั้งหมด <i class="fa-solid fa-chevron-down text-[10px] transition-transform group-open:rotate-180"></i></summary>
+                    <div class="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3 text-sm">
+                        <div><label class="ws-info-lbl">เลขที่เอกสาร</label><div id="info-doc-no" class="font-semibold text-slate-900">-</div></div>
+                        <div><label class="ws-info-lbl">Revision No</label><div id="info-rev-no" class="font-semibold text-slate-900">-</div></div>
+                        <div class="col-span-2"><label class="ws-info-lbl">ชื่อเช็คชีต</label><div id="info-checksheet-name" class="font-semibold text-slate-900">-</div></div>
+                        <div class="col-span-2"><label class="ws-info-lbl">ชื่อเครื่องจักร</label><div id="info-machine-name" class="font-semibold text-primary">-</div></div>
+                        <div><label class="ws-info-lbl">ซีเรียล (Serial Number)</label><div id="info-machine-sn" class="font-semibold text-slate-900">-</div></div>
+                        <div><label class="ws-info-lbl">ประเภทเครื่องจักร</label><div id="info-machine-type" class="font-semibold text-slate-900">-</div></div>
+                        <div class="col-span-2"><label class="ws-info-lbl">สถานที่ตั้งเครื่องจักร</label><div id="info-location" class="font-semibold text-slate-900">-</div></div>
+                        <div><label class="ws-info-lbl">วันที่ตามกำหนดการ</label><div id="info-plan-date" class="font-semibold text-amber-700 flex items-center gap-1.5"><i class="fa-solid fa-calendar-day"></i><span>-</span></div></div>
+                        <div><label class="ws-info-lbl">วันที่ดำเนินการจริง</label><div id="info-actual-date" class="font-semibold text-green-700 flex items-center gap-1.5"><i class="fa-solid fa-calendar-check"></i><span><?php echo date('Y-m-d'); ?></span></div></div>
+                    </div>
+                </details>
             </div>
 
 			<div id="checksheet-files-section" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6 hidden">
@@ -336,19 +351,19 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             </section>
 
             <!-- ===== ขั้นที่ 2: ตรวจสอบ ===== -->
-            <section class="ws-step hidden" data-ws-step="2">
+            <section class="ws-step" data-ws-step="2">
             <!-- ไม่ใช้ overflow-hidden เพื่อให้แถบความคืบหน้า (sticky) ติดด้านบนขณะเลื่อน -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
                 <div class="bg-slate-50 border-b border-slate-200 px-4 sm:px-6 py-4 flex items-center gap-2.5 rounded-t-xl">
                     <i class="fa-solid fa-list-check text-primary text-lg"></i>
-                    <h2 class="text-base sm:text-lg font-semibold text-slate-800">รายการจุดตรวจสอบ <span class="text-xs sm:text-sm font-normal text-slate-500 ml-1 sm:ml-2"><span class="hidden lg:inline">(คลิกแถวเพื่อดูมาตรฐานและวิธีตรวจด้านขวา)</span></span></h2>
+                    <h2 class="text-base sm:text-lg font-semibold text-slate-800">รายการจุดตรวจสอบ</h2>
                 </div>
                 <div id="items-list" class="rounded-b-xl"></div>
             </div>
             </section>
 
             <!-- ===== ขั้นที่ 3: อะไหล่/วัสดุที่ใช้จริง ===== -->
-            <section class="ws-step hidden" data-ws-step="3">
+            <section class="ws-step" data-ws-step="3">
             <!-- *** รายการอะไหล่ที่ใช้จริง (Actual Spares Used) *** -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
                 <div class="bg-emerald-50 border-b border-emerald-200 px-6 py-4 flex items-center justify-between">
@@ -364,9 +379,16 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             </section>
 
             <!-- ===== ขั้นที่ 4: สรุป & ลงชื่อ ===== -->
-            <section class="ws-step hidden" data-ws-step="4">
-                <div id="ws-summary" class="bg-white rounded-xl shadow-sm border border-slate-200 mb-6"></div>
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+            <section class="ws-step" data-ws-step="4">
+            <div id="ws-scrim" class="ws-scrim" onclick="wsCloseSign()"></div>
+            <!-- โหมดบันทึก: เป็นแผ่นเลื่อนขึ้นจากด้านล่าง (เหมือน "ส่งที่ครบแล้ว" ของหน้าบันทึกพร้อมกัน) · โหมดประวัติ: แสดงในหน้าตามปกติ -->
+            <div id="ws-signsheet" class="ws-signsheet" role="dialog" aria-label="ลงชื่อและบันทึก">
+                <div class="ws-edit-only flex items-center justify-between mb-3">
+                    <h3 class="font-semibold text-slate-800 text-lg">ลงชื่อและบันทึก</h3>
+                    <button type="button" onclick="wsCloseSign()" class="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" title="กลับไปตรวจ"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div id="ws-summary" class="bg-white rounded-xl border border-slate-200 mb-3"></div>
+            <div class="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 mb-3">
                 <h3 class="text-base font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100"><i class="fa-solid fa-user-gear text-primary mr-2"></i>ส่วนของผู้ปฏิบัติงาน / ผู้ตรวจสอบ</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div class="space-y-6">
@@ -418,8 +440,13 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     </div>
                 </div>
             </div>
+                <div class="ws-edit-only ws-sign-foot">
+                    <button type="button" onclick="wsCloseSign()" class="ws-btn border border-slate-200 bg-white text-slate-700"><i class="fa-solid fa-chevron-left"></i>กลับไปตรวจ</button>
+                    <button type="button" id="btn_save_work" onClick="saveWorkRecord()" class="ws-btn flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"><i class="fa-solid fa-floppy-disk"></i>บันทึกผลการปฏิบัติงาน</button>
+                </div>
+            </div>
 
-            <div id="evaluation_section" class="hidden mt-8 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div id="evaluation_section" class="hidden mt-3 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <div class="bg-blue-50 border-b border-blue-100 px-6 py-4 flex flex-col md:flex-row items-start md:items-center justify-between">
                     <div class="flex items-center gap-2.5">
                         <i class="fa-solid fa-star-half-stroke text-primary text-lg"></i>
@@ -505,31 +532,13 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             </div>
             </section>
 
-            <!-- ===== แถบปุ่มด้านล่าง (ติดขอบล่างจอ) ===== -->
-            <div id="ws-actionbar" class="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200 shadow-[0_-4px_12px_rgba(15,23,42,0.06)]">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-2 sm:gap-3">
-                    <button type="button" onClick="window.close()" class="hidden sm:inline-flex px-4 py-2.5 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg font-medium transition items-center gap-2">
-                        <i class="fa-solid fa-xmark"></i>
-                        <span>ยกเลิก</span>
-                    </button>
-                    <span id="ws-bar-status" class="hidden md:inline text-sm text-slate-500 mr-auto">ขั้นตอน 1 / 4</span>
-                    <button type="button" id="ws-prev" class="ml-auto md:ml-0 px-4 sm:px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 font-medium transition flex items-center gap-2">
-                        <i class="fa-solid fa-chevron-left"></i>
-                        <span>ย้อนกลับ</span>
-                    </button>
-                    <button type="button" id="ws-next" class="px-5 sm:px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-semibold shadow transition flex items-center gap-2">
-                        <span>ถัดไป</span>
-                        <i class="fa-solid fa-chevron-right"></i>
-                    </button>
-                    <div id="ws-save-actions" class="hidden flex gap-2">
-                        <button type="button" id="btn_save_work" onClick="saveWorkRecord()" class="px-5 sm:px-8 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-semibold shadow transition flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-floppy-disk"></i>
-                            <span>บันทึกผลการปฏิบัติงาน</span>
-                        </button>
-                        <button type="button" id="btn_save_eval" onClick="saveEvaluation()" class="hidden px-5 sm:px-8 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow transition flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-star"></i>
-                            <span>บันทึกการประเมิน</span>
-                        </button>
+            <!-- ===== แถบปุ่มด้านล่าง (ติดขอบล่างจอ) — แบบเดียวกับหน้าบันทึกพร้อมกัน ===== -->
+            <div id="ws-actionbar" class="ws-foot">
+                <div class="max-w-4xl mx-auto flex items-center gap-2">
+                    <div id="ws-bar-status" class="flex-1 min-w-0 text-sm text-slate-500 leading-tight"></div>
+                    <button type="button" id="ws-open-sign" onclick="wsOpenSign()" class="ws-btn flex-[2] bg-primary hover:bg-primary/90 text-white"><i class="fa-solid fa-signature"></i>ลงชื่อ &amp; บันทึก</button>
+                    <div id="ws-save-actions" class="flex gap-2">
+                        <button type="button" id="btn_save_eval" onClick="saveEvaluation()" class="hidden ws-btn bg-green-600 hover:bg-green-700 text-white"><i class="fa-solid fa-star"></i>บันทึกการประเมิน</button>
                     </div>
                 </div>
             </div>
@@ -884,7 +893,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		
 						worksheetItems = Array.isArray(data.items) ? data.items : [];
 						renderItems(worksheetItems);
-		
+						applyBatchPrefill();
+
 						renderFiles(data.files || []);
 					}
 		
@@ -1018,45 +1028,60 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
         let wsStep = 1;
         const WS_STEP_COUNT = 4;
 
+        // หน้าเป็นแบบเลื่อนหน้าเดียว (เหมือนหน้าบันทึกพร้อมกัน): ข้อมูลงาน → จุดตรวจสอบ → อะไหล่ → [ลงชื่อ & บันทึก] เปิดแผ่นด้านล่าง
+        //  wsGoStep/wsShowStepOf ยังใช้ได้เหมือนเดิม (validation พาไปยังช่องที่ขาด): ขั้น 4 = เปิดแผ่นลงชื่อ, ขั้นอื่น = ปิดแผ่นแล้วเลื่อนไปที่ส่วนนั้น
         function wsInitSteps() {
             const txt = id => (document.getElementById(id)?.textContent || '').trim() || '-';
-            document.getElementById('ws-job-machine').textContent = txt('info-machine-name');
+            const machine = txt('info-machine-name');
+            document.getElementById('ws-job-machine').textContent = machine;
+            document.getElementById('ws-job-sub').textContent = [txt('info-machine-sn') !== '-' ? 'S/N ' + txt('info-machine-sn') : '', txt('info-location') !== '-' ? txt('info-location') : ''].filter(Boolean).join(' · ');
             document.getElementById('ws-job-doc').textContent = txt('info-doc-no');
             document.getElementById('ws-job-date').textContent = txt('info-plan-date');
-            document.querySelectorAll('[data-ws-step-go]').forEach(b => { b.onclick = () => wsGoStep(+b.dataset.wsStepGo); });
-            document.getElementById('ws-prev').onclick = () => wsGoStep(wsStep - 1);
-            document.getElementById('ws-next').onclick = () => wsGoStep(wsStep + 1);
+            // หัวหน้า: ชื่อเช็คชีต + เครื่อง · วันที่
+            const title = document.querySelector('nav h1 span');
+            if (title && !isHistoryMode && txt('info-checksheet-name') !== '-') title.textContent = txt('info-checksheet-name');
+            document.getElementById('ws-nav-sub').textContent = [machine, txt('info-plan-date')].filter(v => v && v !== '-').join(' · ');
+            document.body.classList.toggle('ws-edit', !isHistoryMode);
+            document.getElementById('ws-open-sign')?.classList.toggle('hidden', isHistoryMode);
             window.addEventListener('resize', wsLayoutSticky);
             wsGoStep(1, false);
+            wsRefreshSummary();
         }
 
         function wsGoStep(n, scroll = true) {
             n = Math.min(Math.max(n, 1), WS_STEP_COUNT);
             wsStep = n;
-            document.querySelectorAll('.ws-step').forEach(p => p.classList.toggle('hidden', +p.dataset.wsStep !== n));
-            document.querySelectorAll('[data-ws-step-go]').forEach(b => {
-                const on = +b.dataset.wsStepGo === n;
-                b.classList.toggle('is-active', on);
-                b.setAttribute('aria-current', on ? 'step' : 'false');
-            });
-            document.getElementById('ws-prev').classList.toggle('invisible', n === 1);
-            document.getElementById('ws-next').classList.toggle('hidden', n === WS_STEP_COUNT);
-            document.getElementById('ws-save-actions').classList.toggle('hidden', n !== WS_STEP_COUNT);
-            document.getElementById('ws-bar-status').textContent = `ขั้นตอน ${n} / ${WS_STEP_COUNT}`;
             wsCloseDetail();
-            if (n === 4) {
-                wsRenderSummary();
-                wsFixSignatureCanvas();
-            }
+            if (n === 4 && !isHistoryMode) { wsOpenSign(); return; }
+            wsCloseSign();
             wsLayoutSticky();
-            if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (scroll) document.querySelector(`.ws-step[data-ws-step="${n}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        // เปิดขั้นที่มี element นี้อยู่ (ใช้ตอนพาไปยังช่องที่กรอกไม่ครบ)
+        // พาไปยังส่วนที่มี element นี้ (ใช้ตอนพาไปยังช่องที่กรอกไม่ครบ)
         function wsShowStepOf(el) {
             const panel = el?.closest?.('.ws-step');
-            if (panel && +panel.dataset.wsStep !== wsStep) wsGoStep(+panel.dataset.wsStep, false);
+            if (!panel) return;
+            if (+panel.dataset.wsStep === 4 && !isHistoryMode) wsOpenSign(); else wsCloseSign();
         }
+
+        // แผ่นลงชื่อและบันทึก (โหมดบันทึก)
+        function wsOpenSign() {
+            if (isHistoryMode) return;
+            wsRenderSummary();
+            document.getElementById('ws-signsheet')?.classList.add('open');
+            document.getElementById('ws-scrim')?.classList.add('open');
+            document.body.classList.add('ws-sheet-open');
+            setTimeout(wsFixSignatureCanvas, 260);   // canvas ขนาดถูกต้องหลังแผ่นเลื่อนขึ้นเสร็จ
+        }
+        function wsCloseSign() {
+            document.getElementById('ws-signsheet')?.classList.remove('open');
+            document.getElementById('ws-scrim')?.classList.remove('open');
+            document.body.classList.remove('ws-sheet-open');
+        }
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && document.getElementById('ws-signsheet')?.classList.contains('open') && !Swal.isVisible()) wsCloseSign();
+        });
 
         // canvas ลายเซ็นถูกสร้างตอนขั้นที่ 4 ยังซ่อนอยู่ (กว้าง 0) จึงต้องปรับขนาดเมื่อแสดงครั้งแรก
         function wsFixSignatureCanvas() {
@@ -1457,6 +1482,13 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             document.getElementById('ws-fail').textContent = fail;
             document.getElementById('ws-fail-wrap').classList.toggle('hidden', fail === 0);
             document.getElementById('ws-progress').style.width = `${Math.round(done / all.length * 100)}%`;
+            // หัวหน้า + แถบล่าง (แบบหน้าบันทึกพร้อมกัน)
+            const navBar = document.getElementById('ws-nav-bar');
+            if (navBar) navBar.style.width = `${Math.round(done / all.length * 100)}%`;
+            const navCount = document.getElementById('ws-nav-count');
+            if (navCount) navCount.textContent = `ตรวจแล้ว ${done} / ${all.length} ข้อ`;
+            const barStatus = document.getElementById('ws-bar-status');
+            if (barStatus) barStatus.innerHTML = `ตรวจแล้ว <b class="text-slate-800">${done}</b>/${all.length}${fail ? ` · <span class="text-red-600">ผิดปกติ ${fail}</span>` : ''}`;
             // ตัวเลขบนแถบขั้นตอน
             const sub = document.getElementById('ws-step-sub-2');
             if (sub) sub.textContent = `ตรวจแล้ว ${done}/${all.length} ข้อ`;
@@ -1983,6 +2015,47 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		
 		window.goToValidationTarget = goToValidationTarget;
 		
+		// เปิดจากหน้าบันทึกพร้อมกันหลายเครื่อง (pm_worksheet_batch.php) => นำผลที่กรอกไว้ในหน้านั้นมาใส่ให้ ไม่ต้องกรอกซ้ำ
+		//  ผลการตรวจ / ค่าที่วัด / รูปหลักฐาน / อะไหล่ที่ใช้จริง — ผู้ใช้ตรวจทานและแก้ได้ก่อนบันทึก
+		function applyBatchPrefill() {
+			let d = null;
+			try { d = window.opener && window.opener.pmBatchPrefill && window.opener.pmBatchPrefill(planId); } catch (e) { d = null; }
+			if (!d) return;
+			let n = 0;
+			worksheetItems.forEach(item => {
+				const id = item.id;
+				const st = d.status && d.status[id];
+				const radio = st ? document.querySelector(`input[name="status_${id}"][value="${st}"]`) : null;
+				if (radio) { radio.checked = true; handleStatusChange(id, String(item.photo_required_id)); n++; }
+				const v = d.values && d.values[id];
+				const valEl = document.querySelector(`input[name="val_${id}"]:not([type="hidden"])`);
+				if (valEl && v != null && String(v).trim() !== '') { valEl.value = v; n++; }
+				const ph = d.photos && d.photos[id];
+				if (ph) { setPhotoFromDataUrl(id, ph); n++; }
+				wsUpdateItem(id);
+			});
+			(d.parts || []).forEach(p => {
+				if (typeof addPartRow !== 'function' || !(+p.rpd_qty > 0)) return;
+				addPartRow({ pd_id: p.rpd_product_id, ps_id: p.ps_id, wh_id: p.wh_id, wh_name: p.wh_name, model: p.pd_model, code: p.pd_gen_code,
+					name: p.rpd_details_head, detail: p.rpd_details, brand: p.rpd_brand, price: p.rpd_price, unit: p.pd_unit }, String(p.rpd_qty));
+				n++;
+			});
+			if (typeof updatePartsTotal === 'function') updatePartsTotal();
+			if (n) Swal.fire({ toast: true, position: 'top', icon: 'info', title: 'นำข้อมูลที่กรอกไว้ในหน้าบันทึกพร้อมกันมาใส่แล้ว — ตรวจทานก่อนบันทึก', showConfirmButton: false, timer: 3500 });
+		}
+		// ใส่รูปจาก data URL (แบบเดียวกับเลือกไฟล์ใน previewImage)
+		function setPhotoFromDataUrl(itemId, url) {
+			const base64Input = document.getElementById(`photo_base64_${itemId}`);
+			if (!base64Input) return;
+			base64Input.value = url;
+			document.getElementById(`img_preview_${itemId}`).src = url;
+			document.getElementById(`upload_ui_${itemId}`).classList.add('hidden');
+			document.getElementById(`preview_ui_${itemId}`).classList.remove('hidden');
+			const container = document.getElementById(`photo_container_${itemId}`);
+			container.classList.add('border-primary', 'bg-blue-50/10');
+			container.classList.remove('p-2', 'border-red-400', 'bg-red-50');
+		}
+
 		function getItemFormData(itemId) {
 			const statusEl = document.querySelector(`input[name="status_${itemId}"]:checked`);
 			const valueEl = document.querySelector(`[name="val_${itemId}"]`);
@@ -2520,6 +2593,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 					document.getElementById('evaluation_section').classList.remove('hidden');
 					document.getElementById('btn_save_eval').classList.remove('hidden');
 					document.getElementById('btn_save_work').classList.add('hidden');
+					wsCloseSign();
+					document.getElementById('ws-open-sign')?.classList.add('hidden');
 		
 					await Swal.fire({
 						icon: 'success',

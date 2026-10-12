@@ -1220,22 +1220,28 @@ if ($action === 'save_batch') {
 
             $mine = isset($per_event[(string)$eid]) && is_array($per_event[(string)$eid]) ? $per_event[(string)$eid] : [];
             $values = isset($mine['values']) && is_array($mine['values']) ? $mine['values'] : [];
+            // ผลที่กรอกรายเครื่อง (ปกติ / ผิดปกติ / ไม่เกี่ยวข้อง) ทับผลรวม — ตรวจชนิดผล/รูปบังคับต่อใน pmws_save_event
+            $statuses = isset($mine['status']) && is_array($mine['status']) ? $mine['status'] : [];
             $submitted = [];
             $photos = [];
             foreach ($common_items as $ci) {
                 $iid = intval($ci['item_id'] ?? 0);
                 if ($iid <= 0) continue;
+                $own = isset($statuses[(string)$iid]) ? (string)$statuses[(string)$iid] : '';
                 $submitted[] = [
                     'item_id' => $iid,
-                    'status' => (string)$ci['status'],
+                    'status' => in_array($own, ['Pass', 'Fail', 'N/A'], true) ? $own : (string)$ci['status'],
                     'value' => isset($values[(string)$iid]) ? trim((string)$values[(string)$iid]) : trim((string)($ci['value'] ?? '')),
                 ];
                 $pk = 'photo_' . $eid . '_' . $iid;
                 if (isset($_POST[$pk]) && $_POST[$pk] !== '') $photos[$iid] = $clean($_POST[$pk]);
             }
 
+            // อะไหล่/วัสดุที่ใช้จริงของเครื่องนี้ (ตัดสต็อกใน pmws_save_event เหมือนบันทึกทีละใบ)
+            $parts = isset($mine['parts']) && is_array($mine['parts']) ? array_values(array_filter($mine['parts'], 'is_array')) : [];
+
             mysqli_begin_transaction($connect);
-            $wid = pmws_save_event($connect, $eid, $inspector_name, $inspector_users, '', $remarks, $created_by, $submitted, [], $photos, $signature_path);
+            $wid = pmws_save_event($connect, $eid, $inspector_name, $inspector_users, '', $remarks, $created_by, $submitted, $parts, $photos, $signature_path);
             mysqli_commit($connect);
             $results[] = ['event_id' => $eid, 'success' => true, 'work_record_id' => $wid];
         } catch (Exception $e) {

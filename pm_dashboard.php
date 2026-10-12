@@ -73,6 +73,10 @@ include "config_ctrl/checksession.php";
     .pmc-overdue .pmc-mini { background: #fee2e2; color: #b91c1c; }
     .pmc-pending .pmc-mini { background: #e0f2fe; color: #075985; }
     .pmc-done .pmc-mini { background: #d1fae5; color: #047857; }
+    /* รอส่ง: ตรวจครบในหน้าบันทึกพร้อมกันแล้วแต่ยังไม่ส่ง (ร่างในเครื่องนี้) — พื้นเหลือง จุดสีคงตามสถานะเดิม */
+    .pmc-wait .pmc-pill { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+    .pmc-wait .pmc-mini { background: #fef3c7; color: #92400e; box-shadow: inset 0 0 0 1px #fcd34d; }
+    .pmc-wb { flex: none; font-size: 10px; font-weight: 700; color: #b45309; background: #fef3c7; border-radius: 4px; padding: 0 4px; }
     .pmc-hol { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 1px 6px; border-radius: 6px; font-size: 11px; color: #be123c; background: #fff1f2; }
     .pmc-hol span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fc-bg-event { opacity: 1 !important; }
@@ -184,6 +188,7 @@ include "config_ctrl/checksession.php";
             <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500"></span> เลยกำหนด</span>
             <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-sky-600"></span> รอทำ</span>
             <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> ทำครบแล้ว</span>
+            <span class="inline-flex items-center gap-1.5" title="ตรวจครบในหน้าบันทึกพร้อมกันแล้ว แต่ยังไม่กดส่ง (นับจากร่างในเครื่องนี้)"><span class="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-300"></span> รอส่ง</span>
             <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-rose-100 border border-rose-200"></span> วันหยุด</span>
             <span class="text-slate-400">ตัวเลข = ทำแล้ว / ทั้งหมด</span>
             <span id="pmc-active-filters" class="flex flex-wrap gap-1.5"></span>
@@ -466,6 +471,59 @@ include "config_ctrl/checksession.php";
         PMC.holidays = (r && r.success && r.data) ? r.data : [];
         return PMC.holidays;
     }
+    // ===== รอส่ง: เครื่องที่ตรวจครบในหน้าบันทึกพร้อมกันแล้ว แต่ยังไม่กดส่ง =====
+    //  อ่านสรุปที่ pm_worksheet_batch.php เก็บไว้ใน IndexedDB ของเบราว์เซอร์นี้ (pmBatchSum:ag:เช็คชีต:วันที่ => { ready: [event_id] })
+    //  => PMC.drafts['วันที่|เช็คชีต'] = [event_id ที่รอส่ง]
+    async function pmcLoadDrafts() {
+        const out = {};
+        try {
+            if (!window.indexedDB) return (PMC.drafts = out);
+            const db = await new Promise((res, rej) => {
+                const r = indexedDB.open('easypro_pm_batch', 1);
+                r.onupgradeneeded = () => r.result.createObjectStore('drafts');
+                r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+            });
+            const pre = `pmBatchSum:${AG_ID}:`;
+            // ร่างที่บันทึกก่อนมีสรุป (ยังไม่มี pmBatchSum) => สร้างสรุปจากร่างครั้งเดียว (เครื่องที่ ok = ตรวจครบแล้ว)
+            await new Promise(res => {
+                const st = db.transaction('drafts').objectStore('drafts');
+                const dp = `pmBatch:${AG_ID}:`;
+                const qk = st.getAllKeys(IDBKeyRange.bound(pre, pre + '￿'));
+                qk.onsuccess = () => {
+                    const have = new Set(qk.result.map(String));
+                    const qd = st.getAllKeys(IDBKeyRange.bound(dp, dp + '￿'));
+                    qd.onsuccess = async () => {
+                        const todo = qd.result.map(String).filter(k => !have.has(k.replace('pmBatch:', 'pmBatchSum:')));
+                        for (const k of todo) {
+                            const v = await new Promise(r2 => { const g = db.transaction('drafts').objectStore('drafts').get(k); g.onsuccess = () => r2(g.result); g.onerror = () => r2(null); });
+                            const ready = Object.entries((v && v.per) || {}).filter(([, p]) => p && p.ok).map(([id]) => +id);
+                            await new Promise(r2 => { const t = db.transaction('drafts', 'readwrite'); t.objectStore('drafts').put({ ready }, k.replace('pmBatch:', 'pmBatchSum:')); t.oncomplete = r2; t.onerror = r2; });
+                        }
+                        res();
+                    };
+                    qd.onerror = () => res();
+                };
+                qk.onerror = () => res();
+            });
+            await new Promise(res => {
+                const q = db.transaction('drafts').objectStore('drafts').openCursor(IDBKeyRange.bound(pre, pre + '￿'));
+                q.onsuccess = () => {
+                    const c = q.result; if (!c) return res();
+                    const m = String(c.key).slice(pre.length).match(/^(\d+):(\d{4}-\d{2}-\d{2})$/);
+                    const ids = c.value && Array.isArray(c.value.ready) ? c.value.ready : [];
+                    if (m && ids.length) out[m[2] + '|' + m[1]] = ids.map(Number);
+                    c.continue();
+                };
+                q.onerror = () => res();
+            });
+            db.close();
+        } catch (e) { /* ไม่มีร่าง / เบราว์เซอร์ไม่อนุญาต => ไม่แสดงรอส่ง */ }
+        return (PMC.drafts = out);
+    }
+    // จำนวนรอส่งของกลุ่ม (ไม่เกินจำนวนที่ยังไม่ทำ — เครื่องที่บันทึกจากที่อื่นไปแล้วไม่นับ)
+    const pmcWait = (d, cs, pending) => Math.min(((PMC.drafts || {})[d + '|' + cs] || []).length, pending);
+    const pmcWaitDay = (d, pending) => Math.min(Object.entries(PMC.drafts || {}).reduce((s, [k, ids]) => s + (k.startsWith(d + '|') ? ids.length : 0), 0), pending);
+
     // ชื่อวันหยุดของวันหนึ่ง (ใช้ในป๊อปอัปรายวัน / Export)
     function pmcHolidaysOn(dateStr) {
         const dow = new Date(dateStr + 'T00:00:00').getDay();
@@ -510,7 +568,7 @@ include "config_ctrl/checksession.php";
 
         const range = { start: pmcYmd(activeStart), end: pmcYmd(activeEnd), ...pmcFilterParams() };
         try {
-            const holP = pmcLoadHolidays();
+            const holP = Promise.all([pmcLoadHolidays(), pmcLoadDrafts()]);
             let rows, kind;
             // รายปี และรายเดือนบนมือถือ (ช่องแคบ) => สรุปรายวัน
             const byDay = viewType === 'multiMonthYear' || (viewType === 'dayGridMonth' && window.innerWidth < 768);
@@ -533,18 +591,20 @@ include "config_ctrl/checksession.php";
                     g.t++; if (r.status == 1) g.n++;
                     const st = r.status == 1 ? 'done' : (r.start < pmcToday() ? 'overdue' : 'pending');
                     total++; if (st === 'done') done++; if (st === 'overdue') overdue++;
+                    const wait = st !== 'done' && ((PMC.drafts || {})[r.start + '|' + r.checksheet_id] || []).includes(+r.id);
                     events.push({ id: 'pm_' + r.id, title: [r.checksheet, r.machine, r.location].filter(Boolean).join(' '), start: r.start, allDay: true,
-                        classNames: ['pmc-ev', 'pmc-' + st], ord: PMC_ORD[st], extendedProps: { kind: 'event', ...r } });
+                        classNames: ['pmc-ev', 'pmc-' + st].concat(wait ? ['pmc-wait'] : []), ord: PMC_ORD[st], extendedProps: { kind: 'event', wait: wait ? 1 : 0, ...r } });
                     return;
                 }
                 const st = pmcState(r.d, r.t, r.n);
+                const w = kind === 'group' ? pmcWait(r.d, r.cs_id, r.t - r.n) : pmcWaitDay(r.d, r.t - r.n);
                 total += r.t; done += r.n; if (st === 'overdue') overdue += r.t - r.n;
                 if (kind === 'group') idx[r.d + '|' + r.cs_id] = { t: r.t, n: r.n };
                 events.push({
                     id: kind === 'group' ? `g_${r.d}_${r.cs_id ?? 'none'}` : 'd_' + r.d,
                     title: kind === 'group' ? (r.cs || 'ไม่ระบุเช็คชีต') : `${r.t} งาน`,
-                    start: r.d, allDay: true, classNames: ['pmc-ev', 'pmc-' + st], ord: PMC_ORD[st],
-                    extendedProps: { kind, state: st, ...r }
+                    start: r.d, allDay: true, classNames: ['pmc-ev', 'pmc-' + st].concat(w ? ['pmc-wait'] : []), ord: PMC_ORD[st],
+                    extendedProps: { kind, state: st, wait: w, ...r }
                 });
             });
             PMC.groupIdx = idx;
@@ -577,19 +637,19 @@ include "config_ctrl/checksession.php";
         if (p.kind === 'hol') return { html: `<div class="pmc-hol"><i class="fas fa-umbrella-beach text-[10px]"></i><span>${pmcEsc(arg.event.title)}</span></div>` };
         if (p.kind === 'day') {
             if (arg.view.type === 'multiMonthYear' || window.innerWidth < 768) return { html: `<span class="pmc-mini">${p.t}</span>` };
-            return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name">${p.t} งาน</span><span class="pmc-cnt">${p.n}/${p.t}</span></div>` };
+            return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name">${p.t} งาน</span>${p.wait ? `<span class="pmc-wb">รอส่ง ${p.wait}</span>` : ''}<span class="pmc-cnt">${p.n}/${p.t}</span></div>` };
         }
         if (p.kind === 'event') {
             const sub = [p.checksheet, p.location].filter(Boolean).map(pmcEsc).join(' · ');
-            return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name"><b class="font-medium">${pmcEsc(p.machine || '-')}</b>${sub ? ` <span class="pmc-sub">· ${sub}</span>` : ''}</span>${p.status == 1 ? '<i class="fas fa-check text-[10px] text-emerald-600"></i>' : ''}</div>` };
+            return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name"><b class="font-medium">${pmcEsc(p.machine || '-')}</b>${sub ? ` <span class="pmc-sub">· ${sub}</span>` : ''}</span>${p.status == 1 ? '<i class="fas fa-check text-[10px] text-emerald-600"></i>' : p.wait ? '<span class="pmc-wb">รอส่ง</span>' : ''}</div>` };
         }
-        return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name">${pmcEsc(arg.event.title)}</span><span class="pmc-cnt">${p.n}/${p.t}</span></div>` };
+        return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name">${pmcEsc(arg.event.title)}</span>${p.wait ? `<span class="pmc-wb">รอส่ง ${p.wait}</span>` : ''}<span class="pmc-cnt">${p.n}/${p.t}</span></div>` };
     }
     function pmcEventTip(info) {
         const p = info.event.extendedProps;
         if (p.kind === 'group' || p.kind === 'day') {
             const left = p.t - p.n;
-            info.el.title = `${p.kind === 'group' ? (p.cs || 'ไม่ระบุเช็คชีต') : 'งาน PM'} · ทำแล้ว ${p.n} จาก ${p.t}` + (left ? ` · ${p.state === 'overdue' ? 'เลยกำหนด' : 'รอทำ'} ${left}` : '');
+            info.el.title = `${p.kind === 'group' ? (p.cs || 'ไม่ระบุเช็คชีต') : 'งาน PM'} · ทำแล้ว ${p.n} จาก ${p.t}` + (left ? ` · ${p.state === 'overdue' ? 'เลยกำหนด' : 'รอทำ'} ${left}` : '') + (p.wait ? ` · รอส่ง ${p.wait}` : '');
         } else if (p.kind === 'hol') info.el.title = 'วันหยุด: ' + info.event.title;
         else if (p.kind === 'event') info.el.title = info.event.title;
     }
@@ -820,7 +880,7 @@ include "config_ctrl/checksession.php";
         return g ? g.t - g.n : 0;
     }
     function openPmBatch(csId, dateStr) {
-        openPmFullWindow('pm_worksheet_batch.php?checksheet_id=' + encodeURIComponent(csId) + '&date=' + encodeURIComponent(dateStr));
+        window.openPmBatchDialog('pm_worksheet_batch.php?checksheet_id=' + encodeURIComponent(csId) + '&date=' + encodeURIComponent(dateStr));
     }
 
     // กดกลุ่มงานในปฏิทิน: กลุ่มมีงานเดียว => รายละเอียดงานนั้น, หลายงาน => ป๊อปอัปของวันโดยเปิดกลุ่มนี้ไว้
@@ -846,19 +906,20 @@ include "config_ctrl/checksession.php";
         function body() {
             const total = arr.reduce((s, g) => s + g.t, 0);
             const pendingAll = arr.reduce((s, g) => s + g.pending, 0);
+            const waitAll = arr.reduce((s, g) => s + g.wait, 0);
             const late = dateStr < pmcToday();
             const holidays = pmcHolidaysOn(dateStr);
             return `
             <div class="text-left">
-                <div class="text-sm text-slate-500 mb-3">งาน PM ${total.toLocaleString()} งาน · ${late && pendingAll ? '<span class="text-red-600">เลยกำหนด</span>' : 'ยังไม่ทำ'} <b class="${late && pendingAll ? 'text-red-600' : 'text-[#006B9F]'}">${pendingAll.toLocaleString()}</b> · ทำแล้ว <b class="text-emerald-600">${(total - pendingAll).toLocaleString()}</b>${Object.keys(filters).length ? ' <span class="text-slate-400">(ตามตัวกรอง)</span>' : ''}</div>
+                <div class="text-sm text-slate-500 mb-3">งาน PM ${total.toLocaleString()} งาน · ${late && pendingAll ? '<span class="text-red-600">เลยกำหนด</span>' : 'ยังไม่ทำ'} <b class="${late && pendingAll ? 'text-red-600' : 'text-[#006B9F]'}">${pendingAll.toLocaleString()}</b> · ทำแล้ว <b class="text-emerald-600">${(total - pendingAll).toLocaleString()}</b>${waitAll ? ` · <span class="text-amber-700">รอส่ง <b>${waitAll.toLocaleString()}</b></span>` : ''}${Object.keys(filters).length ? ' <span class="text-slate-400">(ตามตัวกรอง)</span>' : ''}</div>
                 ${holidays.length ? `<div class="mb-3 flex flex-wrap gap-1.5">${holidays.map(h => `<span class="pm-dt-chip bg-rose-50 text-rose-700 border-rose-200"><i class="fas fa-calendar-times"></i> ${esc(h.name)}</span>`).join('')}</div>` : ''}
                 <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1" data-scroll>
                 ${arr.map((g, gi) => `
-                    <div class="border border-slate-200 rounded-xl p-3" data-group="${gi}">
+                    <div class="border rounded-xl p-3 ${g.wait ? '' : 'border-slate-200'}" data-group="${gi}">
                         <div class="flex items-center gap-2 flex-wrap">
                             <div class="flex-1 min-w-[10rem]">
                                 <div class="font-semibold text-slate-800 text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full flex-none ${g.pending ? (late ? 'bg-red-500' : 'bg-sky-600') : 'bg-emerald-500'}"></span>${esc(g.name)}</div>
-                                <div class="text-xs text-slate-500 mt-0.5">${g.t} เครื่อง · ยังไม่ทำ <b class="${g.pending ? (late ? 'text-red-600' : 'text-[#006B9F]') : ''}">${g.pending}</b>${g.t - g.pending ? ` · ทำแล้ว <b class="text-emerald-600">${g.t - g.pending}</b>` : ''}</div>
+                                <div class="text-xs text-slate-500 mt-0.5">${g.t} เครื่อง · ยังไม่ทำ <b class="${g.pending ? (late ? 'text-red-600' : 'text-[#006B9F]') : ''}">${g.pending}</b>${g.wait ? ` · <span class="text-amber-700">รอส่ง <b>${g.wait}</b></span>` : ''}${g.t - g.pending ? ` · ทำแล้ว <b class="text-emerald-600">${g.t - g.pending}</b>` : ''}</div>
                             </div>
                             ${g.pending >= 2 && g.id ? `<button type="button" data-batch="${esc(g.id)}" class="px-3 py-2 rounded-lg bg-[#006B9F] hover:bg-[#005a87] text-white text-xs font-semibold inline-flex items-center gap-1.5"><i class="fas fa-layer-group"></i> บันทึกพร้อมกัน ${g.pending} เครื่อง</button>` : ''}
                             ${g.t === 1
@@ -884,9 +945,9 @@ include "config_ctrl/checksession.php";
                 const r = await pmcGet({ action: 'get_events', start: dateStr, end: pmcAddDays(dateStr, 1), cs: g.id ?? 'none', ...filters });
                 g.list = r.data;
                 box.innerHTML = r.data.map((ev, i) => {
-                    const d = ev.status == 1;
-                    return `<button type="button" data-ev="${gi}:${i}" class="text-left px-2.5 py-1.5 rounded-lg border ${d ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200'} hover:bg-sky-50 text-xs flex items-center gap-2 min-w-0">
-                        <span class="w-2 h-2 rounded-full flex-none ${d ? 'bg-emerald-500' : 'bg-[#006B9F]'}"></span><span class="truncate">${esc(ev.machine || ev.checksheet || '-')}</span>${ev.location ? `<span class="truncate text-slate-400 ml-auto">${esc(ev.location)}</span>` : ''}</button>`;
+                    const d = ev.status == 1, w = !d && ((PMC.drafts || {})[dateStr + '|' + g.id] || []).includes(+ev.id);
+                    return `<button type="button" data-ev="${gi}:${i}" title="${w ? 'รอส่ง (ตรวจครบในหน้าบันทึกพร้อมกันแล้ว)' : ''}" class="text-left px-2.5 py-1.5 rounded-lg border ${d ? 'border-emerald-200 bg-emerald-50/50' : w ? 'border-amber-300 bg-amber-50' : 'border-slate-200'} hover:bg-sky-50 text-xs flex items-center gap-2 min-w-0">
+                        <span class="w-2 h-2 rounded-full flex-none ${d ? 'bg-emerald-500' : w ? 'bg-amber-500' : 'bg-[#006B9F]'}"></span><span class="truncate">${esc(ev.machine || ev.checksheet || '-')}</span>${ev.location ? `<span class="truncate text-slate-400 ml-auto">${esc(ev.location)}</span>` : ''}</button>`;
                 }).join('') + (r.total > r.data.length ? `<div class="text-xs text-slate-400 py-1 sm:col-span-2">แสดง ${r.data.length} จาก ${r.total.toLocaleString()} เครื่อง — ใช้ตัวกรองเพื่อค้นหาเครื่อง</div>` : '');
             } catch (e) {
                 box.dataset.ready = '';
@@ -904,9 +965,10 @@ include "config_ctrl/checksession.php";
                 try {
                     const [r] = await Promise.all([
                         pmcGet({ action: 'get_summary', group: 'cs', force: 1, start: dateStr, end: pmcAddDays(dateStr, 1), ...filters }),
-                        pmcLoadHolidays()
+                        pmcLoadHolidays(),
+                        pmcLoadDrafts()
                     ]);
-                    arr = r.data.map(g => ({ id: g.cs_id, name: g.cs || 'ไม่ระบุเช็คชีต', t: g.t, n: g.n, id1: g.id1, pending: g.t - g.n }))
+                    arr = r.data.map(g => ({ id: g.cs_id, name: g.cs || 'ไม่ระบุเช็คชีต', t: g.t, n: g.n, id1: g.id1, pending: g.t - g.n, wait: pmcWait(dateStr, g.cs_id, g.t - g.n) }))
                         .sort((a, b) => b.pending - a.pending || a.name.localeCompare(b.name, 'th'));
                     arr.forEach(g => { PMC.groupIdx[dateStr + '|' + g.id] = { t: g.t, n: g.n }; });
                 } catch (e) {
