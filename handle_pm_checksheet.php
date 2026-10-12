@@ -470,6 +470,104 @@ elseif ($action === 'get_all') {
     exit;
 }
 
+// รายการเช็คชีตของแท็บ "สร้างเช็คชีต" (pm_checksheet.php): ค้นหา/กรองประเภท/แบ่งหน้าที่เซิร์ฟเวอร์ + จำนวนแผนที่ใช้
+//  (get_all ด้านบนยังใช้โดย pm_dashboard/pm_postpone/pm_plan/pm_feedback — ห้ามเปลี่ยนรูปแบบผลลัพธ์)
+elseif ($action === 'list') {
+    @session_start();
+    $ag_id = intval($_SESSION['sess_user_agency'] ?? 0);
+    session_write_close();
+    if ($ag_id <= 0) {
+        echo json_encode(['success' => false, 'error' => 'ไม่พบหน่วยงาน กรุณาเข้าสู่ระบบใหม่'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $startRow = max(0, intval($_GET['startRow'] ?? 0));
+    $limit    = min(200, max(1, intval($_GET['endRow'] ?? 50) - $startRow));
+    $q        = trim($_GET['q'] ?? '');
+    $type_id  = intval($_GET['type_id'] ?? 0);
+
+    $where = "c.ag_id = ?";
+    $types = 'i';
+    $args  = [$ag_id];
+    if ($q !== '') {
+        $where .= " AND (c.name LIKE ? OR c.doc_no LIKE ?)";
+        $like = '%' . $q . '%';
+        $types .= 'ss';
+        array_push($args, $like, $like);
+    }
+    if ($type_id > 0) {
+        $where .= " AND c.ass_type_id = ?";
+        $types .= 'i';
+        $args[] = $type_id;
+    }
+
+    // เรียงลำดับตามคอลัมน์ที่อนุญาตเท่านั้น
+    $sort_map = ['name' => 'c.name', 'category' => 'category_name', 'effectiveDate' => 'c.effective_date', 'updatedAt' => 'c.updated_at', 'itemCount' => 'item_count'];
+    $order_by = 'c.updated_at DESC, c.id DESC';
+    $sortModel = json_decode($_GET['sortModel'] ?? '[]', true);
+    if (is_array($sortModel) && !empty($sortModel[0]['colId']) && isset($sort_map[$sortModel[0]['colId']])) {
+        $order_by = $sort_map[$sortModel[0]['colId']] . (($sortModel[0]['sort'] ?? '') === 'asc' ? ' ASC' : ' DESC') . ', c.id DESC';
+    }
+
+    $stmt = mysqli_prepare($connect, "SELECT COUNT(*) FROM pm_checksheets c WHERE $where");
+    mysqli_stmt_bind_param($stmt, $types, ...$args);
+    mysqli_stmt_execute($stmt);
+    $total = (int)mysqli_fetch_row(mysqli_stmt_get_result($stmt))[0];
+    mysqli_stmt_close($stmt);
+
+    $sql = "SELECT c.id, c.name, c.doc_no, c.rev_no, c.effective_date, c.estimated_time, c.ass_type_id, c.updated_at,
+                   t.TGroupName AS category_name,
+                   (SELECT COUNT(*) FROM pm_checksheet_items WHERE checksheet_id = c.id) AS item_count,
+                   (SELECT COUNT(*) FROM pm_checksheet_spares WHERE checksheet_id = c.id) AS spare_count,
+                   (SELECT COUNT(*) FROM pm_checksheet_files WHERE checksheet_id = c.id) AS file_count
+            FROM pm_checksheets c
+            LEFT JOIN tb_asset_group t ON c.ass_type_id = t.GroupId
+            WHERE $where
+            ORDER BY $order_by
+            LIMIT $limit OFFSET $startRow";
+    $stmt = mysqli_prepare($connect, $sql);
+    mysqli_stmt_bind_param($stmt, $types, ...$args);
+    mysqli_stmt_execute($stmt);
+    $res = mysqli_stmt_get_result($stmt);
+    $data = [];
+    while ($row = mysqli_fetch_assoc($res)) {
+        $data[(int)$row['id']] = [
+            'id' => (int)$row['id'],
+            'name' => $row['name'],
+            'docNo' => $row['doc_no'],
+            'revNo' => $row['rev_no'],
+            'effectiveDate' => $row['effective_date'],
+            'typeId' => (int)$row['ass_type_id'],
+            'category' => $row['category_name'],
+            'itemCount' => (int)$row['item_count'],
+            'sparePartsCount' => (int)$row['spare_count'],
+            'fileCount' => (int)$row['file_count'],
+            'estimatedTime' => (int)$row['estimated_time'],
+            'updatedAt' => $row['updated_at'],
+            'planCount' => 0
+        ];
+    }
+    mysqli_stmt_close($stmt);
+
+    // จำนวนแผนที่ใช้เช็คชีต (เฉพาะแถวในหน้านี้ — query เดียว)
+    if ($data) {
+        $ids = array_map('strval', array_keys($data));
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = mysqli_prepare($connect, "SELECT checksheet_id, COUNT(*) AS n FROM pm_plans WHERE ag_id = ? AND checksheet_id IN ($ph) GROUP BY checksheet_id");
+        $ag_str = (string)$ag_id;
+        mysqli_stmt_bind_param($stmt, str_repeat('s', count($ids) + 1), $ag_str, ...$ids);
+        mysqli_stmt_execute($stmt);
+        $res = mysqli_stmt_get_result($stmt);
+        while ($row = mysqli_fetch_assoc($res)) {
+            if (isset($data[(int)$row['checksheet_id']])) $data[(int)$row['checksheet_id']]['planCount'] = (int)$row['n'];
+        }
+        mysqli_stmt_close($stmt);
+    }
+
+    echo json_encode(['success' => true, 'data' => array_values($data), 'totalCount' => $total], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 elseif ($action === 'get_by_id') {
     $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
     

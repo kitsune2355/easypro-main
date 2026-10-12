@@ -1,783 +1,632 @@
-<?php 
+<?php
 @session_start();
-include "config_ctrl/checksession.php"; 
+include "config_ctrl/checksession.php";
+$ppMonths = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+$ppYear = (int)date('Y');
 ?>
 
 <div id="tab-postpone" class="tab-content hidden h-full w-full">
-    <div class="grid grid-cols-1 md:grid-cols-[384px_1fr] gap-4 h-full relative">
+    <section class="bg-white rounded-xl border border-slate-200 shadow-sm h-full flex flex-col min-h-0">
 
-        <div id="postpone-sidebar-backdrop" class="fixed inset-0 bg-slate-900/50 z-40 hidden md:hidden transition-opacity" onclick="togglePostponeSidebar()"></div>
-
-        <aside id="postpone-filter-sidebar" class="fixed inset-y-0 left-0 z-50 w-[85vw] max-w-[384px] h-full flex flex-col bg-white p-5 shadow-2xl transition-transform duration-300 transform -translate-x-full md:relative md:translate-x-0 md:w-auto md:shadow-sm md:rounded-xl md:border md:border-slate-200">
-            
-            <div class="flex justify-between items-center mb-4 shrink-0">
-                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fas fa-filter text-sky-600"></i> ตัวกรองขั้นสูง
-                </h3>
-                <button type="button" class="hidden md:inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors" onclick="togglePmPanel('postpone', true)" title="ซ่อนแผงตัวกรอง">
-                    <i class="fas fa-angles-left"></i>
-                </button>
-                <button class="md:hidden text-slate-400 hover:text-slate-600 transition-colors p-1" onclick="togglePostponeSidebar()">
-                    <i class="fas fa-times text-xl"></i>
-                </button>
-            </div>
-
-            <div class="space-y-4 overflow-y-auto pr-2 flex-1 custom-scrollbar">
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">เดือน / ปี (วันที่แผนเดิม)</label>
-                    <div class="grid grid-cols-12 gap-2">
-                        <div class="col-span-5">
-                            <select id="postpone-filter-month" class="w-full bg-white border border-slate-200 rounded-lg text-xs py-1.5 px-2 outline-none focus:ring-1 focus:ring-sky-500 shadow-sm cursor-pointer">
-                                <option value="">ทุกเดือน</option>
-                                <?php
-                                $months = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
-                                foreach ($months as $i => $name) {
-                                    $m = $i + 1;
-                                    $selected = ($m == date('n')) ? 'selected' : '';
-                                    echo "<option value='$m' $selected>$name</option>";
-                                }
-                                ?>
-                            </select>
-                        </div>
-                        <div class="col-span-4">
-                            <select id="postpone-filter-year" class="w-full bg-white border border-slate-200 rounded-lg text-xs py-1.5 px-2 outline-none focus:ring-1 focus:ring-sky-500 shadow-sm cursor-pointer">
-                                <option value="">ทุกปี</option>
-                                <?php
-                                $currentYear = date('Y');
-                                // +1 เผื่อดูแผนของปีถัดไป และย้อนหลัง 5 ปี
-                                for ($y = $currentYear + 1; $y >= $currentYear - 5; $y--) {
-                                    $selected = ($y == $currentYear) ? 'selected' : '';
-                                    echo "<option value='$y' $selected>".($y + 543)."</option>";
-                                }
-                                ?>
-                            </select>
-                        </div>
-                        <div class="col-span-3">
-                            <button type="button" onclick="resetToCurrentDate()" class="w-full h-full flex items-center justify-center gap-1 bg-sky-50 text-sky-600 hover:bg-sky-100 rounded-lg text-[10px] sm:text-xs font-bold transition-all shadow-sm border border-sky-100" title="กลับไปเดือนปัจจุบัน">
-                                <i class="fas fa-calendar-day"></i> ปัจจุบัน
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">เครื่องจักร / อุปกรณ์</label>
-                    <div class="relative">
-                        <input type="text" id="postpone-filter-machine" placeholder="ระบุชื่อ หรือเลือกจากรายการ..." autocomplete="off"
-                            class="w-full border-slate-200 rounded-lg pl-3 pr-10 py-1.5 focus:ring-sky-500 focus:border-sky-500 shadow-sm text-xs cursor-text">
-                        
-                        <button type="button" id="clear-postpone-filter-machine" onclick="clearFilterInput('postpone-filter-machine')" class="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 hidden transition-colors z-10">
-                            <i class="fas fa-times text-[10px]"></i>
-                        </button>
-                        
-                        <i class="fas fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
-                        <ul id="dropdown-postpone-filter-machine" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-y-auto hidden">
-                        </ul>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">เช็คชีต</label>
-                    <div class="relative">
-                        <input type="text" id="postpone-filter-checksheet" placeholder="ระบุชื่อ หรือเลือกจากรายการ..." autocomplete="off"
-                            class="w-full border-slate-200 rounded-lg pl-3 pr-10 py-1.5 focus:ring-sky-500 focus:border-sky-500 shadow-sm text-xs cursor-text">
-                        
-                        <button type="button" id="clear-postpone-filter-checksheet" onclick="clearFilterInput('postpone-filter-checksheet')" class="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 hidden transition-colors z-10">
-                            <i class="fas fa-times text-[10px]"></i>
-                        </button>
-                        
-                        <i class="fas fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
-                        <ul id="dropdown-postpone-filter-checksheet" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-y-auto hidden">
-                        </ul>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">ประเภทเครื่องจักร</label>
-                    <div class="relative">
-                        <input type="text" id="postpone-filter-type" placeholder="ค้นหาประเภท..." autocomplete="off"
-                            class="w-full border-slate-200 rounded-lg pl-3 pr-10 py-1.5 focus:ring-sky-500 focus:border-sky-500 shadow-sm text-xs cursor-text">
-                        
-                        <button type="button" id="clear-postpone-filter-type" onclick="clearFilterInput('postpone-filter-type')" class="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 hidden transition-colors z-10">
-                            <i class="fas fa-times text-[10px]"></i>
-                        </button>
-                        
-                        <i class="fas fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
-                        <ul id="dropdown-postpone-filter-type" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-y-auto hidden">
-                        </ul>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-slate-500 mb-1">สถานที่ตั้ง</label>
-                    <div class="relative">
-                        <input type="text" id="postpone-filter-location" placeholder="ค้นหาสถานที่..." autocomplete="off"
-                            class="w-full border-slate-200 rounded-lg pl-3 pr-10 py-1.5 focus:ring-sky-500 focus:border-sky-500 shadow-sm text-xs cursor-text">
-                        
-                        <button type="button" id="clear-postpone-filter-location" onclick="clearFilterInput('postpone-filter-location')" class="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 hidden transition-colors z-10">
-                            <i class="fas fa-times text-[10px]"></i>
-                        </button>
-
-                        <i class="fas fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
-                        <ul id="dropdown-postpone-filter-location" class="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-y-auto hidden">
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <div class="pt-4 mt-2 border-t border-slate-100 grid grid-cols-2 gap-2 shrink-0">
-                <button onclick="resetFiltersPostpone()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium py-2.5 rounded-lg transition duration-200 text-xs">
-                    ล้างค่า
-                </button>
-                <button onclick="applyPostponeFilters()" class="bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2.5 rounded-lg transition duration-200 shadow-md text-xs">
-                    กรองข้อมูล
-                </button>
-            </div>
-        </aside>
-
-        <div class="flex flex-col gap-4 overflow-hidden h-full pb-2 md:pt-0">
-            <div class="calendar-wrapper bg-white p-3 sm:p-5 rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0">
-                <div class="flex justify-between items-center mb-4 shrink-0">
-                    <h2 class="text-lg font-bold text-slate-800">
-                        <button type="button" class="p-2 bg-sky-50 text-sky-600 rounded-lg md:hidden hover:bg-sky-100 transition-colors" onclick="togglePostponeSidebar()">
-                            <i class="fas fa-filter pointer-events-none"></i>
-                        </button>
-                        <button type="button" onclick="togglePmPanel('postpone', false)" class="pm-expand-btn items-center gap-1.5 px-2.5 py-1.5 mr-2 rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 text-sm font-medium align-middle" title="แสดงแผงตัวกรอง">
-                            <i class="fas fa-angles-right"></i> ตัวกรอง
-                        </button>
-                        <i class="fas fa-calendar-alt text-sky-600 mr-2"></i> จัดการเลื่อนแผนงาน PM</h2>
-                    <button onclick="savePostponements()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 md:px-6 rounded-lg text-xs md:text-sm font-bold shadow-md transition">
-                        <i class="fas fa-save md:mr-2"></i> <span class="hidden md:inline">บันทึกการเลื่อนทั้งหมด</span>
-                    </button>
-                </div>
-                <div class="pp-hot-wrap flex-1 relative border border-slate-200 rounded-lg overflow-hidden">
-                    <div id="hot-container" class="absolute inset-0 z-0"></div>
-                    
-                    <div id="no-data-overlay" class="absolute inset-0 z-10 hidden backdrop-blur-[2px]">
-                        <div class="flex flex-col items-center justify-center h-full">
-                            <i class="fas fa-folder-open text-4xl text-slate-300 mb-3"></i>
-                            <span class="text-slate-500 font-medium">ไม่พบข้อมูลตามเงื่อนไขที่กำหนด</span>
-                        </div>
-                    </div>
-                </div>
-                <!-- มือถือ: การ์ดแต่ละแผน -->
-                <div id="pp-cards" class="pp-cards flex-1 min-h-0 overflow-y-auto flex-col gap-2.5"></div>
-            </div>
-
-            <div id="history-section" class="bg-slate-50 p-4 rounded-xl border border-slate-200 hidden shrink-0 max-md:!hidden">
-                <h3 class="text-sm font-bold text-slate-700 mb-3"><i class="fas fa-history mr-2"></i> ประวัติการเลื่อนของรายการที่เลือก</h3>
-                <div id="history-list" class="space-y-2 max-h-32 overflow-y-auto text-xs custom-scrollbar">
-                </div>
-            </div>
-
-            <div class="flex flex-row flex-wrap justify-between items-center px-3 sm:px-4 py-2.5 sm:py-3 bg-white border border-slate-200 rounded-xl shadow-sm gap-2 sm:gap-4 shrink-0">
-                <div class="flex items-center gap-2">
-                    <span class="text-xs text-slate-500 font-medium">แสดงหน้าละ:</span>
-                    <select id="page-size-select" onchange="changePageSize()" class="text-xs border-slate-300 rounded-lg py-1.5 pl-3 pr-8 focus:ring-sky-500 focus:border-sky-500 shadow-sm cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors appearance-none outline-none">
-                        <option value="10">10</option>
-                        <option value="20">20</option>
-                        <option value="50" selected>50</option>
-                        <option value="100">100</option>
-                    </select>
-                </div>
-
-                <div class="text-xs text-slate-500 font-medium">
-                    แสดง <span id="start-record-info" class="font-bold text-sky-600">0</span> - <span id="end-record-info" class="font-bold text-sky-600">0</span> จาก <span id="total-records" class="font-bold text-slate-800">0</span> รายการ
-                </div>
-
-                <div class="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                    <button onclick="changePage(-1)" id="prev-btn" class="flex items-center justify-center w-8 h-8 rounded-md hover:bg-white hover:shadow-sm text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all" title="ก่อนหน้า">
-                        <i class="fas fa-chevron-left text-[10px]"></i>
-                    </button>
-                    <div class="px-3 py-1 text-xs font-bold text-slate-700 bg-white shadow-sm border border-slate-200 rounded-md min-w-[2.5rem] text-center" id="page-info">1</div>
-                    <button onclick="changePage(1)" id="next-btn" class="flex items-center justify-center w-8 h-8 rounded-md hover:bg-white hover:shadow-sm text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all" title="ถัดไป">
-                        <i class="fas fa-chevron-right text-[10px]"></i>
-                    </button>
-                </div>
-            </div>
-
+        <!-- หัวแท็บ -->
+        <div class="px-4 sm:px-5 pt-4 pb-3 shrink-0">
+            <h2 class="text-lg font-semibold text-slate-800">เลื่อนแผน PM</h2>
+            <p class="text-xs text-slate-500 mt-0.5">เลือกวันที่ใหม่ให้งานที่ยังไม่ได้ทำ (แก้ได้หลายแถว) แล้วกดบันทึกทีเดียว — ระบบเก็บประวัติการเลื่อนทุกครั้ง</p>
         </div>
-    </div>
+
+        <!-- แถบเครื่องมือ: เดือน/ปี · ค้นหา · ตัวกรอง · จำนวน -->
+        <div class="px-4 sm:px-5 pb-3 flex flex-wrap items-center gap-2 shrink-0">
+            <div class="flex items-center gap-1.5">
+                <select id="pp-month" class="pp-ctl w-[7.5rem]" aria-label="เดือน (วันที่แผนเดิม)">
+                    <option value="">ทุกเดือน</option>
+                    <?php foreach ($ppMonths as $i => $name) { $m = $i + 1; ?>
+                        <option value="<?= $m ?>" <?= $m == date('n') ? 'selected' : '' ?>><?= $name ?></option>
+                    <?php } ?>
+                </select>
+                <select id="pp-year" class="pp-ctl w-[5.5rem]" aria-label="ปี (วันที่แผนเดิม)">
+                    <option value="">ทุกปี</option>
+                    <?php for ($y = $ppYear + 1; $y >= $ppYear - 5; $y--) { ?>
+                        <option value="<?= $y ?>" <?= $y == $ppYear ? 'selected' : '' ?>><?= $y + 543 ?></option>
+                    <?php } ?>
+                </select>
+                <button type="button" id="pp-this-month" class="pp-btn-quiet" title="กลับไปเดือนปัจจุบัน">เดือนนี้</button>
+            </div>
+            <div class="relative flex-1 min-w-[12rem] max-w-sm">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                <input type="search" id="pp-search" placeholder="ค้นหาเครื่องจักร / รหัส / เช็คชีต" autocomplete="off" class="pp-ctl w-full !pl-9">
+            </div>
+            <button type="button" id="pp-filter-btn" class="pp-btn-quiet" aria-expanded="false" aria-controls="pp-filter-panel">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4"></i> ตัวกรอง
+                <span id="pp-filter-badge" class="hidden min-w-[1.25rem] h-5 px-1 rounded-full bg-[#006B9F] text-white text-[11px] leading-5 text-center">0</span>
+            </button>
+            <span id="pp-count" class="ml-auto text-xs text-slate-500 whitespace-nowrap"></span>
+        </div>
+
+        <!-- ตัวกรองเพิ่มเติม (โหลดตัวเลือกเมื่อเปิดครั้งแรก) -->
+        <div id="pp-filter-panel" class="hidden mx-4 sm:mx-5 mb-3 p-3 rounded-lg border border-slate-200 bg-slate-50 shrink-0">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 items-end">
+                <label class="text-xs text-slate-500">เช็คชีต
+                    <select id="pp-f-checksheet" class="pp-ctl w-full mt-1"><option value="">ทั้งหมด</option></select>
+                </label>
+                <label class="text-xs text-slate-500">ประเภทเครื่องจักร
+                    <select id="pp-f-type" class="pp-ctl w-full mt-1"><option value="">ทั้งหมด</option></select>
+                </label>
+                <label class="text-xs text-slate-500">สถานที่ตั้ง
+                    <select id="pp-f-location" class="pp-ctl w-full mt-1"><option value="">ทั้งหมด</option></select>
+                </label>
+                <div class="flex items-center justify-between gap-2 h-9">
+                    <label class="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                        <input type="checkbox" id="pp-f-overdue" class="w-4 h-4 rounded border-slate-300 text-[#006B9F] focus:ring-sky-500"> เฉพาะงานเลยกำหนด
+                    </label>
+                    <button type="button" id="pp-f-clear" class="text-xs text-slate-500 hover:text-[#006B9F] underline-offset-2 hover:underline">ล้างตัวกรอง</button>
+                </div>
+            </div>
+            <p id="pp-filter-msg" class="hidden text-xs text-slate-400 mt-2"></p>
+        </div>
+
+        <!-- ตาราง (จอใหญ่) / การ์ด (มือถือ) -->
+        <div class="relative flex-1 min-h-0 mx-4 sm:mx-5">
+            <div id="pp-hot-wrap" class="absolute inset-0 border border-slate-200 rounded-lg overflow-hidden">
+                <div id="hot-container" class="w-full h-full"></div>
+            </div>
+            <div id="pp-cards" class="absolute inset-0 overflow-y-auto flex-col gap-2.5 pb-2"></div>
+            <div id="pp-state" class="hidden absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-white/85 rounded-lg text-sm text-slate-500"></div>
+        </div>
+
+        <!-- แถบล่าง: แบ่งหน้า + ปุ่มบันทึก (อยู่ติดล่างเสมอ) -->
+        <div class="px-4 sm:px-5 py-3 mt-3 border-t border-slate-100 flex flex-wrap items-center gap-x-4 gap-y-2 shrink-0">
+            <div class="flex items-center gap-2 text-xs text-slate-500">
+                <button type="button" id="pp-prev" class="pp-icon-btn" title="หน้าก่อนหน้า"><i class="fas fa-chevron-left text-[11px]"></i></button>
+                <span id="pp-page-info" class="whitespace-nowrap">0 รายการ</span>
+                <button type="button" id="pp-next" class="pp-icon-btn" title="หน้าถัดไป"><i class="fas fa-chevron-right text-[11px]"></i></button>
+                <select id="pp-size" class="pp-ctl !h-8 !py-0 text-xs w-[6.75rem]" aria-label="แถวต่อหน้า">
+                    <option value="20">20 / หน้า</option>
+                    <option value="50" selected>50 / หน้า</option>
+                    <option value="100">100 / หน้า</option>
+                </select>
+            </div>
+            <div class="flex items-center gap-2 ml-auto w-full sm:w-auto">
+                <button type="button" id="pp-discard" class="hidden pp-btn-quiet">ยกเลิกการแก้ไข</button>
+                <button type="button" id="pp-save" disabled class="btn-gradient flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 h-10 rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:transform-none">
+                    <i class="fas fa-calendar-check"></i> <span id="pp-save-label">บันทึกการเลื่อน</span>
+                </button>
+            </div>
+        </div>
+    </section>
 </div>
 
 <style>
-    .pp-cards { display: none; }
+    #tab-postpone .pp-ctl { height: 2.25rem; border: 1px solid #e2e8f0; border-radius: .5rem; background: #fff; padding: 0 .65rem; font-size: 13px; color: #334155; outline: none; }
+    #tab-postpone .pp-ctl:focus { border-color: #04ADFF; box-shadow: 0 0 0 2px rgba(4,173,255,.15); }
+    #tab-postpone .pp-btn-quiet { display: inline-flex; align-items: center; gap: .4rem; height: 2.25rem; padding: 0 .75rem; border: 1px solid #e2e8f0; border-radius: .5rem; background: #fff; font-size: 13px; color: #475569; white-space: nowrap; }
+    #tab-postpone .pp-btn-quiet:hover { border-color: #cbd5e1; color: #0f172a; background: #f8fafc; }
+    #tab-postpone .pp-btn-quiet.hidden { display: none; }
+    #tab-postpone .pp-btn-quiet[aria-expanded="true"] { border-color: #006B9F; color: #006B9F; background: #f0f9ff; }
+    #tab-postpone .pp-icon-btn { width: 2rem; height: 2rem; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #e2e8f0; border-radius: .5rem; color: #475569; background: #fff; }
+    #tab-postpone .pp-icon-btn:hover:not(:disabled) { color: #006B9F; border-color: #cbd5e1; }
+    #tab-postpone .pp-icon-btn:disabled { opacity: .35; cursor: default; }
+
+    /* เซลล์ตาราง: บรรทัดหลัก + บรรทัดรอง */
+    #hot-container .handsontable th { background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 500; text-align: left; padding-left: 8px; }
+    #hot-container .handsontable td.pp-td { vertical-align: middle; padding: 0 12px; background: #fff; border-color: #f1f5f9; line-height: 1.3; }
+    #hot-container .handsontable td.pp-td.pp-dirty { background: #f0f9ff; }
+    #hot-container .handsontable td.pp-td.pp-bad { background: #fef2f2; }
+    #hot-container .handsontable td.pp-td.pp-first.pp-dirty { box-shadow: inset 3px 0 0 #04ADFF; }
+    #hot-container .handsontable td.pp-td.pp-first.pp-bad { box-shadow: inset 3px 0 0 #ef4444; }
+    #tab-postpone .pp-l1 { font-size: 14px; font-weight: 500; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #tab-postpone .pp-l2 { font-size: 12px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+    #tab-postpone .pp-ph { font-size: 13px; color: #94a3b8; }
+    #tab-postpone .pp-err { color: #dc2626 !important; }
+    #tab-postpone .pp-chip { display: inline-flex; align-items: center; gap: .3rem; height: 1.6rem; padding: 0 .5rem; border-radius: 999px; font-size: 12px; color: #64748b; background: #f1f5f9; }
+    #tab-postpone .pp-chip:hover { color: #006B9F; background: #e0f2fe; }
+    #tab-postpone .pp-undo { width: 1.75rem; height: 1.75rem; display: inline-flex; align-items: center; justify-content: center; border-radius: .4rem; color: #94a3b8; }
+    #tab-postpone .pp-undo:hover { color: #dc2626; background: #fef2f2; }
+
+    /* มือถือ: การ์ด */
+    #tab-postpone #pp-cards { display: none; }
+    #tab-postpone .pp-card { background: #fff; border: 1px solid #e2e8f0; border-radius: .9rem; padding: .8rem; }
+    #tab-postpone .pp-card.pp-dirty { border-color: #7dd3fc; background: #f0f9ff; }
+    #tab-postpone .pp-card.pp-bad { border-color: #fca5a5; background: #fef2f2; }
     @media (max-width: 767.98px) {
-        #tab-postpone .pp-hot-wrap { position: absolute !important; left: -12000px; width: 1000px; height: 600px; flex: none; }
-        #tab-postpone .pp-cards { display: flex; }
+        #tab-postpone #pp-hot-wrap { display: none; }
+        #tab-postpone #pp-cards { display: flex; }
     }
 </style>
+<!-- moment.js: pm_dashboard.php ใช้ด้วย (โหลดจากไฟล์นี้) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
 
 <script>
-    const P_AG_ID = '<?php echo isset($sess_user_agency_es) ? $sess_user_agency_es : ""; ?>';
-    const P_USER_ID = '<?php echo isset($sess_user_id) ? $sess_user_id : "1"; ?>'; 
-    const CONTRACT_START = '<?php echo isset($sess_ag_start_date) ? $sess_ag_start_date : ""; ?>';
-    const CONTRACT_END = '<?php echo isset($sess_ag_end_date) ? $sess_ag_end_date : ""; ?>';
-    
-    let currentPage = 1;
-    let rowsPerPage = 50;
+(function () {
+    // ค่าวันสัญญาจาก session (ค่าจริงส่งมาพร้อมข้อมูลหน้าแรกอีกครั้ง)
+    const PP = {
+        contract: { start: '<?php echo isset($sess_ag_start_date) ? $sess_ag_start_date : ""; ?>', end: '<?php echo isset($sess_ag_end_date) ? $sess_ag_end_date : ""; ?>' },
+        holidays: [],
+        today: '',
+        rows: [],          // แถวในหน้าปัจจุบัน — ตารางและการ์ดแก้ข้อมูลชุดเดียวกัน
+        total: 0,
+        page: 1,
+        size: 50,
+        applied: null,     // ค่าตัวกรองที่ใช้กับข้อมูลที่แสดงอยู่
+        req: 0,
+        optionsLoaded: false,
+        hot: null,
+    };
+    // heightAuto: false — กัน SweetAlert ตั้ง body เป็น height:auto จนตาราง (สูง h-full) ยุบตอนเปิดกล่อง
+    const ppSwal = Swal.mixin({ heightAuto: false });
+    const $ = id => document.getElementById(id);
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const isMobile = () => window.matchMedia('(max-width: 767.98px)').matches;
+    const fmt = d => d ? window.formatDate(d, false) : '-';
+    const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const todayStr = () => PP.today || ymd(new Date());
+    const dayDiff = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+    const fmtNum = n => Number(n || 0).toLocaleString('th-TH');
 
-    // ประกาศเป็น window object เพื่อให้สคริปต์ใน pm.php สั่งอัปเดตขนาดได้
-    window.hotInstance = null;
-    let postponeTableData = [];
-
-    function togglePostponeSidebar() {
-        const sidebar = document.getElementById('postpone-filter-sidebar');
-        const backdrop = document.getElementById('postpone-sidebar-backdrop');
-        
-        sidebar.classList.toggle('-translate-x-full');
-        
-        // สลับแสดง/ซ่อน backdrop
-        if (backdrop) {
-            backdrop.classList.toggle('hidden');
+    // ---------- ตรวจวันที่ (ให้ตรงกับฝั่ง server) ----------
+    const THAI_DAY = { 'จ.': 1, 'อ.': 2, 'พ.': 3, 'พฤ.': 4, 'ศ.': 5, 'ส.': 6, 'อา.': 7 };
+    function holidayName(dateStr) {
+        const d = new Date(dateStr + 'T00:00:00');
+        const dow = d.getDay() || 7;
+        if (dow === 7) return 'วันอาทิตย์';
+        for (const h of PP.holidays) {
+            const hd = String(h.date || '').trim();
+            if (h.type === 'once' && hd === dateStr) return h.name;
+            if (h.type === 'yearly' && hd.length >= 10 && hd.slice(5, 10) === dateStr.slice(5, 10)) return h.name;
+            if (h.type === 'daily' && (THAI_DAY[hd] || +hd || 0) === dow) return h.name;
         }
+        return '';
     }
-
-    function resetToCurrentDate() {
-        const d = new Date();
-        document.getElementById('postpone-filter-month').value = d.getMonth() + 1;
-        document.getElementById('postpone-filter-year').value = d.getFullYear();
+    // แปลงค่าที่พิมพ์/วางเป็น YYYY-MM-DD (รับ 2026-10-15, 15/10/2026, 15/10/2569)
+    function normDate(v) {
+        if (v == null) return null;
+        const s = String(v).trim();
+        if (!s) return null;
+        let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        let y, mo, d;
+        if (m) { [y, mo, d] = [+m[1], +m[2], +m[3]]; }
+        else if ((m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/))) { [d, mo, y] = [+m[1], +m[2], +m[3]]; }
+        else return s;
+        if (y > 2400) y -= 543;
+        const dt = new Date(y, mo - 1, d);
+        return dt.getMonth() === mo - 1 ? ymd(dt) : s;
     }
-
-    async function fetchPostponeData() {
-        const startRow = (currentPage - 1) * rowsPerPage;
-        const endRow = startRow + rowsPerPage;
-        // 1. ดึงค่าจากตัวกรองต่างๆ ในหน้า UI
-        const machine = document.getElementById('postpone-filter-machine').value;
-        const checksheet = document.getElementById('postpone-filter-checksheet').value;
-        const type = document.getElementById('postpone-filter-type').value;
-        const location = document.getElementById('postpone-filter-location').value;
-        const month = document.getElementById('postpone-filter-month').value;
-        const year = document.getElementById('postpone-filter-year').value;
-
-        // 2. สร้าง Query Parameters
-        const params = new URLSearchParams({
-            action: 'get_all',
-            startRow: startRow,
-            endRow: endRow,
-            machine: machine,
-            checksheet: checksheet,
-            type: type,
-            location: location,
-            month: month,
-            year: year
-        });
-
-        try {
-            // 3. เรียก API พร้อมส่งค่าตัวกรองไปด้วย
-            const res = await fetch(`handle_pm_postpone.php?${params.toString()}`);
-            const result = await res.json();
-            
-            if (result.success) {
-                const rawData = result.data || []; 
-                
-                const mappedData = rawData.map(item => ({
-                    id: item.id,
-                    qr_code: item.extendedProps.qr_code,
-                    machine: item.extendedProps.machine,
-                    postpone_count: item.postpone_count,
-                    type: item.extendedProps.type,
-                    location: item.extendedProps.location,
-                    checksheet: item.extendedProps.checksheet,
-                    frequency: item.extendedProps.frequency,
-                    old_date: item.start,
-                    new_date: null,
-                    reason: ''
-                }));
-                
-                // โหลดข้อมูลเข้าตาราง (ถึงเป็น array ว่าง [] ตารางก็จะเคลียร์ข้อมูลให้)
-                if (window.hotInstance) {
-                    window.hotInstance.loadData(mappedData);
-                    window.hotInstance.render();
-                }
-
-                // ==========================================
-                // เพื่อเปิด/ปิดหน้าจอ "ไม่พบข้อมูล"
-                // ==========================================
-                // const noDataOverlay = document.getElementById('no-data-overlay');
-                // if (mappedData.length === 0) {
-                //     noDataOverlay.classList.remove('hidden');
-                // } else {
-                //     noDataOverlay.classList.add('hidden');
-                // }
-                // ==========================================
-
-                const totalRecords = parseInt(result.total, 10) || 0;
-                const actualStart = totalRecords === 0 ? 0 : startRow + 1;
-                const actualEnd = endRow > totalRecords ? totalRecords : endRow;
-
-                document.getElementById('total-records').textContent = totalRecords;
-                document.getElementById('start-record-info').textContent = actualStart;
-                document.getElementById('end-record-info').textContent = actualEnd;
-                document.getElementById('page-info').textContent = currentPage;
-
-                document.getElementById('prev-btn').disabled = currentPage === 1;
-                document.getElementById('next-btn').disabled = endRow >= totalRecords;
-            }
-        } catch (error) {
-            console.error("Error fetching postpone data:", error);
-        }
+    function rowError(r, forSave) {
+        if (!r.nd) return '';
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(r.nd)) return 'รูปแบบวันที่ไม่ถูกต้อง';
+        const t = todayStr();
+        if (r.nd < t) return 'ห้ามเลื่อนเป็นวันในอดีต';
+        if (r.nd === r.d) return 'ตรงกับวันที่เดิม';
+        if (PP.contract.end && r.nd > PP.contract.end) return 'เกินวันสิ้นสุดสัญญา (' + fmt(PP.contract.end) + ')';
+        if (PP.contract.start && r.nd < PP.contract.start) return 'ก่อนวันเริ่มสัญญา';
+        const hol = holidayName(r.nd);
+        if (hol) return 'ตรงกับวันหยุด: ' + hol;
+        if (r.d < t && r.freq_days < 30) return 'งานเลยกำหนดที่ถี่กว่า 30 วัน เลื่อนไม่ได้';
+        if (forSave && !String(r.reason || '').trim()) return 'ต้องระบุเหตุผล';
+        return '';
     }
+    const dirtyRows = () => PP.rows.filter(r => r.nd);
 
-    function changePageSize() {
-        const select = document.getElementById('page-size-select');
-        rowsPerPage = parseInt(select.value, 10);
-        currentPage = 1;
-        fetchPostponeData();
-    }
-
-    function changePage(step) {
-        currentPage += step;
-        fetchPostponeData();
-    }
-
-    // ฟังก์ชันหลักดึงข้อมูลจาก API
-    async function loadCustomSelectFilters() {
-        try {
-            // กำหนด URL (ดึงมา 1000 รายการเพื่อให้ครอบคลุมการค้นหาในหน้า Dashboard)
-            const urlMachine = `handle_machine_info.php?action=get_all&ag_id=${P_AG_ID}&startRow=0&endRow=1000`;
-            const urlChecksheet = `handle_pm_checksheet.php?action=get_all&ag_id=${P_AG_ID}&startRow=0&endRow=1000`;
-
-            // ดึง 2 API พร้อมกัน
-            const [resMachine, resChecksheet] = await Promise.all([
-                fetch(urlMachine).then(r => r.json()),
-                fetch(urlChecksheet).then(r => r.json())
-            ]);
-
-            // --- 1. จัดเตรียมข้อมูล เครื่องจักร (อิงตาม handle_machine_info.php) ---
-            let machineItems = [{ text: 'ทั้งหมด', value: '' }];
-            // API เครื่องจักรส่งกลับมาในรูปแบบ { rows: [...] }
-            if (resMachine.rows && Array.isArray(resMachine.rows)) {
-                resMachine.rows.forEach(item => {
-                    // ใช้ฟิลด์ machine_name ตามที่ระบุใน PHP
-                    const name = item.machine_name; 
-                    if (name) {
-                        machineItems.push({ text: name, value: name });
-                    }
-                });
-            }
-
-            // --- 2. จัดเตรียมข้อมูล เช็คชีต (อิงตาม handle_pm_checksheet.php) ---
-            let checksheetItems = [{ text: 'ทั้งหมด', value: '' }];
-            // API เช็คชีตส่งกลับมาในรูปแบบ { success: true, data: [...] }
-            if (resChecksheet.success && resChecksheet.data) {
-                resChecksheet.data.forEach(item => {
-                    const name = item.name || item.checksheet_name;
-                    if (name) {
-                        checksheetItems.push({ text: name, value: name });
-                    }
-                });
-            }
-
-            // --- 3. ติดตั้ง Custom Select (เรียกใช้ฟังก์ชัน setupCustomSelect เดิม) ---
-            setupCustomSelect('postpone-filter-machine', 'dropdown-postpone-filter-machine', machineItems);
-            setupCustomSelect('postpone-filter-checksheet', 'dropdown-postpone-filter-checksheet', checksheetItems);
-
-        } catch (error) {
-            console.error("เกิดข้อผิดพลาดในการโหลดข้อมูล Filter:", error);
-        }
-    }
-
-    // ฟังก์ชันดึงข้อมูลประเภทเครื่องจักร
-    async function loadPostponeMachineTypes() {
-        try {
-            const response = await fetch('get_all_ass_type.php');
-            const data = await response.json();
-
-            // เตรียมข้อมูลเริ่มต้น
-            let items = [{ text: 'ทั้งหมด', value: '' }];
-
-            if (data && Array.isArray(data)) {
-                data.forEach(type => {
-                    // ใช้ type.name ตามโครงสร้างเดิมที่คุณส่งมา
-                    items.push({ text: type.name, value: type.name });
-                });
-            }
-
-            // ติดตั้ง Custom Select Search
-            setupCustomSelect('postpone-filter-type', 'dropdown-postpone-filter-type', items);
-
-        } catch (error) {
-            console.error("เกิดข้อผิดพลาดในการดึงข้อมูลประเภทเครื่องจักร:", error);
-        }
-    }
-
-    // ฟังก์ชันดึงข้อมูลสถานที่ตั้ง
-    async function loadPostponeLocations() {
-        try {
-            const response = await fetch(`get_all_building.php?ag_id=${P_AG_ID}`);
-            const data = await response.json();
-
-            // เตรียมข้อมูลเริ่มต้น
-            let items = [{ text: 'ทั้งหมด', value: '' }];
-
-            // เช็คตามโครงสร้าง data.building ที่คุณส่งมา
-            if (data && data.building && Array.isArray(data.building)) {
-                data.building.forEach(building => {
-                    items.push({ 
-                        text: building.area_name, 
-                        value: building.area_name 
-                    });
-                });
-            }
-
-            // ติดตั้ง Custom Select Search
-            setupCustomSelect('postpone-filter-location', 'dropdown-postpone-filter-location', items);
-
-        } catch (error) {
-            console.error("เกิดข้อผิดพลาดในการดึงข้อมูลสถานที่:", error);
-        }
-    }
-
-    function clearFilterInput(inputId) {
-        const inputEl = document.getElementById(inputId);
-        inputEl.value = '';
-        inputEl.dispatchEvent(new Event('input'));
-        inputEl.focus(); 
-    }
-
-    function setupCustomSelect(inputId, dropdownId, items) {
-        const inputEl = document.getElementById(inputId);
-        const dropdownEl = document.getElementById(dropdownId);
-        const clearBtn = document.getElementById('clear-' + inputId); // ดึงปุ่มกากบาทตาม id
-        
-        // ฟังก์ชันย่อยสำหรับซ่อน/แสดงปุ่มกากบาท
-        const toggleClearBtn = () => {
-            if (clearBtn) {
-                if (inputEl.value.trim().length > 0) {
-                    clearBtn.classList.remove('hidden');
-                } else {
-                    clearBtn.classList.add('hidden');
-                }
-            }
+    // ---------- ตัวกรอง ----------
+    function readFilters() {
+        return {
+            month: $('pp-month').value, year: $('pp-year').value, q: $('pp-search').value.trim(),
+            checksheet: $('pp-f-checksheet').value, type: $('pp-f-type').value, location: $('pp-f-location').value,
+            overdue: $('pp-f-overdue').checked ? '1' : '',
         };
+    }
+    function writeFilters(f) {
+        $('pp-month').value = f.month; $('pp-year').value = f.year; $('pp-search').value = f.q;
+        $('pp-f-checksheet').value = f.checksheet; $('pp-f-type').value = f.type; $('pp-f-location').value = f.location;
+        $('pp-f-overdue').checked = f.overdue === '1';
+        updateBadge();
+    }
+    function updateBadge() {
+        const n = ['pp-f-checksheet', 'pp-f-type', 'pp-f-location'].filter(id => $(id).value).length + ($('pp-f-overdue').checked ? 1 : 0);
+        $('pp-filter-badge').textContent = n;
+        $('pp-filter-badge').classList.toggle('hidden', !n);
+    }
+    // ถ้ามีรายการที่ยังไม่บันทึก ถามก่อนทิ้ง — ยกเลิก => คืนค่าตัวกรองเดิม
+    async function confirmDiscard() {
+        const n = dirtyRows().length;
+        if (!n) return true;
+        const r = await ppSwal.fire({
+            title: 'ทิ้งการแก้ไข?', text: `มี ${n} รายการที่ยังไม่ได้บันทึก`, icon: 'warning',
+            showCancelButton: true, confirmButtonText: 'ทิ้งการแก้ไข', cancelButtonText: 'กลับไปแก้ต่อ', confirmButtonColor: '#dc2626',
+        });
+        return r.isConfirmed;
+    }
+    async function applyFilters(resetPage = true) {
+        if (!(await confirmDiscard())) { if (PP.applied) writeFilters(PP.applied); return; }
+        if (resetPage) PP.page = 1;
+        updateBadge();
+        load();
+    }
 
-        const renderList = (filterText = '') => {
-            dropdownEl.innerHTML = '';
-            const filtered = items.filter(item => 
-                item.text.toLowerCase().includes(filterText.toLowerCase())
-            );
+    // ตัวเลือกตัวกรองโหลดเมื่อเปิดแผงครั้งแรก
+    async function loadFilterOptions() {
+        if (PP.optionsLoaded) return;
+        PP.optionsLoaded = true;
+        const msg = $('pp-filter-msg');
+        msg.textContent = 'กำลังโหลดตัวเลือก...';
+        msg.classList.remove('hidden', 'pp-err');
+        try {
+            const res = await (await fetch('handle_pm_postpone.php?action=options')).json();
+            if (!res.success) throw new Error(res.error || 'โหลดตัวเลือกไม่สำเร็จ');
+            const fill = (id, items) => {
+                const sel = $(id), cur = sel.value;
+                sel.innerHTML = '<option value="">ทั้งหมด</option>' + items.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+                sel.value = cur;
+            };
+            fill('pp-f-checksheet', res.checksheets || []);
+            fill('pp-f-type', res.types || []);
+            fill('pp-f-location', res.locations || []);
+            msg.classList.add('hidden');
+        } catch (e) {
+            PP.optionsLoaded = false;
+            msg.textContent = 'โหลดตัวเลือกไม่สำเร็จ: ' + e.message;
+            msg.classList.add('pp-err');
+        }
+    }
 
-            if (filtered.length === 0) {
-                dropdownEl.innerHTML = `<li class="px-3 py-2 text-xs text-slate-400 italic">ไม่พบข้อมูล</li>`;
-                return;
+    // ---------- โหลดข้อมูล (แบ่งหน้าฝั่ง server) ----------
+    function showState(html) {
+        const el = $('pp-state');
+        el.innerHTML = html || '';
+        el.classList.toggle('hidden', !html);
+    }
+    async function load() {
+        const f = readFilters();
+        const myReq = ++PP.req;
+        const first = !PP.today;
+        const params = new URLSearchParams({ action: 'list', page: PP.page, size: PP.size, ...f });
+        if (first) params.set('meta', '1');
+        showState('<i class="fas fa-circle-notch fa-spin text-slate-300 text-xl"></i><span>กำลังโหลด...</span>');
+        try {
+            const res = await (await fetch('handle_pm_postpone.php?' + params)).json();
+            if (myReq !== PP.req) return;   // มีคำขอใหม่กว่าแล้ว
+            if (!res.success) throw new Error(res.error || 'โหลดข้อมูลไม่สำเร็จ');
+            if (res.today) {
+                PP.today = res.today;
+                PP.holidays = res.holidays || [];
+                if (res.contract) PP.contract = res.contract;
             }
-
-            filtered.forEach(item => {
-                const li = document.createElement('li');
-                li.className = 'px-3 py-2 text-xs text-slate-700 cursor-pointer hover:bg-sky-50 border-b border-slate-50 last:border-none';
-                li.textContent = item.text;
-                
-                li.addEventListener('mousedown', (e) => {
-                    e.preventDefault();
-                    inputEl.value = item.text; 
-                    dropdownEl.classList.add('hidden');
-                    toggleClearBtn(); // อัปเดตปุ่มตอนเลือกรายการเสร็จ
-                });
-                dropdownEl.appendChild(li);
+            const cols = res.cols;
+            PP.rows = (res.rows || []).map(a => {
+                const o = {};
+                cols.forEach((c, i) => { o[c] = a[i]; });
+                o.nd = null; o.reason = ''; o.err = '';
+                return o;
             });
+            PP.total = res.total;
+            PP.applied = f;
+            // หน้าเกินจำนวน (เช่นหลังบันทึกแล้วรายการลดลง) => ไปหน้าสุดท้าย
+            const pages = Math.max(1, Math.ceil(PP.total / PP.size));
+            if (PP.page > pages && PP.total > 0) { PP.page = pages; return load(); }
+            showState(PP.rows.length ? '' : `<i class="fas fa-calendar-check text-3xl text-slate-200"></i><span>ไม่พบงานที่รอดำเนินการตามเงื่อนไขนี้</span>`);
+            renderAll();
+        } catch (e) {
+            if (myReq !== PP.req) return;
+            showState(`<i class="fas fa-triangle-exclamation text-2xl text-red-300"></i><span class="text-red-600">${esc(e.message)}</span>
+                <button type="button" class="pp-btn-quiet mt-1" onclick="fetchPostponeData()">ลองอีกครั้ง</button>`);
+        }
+    }
+
+    function renderAll() {
+        if (PP.hot) PP.hot.loadData(PP.rows);
+        renderCards();
+        updateFooter();
+    }
+    function updateFooter() {
+        const from = PP.total ? (PP.page - 1) * PP.size + 1 : 0;
+        const to = Math.min(PP.total, PP.page * PP.size);
+        $('pp-count').textContent = `${fmtNum(PP.total)} รายการ`;
+        $('pp-page-info').textContent = PP.total ? `${fmtNum(from)}–${fmtNum(to)} จาก ${fmtNum(PP.total)}` : '0 รายการ';
+        $('pp-prev').disabled = PP.page <= 1;
+        $('pp-next').disabled = to >= PP.total;
+        const n = dirtyRows().length;
+        $('pp-save').disabled = n === 0;
+        $('pp-save-label').textContent = n ? `บันทึกการเลื่อน (${n} รายการ)` : 'บันทึกการเลื่อน';
+        $('pp-discard').classList.toggle('hidden', n === 0);
+    }
+    // แก้ค่าแถว => ตรวจใหม่ + วาดเฉพาะส่วนที่เกี่ยวข้อง
+    function touchRow(i) {
+        const r = PP.rows[i];
+        if (!r) return;
+        r.err = rowError(r, false);
+        updateFooter();
+    }
+
+    // ---------- ตาราง (จอใหญ่) ----------
+    function tdBase(td, r, first) {
+        td.className = 'pp-td' + (first ? ' pp-first' : '') + (r && r.nd ? (r.err ? ' pp-bad' : ' pp-dirty') : '');
+    }
+    function cellRenderer(kind) {
+        return function (instance, td, row) {
+            const r = PP.rows[row];
+            tdBase(td, r, kind === 'machine');
+            if (!r) { td.innerHTML = ''; return td; }
+            const t = todayStr();
+            let h = '';
+            if (kind === 'machine') {
+                const sub = [r.code, r.type, r.loc].filter(Boolean).map(esc).join(' · ');
+                h = `<div class="pp-l1" title="${esc(r.machine)}">${esc(r.machine || '-')}</div><div class="pp-l2" title="${sub}">${sub}</div>`;
+            } else if (kind === 'cs') {
+                h = `<div class="pp-l1" title="${esc(r.cs)}">${esc(r.cs || '-')}</div><div class="pp-l2">${esc(r.freq_label || '')}</div>`;
+            } else if (kind === 'old') {
+                const late = dayDiff(r.d, t);
+                const sub = late > 0 ? `<div class="pp-l2 pp-err">เลยกำหนด ${late} วัน</div>` : late === 0 ? '<div class="pp-l2">วันนี้</div>' : `<div class="pp-l2">อีก ${-late} วัน</div>`;
+                h = `<div class="pp-l1 ${r.nd ? '!text-slate-400 line-through decoration-slate-300' : ''}">${fmt(r.d)}</div>${sub}`;
+            } else if (kind === 'new') {
+                if (r.nd) {
+                    const ok = /^\d{4}-\d{2}-\d{2}$/.test(r.nd);
+                    const sub = r.err ? `<div class="pp-l2 pp-err" title="${esc(r.err)}">${esc(r.err)}</div>`
+                        : `<div class="pp-l2">เลื่อน ${dayDiff(r.d, r.nd) > 0 ? '+' : ''}${dayDiff(r.d, r.nd)} วัน</div>`;
+                    h = `<div class="pp-l1 ${r.err ? 'pp-err' : '!text-[#006B9F]'}"><i class="fas fa-arrow-right text-[10px] mr-1 opacity-60"></i>${ok ? fmt(r.nd) : esc(r.nd)}</div>${sub}`;
+                } else {
+                    h = '<span class="pp-ph"><i class="far fa-calendar mr-1.5"></i>เลือกวันที่ใหม่</span>';
+                }
+            } else if (kind === 'reason') {
+                h = r.reason ? `<div class="pp-l1 !font-normal" title="${esc(r.reason)}">${esc(r.reason)}</div>`
+                    : `<span class="pp-ph ${r.nd ? '!text-amber-600' : ''}">${r.nd ? 'ต้องระบุเหตุผล' : 'ระบุเหตุผล'}</span>`;
+            } else if (kind === 'act') {
+                h = `<div class="flex items-center justify-end gap-1">
+                    ${r.pc > 0 ? `<button type="button" data-act="hist" class="pp-chip" title="ดูประวัติการเลื่อน"><i class="fas fa-clock-rotate-left"></i>${r.pc}</button>` : ''}
+                    ${r.nd || r.reason ? '<button type="button" data-act="undo" class="pp-undo" title="ยกเลิกการแก้ไขแถวนี้"><i class="fas fa-rotate-left"></i></button>' : ''}
+                </div>`;
+            }
+            td.innerHTML = h;
+            return td;
         };
-
-        inputEl.addEventListener('focus', () => {
-            renderList(inputEl.value);
-            dropdownEl.classList.remove('hidden');
-        });
-
-        inputEl.addEventListener('input', (e) => {
-            renderList(e.target.value);
-            dropdownEl.classList.remove('hidden');
-            toggleClearBtn(); // อัปเดตปุ่มตอนพิมพ์ข้อความ
-        });
-
-        inputEl.addEventListener('blur', () => {
-            setTimeout(() => dropdownEl.classList.add('hidden'), 200);
-        });
     }
-
-
-    function resetFiltersPostpone() {
-        const filters = ['postpone-filter-machine', 'postpone-filter-type', 'postpone-filter-location', 'postpone-filter-checksheet'];
-        
-        filters.forEach(id => {
-            document.getElementById(id).value = '';
-            const clearBtn = document.getElementById('clear-' + id);
-            if (clearBtn) clearBtn.classList.add('hidden');
-        });
-        
-        // รีเซ็ตเดือนและปีให้เป็น "ทั้งหมด"
-        document.getElementById('postpone-filter-month').value = '';
-        document.getElementById('postpone-filter-year').value = '';
-        
-        // หากต้องการให้ปุ่มล้างค่าเรียกโหลดข้อมูลใหม่ ให้ใช้ฟังก์ชันเก่า หรือ fetchPostponeData() ก็ได้
-        currentPage = 1;
-        fetchPostponeData(); 
-        
-        if (window.innerWidth < 768) {
-            const sidebar = document.getElementById('postpone-filter-sidebar');
-            if (!sidebar.classList.contains('-translate-x-full')) {
-                togglePostponeSidebar();
-            }
-        }
-    }
-
-    function applyPostponeFilters() {
-        currentPage = 1;
-        fetchPostponeData();
-        if (window.innerWidth < 768) togglePostponeSidebar();
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-        initHandsontable(); 
-        loadPostponeLocations();
-        loadPostponeMachineTypes();
-        loadCustomSelectFilters();
-        
-        fetchPostponeData(); 
-    });
-
-    async function showPostponeHistory(planId) {
-        try {
-            // ยิง API ไปขอประวัติการเลื่อน
-            const res = await fetch(`handle_pm_postpone.php?action=get_history&plan_id=${planId}`);
-            const resData = await res.json();
-
-            if (resData.success && resData.data.length > 0) {
-                let html = '<div class="text-left text-sm max-h-[50vh] overflow-y-auto pr-2"><ul class="list-none space-y-3">';
-                
-                resData.data.forEach((item, index) => {
-                    html += `
-                        <li class="bg-slate-50 p-3 rounded border border-slate-200">
-                            <div class="font-bold text-sky-700 mb-1">ครั้งที่ ${index + 1}</div>
-                            <div><i class="far fa-calendar-alt text-slate-400"></i> แผนเดิม: <span class="line-through text-red-500">${item.old_date}</span> <i class="fas fa-arrow-right text-slate-400 mx-1"></i> <span class="text-green-600 font-semibold">${item.new_date}</span></div>
-                            <div class="text-slate-600 mt-1"><i class="fas fa-info-circle text-slate-400"></i> เหตุผล: ${item.reason}</div>
-                        </li>`;
-                });
-                
-                html += '</ul></div>';
-
-                Swal.fire({
-                    title: 'ประวัติการเลื่อนแผนงาน',
-                    html: html,
-                    icon: 'info',
-                    confirmButtonText: 'ปิด',
-                    confirmButtonColor: '#0284c7',
-                    width: '500px'
-                });
-            } else {
-                Swal.fire('ข้อมูลว่างเปล่า', 'ไม่พบประวัติการเลื่อนแผนนี้ในระบบ', 'info');
-            }
-        } catch (error) {
-            console.error(error);
-            Swal.fire('ข้อผิดพลาด', 'ไม่สามารถดึงข้อมูลประวัติได้', 'error');
-        }
-    }
-
-    function initHandsontable() {
-        const container = document.getElementById('hot-container');
-        const todayDate = new Date();
-        todayDate.setHours(0,0,0,0);
-        hotInstance = new Handsontable(container, {
-            data: [],
-            colHeaders: ['QR Code', 'ชื่อเครื่องจักร', 'ประเภท', 'สถานที่', 'เช็คชีต', 'ความถี่(วัน)', 'วันที่แผนเดิม', 'วันที่เลื่อนใหม่', 'เหตุผลที่เลื่อน', 'ประวัติเลื่อน'],
+    function initHot() {
+        if (PP.hot || isMobile()) return;
+        const t = todayStr();
+        PP.hot = new Handsontable($('hot-container'), {
+            data: PP.rows,
+            colHeaders: ['เครื่องจักร', 'เช็คชีต · ความถี่', 'วันที่เดิม', 'วันที่ใหม่', 'เหตุผลที่เลื่อน', 'ประวัติ'],
             columns: [
-                { data: 'qr_code', readOnly: true, className: 'htCenter htMiddle font-mono' },
-                { data: 'machine', readOnly: true, className: 'htMiddle' },
-                { data: 'type', readOnly: true, className: 'htMiddle' },
-                { data: 'location', readOnly: true, className: 'htMiddle' },
-                { data: 'checksheet', readOnly: true, className: 'htMiddle' },
-                { data: 'frequency', readOnly: true, className: 'htCenter htMiddle font-bold' },
-                { 
-                    data: 'old_date', 
-                    readOnly: true, 
-                    width: 150,
-                    className: 'htCenter htMiddle text-rose-600',
-                    renderer: function(instance, td, row, col, prop, value, cellProperties) {
-                        Handsontable.renderers.TextRenderer.apply(this, arguments);
-                        if (value) {
-                            td.innerText = window.formatDate(value, false);
-                        } else {
-                            td.innerText = '-';
-                        }
-
-                        return td;
-                    }
-                },
-                { 
-                    data: 'new_date', 
-                    type: 'date', 
-                    dateFormat: 'YYYY-MM-DD', 
-                    correctFormat: true,
-                    defaultDate: moment().format('YYYY-MM-DD'),
+                { data: 'machine', readOnly: true, renderer: cellRenderer('machine'), width: 280 },
+                { data: 'cs', readOnly: true, renderer: cellRenderer('cs'), width: 230 },
+                { data: 'd', readOnly: true, renderer: cellRenderer('old'), width: 130 },
+                {
+                    data: 'nd', editor: 'date', renderer: cellRenderer('new'), width: 180,
+                    dateFormat: 'YYYY-MM-DD', defaultDate: t,
                     datePickerConfig: {
                         firstDay: 1,
-                        showWeekNumber: true,
-                        minDate: todayDate, 
-                        maxDate: new Date(CONTRACT_END),
-                        disableDayFn: function(date) {
-                            return date.getDay() === 0;
-                        }
-                    }
+                        minDate: new Date(t + 'T00:00:00'),
+                        maxDate: PP.contract.end ? new Date(PP.contract.end + 'T00:00:00') : undefined,
+                        disableDayFn: d => !!holidayName(ymd(d)),
+                    },
                 },
-                { data: 'reason', type: 'text', className: 'htMiddle bg-amber-50' },
-                { 
-                    data: 'postpone_count', 
-                    readOnly: true, 
-                    className: 'htCenter htMiddle',
-                    renderer: function(instance, td, row, col, prop, value) {
-                        td.innerHTML = value > 0 ? `<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">${value} ครั้ง</span>` : `<span class="text-slate-400">0</span>`;
-                        return td;
-                    }
-                },
+                { data: 'reason', type: 'text', renderer: cellRenderer('reason'), width: 220 },
+                { data: 'pc', readOnly: true, renderer: cellRenderer('act'), width: 96 },
             ],
-            rowHeaders: true, 
+            rowHeaders: false,
+            rowHeights: 54,
+            autoRowSize: false,
             stretchH: 'all',
             height: '100%',
-            afterSelection: (row) => {
-                const rowData = hotInstance.getSourceDataAtRow(row);
-                if(rowData) loadPostponeHistory(rowData.id);
-            },
-            afterOnCellMouseDown: function(event, coords, td) {
-                if (coords.row < 0) return; // ข้ามถ้าคลิกที่ Header
-                const prop = this.colToProp(coords.col);
-                
-                // ถ้าคลิกที่คอลัมน์ postpone_count และมีจำนวนมากกว่า 0
-                if (prop === 'postpone_count') {
-                    const rowData = this.getSourceDataAtRow(coords.row);
-                    if (rowData.postpone_count > 0) {
-                        showPostponeHistory(rowData.id);
-                    }
-                }
-            },
-            licenseKey: 'non-commercial-and-evaluation'
-        });
-        hotInstance.addHook('afterLoadData', () => setTimeout(renderPostponeCards, 0));
-        hotInstance.addHook('afterChange', (changes, source) => { if (source !== 'mobile') renderPostponeCards(); });
-        renderPostponeCards();
-    }
-
-    /* มือถือ: การ์ดแทนตาราง — เลือกวันที่เลื่อนใหม่/เหตุผลในการ์ด แล้วเขียนกลับลงตาราง (ปุ่มบันทึกใช้ข้อมูลจากตารางเหมือนเดิม) */
-    function renderPostponeCards() {
-        const box = document.getElementById('pp-cards');
-        if (!box || !hotInstance || window.innerWidth >= 768) return;
-        const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-        const rows = hotInstance.getSourceData() || [];
-        const today = moment().format('YYYY-MM-DD');
-        const max = CONTRACT_END ? moment(CONTRACT_END).format('YYYY-MM-DD') : '';
-        box.innerHTML = rows.length ? rows.map((r, i) => `
-            <div class="pm-mc ${r.new_date ? '!border-amber-300 !bg-amber-50/40' : ''}" data-row="${i}">
-                <div class="flex items-start justify-between gap-2">
-                    <div class="min-w-0">
-                        <div class="pm-mc-title">${esc(r.machine || '-')}</div>
-                        <div class="pm-mc-sub mt-0.5"><span class="font-mono">${esc(r.qr_code || '')}</span>${r.type ? ' · ' + esc(r.type) : ''}</div>
-                    </div>
-                    ${r.postpone_count > 0 ? `<button type="button" onclick="showPostponeHistory('${esc(r.id)}')" class="pm-mc-chip bg-red-100 text-red-700 shrink-0">เลื่อนแล้ว ${r.postpone_count} ครั้ง</button>` : ''}
-                </div>
-                <div class="mt-1.5 text-xs text-slate-600 space-y-0.5">
-                    ${r.location ? `<div class="flex items-start gap-1.5"><i class="fas fa-location-dot w-3 mt-0.5 text-slate-400"></i><span>${esc(r.location)}</span></div>` : ''}
-                    ${r.checksheet ? `<div class="flex items-start gap-1.5"><i class="fas fa-clipboard-check w-3 mt-0.5 text-sky-600"></i><span>${esc(r.checksheet)}</span></div>` : ''}
-                </div>
-                <div class="grid grid-cols-2 gap-1.5 mt-2">
-                    <div class="pm-mc-kv"><b>วันที่แผนเดิม</b><span class="!text-rose-600">${window.formatDate(r.old_date, false)}</span></div>
-                    <div class="pm-mc-kv"><b>ความถี่</b><span>${esc(r.frequency || '-')} วัน</span></div>
-                </div>
-                <div class="grid grid-cols-1 gap-2 mt-2.5 pt-2.5 border-t border-slate-100">
-                    <label class="text-[11px] font-semibold text-slate-500">วันที่เลื่อนใหม่
-                        <input type="date" data-f="new_date" value="${esc(r.new_date || '')}" min="${today}" ${max ? `max="${max}"` : ''} class="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white">
-                    </label>
-                    <label class="text-[11px] font-semibold text-slate-500">เหตุผลที่เลื่อน
-                        <input type="text" data-f="reason" value="${esc(r.reason || '')}" placeholder="ระบุเหตุผล" class="mt-1 w-full border border-amber-200 bg-amber-50 rounded-lg px-3 py-2 text-sm text-slate-700">
-                    </label>
-                </div>
-            </div>`).join('')
-            : `<div class="py-12 text-center text-slate-400 text-sm"><i class="fas fa-folder-open text-3xl text-slate-300 mb-2 block"></i>ไม่พบข้อมูลตามเงื่อนไขที่กำหนด</div>`;
-    }
-    document.addEventListener('change', e => {
-        const inp = e.target.closest('#pp-cards [data-f]');
-        if (!inp || !hotInstance) return;
-        const row = +inp.closest('[data-row]').dataset.row;
-        let v = inp.value;
-        if (inp.dataset.f === 'new_date' && v && new Date(v).getDay() === 0) {
-            Swal.fire('เลือกวันไม่ได้', 'ไม่สามารถเลื่อนไปวันอาทิตย์ได้', 'warning');
-            inp.value = v = '';
-        }
-        hotInstance.setDataAtRowProp(row, inp.dataset.f, v || null, 'mobile');
-        inp.closest('.pm-mc').classList.toggle('!border-amber-300', !!hotInstance.getDataAtRowProp(row, 'new_date'));
-    });
-    window.addEventListener('resize', () => renderPostponeCards());
-
-    async function loadPostponeHistory(planId) {
-        const section = document.getElementById('history-section');
-        const list = document.getElementById('history-list');
-        const res = await fetch(`handle_pm_postpone.php?plan_id=${planId}`);
-        const result = await res.json();
-        
-        if (result.success && result.data.length > 0) {
-            section.classList.remove('hidden');
-            list.innerHTML = result.data.map(h => `
-                <div class="flex flex-col p-2 bg-slate-50 border-l-4 border-sky-500 rounded shadow-sm">
-                    <span class="font-bold text-sky-700">เลื่อนเป็น: ${h.new_date} (จาก ${h.old_date})</span>
-                    <span class="text-slate-600">เหตุผล: ${h.reason}</span>
-                    <small class="text-slate-400">โดย: ${h.user_name || 'System'} เมื่อ ${h.created_at}</small>
-                </div>
-            `).join('');
-        } else {
-            section.classList.add('hidden');
-        }
-    }
-
-    async function savePostponements() {
-        const allData = hotInstance.getSourceData();
-        const today = moment().startOf('day');
-        let updates = [];
-        let errors = [];
-
-        allData.forEach((row, i) => {
-            if (row.new_date) {
-                const newD = moment(row.new_date);
-                const oldD = moment(row.old_date);
-                const freq = parseInt(row.frequency);
-
-                if (!row.reason) errors.push(`แถวที่ ${i+1}: ต้องระบุเหตุผล`);
-                if (newD.isBefore(today)) errors.push(`แถวที่ ${i+1}: ห้ามเลื่อนเป็นวันในอดีต`);
-                
-                // กฎ: ถ้าแผนเดิมเลยกำหนด (OldDate < Today) ต้องมีความถี่ >= 30 วัน
-                if (oldD.isBefore(today) && freq < 30) {
-                    errors.push(`แถวที่ ${i+1}: งานเลยกำหนดที่มีความถี่น้อยกว่า 30 วัน ไม่อนุญาตให้เลื่อน`);
-                }
-
-                updates.push({
-                    plan_id: row.id,
-                    old_date: row.old_date,
-                    new_date: row.new_date,
-                    reason: row.reason,
-                    user_id: P_USER_ID
+            width: '100%',
+            fillHandle: { direction: 'vertical', autoInsertRow: false },
+            beforeChange(changes) {
+                changes.forEach(c => {
+                    if (c && c[1] === 'nd') c[3] = normDate(c[3]);
+                    if (c && c[1] === 'reason') c[3] = c[3] == null ? '' : String(c[3]);
                 });
-            }
+            },
+            afterChange(changes, source) {
+                if (!changes || source === 'loadData') return;
+                changes.forEach(([row, prop, , val]) => {
+                    if (PP.rows[row]) PP.rows[row][prop] = val;   // กันกรณีตารางไม่ได้ผูกอ้างอิงเดียวกัน
+                    touchRow(row);
+                });
+                PP.hot.render();
+            },
+            afterOnCellMouseDown(e, coords) {
+                if (coords.row < 0) return;
+                const act = e.target.closest && e.target.closest('[data-act]');
+                if (!act) return;
+                const r = PP.rows[coords.row];
+                if (act.dataset.act === 'hist') showPostponeHistory(r.id);
+                if (act.dataset.act === 'undo') undoRow(coords.row);
+            },
+            licenseKey: 'non-commercial-and-evaluation',
         });
+        window.hotInstance = PP.hot;   // pm.php สั่ง render() ตอนกลับมาที่แท็บ
+    }
+    function undoRow(i) {
+        const r = PP.rows[i];
+        if (!r) return;
+        r.nd = null; r.reason = ''; r.err = '';
+        if (PP.hot) PP.hot.render();
+        renderCards();
+        updateFooter();
+    }
 
-        if (errors.length > 0) {
-            Swal.fire('ข้อผิดพลาด', errors.join('<br>'), 'error');
-            return;
-        }
+    // ---------- การ์ด (มือถือ) ----------
+    function cardHtml(r, i) {
+        const t = todayStr();
+        const late = dayDiff(r.d, t);
+        const max = PP.contract.end || '';
+        const sub = [r.code, r.type, r.loc].filter(Boolean).map(esc).join(' · ');
+        return `<div class="pp-card ${r.nd ? (r.err ? 'pp-bad' : 'pp-dirty') : ''}" data-row="${i}">
+            <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                    <div class="pp-l1 !whitespace-normal">${esc(r.machine || '-')}</div>
+                    <div class="pp-l2 !whitespace-normal">${sub}</div>
+                </div>
+                ${r.pc > 0 ? `<button type="button" data-act="hist" class="pp-chip shrink-0" title="ดูประวัติการเลื่อน"><i class="fas fa-clock-rotate-left"></i>${r.pc}</button>` : ''}
+            </div>
+            <div class="pp-l2 !whitespace-normal mt-1.5"><i class="fas fa-clipboard-check text-slate-400 mr-1"></i>${esc(r.cs || '-')}${r.freq_label ? ' · ' + esc(r.freq_label) : ''}</div>
+            <div class="mt-2.5 pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-2 items-end">
+                <div>
+                    <div class="text-[11px] text-slate-400">วันที่เดิม</div>
+                    <div class="text-sm ${r.nd ? 'text-slate-400 line-through' : 'text-slate-700'}">${fmt(r.d)}</div>
+                    <div class="text-[11px] ${late > 0 ? 'pp-err' : 'text-slate-400'}">${late > 0 ? `เลยกำหนด ${late} วัน` : late === 0 ? 'วันนี้' : `อีก ${-late} วัน`}</div>
+                </div>
+                <label class="text-[11px] text-slate-400">วันที่ใหม่
+                    <input type="date" data-f="nd" value="${esc(r.nd || '')}" min="${t}" ${max ? `max="${max}"` : ''} class="pp-ctl w-full mt-0.5">
+                </label>
+            </div>
+            <input type="text" data-f="reason" value="${esc(r.reason || '')}" placeholder="${r.nd ? 'ต้องระบุเหตุผล' : 'เหตุผลที่เลื่อน'}" class="pp-ctl w-full mt-2">
+            <div class="pp-card-err text-xs pp-err mt-1.5 ${r.err ? '' : 'hidden'}">${esc(r.err)}</div>
+            ${r.nd || r.reason ? '<button type="button" data-act="undo" class="text-xs text-slate-500 hover:text-red-600 mt-2"><i class="fas fa-rotate-left mr-1"></i>ยกเลิกการแก้ไข</button>' : ''}
+        </div>`;
+    }
+    function renderCards() {
+        const box = $('pp-cards');
+        if (!isMobile()) { if (box.childElementCount) box.innerHTML = ''; return; }
+        box.innerHTML = PP.rows.map(cardHtml).join('');
+    }
+    function bindCards() {
+        const box = $('pp-cards');
+        box.addEventListener('change', e => {
+            const inp = e.target.closest('[data-f]');
+            if (!inp) return;
+            const card = inp.closest('[data-row]'), i = +card.dataset.row, r = PP.rows[i];
+            r[inp.dataset.f] = inp.dataset.f === 'nd' ? (inp.value || null) : inp.value;
+            touchRow(i);
+            const tmp = document.createElement('div');
+            tmp.innerHTML = cardHtml(r, i);
+            card.replaceWith(tmp.firstElementChild);
+        });
+        box.addEventListener('click', e => {
+            const act = e.target.closest('[data-act]');
+            if (!act) return;
+            const i = +act.closest('[data-row]').dataset.row;
+            if (act.dataset.act === 'hist') showPostponeHistory(PP.rows[i].id);
+            if (act.dataset.act === 'undo') undoRow(i);
+        });
+    }
 
-        if (updates.length === 0) return Swal.fire('ข้อมูลว่าง', 'ระบุข้อมูลการเลื่อนอย่างน้อย 1 รายการ', 'info');
-
-        const confirm = await Swal.fire({ title: 'ยืนยัน?', text: `บันทึกการเลื่อน ${updates.length} รายการ`, icon: 'warning', showCancelButton: true });
-        if (confirm.isConfirmed) {
-            const res = await fetch('handle_pm_postpone.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ updates })
-            });
-            const resData = await res.json();
-            if (resData.success) {
-                Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อย', 'success');
-                fetchPostponeData();
-                document.getElementById('history-section').classList.add('hidden');
-            }
+    // ---------- ประวัติการเลื่อน ----------
+    async function showPostponeHistory(planId) {
+        ppSwal.fire({ title: 'ประวัติการเลื่อน', html: '<div class="text-sm text-slate-500 py-4">กำลังโหลด...</div>', showConfirmButton: false });
+        try {
+            const res = await (await fetch(`handle_pm_postpone.php?action=get_history&plan_id=${encodeURIComponent(planId)}`)).json();
+            if (!res.success) throw new Error(res.error || 'โหลดไม่สำเร็จ');
+            const list = res.data || [];
+            const html = list.length ? `<ol class="text-left text-sm max-h-[55vh] overflow-y-auto space-y-2">${list.map((h, i) => `
+                <li class="p-3 rounded-lg border border-slate-200">
+                    <div class="flex items-center justify-between text-xs text-slate-400"><span>ครั้งที่ ${i + 1}</span><span>${esc(h.created_by || 'ระบบ')} · ${esc(fmt(h.created_at))}</span></div>
+                    <div class="mt-1 text-slate-700"><span class="text-slate-400 line-through">${esc(fmt(h.old_date))}</span>
+                        <i class="fas fa-arrow-right text-[10px] text-slate-300 mx-1.5"></i><span class="font-medium text-[#006B9F]">${esc(fmt(h.new_date))}</span></div>
+                    <div class="mt-1 text-xs text-slate-500">เหตุผล: ${esc(h.reason || '-')}</div>
+                </li>`).join('')}</ol>`
+                : '<div class="text-sm text-slate-500 py-4">ยังไม่มีประวัติการเลื่อน</div>';
+            ppSwal.fire({ title: 'ประวัติการเลื่อน', html, confirmButtonText: 'ปิด', confirmButtonColor: '#006B9F', width: 520 });
+        } catch (e) {
+            ppSwal.fire('ข้อผิดพลาด', 'ไม่สามารถดึงข้อมูลประวัติได้: ' + e.message, 'error');
         }
     }
 
+    // ---------- บันทึก ----------
+    function refreshViews() {
+        if (PP.hot) PP.hot.render();
+        renderCards();
+        updateFooter();
+    }
+    async function savePostponements() {
+        const dirty = dirtyRows();
+        if (!dirty.length) return;
+        dirty.forEach(r => { r.err = rowError(r, true); });
+        const bad = dirty.filter(r => r.err);
+        if (bad.length) {
+            refreshViews();
+            return ppSwal.fire({
+                title: `มี ${bad.length} รายการที่ต้องแก้ไข`, icon: 'warning', confirmButtonColor: '#006B9F',
+                html: `<ul class="text-left text-sm space-y-1">${bad.slice(0, 6).map(r => `<li><b class="font-medium">${esc(r.machine || '-')}</b> (${esc(fmt(r.d))}) — <span class="text-red-600">${esc(r.err)}</span></li>`).join('')}${bad.length > 6 ? `<li class="text-slate-400">และอีก ${bad.length - 6} รายการ</li>` : ''}</ul>`,
+            });
+        }
+        const ok = await ppSwal.fire({
+            title: 'ยืนยันการเลื่อนแผน?', text: `บันทึกการเลื่อน ${dirty.length} รายการ`, icon: 'question',
+            showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#006B9F',
+        });
+        if (!ok.isConfirmed) return;
+        const btn = $('pp-save');
+        btn.disabled = true;
+        try {
+            const res = await (await fetch('handle_pm_postpone.php', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ updates: dirty.map(r => ({ plan_id: r.id, new_date: r.nd, reason: r.reason.trim() })) }),
+            })).json();
+            if (!res.success) {
+                // server ตรวจไม่ผ่าน => แสดงข้อผิดพลาดที่แถว
+                (res.errors || []).forEach(er => { const r = PP.rows.find(x => x.id == er.plan_id); if (r) r.err = er.error; });
+                refreshViews();
+                return ppSwal.fire('บันทึกไม่สำเร็จ', res.error || 'เกิดข้อผิดพลาด', 'error');
+            }
+            ppSwal.fire({ icon: 'success', title: `เลื่อนแผนแล้ว ${res.saved} รายการ`, timer: 1600, showConfirmButton: false });
+            PP.rows.forEach(r => { r.nd = null; r.reason = ''; r.err = ''; });
+            load();
+        } catch (e) {
+            updateFooter();
+            ppSwal.fire('ข้อผิดพลาด', 'บันทึกไม่สำเร็จ: ' + e.message, 'error');
+        }
+    }
 
+    // ---------- เริ่มต้นเมื่อเปิดแท็บครั้งแรก ----------
+    // pm.php เรียก fetchPostponeData() ทุกครั้งที่กลับมาที่แท็บ — ถ้ายังมีรายการที่แก้ค้างอยู่ ไม่โหลดทับ
+    window.fetchPostponeData = function () {
+        if (dirtyRows().length) { refreshViews(); return; }
+        load();
+    };
+    window.showPostponeHistory = showPostponeHistory;
+    window.savePostponements = savePostponements;
+
+    pmLazy('postpone', function () {
+        if (window.lucide) lucide.createIcons();
+        initHot();
+        bindCards();
+
+        ['pp-month', 'pp-year', 'pp-f-checksheet', 'pp-f-type', 'pp-f-location', 'pp-f-overdue'].forEach(id => $(id).addEventListener('change', () => applyFilters()));
+        let timer;
+        $('pp-search').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => applyFilters(), 300); });
+        $('pp-this-month').addEventListener('click', () => {
+            const d = new Date();
+            $('pp-month').value = d.getMonth() + 1;
+            $('pp-year').value = d.getFullYear();
+            applyFilters();
+        });
+        $('pp-filter-btn').addEventListener('click', () => {
+            const panel = $('pp-filter-panel');
+            const open = panel.classList.toggle('hidden') === false;
+            $('pp-filter-btn').setAttribute('aria-expanded', open);
+            if (open) loadFilterOptions();
+            if (PP.hot) requestAnimationFrame(() => PP.hot.refreshDimensions());
+        });
+        $('pp-f-clear').addEventListener('click', () => {
+            ['pp-f-checksheet', 'pp-f-type', 'pp-f-location'].forEach(id => { $(id).value = ''; });
+            $('pp-f-overdue').checked = false;
+            applyFilters();
+        });
+        $('pp-prev').addEventListener('click', async () => { if (await confirmDiscard()) { PP.page--; load(); } });
+        $('pp-next').addEventListener('click', async () => { if (await confirmDiscard()) { PP.page++; load(); } });
+        $('pp-size').addEventListener('change', async () => {
+            if (!(await confirmDiscard())) { $('pp-size').value = PP.size; return; }
+            PP.size = +$('pp-size').value;
+            PP.page = 1;
+            load();
+        });
+        $('pp-discard').addEventListener('click', async () => {
+            if (!(await confirmDiscard())) return;
+            PP.rows.forEach(r => { r.nd = null; r.reason = ''; r.err = ''; });
+            refreshViews();
+        });
+        $('pp-save').addEventListener('click', savePostponements);
+
+        // สลับจอใหญ่/มือถือ
+        let wasMobile = isMobile();
+        window.addEventListener('resize', () => {
+            const m = isMobile();
+            if (m === wasMobile) return;
+            wasMobile = m;
+            if (!m) { initHot(); if (PP.hot) { PP.hot.loadData(PP.rows); PP.hot.refreshDimensions(); } }
+            renderCards();
+        });
+        window.addEventListener('beforeunload', e => { if (dirtyRows().length) { e.preventDefault(); e.returnValue = ''; } });
+
+        load();
+    });
+})();
 </script>

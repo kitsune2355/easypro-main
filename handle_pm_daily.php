@@ -1,5 +1,7 @@
 <?php
-//handle_pm_daily.php — รายการงาน PM ประจำวัน: วันนี้ต้องทำ PM เครื่องไหนบ้าง (ใช้กับ pm_daily.php)
+//handle_pm_daily.php — งานที่ต้องทำ (pm_daily.php) และภาพรวมการจัดการแผน (pm_overview.php)
+//  งานที่ต้องทำส่งเฉพาะตัวเลขสรุป/กลุ่ม (summary) แล้วโหลดรายการเครื่องทีละหน้าเมื่อเปิดกลุ่ม (items)
+//  เพื่อไม่ให้หน่วยงานที่มีงานหลายหมื่นรายการต้องโหลดข้อมูลทั้งหมดในครั้งเดียว
 @session_start();
 include 'config_ctrl/connect.php';
 
@@ -29,62 +31,202 @@ if (!$ag_id) {
 
 $action = $_GET['action'] ?? null;
 
-// งานของวันที่เลือก (+ งานค้างจากวันก่อนหน้า ถ้า overdue=1)
-if ($action === 'list') {
-    $date = $_GET['date'] ?? '';
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
-    $withOverdue = ($_GET['overdue'] ?? '') === '1';
+function pmdQuery($connect, $sql, $types, $params) {
+    $stmt = mysqli_prepare($connect, $sql);
+    if (!$stmt) jsonOut(['success' => false, 'error' => 'Query preparation failed: ' . mysqli_error($connect)]);
+    mysqli_stmt_bind_param($stmt, $types, ...$params);
+    mysqli_stmt_execute($stmt);
+    $rows = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
+    mysqli_stmt_close($stmt);
+    return $rows;
+}
 
-    $where = $withOverdue
-        ? "(e.event_date = ? OR (e.event_date < ? AND e.status = 0))"
-        : "e.event_date = ?";
-
-    $sql = "SELECT
-                e.id, e.event_date, e.status, e.completed_at, e.work_record_id, e.checksheet_id,
-                c.name AS checksheet_name,
-                a.ass_code AS machine_code, a.asset_name AS machine_name,
-                g.TGroupName AS machine_type,
-                CONCAT_WS(' / ', NULLIF(ar.area_name, ''), NULLIF(ac.ac_name, ''), NULLIF(rm.ar_name, '')) AS location,
-                r.inspector_name
-            FROM pm_plan_events e
+const PMD_FROM = "FROM pm_plan_events e
             JOIN pm_plans p ON p.id = e.plan_id AND p.status = 1
             LEFT JOIN pm_checksheets c ON e.checksheet_id = c.id
             LEFT JOIN tb_ass_list a ON e.machine_id = a.ass_id
             LEFT JOIN tb_asset_group g ON a.asset_type = g.GroupId
             LEFT JOIN tb_area ar ON a.asset_rp_area_id = ar.area_id
             LEFT JOIN tb_area_class ac ON a.asset_rp_ac_id = ac.ac_id
-            LEFT JOIN tb_area_room rm ON a.asset_rp_ar_id = rm.ar_id
-            LEFT JOIN pm_work_records r ON r.id = e.work_record_id
-            WHERE e.ag_id = ? AND $where
-            ORDER BY c.name, e.event_date, a.ass_code, e.id";
+            LEFT JOIN tb_area_room rm ON a.asset_rp_ar_id = rm.ar_id";
 
-    $stmt = mysqli_prepare($connect, $sql);
-    if (!$stmt) jsonOut(['success' => false, 'error' => 'Query preparation failed: ' . mysqli_error($connect)]);
-    if ($withOverdue) mysqli_stmt_bind_param($stmt, "sss", $ag_id, $date, $date);
-    else mysqli_stmt_bind_param($stmt, "ss", $ag_id, $date);
-    mysqli_stmt_execute($stmt);
-    $res = mysqli_stmt_get_result($stmt);
+/**
+ * เงื่อนไขร่วมของ summary/items จาก $_GET
+ *  date, date_to (ไม่เกิน 31 วัน), overdue=1 (รวมงานค้างก่อนวันเริ่ม), q (ค้นหา), type (ประเภทเครื่อง),
+ *  group (checksheet|location|machine_type|event_date), filter (todo|overdue|done|all)
+ *  $withSearch = false => ไม่ใช้ q/type (ใช้หารายการประเภทเครื่องสำหรับตัวกรอง)
+ */
+function pmdFilters($ag_id, $withSearch = true) {
+    $isDate = function ($s) { return is_string($s) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $s); };
+    $today = date('Y-m-d');
+    $date = $isDate($_GET['date'] ?? '') ? $_GET['date'] : $today;
+    $dateTo = $isDate($_GET['date_to'] ?? '') ? $_GET['date_to'] : $date;
+    $maxTo = date('Y-m-d', strtotime("$date +30 days"));
+    if ($dateTo < $date) $dateTo = $date;
+    if ($dateTo > $maxTo) $dateTo = $maxTo;
 
-    $rows = [];
-    while ($r = mysqli_fetch_assoc($res)) {
-        $rows[] = [
-            'id'             => (int)$r['id'],
-            'event_date'     => $r['event_date'],
-            'status'         => (int)$r['status'],
-            'has_record'     => (int)$r['work_record_id'] > 0,
-            'completed_at'   => $r['completed_at'],
-            'inspector'      => $r['inspector_name'],
-            'checksheet_id'  => (int)$r['checksheet_id'],
-            'checksheet'     => $r['checksheet_name'] ?? '',
-            'machine_code'   => $r['machine_code'] ?? '',
-            'machine_name'   => $r['machine_name'] ?? '',
-            'machine_type'   => $r['machine_type'] ?? '',
-            'location'       => $r['location'] ?? '',
-        ];
+    $where = ["e.ag_id = ?"];
+    $types = "s";
+    $params = [$ag_id];
+    if (($_GET['overdue'] ?? '') === '1') {
+        $where[] = "(e.event_date BETWEEN ? AND ? OR (e.event_date < ? AND e.status = 0))";
+        $types .= "sss";
+        array_push($params, $date, $dateTo, $date);
+    } else {
+        $where[] = "e.event_date BETWEEN ? AND ?";
+        $types .= "ss";
+        array_push($params, $date, $dateTo);
     }
-    mysqli_stmt_close($stmt);
+    if ($withSearch) {
+        $type = trim((string)($_GET['type'] ?? ''));
+        if ($type !== '') {
+            $where[] = "g.TGroupName = ?";
+            $types .= "s";
+            $params[] = $type;
+        }
+        $q = trim((string)($_GET['q'] ?? ''));
+        if ($q !== '') {
+            // คอลัมน์ต่างตารางมี collation ต่างกัน => แปลงเป็น utf8mb4 ก่อนค้นหา (ไม่สนตัวพิมพ์เล็ก/ใหญ่)
+            $where[] = "CONVERT(CONCAT_WS(' ', a.asset_name, a.ass_code, c.name, g.TGroupName, ar.area_name, ac.ac_name, rm.ar_name) USING utf8mb4) LIKE ?";
+            $types .= "s";
+            $params[] = '%' . $q . '%';
+        }
+    }
 
-    jsonOut(['success' => true, 'date' => $date, 'today' => date('Y-m-d'), 'data' => $rows]);
+    // กลุ่ม => [นิพจน์คีย์, นิพจน์ชื่อกลุ่ม]
+    $groups = [
+        'checksheet'   => ["CAST(e.checksheet_id AS CHAR)", "MAX(c.name)"],
+        'location'     => ["CONCAT_WS(' / ', NULLIF(ar.area_name, ''), NULLIF(ac.ac_name, ''), NULLIF(rm.ar_name, ''))", null],
+        'machine_type' => ["COALESCE(g.TGroupName, '')", null],
+        'event_date'   => ["CAST(e.event_date AS CHAR)", null],
+    ];
+    $group = $_GET['group'] ?? 'checksheet';
+    if (!isset($groups[$group])) $group = 'checksheet';
+
+    $filters = [
+        'todo'    => "e.status = 0",
+        'overdue' => "e.status = 0 AND e.event_date < '$today'",
+        'done'    => "e.status = 1",
+        'all'     => "1=1",
+    ];
+    $filter = $_GET['filter'] ?? 'todo';
+    if (!isset($filters[$filter])) $filter = 'todo';
+
+    return [
+        'date' => $date, 'date_to' => $dateTo, 'today' => $today,
+        'where' => implode(' AND ', $where), 'types' => $types, 'params' => $params,
+        'group' => $group, 'key' => $groups[$group][0], 'label' => $groups[$group][1] ?: $groups[$group][0],
+        'filter_sql' => $filters[$filter],
+    ];
+}
+
+// ตัวเลขสรุปตามสถานะ + รายการกลุ่ม (ยังไม่มีรายการเครื่อง)
+if ($action === 'summary') {
+    $f = pmdFilters($ag_id);
+    $today = $f['today'];
+    $from = PMD_FROM;
+
+    $c = pmdQuery($connect, "SELECT COUNT(*) AS total, SUM(e.status = 1) AS done,
+                SUM(e.status = 0 AND e.event_date < '$today') AS overdue, SUM(e.status = 0 AND e.event_date >= '$today') AS pending
+            $from WHERE {$f['where']}", $f['types'], $f['params'])[0];
+    $counts = ['all' => (int)$c['total'], 'done' => (int)$c['done'], 'overdue' => (int)$c['overdue'], 'pending' => (int)$c['pending']];
+    $counts['todo'] = $counts['overdue'] + $counts['pending'];
+
+    // n = จำนวนตามชิปสถานะที่เลือก, total/done = ความคืบหน้าของทั้งกลุ่ม; กลุ่มที่มีงานค้างขึ้นก่อน
+    $groups = pmdQuery($connect, "SELECT {$f['key']} AS k, {$f['label']} AS label, COUNT(*) AS total, SUM(e.status = 1) AS done,
+                SUM(e.status = 0 AND e.event_date < '$today') AS overdue, SUM({$f['filter_sql']}) AS n
+            $from WHERE {$f['where']}
+            GROUP BY k HAVING n > 0
+            ORDER BY SUM(e.status = 0 AND e.event_date < '$today') > 0 DESC, " . ($f['group'] === 'event_date' ? "k" : "label") . "
+            LIMIT 500", $f['types'], $f['params']);
+
+    // บันทึกพร้อมกัน: เช็คชีตเดียวกัน วันเดียวกัน ยังไม่ทำ ตั้งแต่ 2 เครื่อง (แสดงไม่เกิน 3 วันแรกต่อกลุ่ม)
+    $batch = [];
+    if ($f['group'] === 'checksheet') {
+        $sql = "SELECT e.checksheet_id AS k, e.event_date AS d, COUNT(*) AS n
+                $from WHERE {$f['where']} AND e.status = 0
+                GROUP BY e.checksheet_id, e.event_date HAVING n > 1 ORDER BY e.event_date";
+        foreach (pmdQuery($connect, $sql, $f['types'], $f['params']) as $b) {
+            if (count($batch[$b['k']] ?? []) < 3) $batch[$b['k']][] = ['date' => $b['d'], 'n' => (int)$b['n']];
+        }
+    }
+
+    // ประเภทเครื่องของงานในช่วงนี้ (สำหรับตัวกรอง ไม่ขึ้นกับคำค้นหา/ประเภทที่เลือก)
+    $fa = pmdFilters($ag_id, false);
+    $typeList = array_column(pmdQuery($connect, "SELECT DISTINCT g.TGroupName AS t $from
+            WHERE {$fa['where']} AND g.TGroupName IS NOT NULL ORDER BY t", $fa['types'], $fa['params']), 't');
+
+    jsonOut([
+        'success' => true, 'date' => $f['date'], 'date_to' => $f['date_to'], 'today' => $today,
+        'counts' => $counts, 'types' => $typeList,
+        'groups' => array_map(function ($g) use ($batch) {
+            return ['key' => (string)$g['k'], 'label' => (string)($g['label'] ?? ''), 'n' => (int)$g['n'],
+                    'total' => (int)$g['total'], 'done' => (int)$g['done'], 'overdue' => (int)$g['overdue'],
+                    'batch' => $batch[$g['k']] ?? []];
+        }, $groups),
+    ]);
+}
+
+// รายการเครื่องในกลุ่มเดียว ทีละหน้า (key, offset, limit)
+if ($action === 'items') {
+    $f = pmdFilters($ag_id);
+    $offset = max(0, intval($_GET['offset'] ?? 0));
+    $limit = min(100, max(1, intval($_GET['limit'] ?? 30)));
+    $from = PMD_FROM;
+    $rows = pmdQuery($connect, "SELECT e.id, e.event_date, e.status, e.work_record_id, e.checksheet_id,
+                c.name AS checksheet_name, a.ass_code AS machine_code, a.asset_name AS machine_name, g.TGroupName AS machine_type,
+                CONCAT_WS(' / ', NULLIF(ar.area_name, ''), NULLIF(ac.ac_name, ''), NULLIF(rm.ar_name, '')) AS location,
+                r.inspector_name
+            $from
+            LEFT JOIN pm_work_records r ON r.id = e.work_record_id
+            WHERE {$f['where']} AND {$f['filter_sql']} AND {$f['key']} = ?
+            ORDER BY e.event_date, a.ass_code, e.id
+            LIMIT $limit OFFSET $offset", $f['types'] . "s", array_merge($f['params'], [(string)($_GET['key'] ?? '')]));
+
+    jsonOut(['success' => true, 'data' => array_map(function ($r) {
+        return [
+            'id' => (int)$r['id'], 'event_date' => $r['event_date'], 'status' => (int)$r['status'],
+            'has_record' => (int)$r['work_record_id'] > 0, 'inspector' => $r['inspector_name'],
+            'checksheet_id' => (int)$r['checksheet_id'], 'checksheet' => $r['checksheet_name'] ?? '',
+            'machine_code' => $r['machine_code'] ?? '', 'machine_name' => $r['machine_name'] ?? '',
+            'machine_type' => $r['machine_type'] ?? '', 'location' => $r['location'] ?? '',
+        ];
+    }, $rows)]);
+}
+
+// ภาพรวมสำหรับหน้าจัดการแผน: ตัวเลขสรุป + เช็คชีตที่มีงานค้างมากที่สุด
+if ($action === 'overview') {
+    $today = date('Y-m-d');
+    $monthStart = date('Y-m-01');
+    $monthEnd = date('Y-m-t');
+    $week = date('Y-m-d', strtotime('+6 days'));
+
+    $plans = pmdQuery($connect, "SELECT COUNT(*) AS plans, COUNT(DISTINCT machine_id) AS machines FROM pm_plans WHERE ag_id = ? AND status = 1", "s", [$ag_id])[0];
+    $sheets = pmdQuery($connect, "SELECT COUNT(*) AS n FROM pm_checksheets WHERE ag_id = ?", "s", [$ag_id])[0]['n'];
+    $ev = pmdQuery($connect, "SELECT
+                SUM(e.event_date = ?) AS today_total,
+                SUM(e.event_date = ? AND e.status = 1) AS today_done,
+                SUM(e.event_date < ? AND e.status = 0) AS overdue,
+                SUM(e.event_date > ? AND e.event_date <= ? AND e.status = 0) AS next7,
+                SUM(e.event_date BETWEEN ? AND ?) AS month_total,
+                SUM(e.event_date BETWEEN ? AND ? AND e.status = 1) AS month_done
+            FROM pm_plan_events e JOIN pm_plans p ON p.id = e.plan_id AND p.status = 1
+            WHERE e.ag_id = ?", "ssssssssss",
+        [$today, $today, $today, $today, $week, $monthStart, $monthEnd, $monthStart, $monthEnd, $ag_id])[0];
+    $topOverdue = pmdQuery($connect, "SELECT c.name, COUNT(*) AS n, MIN(e.event_date) AS oldest
+            FROM pm_plan_events e
+            JOIN pm_plans p ON p.id = e.plan_id AND p.status = 1
+            LEFT JOIN pm_checksheets c ON c.id = e.checksheet_id
+            WHERE e.ag_id = ? AND e.event_date < ? AND e.status = 0
+            GROUP BY e.checksheet_id ORDER BY n DESC LIMIT 5", "ss", [$ag_id, $today]);
+
+    jsonOut(['success' => true, 'data' => [
+        'plans' => (int)$plans['plans'], 'machines' => (int)$plans['machines'], 'checksheets' => (int)$sheets,
+        'today_total' => (int)$ev['today_total'], 'today_done' => (int)$ev['today_done'],
+        'overdue' => (int)$ev['overdue'], 'next7' => (int)$ev['next7'],
+        'month_total' => (int)$ev['month_total'], 'month_done' => (int)$ev['month_done'],
+        'top_overdue' => array_map(function ($r) { return ['name' => $r['name'] ?? '-', 'n' => (int)$r['n'], 'oldest' => $r['oldest']]; }, $topOverdue),
+    ]]);
 }
 
 jsonOut(['success' => false, 'error' => 'ไม่ระบุการดำเนินการ (action)']);

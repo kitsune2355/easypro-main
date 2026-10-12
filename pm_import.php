@@ -114,7 +114,7 @@ include_once "config_ctrl/checksession.php";
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+pmLazy('import', function() {   // โหลดเมื่อเปิดแท็บครั้งแรก (ดู pmLazy ใน pm.php)
     const STATUS_TEXT = { ok: 'พร้อมนำเข้า', not_found: 'ไม่พบในระบบ', no_schedule: 'ไม่มีกำหนดการ', duplicate: 'แถวซ้ำ' };
     const DAY_OPTIONS = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
     const WEEKDAYS = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.'];

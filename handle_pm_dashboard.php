@@ -4,7 +4,13 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-include 'config_ctrl/connect.php'; 
+@session_start();
+// หน่วยงานจาก session (ใช้กับ action ใหม่: get_summary / get_events) แล้วปล่อย lock ให้ request อื่นทำงานคู่ขนานได้
+$sess_ag_id = $_SESSION['sess_user_agency'] ?? '';
+$sess_user = $_SESSION['sess_user_id_es'] ?? '';
+session_write_close();
+
+include 'config_ctrl/connect.php';
 
 if (mysqli_connect_errno()) {
     http_response_code(500); 
@@ -213,6 +219,111 @@ if ($action === 'get_event_detail') {
         'work' => $work,
         'today' => date('Y-m-d')
     ]], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// ===== ปฏิทิน PM แบบสรุป (pm_dashboard.php) =====
+// ตัวกรอง + ช่วงวันที่ร่วมกันของ get_summary / get_events (end ไม่รวมวันนั้น เหมือน FullCalendar)
+function pmdWhere($ag_id, $needMachine) {
+    $start = $_GET['start'] ?? '';
+    $end = $_GET['end'] ?? '';
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)) return null;
+    if ((strtotime($end) - strtotime($start)) > 400 * 86400) return null;   // ไม่เกิน ~1 ปี
+
+    $join = " LEFT JOIN pm_checksheets c ON p.checksheet_id = c.id";
+    $where = " WHERE p.ag_id = ? AND p.event_date >= ? AND p.event_date < ? AND p.status IN (0, 1)";
+    $types = 'sss';
+    $params = [(string)$ag_id, $start, $end];
+
+    $f = ['machine' => 'm.asset_name', 'type' => 'g.TGroupName', 'location' => 'a.area_name', 'checksheet' => 'c.name'];
+    foreach ($f as $k => $col) {
+        $v = trim($_GET[$k] ?? '');
+        if ($v === '') continue;
+        if ($k !== 'checksheet') $needMachine = true;
+        $where .= " AND $col LIKE ?";
+        $types .= 's';
+        $params[] = "%$v%";
+    }
+    // กลุ่มเช็คชีตเดียว (เปิดดูรายเครื่อง): cs = id หรือ 'none' = ไม่ระบุเช็คชีต
+    if (isset($_GET['cs']) && $_GET['cs'] !== '') {
+        if ($_GET['cs'] === 'none') $where .= " AND p.checksheet_id IS NULL";
+        else { $where .= " AND p.checksheet_id = ?"; $types .= 's'; $params[] = (string)$_GET['cs']; }
+    }
+    if ($needMachine) {
+        $join .= " LEFT JOIN tb_ass_list m ON p.machine_id = m.ass_id
+                   LEFT JOIN tb_asset_group g ON m.asset_type = g.GroupId
+                   LEFT JOIN tb_area a ON m.asset_rp_area_id = a.area_id";
+    }
+    return [$join, $where, $types, $params];
+}
+
+function pmdRows($connect, $sql, $types, $params) {
+    $stmt = $connect->prepare($sql);
+    if (!$stmt) return false;
+    $stmt->bind_param($types, ...$params);
+    if (!$stmt->execute()) return false;
+    return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+if ($action === 'get_summary' || $action === 'get_events') {
+    if (!$sess_user || $sess_ag_id === '') {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'กรุณาเข้าสู่ระบบใหม่'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
+// สรุปจำนวนงาน: group=cs => วัน × เช็คชีต (ทั้งหมด t / ทำแล้ว n / id1 = id งานเมื่อกลุ่มมีงานเดียว)
+//               group=day => รายวัน; ถ้ากลุ่มวัน×เช็คชีตเกิน 600 กลุ่ม จะส่งรายวันแทน (เว้นแต่ force=1)
+if ($action === 'get_summary') {
+    $w = pmdWhere($sess_ag_id, false);
+    if (!$w) { echo json_encode(['success' => false, 'error' => 'ช่วงวันที่ไม่ถูกต้อง'], JSON_UNESCAPED_UNICODE); exit; }
+    [$join, $where, $types, $params] = $w;
+    $group = ($_GET['group'] ?? 'cs') === 'day' ? 'day' : 'cs';
+    $rows = null;
+    if ($group === 'cs') {
+        $rows = pmdRows($connect, "SELECT p.event_date AS d, p.checksheet_id AS cs_id, MAX(c.name) AS cs,
+                    COUNT(*) AS t, SUM(p.status = 1) AS n, MIN(p.id) AS id1
+                FROM pm_plan_events p $join $where
+                GROUP BY p.event_date, p.checksheet_id ORDER BY p.event_date LIMIT 601", $types, $params);
+        if ($rows !== false && count($rows) > 600 && empty($_GET['force'])) { $group = 'day'; $rows = null; }
+    }
+    if ($group === 'day') {
+        $rows = pmdRows($connect, "SELECT p.event_date AS d, COUNT(*) AS t, SUM(p.status = 1) AS n
+                FROM pm_plan_events p $join $where GROUP BY p.event_date ORDER BY p.event_date", $types, $params);
+    }
+    if ($rows === false) { echo json_encode(['success' => false, 'error' => $connect->error], JSON_UNESCAPED_UNICODE); exit; }
+    foreach ($rows as &$r) {
+        $r['t'] = (int)$r['t'];
+        $r['n'] = (int)$r['n'];
+        if (isset($r['id1'])) $r['id1'] = (int)$r['id1'];
+    }
+    unset($r);
+    echo json_encode(['success' => true, 'group' => $group, 'today' => date('Y-m-d'), 'data' => $rows], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// รายการงานทีละเครื่อง (มุมมองรายวัน / เปิดกลุ่มในป๊อปอัป / Export) จำกัด limit แถว (Export สูงสุด 20,000)
+if ($action === 'get_events') {
+    $w = pmdWhere($sess_ag_id, true);
+    if (!$w) { echo json_encode(['success' => false, 'error' => 'ช่วงวันที่ไม่ถูกต้อง'], JSON_UNESCAPED_UNICODE); exit; }
+    [$join, $where, $types, $params] = $w;
+    $max = !empty($_GET['export']) ? 20000 : 500;
+    $limit = max(1, min($max, (int)($_GET['limit'] ?? $max)));
+    $rows = pmdRows($connect, "SELECT p.id, p.event_date AS start, p.status, p.completed_at,
+                m.asset_name AS machine, g.TGroupName AS type, a.area_name AS location,
+                c.name AS checksheet, p.checksheet_id
+            FROM pm_plan_events p $join $where
+            ORDER BY p.event_date, p.status, m.asset_name, p.id LIMIT " . ($limit + 1), $types, $params);
+    if ($rows === false) { echo json_encode(['success' => false, 'error' => $connect->error], JSON_UNESCAPED_UNICODE); exit; }
+    $total = count($rows);
+    if ($total > $limit) {
+        array_pop($rows);
+        $total = (int)pmdRows($connect, "SELECT COUNT(*) AS c FROM pm_plan_events p $join $where", $types, $params)[0]['c'];
+    }
+    foreach ($rows as &$r) { $r['id'] = (int)$r['id']; $r['status'] = (int)$r['status']; }
+    unset($r);
+    echo json_encode(['success' => true, 'total' => $total, 'today' => date('Y-m-d'), 'data' => $rows], JSON_UNESCAPED_UNICODE);
     exit;
 }
 

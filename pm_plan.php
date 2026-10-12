@@ -18,27 +18,88 @@ include "config_ctrl/checksession.php";
     .handsontable .htDatepickerHolder {
         display: none;
     }
+
+    /* ===== รายการแผน PM: ตารางโปร่ง แถวละ 2 บรรทัด ===== */
+    #pmPlanGrid { --ag-borders: none; --ag-row-border-color: #f1f5f9; --ag-header-foreground-color: #64748b; --ag-cell-horizontal-padding: 16px; }
+    #pmPlanGrid .ag-root-wrapper { border: 0; border-radius: 0; }
+    #pmPlanGrid .ag-header-cell-text { font-size: 12px; font-weight: 600; }
+    #pmPlanGrid .ag-cell { display: flex; align-items: center; line-height: 1.35; }
+    .pmp-cell { display: flex; flex-direction: column; justify-content: center; min-width: 0; width: 100%; }
+    .pmp-l1 { font-size: 14px; font-weight: 500; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pmp-l2 { font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+    .pmp-off .pmp-l1 { color: #94a3b8; }
+    .pmp-pill { display: inline-flex; align-items: center; gap: .25rem; padding: 0 .5rem; border-radius: 9999px; font-size: 11px; font-weight: 600; line-height: 1.25rem; }
+    .pmp-act { width: 2rem; height: 2rem; border-radius: .5rem; display: inline-flex; align-items: center; justify-content: center; color: #94a3b8; transition: all .15s; }
+    .pmp-act:hover { background: #f1f5f9; }
+    .pmp-seg { display: inline-flex; background: #f1f5f9; border-radius: .6rem; padding: 3px; gap: 2px; flex: none; }
+    .pmp-seg button { padding: .3rem .7rem; border-radius: .5rem; font-size: 12.5px; font-weight: 500; color: #64748b; white-space: nowrap; }
+    .pmp-seg button b { font-weight: 600; margin-left: .3rem; color: #94a3b8; }
+    .pmp-seg button.on { background: #fff; color: #006B9F; box-shadow: 0 1px 2px rgba(15,23,42,.1); }
+    .pmp-seg button.on b { color: #006B9F; }
+    .pmp-seg button[data-st="overdue"] b { color: #ef4444; }
+    /* มือถือ: การ์ดยาวตามเนื้อหา เลื่อนทั้งหน้าแทนกล่องเลื่อนเล็กๆ */
+    @media (max-width: 767.98px) {
+        #tab-plan#tab-plan { height: auto !important; min-height: 0 !important; }
+        #tab-plan .pm-mc-list { overflow: visible; }
+    }
 </style>
 <div id="tab-plan" class="tab-content hidden flex flex-col min-h-full">
-    <div id="plan-list-view" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 block">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-            <div>
-                <h3 class="text-lg font-semibold text-slate-800">รายการแผน PM</h3>
-                <p class="text-[12px] text-slate-500">จัดการแผนงานและกำหนดรอบการบำรุงรักษา <span id="contract-display-list" class="font-medium text-sky-600 mt-1"></span></p>
+    <div id="plan-list-view" class="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col flex-1 min-h-0">
+        <!-- หัวแท็บ -->
+        <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 px-4 sm:px-5 pt-4 sm:pt-5">
+            <div class="min-w-0">
+                <h3 class="text-lg font-semibold text-slate-800">แผน PM</h3>
+                <p class="text-xs text-slate-500">กำหนดรอบการบำรุงรักษาของแต่ละเครื่องจักร · <span id="contract-display-list"></span></p>
             </div>
-
-            <div class="flex items-center gap-2">
-                <button onclick="window.generateCalendar()" class="border border-sky-600 text-sky-600 hover:bg-sky-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors shadow-sm">
+            <div class="grid grid-cols-2 sm:flex items-center gap-2 shrink-0">
+                <button type="button" onclick="window.generateCalendar()" title="สร้างกำหนดการล่วงหน้าจนถึงวันสิ้นสุดสัญญา" class="border border-slate-200 bg-white text-slate-600 hover:border-sky-300 hover:text-sky-700 px-3.5 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors">
                     <i data-lucide="calendar-sync" class="w-4 h-4"></i> คำนวณแผนใหม่
                 </button>
-                <button onclick="window.showWizard()" class="btn-gradient px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+                <button type="button" onclick="window.showWizard()" class="btn-gradient px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2">
                     <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มแผน PM
                 </button>
             </div>
         </div>
-        
-        <div class="overflow-hidden border border-slate-200 rounded-lg">
-            <div id="pmPlanGrid" class="ag-theme-alpine" style="height: 500px; width: 100%;"></div>
+
+        <!-- แถบค้นหา + สถานะ + ตัวกรอง -->
+        <div class="flex flex-col lg:flex-row lg:items-center gap-2.5 px-4 sm:px-5 pt-4 pb-3">
+            <div class="relative w-full lg:w-72 shrink-0">
+                <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input id="plan-q" type="search" autocomplete="off" placeholder="ค้นหาเครื่องจักร, รหัส, S/N, เช็คชีต..." class="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-400">
+            </div>
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="overflow-x-auto hide-scrollbar min-w-0">
+                    <div id="plan-seg" class="pmp-seg">
+                        <button type="button" data-st="" class="on">ทั้งหมด<b data-n="all">-</b></button>
+                        <button type="button" data-st="active">ใช้งาน<b data-n="active">-</b></button>
+                        <button type="button" data-st="overdue">มีงานค้าง<b data-n="overdue">-</b></button>
+                        <button type="button" data-st="off">ปิด<b data-n="off">-</b></button>
+                    </div>
+                </div>
+                <button type="button" id="plan-filter-btn" onclick="window.togglePlanFilters()" class="shrink-0 border border-slate-200 bg-white text-slate-600 hover:text-sky-700 px-3 py-1.5 rounded-lg text-[13px] font-medium flex items-center gap-1.5">
+                    <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">ตัวกรอง</span>
+                    <span id="plan-filter-badge" class="hidden min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-sky-600 text-white text-[10px] leading-[1.1rem] text-center"></span>
+                </button>
+            </div>
+            <div id="plan-count" class="text-xs text-slate-500 lg:ml-auto whitespace-nowrap">กำลังโหลด...</div>
+        </div>
+        <div id="plan-filters" class="hidden px-4 sm:px-5 pb-3">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <select id="plan-f-type" class="w-full sm:w-64 border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-sky-500/30">
+                    <option value="">ทุกประเภทเครื่องจักร</option>
+                </select>
+                <select id="plan-f-chk" class="w-full sm:w-72 border border-slate-200 bg-white rounded-lg px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-sky-500/30">
+                    <option value="">ทุกเช็คชีต</option>
+                </select>
+                <button type="button" onclick="window.clearPlanFilters()" class="text-xs text-slate-500 hover:text-red-500 px-2 py-1.5 self-start sm:self-auto">ล้างตัวกรอง</button>
+            </div>
+        </div>
+        <div id="plan-error" class="hidden mx-4 sm:mx-5 mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600 flex items-center justify-between gap-2"></div>
+
+        <div class="flex-1 min-h-0 border-t border-slate-200 flex flex-col relative px-4 pb-4 pt-3 sm:p-0">
+            <div class="flex-1 min-h-0">
+                <div id="pmPlanGrid" class="ag-theme-alpine" style="height: 100%; width: 100%;"></div>
+            </div>
         </div>
     </div>
 
@@ -161,7 +222,8 @@ include "config_ctrl/checksession.php";
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    // โหลดเมื่อเปิดแท็บ "จัดการแผน PM" ครั้งแรก (ดู pmLazy ใน pm.php)
+    pmLazy('plan', function() {
         const AG_ID = '<?php echo isset($sess_user_agency_es) ? $sess_user_agency_es : ""; ?>';
         const USER_ID = '<?php echo isset($sess_user_id) ? $sess_user_id : ""; ?>';
         const CONTRACT_START = '<?php echo isset($sess_ag_start_date) ? $sess_ag_start_date : ""; ?>';
@@ -169,7 +231,8 @@ include "config_ctrl/checksession.php";
 
         const contractText = `${CONTRACT_START} ถึง ${CONTRACT_END}`;
         const displayList = document.getElementById('contract-display-list');
-        if(displayList) displayList.innerText = `ระยะเวลาสัญญา: ${contractText}`;
+        if(displayList) displayList.innerText = CONTRACT_START && CONTRACT_END
+            ? `สัญญา ${window.formatDate(CONTRACT_START, false)} – ${window.formatDate(CONTRACT_END, false)}` : 'ยังไม่ได้กำหนดระยะเวลาสัญญา';
         const displayWizard = document.getElementById('contract-display-wizard');
         if(displayWizard) displayWizard.innerText = contractText;
         
@@ -189,34 +252,31 @@ include "config_ctrl/checksession.php";
 
         window.hotStep3Instance = null;
 
-        async function fetchPlans() {
-            try {
-                const response = await axios.get(`handle_pm_plan.php?action=get_all&ag_id=${AG_ID}`);
-                if (response.data.success) {
-                    window.pmPlans = response.data.data; // เก็บข้อมูลที่ได้ลงตัวแปร
-                    window.renderPlans(); // สั่งให้ AG Grid วาดตารางใหม่
-                }
-            } catch (error) {
-                console.error('Fetch plans error:', error);
-            }
+        // โหลดตารางใหม่ (คงหน้าเดิม) — เรียกหลังบันทึก/ลบ/เปลี่ยนสถานะ
+        function fetchPlans() {
+            if (planGridApi) planGridApi.refreshInfiniteCache();
         }
 
-        async function loadPlanOptions() {
-            try {
-                const response = await axios.get('handle_pm_plan.php?action=get_options');
-                if (response.data.success) {
-                    alertOptionsData = response.data.data.alerts;
-                    freqOptionsData = response.data.data.freqs;
-                    
-                } else {
-                    console.error('ไม่สามารถดึงข้อมูลตัวเลือกได้:', response.data.error);
-                }
-            } catch (error) {
+        // ตัวเลือกความถี่/การแจ้งเตือน: โหลดครั้งเดียวเมื่อเปิดฟอร์ม (สร้าง/แก้ไข)
+        let planOptionsPromise = null;
+        function loadPlanOptions() {
+            if (planOptionsPromise) return planOptionsPromise;
+            planOptionsPromise = axios.get('handle_pm_plan.php?action=get_options').then(response => {
+                if (!response.data.success) throw new Error(response.data.error || 'ไม่สามารถดึงข้อมูลตัวเลือกได้');
+                alertOptionsData = response.data.data.alerts;
+                freqOptionsData = response.data.data.freqs;
+            }).catch(error => {
+                planOptionsPromise = null; // ให้ลองใหม่ได้ครั้งหน้า
                 console.error('API Error:', error);
-            }
+                Swal.fire('ข้อผิดพลาด', 'โหลดตัวเลือกความถี่/การแจ้งเตือนไม่สำเร็จ', 'error');
+                throw error;
+            });
+            return planOptionsPromise;
         }
 
+        let machineTypesLoaded = false;
         async function loadMachineTypes() {
+            if (machineTypesLoaded) return;
 			const deptSelect = document.getElementById('step1-mac-type');
 		
 			if (!deptSelect) {
@@ -226,9 +286,7 @@ include "config_ctrl/checksession.php";
 		
 			try {
 				const agId = AG_ID || window.AG_ID || '';
-		
-				console.log('AG_ID =', agId);
-		
+
 				deptSelect.innerHTML = '<option value="">กำลังโหลดข้อมูล...</option>';
 		
 				if (!agId) {
@@ -251,6 +309,7 @@ include "config_ctrl/checksession.php";
 						option.textContent = item.name || item.TGroupName;
 						deptSelect.appendChild(option);
 					});
+					machineTypesLoaded = true;
 				} else {
 					deptSelect.innerHTML = '<option value="">ไม่พบข้อมูลประเภทเครื่องจักร</option>';
 				}
@@ -303,7 +362,11 @@ include "config_ctrl/checksession.php";
             
             // Reset Wizard
             currentStep = 1;
-            document.getElementById('step1-mac-type').value = '';
+            const btnSubmit = document.getElementById('btn-submit');
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = 'บันทึกแผน PM';
+            loadMachineTypes().then(() => { document.getElementById('step1-mac-type').value = ''; });
+            loadPlanOptions().catch(() => {});
             window.loadChecksheetsToStep1();
             window.updateWizardUI();
         };
@@ -367,7 +430,7 @@ include "config_ctrl/checksession.php";
         };
 
         // ควบคุมการเปลี่ยนหน้าและ Validate ข้อมูล
-        window.nextStep = function() {
+        window.nextStep = async function() {
         if (currentStep === 1) {
             const macType = document.getElementById('step1-mac-type').value;
             const checkedElements = Array.from(document.querySelectorAll('.chk-checksheet:checked'));
@@ -389,9 +452,10 @@ include "config_ctrl/checksession.php";
                 freqValue: '', 
                 alertDesc: 'ไม่ระบุ',
                 alertValue: '',
-                days: [] 
+                days: []
             }));
-            
+
+            try { await loadPlanOptions(); } catch (e) { return; }
             renderStep2();
             currentStep++;
             window.updateWizardUI();
@@ -848,8 +912,9 @@ include "config_ctrl/checksession.php";
                         timer: 1500,
                         showConfirmButton: false
                     }).then(() => {
-                        window.hideWizard(); 
-                        fetchPlans();
+                        window.hideWizard();
+                        window.reloadPlans(); // แผนใหม่อยู่บนสุด (เรียงตามวันที่สร้าง)
+                        if (window.refreshCalendarEvents) window.refreshCalendarEvents();
                     });
                 } else {
                     throw new Error(response.data.error || 'เกิดข้อผิดพลาด');
@@ -863,278 +928,292 @@ include "config_ctrl/checksession.php";
             }
         };
 
+
+        /* ===================== รายการแผน PM (แบ่งหน้าฝั่งเซิร์ฟเวอร์ ครั้งละ 50 แผน) ===================== */
+        const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        const nf = n => Number(n || 0).toLocaleString('th-TH');
+        const fmtD = d => window.formatDate(d, false);
+        const planById = new Map();                                   // แถวที่โหลดมาแล้ว (ใช้ตอนแก้ไข/ลบ)
+        const planState = { q: '', status: '', type: '', chk: '' };   // ค้นหา + ตัวกรองปัจจุบัน
+        let planTotal = 0;
+
+        function daysFromToday(d) {
+            const [y, m, dd] = String(d).split('-').map(Number);
+            const t = new Date(); t.setHours(0, 0, 0, 0);
+            return Math.round((new Date(y, m - 1, dd) - t) / 86400000);
+        }
+        const machineSub = d => [d.ass_code, d.macTypeName, d.asset_sn ? 'S/N ' + d.asset_sn : ''].filter(Boolean).map(esc).join(' · ');
+        const chkSub = d => [d.freqDesc || '-', d.alertDesc && d.alertDesc !== 'ไม่ระบุ' ? 'แจ้งเตือน: ' + d.alertDesc : ''].filter(Boolean).map(esc).join(' · ');
+
+        // รอบถัดไป = กำหนดการที่ยังไม่ทำ (ตั้งแต่วันนี้) + จำนวนรอบที่ค้าง
+        function nextHtml(d) {
+            if (d.status != 1) return `<div class="pmp-l1 !text-slate-400">—</div><div class="pmp-l2">ปิดใช้งาน</div>`;
+            const l1 = d.next_ev ? fmtD(d.next_ev) : '<span class="text-slate-400">ไม่มีรอบคงเหลือ</span>';
+            let l2 = '';
+            if (d.overdue_n > 0) l2 = `<span class="pmp-pill bg-red-50 text-red-600">ค้าง ${nf(d.overdue_n)} รอบ</span>`;
+            else if (d.next_ev) { const n = daysFromToday(d.next_ev); l2 = n <= 0 ? 'วันนี้' : n === 1 ? 'พรุ่งนี้' : `อีก ${nf(n)} วัน`; }
+            return `<div class="pmp-l1">${l1}</div>${l2 ? `<div class="pmp-l2">${l2}</div>` : ''}`;
+        }
+        const switchHtml = d => {
+            const on = d.status == 1;
+            return `<label class="pm-switch ${on ? 'text-emerald-600' : 'text-slate-400'}" title="เปิด/ปิดใช้งานแผน"><input type="checkbox" ${on ? 'checked' : ''} onchange="window.updatePlanStatus('${esc(d.id)}', this.checked)"><i></i>${on ? 'ใช้งาน' : 'ปิด'}</label>`;
+        };
+        const actionsHtml = (d, cls) => {
+            const id = esc(d.id);
+            return `<button type="button" class="${cls} hover:!text-sky-700" title="รายงานรายเดือน/รายวัน" onclick="window.open('pm_monthly_report_1.php?plan_id=${id}&show_pending=1', '_blank')"><i class="fa-regular fa-file-lines"></i></button>`
+                + `<button type="button" class="${cls} hover:!text-sky-700" title="แก้ไข / รายละเอียด" onclick="window.editPlan('${id}')"><i class="fa-regular fa-pen-to-square"></i></button>`
+                + `<button type="button" class="${cls} hover:!text-red-500" title="ลบแผน" onclick="window.deletePlan('${id}')"><i class="fa-regular fa-trash-can"></i></button>`;
+        };
+
         window.updatePlanStatus = async function(id, isChecked) {
             const status = isChecked ? 1 : 0;
-            
             try {
-                const response = await axios.post('handle_pm_plan.php?action=update_status', {
-                    id: id,
-                    status: status
-                });
-
-                if (response.data.success) {
-                    // แสดง Toast แจ้งเตือนเล็กน้อย (ถ้ามี)
-                    console.log('อัปเดตสถานะสำเร็จ');
-                } else {
-                    Swal.fire('ข้อผิดพลาด', response.data.error || 'ไม่สามารถอัปเดตสถานะได้', 'error');
-                    // ถ้าล้มเหลว ให้ดึงข้อมูลใหม่เพื่อรีเฟรชหน้าจอให้ตรงกับ DB
-                    fetchPlans();
-                }
+                const response = await axios.post('handle_pm_plan.php?action=update_status', { id: id, status: status });
+                if (!response.data.success) Swal.fire('ข้อผิดพลาด', response.data.error || 'ไม่สามารถอัปเดตสถานะได้', 'error');
             } catch (error) {
                 console.error('Update status error:', error);
                 Swal.fire('ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
-                fetchPlans();
             }
+            fetchPlans(); // วาดแถว + จำนวนตามสถานะใหม่ให้ตรงกับ DB
         };
 
+        const cellR = fn => p => p.data ? fn(p.data) : '<div class="pmp-l2">กำลังโหลด...</div>';
         const columnDefs = [
-            { headerName: "ประเภทเครื่องจักร", field: "macTypeName", filter: 'agTextColumnFilter' },
-            { headerName: "เครื่องจักร/อุปกรณ์", field: "equipmentName", filter: 'agTextColumnFilter' },
-            { headerName: "S/N", field: "asset_sn", filter: 'agTextColumnFilter' },
-            { headerName: "เช็คชีต", field: "checksheetName", filter: 'agTextColumnFilter' },
-            { headerName: "เริ่มทำตั้งแต่วันที่", field: "start_date", cellClass: 'text-teal-600 font-medium', filter: 'agDateColumnFilter', valueFormatter: params => window.formatDate(params.value, false) },
-            { headerName: "ความถี่", field: "freqDesc" },
-            { headerName: "แจ้งเตือนล่วงหน้า", field: "alertDesc" },
-            { headerName: "วันเข้าทำถัดไป", field: "next_date", cellClass: 'text-sky-700 font-medium', valueFormatter: params => window.formatDate(params.value, false) },
-            { headerName: "วันที่สร้าง", field: "created_at", valueFormatter: params => window.formatDate(params.value, false) },
-            { headerName: "ผู้สร้าง", field: "created_by" },
-            { 
-                headerName: "สถานะ", 
-                field: "status", 
-                width: 100,
-                cellRenderer: (params) => {
-                    const planId = params.data.id;
-                    // กำหนดให้ status เป็น 1 (เปิด) หรือ 0 (ปิด)
-                    const isChecked = (params.value == 1 || params.value === 'ใช้งาน') ? 'checked' : '';
-                    
-                    return `
-                        <div class="flex justify-center items-center h-full">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" class="sr-only peer" ${isChecked} 
-                                    onchange="window.updatePlanStatus('${planId}', this.checked)">
-                                <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer 
-                                    peer-checked:after:translate-x-full peer-checked:after:border-white 
-                                    after:content-[''] after:absolute after:top-[2px] after:left-[2px] 
-                                    after:bg-white after:border-gray-300 after:border after:rounded-full 
-                                    after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500">
-                                </div>
-                            </label>
-                        </div>
-                    `;
-                }
-            },
-            { 
-                headerName: "จัดการ", 
-                sortable: false,
-                filter: false,
-                pinned: 'right',
-                width: 100,
-                cellRenderer: (params) => {
-                    const planId = params.data.id || ''; 
-                    return `
-                        <div class="flex items-center gap-2 mt-1">
-                            <button onclick="window.open('pm_monthly_report_1.php?plan_id=${planId}&show_pending=1', '_blank')" 
-                                    class="text-slate-600 hover:text-slate-800" 
-                                    title="เปิดรายงานรายเดือน/รายวัน">
-                                <i class="fa-solid fa-file-invoice"></i>
-                            </button>
-                            <button onclick="editPlan('${planId}')" class="text-sky-600 hover:text-sky-800 transition-colors">
-                                <i class="fa fa-edit"></i>
-                            </button>
-                            <button onclick="deletePlan('${planId}')" class="text-red-500 hover:text-red-700 transition-colors">
-                                <i class="fa fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
-                }
-            }
+            { colId: 'machine', headerName: 'เครื่องจักร', flex: 3, minWidth: 260, sortable: true,
+              cellRenderer: cellR(d => `<div class="pmp-cell ${d.status == 1 ? '' : 'pmp-off'}"><div class="pmp-l1" title="${esc(d.equipmentName)}">${esc(d.equipmentName || '-')}</div><div class="pmp-l2">${machineSub(d) || '-'}</div></div>`) },
+            { colId: 'checksheet', headerName: 'เช็คชีต', flex: 3, minWidth: 240, sortable: true,
+              cellRenderer: cellR(d => `<div class="pmp-cell ${d.status == 1 ? '' : 'pmp-off'}"><div class="pmp-l1" title="${esc(d.checksheetName)}">${esc(d.checksheetName || '-')}</div><div class="pmp-l2">${chkSub(d)}</div></div>`) },
+            { colId: 'next', headerName: 'รอบถัดไป', width: 165, sortable: true, cellRenderer: cellR(d => `<div class="pmp-cell">${nextHtml(d)}</div>`) },
+            { colId: 'status', headerName: 'สถานะ', width: 120, sortable: true, cellRenderer: cellR(switchHtml) },
+            { colId: 'actions', headerName: '', width: 128, sortable: false, cellRenderer: cellR(d => `<div class="flex items-center gap-0.5">${actionsHtml(d, 'pmp-act')}</div>`) },
         ];
+
+        function setPlanCounts(c) {
+            document.querySelectorAll('#plan-seg [data-n]').forEach(b => { b.textContent = nf(c[b.dataset.n]); });
+        }
+        function updatePlanCount() {
+            const el = document.getElementById('plan-count');
+            if (!planGridApi) return;
+            if (!planTotal) { el.textContent = 'ไม่พบแผน PM'; return; }
+            const size = planGridApi.paginationGetPageSize(), from = planGridApi.paginationGetCurrentPage() * size;
+            el.textContent = `แสดง ${nf(from + 1)}–${nf(Math.min(from + size, planTotal))} จาก ${nf(planTotal)} แผน`;
+        }
+        function showPlanError(msg) {
+            const el = document.getElementById('plan-error');
+            el.classList.toggle('hidden', !msg);
+            el.innerHTML = msg ? `<span><i class="fa-solid fa-circle-exclamation mr-1.5"></i>${esc(msg)}</span><button type="button" class="text-xs font-medium underline shrink-0" onclick="window.reloadPlans()">ลองใหม่</button>` : '';
+        }
+
+        const planDatasource = {
+            getRows(params) {
+                const s = (params.sortModel || [])[0];
+                const qp = { action: 'list', offset: params.startRow, limit: params.endRow - params.startRow,
+                             q: planState.q, status: planState.status, type: planState.type, chk: planState.chk };
+                if (s) { qp.sort = s.colId; qp.dir = s.sort; }
+                else if (planState.status === 'overdue') { qp.sort = 'overdue'; qp.dir = 'desc'; } // งานค้างมากสุดก่อน
+                axios.get('handle_pm_plan.php', { params: qp }).then(res => {
+                    const r = res.data;
+                    if (!r || !r.success) throw new Error((r && r.error) || 'โหลดรายการแผน PM ไม่สำเร็จ');
+                    r.rows.forEach(x => planById.set(String(x.id), x));
+                    window.pmPlans = r.rows;
+                    planTotal = r.total;
+                    setPlanCounts(r.counts);
+                    showPlanError('');
+                    params.successCallback(r.rows, r.total);
+                    document.getElementById('plan-empty').classList.toggle('hidden', r.total > 0);
+                    updatePlanCount();
+                }).catch(err => {
+                    console.error('Fetch plans error:', err);
+                    params.failCallback();
+                    document.getElementById('plan-count').textContent = '';
+                    showPlanError(err.message && !/^Request failed|Network/.test(err.message) ? err.message : 'โหลดรายการแผน PM ไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อ');
+                });
+            }
+        };
 
         const gridOptions = {
             columnDefs: columnDefs,
-            rowData: window.pmPlans || [],
+            rowModelType: 'infinite',
+            datasource: planDatasource,
+            cacheBlockSize: 50,
+            maxBlocksInCache: 4,
             pagination: true,
-            paginationPageSize: 10,
-            paginationPageSizeSelector: [10, 20, 50, 100],
-            defaultColDef: {
-                flex: 1,
-                minWidth: 120,
-                sortable: true,
-                resizable: true,
-            },
-            rowHeight: 45,
-            headerHeight: 48
+            paginationPageSize: 50,
+            paginationPageSizeSelector: false,
+            defaultColDef: { resizable: false, suppressHeaderMenuButton: true, sortingOrder: ['asc', 'desc', null] },
+            getRowId: p => String(p.data.id),
+            suppressCellFocus: true,
+            rowHeight: 58,
+            headerHeight: 42,
+            localeText: { page: 'หน้า', of: 'จาก', to: '–', more: 'มากกว่า', loadingOoo: 'กำลังโหลด...' },
+            suppressNoRowsOverlay: true,   // ใช้ #plan-empty แทน (ไม่ให้ข้อความซ้อนกัน)
+            onPaginationChanged: updatePlanCount,
         };
 
-        window.renderPlans = function() {
-            if (planGridApi) {
-                planGridApi.setGridOption('rowData', window.pmPlans || []);
-            }
+        // เริ่มใหม่ที่หน้าแรก (เมื่อเปลี่ยนคำค้น/ตัวกรอง/หลังสร้างแผน)
+        window.reloadPlans = function() {
+            if (planGridApi) planGridApi.setGridOption('datasource', planDatasource);
         };
+        window.renderPlans = fetchPlans; // ชื่อเดิม
 
         const gridDiv = document.querySelector('#pmPlanGrid');
         if (gridDiv) {
+            gridDiv.insertAdjacentHTML('afterend', `<div id="plan-empty" class="hidden max-md:!hidden absolute inset-x-0 top-[42px] bottom-12 flex flex-col items-center justify-center text-center text-slate-400 text-sm pointer-events-none">
+                <i data-lucide="clipboard-list" class="w-9 h-9 mb-2"></i>ไม่พบแผน PM ตามเงื่อนไข<span class="text-xs mt-1">ลองเปลี่ยนคำค้นหรือตัวกรอง หรือกด "เพิ่มแผน PM"</span></div>`);
+            gridDiv.parentElement.classList.add('relative');
             planGridApi = agGrid.createGrid(gridDiv, gridOptions);
 
-            // มือถือ: การ์ดแผน PM
-            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+            // มือถือ: การ์ดแผน PM (ใช้ช่องค้นหาด้านบนร่วมกัน)
             window.PmGridCards(planGridApi, gridDiv.parentElement, {
-                search: 'ค้นหาเครื่องจักร, เช็คชีต, S/N...',
-                onSearch: q => planGridApi.setGridOption('quickFilterText', q),
-                empty: 'ยังไม่มีแผน PM',
+                empty: 'ไม่พบแผน PM ตามเงื่อนไข',
                 card: d => {
-                    const on = d.status == 1 || d.status === 'ใช้งาน';
-                    const id = esc(d.id);
+                    const on = d.status == 1;
                     return `<div class="pm-mc ${on ? '' : 'is-off'}">
                         <div class="pm-mc-title">${esc(d.equipmentName || '-')}</div>
-                        <div class="pm-mc-sub mt-0.5">${esc(d.macTypeName || '')}${d.asset_sn ? ' · S/N ' + esc(d.asset_sn) : ''}</div>
-                        <div class="mt-1.5 text-xs text-slate-600 flex items-start gap-1.5"><i data-lucide="clipboard-check" class="w-3.5 h-3.5 mt-0.5 shrink-0 text-sky-600"></i><span>${esc(d.checksheetName || '-')}</span></div>
+                        <div class="pm-mc-sub mt-0.5">${machineSub(d)}</div>
+                        <div class="mt-1.5 text-xs text-slate-600 flex items-start gap-1.5"><i class="fa-regular fa-clipboard mt-0.5 text-sky-600"></i><span>${esc(d.checksheetName || '-')}</span></div>
                         <div class="grid grid-cols-2 gap-1.5 mt-2">
-                            <div class="pm-mc-kv"><b>วันเข้าทำถัดไป</b><span class="!text-sky-700">${window.formatDate(d.next_date, false)}</span></div>
+                            <div class="pm-mc-kv"><b>รอบถัดไป</b><span>${on ? (d.next_ev ? fmtD(d.next_ev) : 'ไม่มีรอบคงเหลือ') : '—'}${on && d.overdue_n > 0 ? ` <em class="not-italic !text-red-600">· ค้าง ${nf(d.overdue_n)}</em>` : ''}</span></div>
                             <div class="pm-mc-kv"><b>ความถี่</b><span>${esc(d.freqDesc || '-')}</span></div>
-                            <div class="pm-mc-kv"><b>เริ่มทำตั้งแต่</b><span class="!text-teal-600">${window.formatDate(d.start_date, false)}</span></div>
-                            <div class="pm-mc-kv"><b>แจ้งเตือนล่วงหน้า</b><span>${esc(d.alertDesc || '-')}</span></div>
                         </div>
                         <div class="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-slate-100">
-                            <label class="pm-switch ${on ? 'text-emerald-600' : 'text-slate-400'}"><input type="checkbox" ${on ? 'checked' : ''} onchange="window.updatePlanStatus('${id}', this.checked)"><i></i>${on ? 'ใช้งาน' : 'ปิดใช้งาน'}</label>
-                            <div class="flex gap-1.5">
-                                <button type="button" class="pm-mc-btn" title="รายงานรายเดือน/รายวัน" onclick="window.open('pm_monthly_report_1.php?plan_id=${id}&show_pending=1', '_blank')"><i class="fa-solid fa-file-invoice"></i></button>
-                                <button type="button" class="pm-mc-btn !text-sky-600" title="แก้ไข" onclick="editPlan('${id}')"><i class="fa fa-edit"></i></button>
-                                <button type="button" class="pm-mc-btn !text-red-500" title="ลบ" onclick="deletePlan('${id}')"><i class="fa fa-trash"></i></button>
-                            </div>
+                            ${switchHtml(d)}
+                            <div class="flex gap-1.5">${actionsHtml(d, 'pm-mc-btn')}</div>
                         </div>
                     </div>`;
                 }
             });
         }
 
+        // ---- แถบค้นหา / สถานะ / ตัวกรอง ----
+        let qTimer = null;
+        document.getElementById('plan-q').addEventListener('input', e => {
+            clearTimeout(qTimer);
+            qTimer = setTimeout(() => {
+                const q = e.target.value.trim();
+                if (q === planState.q) return;
+                planState.q = q;
+                window.reloadPlans();
+            }, 300);
+        });
+        document.getElementById('plan-seg').addEventListener('click', e => {
+            const b = e.target.closest('button[data-st]');
+            if (!b || b.dataset.st === planState.status) return;
+            document.querySelectorAll('#plan-seg button').forEach(x => x.classList.toggle('on', x === b));
+            planState.status = b.dataset.st;
+            window.reloadPlans();
+        });
 
-        // ฟังก์ชันเปิด/ปิดสถานะแผน PM และบันทึกสาเหตุ
-        window.togglePlanStatus = function(id, checkbox) {
-            const plan = window.pmPlans.find(p => p.id === id);
-            if (!plan) return;
-
-            if (!checkbox.checked) {
-                // กรณีปิดการใช้งาน -> ถามหาสาเหตุ
-                Swal.fire({
-                    title: 'ระบุสาเหตุที่ปิดแผน PM',
-                    input: 'textarea',
-                    inputPlaceholder: 'กรอกสาเหตุการระงับแผนงานนี้...',
-                    showCancelButton: true,
-                    confirmButtonText: 'บันทึก',
-                    cancelButtonText: 'ยกเลิก',
-                    confirmButtonColor: '#ef4444',
-                    inputValidator: (value) => {
-                        if (!value) {
-                            return 'กรุณากรอกสาเหตุ!';
-                        }
-                    }
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        plan.status = 'ระงับ';
-                        plan.closeReason = result.value;
-                        window.renderPlans();
-                        if(window.refreshCalendarEvents) window.refreshCalendarEvents();
-                        Swal.fire('สำเร็จ', 'ระงับแผน PM และบันทึกสาเหตุแล้ว', 'success');
-                    } else {
-                        // ถ้ายกเลิก ให้คืนค่า Checkbox กลับไป
-                        checkbox.checked = true;
-                    }
-                });
-            } else {
-                // กรณีเปิดใช้งานกลับมา
-                plan.status = 'ใช้งาน';
-                plan.closeReason = '';
-                window.renderPlans();
-                if(window.refreshCalendarEvents) window.refreshCalendarEvents();
-            }
+        let planFiltersLoaded = false;
+        window.togglePlanFilters = function() {
+            const box = document.getElementById('plan-filters');
+            box.classList.toggle('hidden');
+            if (planFiltersLoaded || box.classList.contains('hidden')) return;
+            planFiltersLoaded = true;
+            const fill = (sel, items, all) => {
+                sel.innerHTML = `<option value="">${all}</option>` + items.map(o => `<option value="${esc(o.id)}">${esc(o.name)} (${nf(o.n)})</option>`).join('');
+            };
+            const selT = document.getElementById('plan-f-type'), selC = document.getElementById('plan-f-chk');
+            selT.innerHTML = selC.innerHTML = '<option value="">กำลังโหลด...</option>';
+            axios.get('handle_pm_plan.php?action=filters').then(res => {
+                if (!res.data.success) throw new Error();
+                fill(selT, res.data.data.types, 'ทุกประเภทเครื่องจักร');
+                fill(selC, res.data.data.checksheets, 'ทุกเช็คชีต');
+            }).catch(() => {
+                planFiltersLoaded = false;
+                selT.innerHTML = selC.innerHTML = '<option value="">โหลดตัวเลือกไม่สำเร็จ</option>';
+            });
         };
-
-        window.checkFreqChange = function(currentFreq, initialFreq, initialDate) {
-            const nextDateEdit = document.getElementById('next-date-edit');
-            const warningMsg = document.getElementById('edit-warning-msg');
-            
-            if (!nextDateEdit) return;
-
-            // เช็คว่าค่าปัจจุบัน ไม่ตรงกับ ค่าดั้งเดิมตอนเปิดฟอร์มใช่หรือไม่
-            if (currentFreq !== String(initialFreq)) {
-                // ปลดล็อค
-                nextDateEdit.removeAttribute('disabled'); // บังคับลบ attribute disabled ทิ้ง
-                nextDateEdit.classList.remove('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
-                if(warningMsg) warningMsg.classList.remove('hidden');
-            } else {
-                // ล็อคกลับเหมือนเดิม
-                nextDateEdit.setAttribute('disabled', 'disabled'); // ใส่ attribute disabled กลับไป
-                nextDateEdit.classList.add('bg-slate-100', 'text-slate-400', 'cursor-not-allowed');
-                if(warningMsg) warningMsg.classList.add('hidden');
-                nextDateEdit.value = initialDate; // คืนค่าวันที่เดิม
-            }
+        function onPlanFilterChange() {
+            planState.type = document.getElementById('plan-f-type').value;
+            planState.chk = document.getElementById('plan-f-chk').value;
+            const n = (planState.type ? 1 : 0) + (planState.chk ? 1 : 0);
+            const badge = document.getElementById('plan-filter-badge');
+            badge.textContent = n;
+            badge.classList.toggle('hidden', !n);
+            window.reloadPlans();
+        }
+        document.getElementById('plan-f-type').addEventListener('change', onPlanFilterChange);
+        document.getElementById('plan-f-chk').addEventListener('change', onPlanFilterChange);
+        window.clearPlanFilters = function() {
+            document.getElementById('plan-f-type').value = '';
+            document.getElementById('plan-f-chk').value = '';
+            onPlanFilterChange();
         };
 
         // --- ฟังก์ชันสำหรับลบแผน PM ---
         window.deletePlan = function(planId) {
+            const p = planById.get(String(planId)) || {};
             Swal.fire({
-                title: 'ยืนยันการลบ?',
-                text: "คุณต้องการลบแผน PM นี้ใช่หรือไม่?",
+                title: 'ลบแผน PM นี้?',
+                html: `<div class="text-sm text-slate-600"><div class="font-medium text-slate-800">${esc(p.equipmentName || '')}</div><div>${esc(p.checksheetName || '')}</div>
+                       <p class="mt-3 text-xs text-red-500">กำหนดการทั้งหมดของแผนนี้จะถูกลบด้วย และไม่สามารถกู้คืนได้</p></div>`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
-                confirmButtonText: 'ใช่, ลบเลย',
+                confirmButtonText: 'ลบแผน',
                 cancelButtonText: 'ยกเลิก'
             }).then((result) => {
-                if (result.isConfirmed) {
-                    axios.get(`handle_pm_plan.php?action=delete&id=${planId}`)
-                        .then(res => {
-                            if(res.data.success) {
-                                Swal.fire('ลบสำเร็จ', '', 'success');
-                                fetchPlans();
-                            }
-                        });
-                }
+                if (!result.isConfirmed) return;
+                axios.get(`handle_pm_plan.php?action=delete&id=${encodeURIComponent(planId)}`)
+                    .then(res => {
+                        if (!res.data.success) throw new Error(res.data.error || 'ลบแผนไม่สำเร็จ');
+                        Swal.fire({ title: 'ลบสำเร็จ', icon: 'success', timer: 1200, showConfirmButton: false });
+                        planById.delete(String(planId));
+                        fetchPlans();
+                        if (window.refreshCalendarEvents) window.refreshCalendarEvents();
+                    })
+                    .catch(err => Swal.fire('ข้อผิดพลาด', err.message || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error'));
             });
         };
 
-        window.editPlan = function(planId) {
-            const plan = window.pmPlans.find(p => p.id == planId);
+        // แก้ไขแผน + แสดงรายละเอียดที่ไม่ได้อยู่ในตาราง (วันเริ่ม/ผู้สร้าง/วันที่สร้าง)
+        window.editPlan = async function(planId) {
+            const plan = planById.get(String(planId));
             if (!plan) return;
+            try { await loadPlanOptions(); } catch (e) { return; }
 
             // เตรียม Options สำหรับ Select
-            const freqHtml = freqOptionsData.map(opt => 
-                `<option value="${opt.value}" ${opt.value == plan.frequency ? 'selected' : ''} 
-                    dropdownmultiselect="${opt.dropdownmultiselect}" 
-                    alertbeforeforrepeatconfig="${opt.alertbeforeforrepeatconfig}">${opt.desc}</option>`
+            const freqHtml = freqOptionsData.map(opt =>
+                `<option value="${opt.value}" ${opt.value == plan.frequency ? 'selected' : ''}
+                    dropdownmultiselect="${opt.dropdownmultiselect}"
+                    alertbeforeforrepeatconfig="${opt.alertbeforeforrepeatconfig}">${esc(opt.desc)}</option>`
             ).join('');
-            
-            const alertHtml = alertOptionsData.map(opt => 
-                `<option value="${opt.value}" ${opt.value == plan.alert_value ? 'selected' : ''}>${opt.desc}</option>`
+
+            const alertHtml = alertOptionsData.map(opt =>
+                `<option value="${opt.value}" ${opt.value == plan.alert_value ? 'selected' : ''}>${esc(opt.desc)}</option>`
             ).join('');
+
+            const meta = (k, v) => `<div class="min-w-0"><div class="text-[11px] text-slate-400">${k}</div><div class="text-slate-700 truncate">${v}</div></div>`;
+            const inputCls = 'w-full border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-sky-500/30 outline-none';
 
             Swal.fire({
                 title: 'แก้ไขแผน PM',
-                width: '600px',
+                width: '620px',
                 html: `
-                    <div class="text-left space-y-4 mt-4 text-sm">
-                        <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block font-medium text-slate-700 mb-1">เครื่องจักร/อุปกรณ์</label>
-                                        <input type="text" value="${plan.equipmentName}" class="w-full border border-slate-300 rounded p-2 bg-slate-100 text-slate-500" readonly>
-                                    </div>
-                                    <div>
-                                        <label class="block font-medium text-slate-700 mb-1">เช็คชีต</label>
-                                        <input type="text" value="${plan.checksheetName}" class="w-full border border-slate-300 rounded p-2 bg-slate-100 text-slate-500" readonly>
-                                    </div>
-                                </div>
-                        <div class="grid grid-cols-2 gap-4">
+                    <div class="text-left space-y-4 mt-2 text-sm">
+                        <div class="p-3 rounded-lg bg-slate-50 border border-slate-200">
+                            <div class="font-medium text-slate-800">${esc(plan.equipmentName || '-')}</div>
+                            <div class="text-xs text-slate-500 mt-0.5">${machineSub(plan)}</div>
+                            <div class="text-xs text-slate-600 mt-1.5"><i class="fa-regular fa-clipboard text-sky-600 mr-1"></i>${esc(plan.checksheetName || '-')}</div>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3 border-t border-slate-200 text-xs">
+                                ${meta('เริ่มทำตั้งแต่', fmtD(plan.start_date))}
+                                ${meta('รอบถัดไป', plan.next_ev ? fmtD(plan.next_ev) : '-')}
+                                ${meta('สร้างเมื่อ', fmtD(plan.created_at))}
+                                ${meta('ผู้สร้าง', esc(plan.created_by || '-'))}
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">ความถี่</label>
-                                <select id="freq-edit" data-original-val="${plan.frequency}" class="w-full border border-slate-300 rounded p-2 focus:ring-sky-500 outline-none" 
+                                <select id="freq-edit" data-original-val="${esc(plan.frequency)}" class="${inputCls} bg-white"
                                         onchange="window.handleFreqChange('edit')">
                                     ${freqHtml}
                                 </select>
                             </div>
                             <div>
                                 <label class="block font-medium text-slate-700 mb-1">การแจ้งเตือนล่วงหน้า</label>
-                                <select id="alert-edit" class="w-full border border-slate-300 rounded p-2 focus:ring-sky-500 outline-none">
+                                <select id="alert-edit" class="${inputCls} bg-white">
                                     ${alertHtml}
                                 </select>
                             </div>
@@ -1142,13 +1221,13 @@ include "config_ctrl/checksession.php";
 
                         <div>
                             <label class="block font-medium text-slate-700 mb-1">ระบุวัน (ถ้ามี)</label>
-                            <div id="days-wrapper-edit" class="flex flex-wrap gap-2 mt-1 min-h-[40px] p-2 border border-dashed border-slate-200 rounded"></div>
+                            <div id="days-wrapper-edit" class="flex flex-wrap gap-2 mt-1 min-h-[40px] p-2 border border-dashed border-slate-200 rounded-lg"></div>
                         </div>
 
                         <div>
                             <label class="block font-medium text-slate-700 mb-1">เริ่มต้นตั้งแต่วันที่ <span class="text-red-500">*</span></label>
-                            <input type="date" id="edit-next-date" value="${plan.next_date}" 
-                                class="w-full border border-slate-300 rounded p-2 focus:ring-sky-500 outline-none bg-slate-100 text-slate-400 cursor-not-allowed" disabled>
+                            <input type="date" id="edit-next-date" value="${esc(plan.next_date)}"
+                                class="${inputCls} bg-slate-100 text-slate-400 cursor-not-allowed" disabled>
                             <p id="edit-warning-msg" class="text-[11px] text-red-500 mt-1 hidden">
                                 * ระบบจะลบแผนงานที่ยังไม่เสร็จและวางแผนใหม่ กรุณาเลือกวันที่เริ่มใหม่
                             </p>
@@ -1161,7 +1240,7 @@ include "config_ctrl/checksession.php";
                 showCancelButton: true,
                 confirmButtonText: 'บันทึกการแก้ไข',
                 cancelButtonText: 'ยกเลิก',
-                confirmButtonColor: '#0ea5e9',
+                confirmButtonColor: '#006B9F',
                 preConfirm: () => {
                     const nextDate = document.getElementById('edit-next-date').value;
                     const freq = document.getElementById('freq-edit').value;
@@ -1172,34 +1251,33 @@ include "config_ctrl/checksession.php";
                         Swal.showValidationMessage('กรุณาระบุวันที่ในรอบถัดไป');
                         return false;
                     }
-                    
+
                     // ตรวจสอบเงื่อนไขสัญญา
                     if (nextDate < CONTRACT_START || nextDate > CONTRACT_END) {
                         Swal.showValidationMessage(`วันที่ต้องอยู่ระหว่าง ${CONTRACT_START} ถึง ${CONTRACT_END}`);
                         return false;
                     }
 
-                    return { 
-                        id: planId, 
-                        ag_id: AG_ID, 
-                        nextDate: nextDate, 
-                        contract_end: CONTRACT_END, 
-                        freq: freq, 
-                        alert: alert, 
-                        days: checkedDays 
+                    return {
+                        id: planId,
+                        ag_id: AG_ID,
+                        nextDate: nextDate,
+                        contract_end: CONTRACT_END,
+                        freq: freq,
+                        alert: alert,
+                        days: checkedDays
                     };
                 }
             }).then((result) => {
-                if (result.isConfirmed) {
-                    axios.post('handle_pm_plan.php?action=update', result.value)
-                        .then(res => {
-                            if (res.data.success) {
-                                Swal.fire({ title: 'สำเร็จ!', icon: 'success', timer: 1500, showConfirmButton: false });
-                                fetchPlans();
-                                if (window.refreshCalendarEvents) window.refreshCalendarEvents();
-                            }
-                        });
-                }
+                if (!result.isConfirmed) return;
+                axios.post('handle_pm_plan.php?action=update', result.value)
+                    .then(res => {
+                        if (!res.data.success) throw new Error(res.data.error || 'บันทึกไม่สำเร็จ');
+                        Swal.fire({ title: 'สำเร็จ!', icon: 'success', timer: 1500, showConfirmButton: false });
+                        fetchPlans();
+                        if (window.refreshCalendarEvents) window.refreshCalendarEvents();
+                    })
+                    .catch(err => Swal.fire('ข้อผิดพลาด', err.message || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error'));
             });
         };
 
@@ -1210,7 +1288,7 @@ include "config_ctrl/checksession.php";
                 text: `ระบบจะสร้างกำหนดการทำ PM ล่วงหน้าไปจนถึงสิ้นสุดสัญญา (${CONTRACT_END})`,
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: '#0ea5e9',
+                confirmButtonColor: '#006B9F',
                 cancelButtonColor: '#cbd5e1',
                 confirmButtonText: 'ใช่, คำนวณใหม่',
                 cancelButtonText: 'ยกเลิก'
@@ -1243,11 +1321,6 @@ include "config_ctrl/checksession.php";
             });
         };
 
-        // โหลดข้อมูลลงตารางหน้าหลักทันที
-        fetchPlans()
-        loadPlanOptions()
-        loadMachineTypes()
-        window.renderPlans();
-        
+        if (window.lucide) lucide.createIcons({ root: document.getElementById('tab-plan') });
     });
 </script>

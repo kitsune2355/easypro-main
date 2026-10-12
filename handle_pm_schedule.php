@@ -1,5 +1,5 @@
 <?php
-//handle_pm_schedule.php — ตารางแผน PM รายปี: ดู/แก้แผน PM ที่บันทึกแล้ว (เฉพาะผู้ดูแลระบบ) ใช้กับ pm_schedule.php
+//handle_pm_schedule.php — ตารางแผน PM: ดูแผน PM ที่บันทึกแล้ว + กำหนดการ (กรอง/แบ่งหน้าที่ server) และแก้แผนหลายรายการ ใช้กับ pm_schedule.php
 @session_start();
 include 'config_ctrl/connect.php';
 require_once 'pm_plan_functions.php';
@@ -56,101 +56,139 @@ function weekIndex($ymd) {
 }
 
 try {
-    // แผน PM ที่ใช้งานอยู่ + กำหนดการรายสัปดาห์ของปีที่เลือก
-    if ($action === 'get_schedule') {
-        $year = intval($_GET['year'] ?? 0) ?: (int)date('Y');
+    // ตารางแผน PM (กรอง + แบ่งหน้าที่ server): แผนที่ใช้งานอยู่ + จำนวนงานต่อช่องของช่วงที่ดู
+    // mode=year (year) => ช่องละสัปดาห์ 0-47 / mode=day (from, to) => ช่องละวัน (0 = from)
+    // กรอง: q (เครื่อง/รหัส/เช็คชีต/ที่ตั้ง), cs (ชื่อเช็คชีต), st (has|overdue|pending|done|none)
+    // offset/limit (สูงสุด 500, limit=0 => ทุกแถว ใช้ตอน Export Excel) / opts=1 => ส่งตัวเลือกมาด้วย (เปิดแท็บครั้งแรก)
+    // ช่องกำหนดการส่งแบบย่อ: c = "ช่อง:จำนวน:ทำแล้ว:เลยกำหนด,..." เฉพาะช่องที่มีงาน
+    if ($action === 'get_grid') {
         $today = date('Y-m-d');
+        $mode = ($_GET['mode'] ?? 'year') === 'day' ? 'day' : 'year';
+        if ($mode === 'year') {
+            $year = intval($_GET['year'] ?? 0) ?: (int)date('Y');
+            $from = "$year-01-01";
+            $to = "$year-12-31";
+        } else {
+            $from = (string)($_GET['from'] ?? '');
+            $to = (string)($_GET['to'] ?? '');
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) || $from > $to) {
+                throw new Exception('ช่วงวันที่ไม่ถูกต้อง');
+            }
+            if ((strtotime($to) - strtotime($from)) / 86400 > 62) throw new Exception('ช่วงวันที่ยาวเกินไป (สูงสุด 62 วัน)');
+        }
+        $q = trim((string)($_GET['q'] ?? ''));
+        $cs = isset($_GET['cs']) && $_GET['cs'] !== '' ? substr((string)$_GET['cs'], 1) : null;   // ส่งมาเป็น "=ชื่อ" (ชื่อว่างได้)
+        $st = (string)($_GET['st'] ?? '');
+        $offset = max(0, intval($_GET['offset'] ?? 0));
+        $limit = intval($_GET['limit'] ?? 50);
+        $limit = $limit <= 0 ? null : min($limit, 500);
 
         $plans = fetchRows($connect, "
             SELECT p.id, p.frequency, p.alert_value, p.days_config, p.start_date, p.next_date,
-                   a.ass_code, a.asset_name, g.TGroupName, c.name AS checksheet,
+                   a.ass_code, a.asset_name, c.name AS checksheet,
                    CONCAT_WS(' ', ar.area_name, ac.ac_name, rm.ar_name) AS location
             FROM pm_plans p
             LEFT JOIN tb_ass_list a ON p.machine_id = a.ass_id
-            LEFT JOIN tb_asset_group g ON a.asset_type = g.GroupId
             LEFT JOIN pm_checksheets c ON p.checksheet_id = c.id
             LEFT JOIN tb_area ar ON a.asset_rp_area_id = ar.area_id
             LEFT JOIN tb_area_class ac ON a.asset_rp_ac_id = ac.ac_id
             LEFT JOIN tb_area_room rm ON a.asset_rp_ar_id = rm.ar_id
             WHERE p.ag_id = ? AND p.status = 1
-            ORDER BY c.name, a.ass_code", "s", [$ag_id]);
+            ORDER BY c.name, a.ass_code, p.id", "s", [$ag_id]);
 
-        // กำหนดการของปีที่เลือก => {plan_id: {week: {n, done, overdue}}}
-        $weeks = [];
-        $events = fetchRows($connect, "
-            SELECT e.plan_id, e.event_date, e.status
+        // สรุปต่อแผนในช่วงที่ดู [จำนวน, ทำแล้ว, เลยกำหนด] — ใช้กรองตามสถานะ
+        $stat = [];
+        foreach (fetchRows($connect, "
+            SELECT e.plan_id, COUNT(*) AS n, SUM(e.status = 1) AS d, SUM(e.status <> 1 AND e.event_date < ?) AS o
             FROM pm_plan_events e
             JOIN pm_plans p ON p.id = e.plan_id
-            WHERE p.ag_id = ? AND p.status = 1 AND e.event_date BETWEEN ? AND ?",
-            "sss", [$ag_id, "$year-01-01", "$year-12-31"]);
-        foreach ($events as $e) {
-            $k = weekIndex($e['event_date']);
-            $w = &$weeks[$e['plan_id']][$k];
-            if (!$w) $w = ['n' => 0, 'done' => 0, 'overdue' => 0];
-            $w['n']++;
-            if ((int)$e['status'] === 1) $w['done']++;
-            elseif ($e['event_date'] < $today) $w['overdue']++;
-            unset($w);
+            WHERE p.ag_id = ? AND p.status = 1 AND e.event_date BETWEEN ? AND ?
+            GROUP BY e.plan_id", "ssss", [$today, $ag_id, $from, $to]) as $r) {
+            $stat[$r['plan_id']] = [(int)$r['n'], (int)$r['d'], (int)$r['o']];
         }
 
-        // รอบถัดไปที่ยังไม่ดำเนินการ (ตั้งแต่วันนี้)
+        $counts = ['all' => 0, 'has' => 0, 'overdue' => 0, 'pending' => 0, 'done' => 0, 'none' => 0];
+        $csOpts = [];
+        $match = [];
+        $groups = [];   // ชื่อเช็คชีต => [จำนวนแผน, แผนที่มีงานเลยกำหนด] (นับทั้งผลกรอง ไม่ใช่แค่หน้านี้)
+        foreach ($plans as $p) {
+            $name = (string)($p['checksheet'] ?? '');
+            $csOpts[$name] = ($csOpts[$name] ?? 0) + 1;
+            if ($cs !== null && $name !== $cs) continue;
+            if ($q !== '' && mb_stripos("{$p['ass_code']} {$p['asset_name']} $name {$p['location']}", $q) === false) continue;
+            [$n, $d, $o] = $stat[$p['id']] ?? [0, 0, 0];
+            $flags = ['has' => $n > 0, 'overdue' => $o > 0, 'pending' => $n - $d - $o > 0, 'done' => $n > 0 && $d === $n, 'none' => $n === 0];
+            $counts['all']++;
+            foreach ($flags as $k => $v) if ($v) $counts[$k]++;
+            if ($st !== '' && empty($flags[$st])) continue;
+            $match[] = $p;
+            $groups[$name][0] = ($groups[$name][0] ?? 0) + 1;
+            $groups[$name][1] = ($groups[$name][1] ?? 0) + ($o > 0 ? 1 : 0);
+        }
+        $total = count($match);
+        $page = array_slice($match, $offset, $limit);
+
+        // ช่องกำหนดการ + รอบถัดไป เฉพาะแผนในหน้านี้ (id เป็นตัวเลขจาก DB)
+        $cells = [];
         $nextPending = [];
-        foreach (fetchRows($connect, "
-            SELECT e.plan_id, MIN(e.event_date) AS d
-            FROM pm_plan_events e
-            JOIN pm_plans p ON p.id = e.plan_id
-            WHERE p.ag_id = ? AND p.status = 1 AND e.status = 0 AND e.event_date >= ?
-            GROUP BY e.plan_id", "ss", [$ag_id, $today]) as $r) {
-            $nextPending[$r['plan_id']] = $r['d'];
+        if ($page) {
+            $in = implode(',', array_map(fn($p) => (int)$p['id'], $page));
+            $bucket = $mode === 'year'
+                ? "(MONTH(e.event_date) - 1) * 4 + LEAST(4, CEIL(DAY(e.event_date) / 7)) - 1"
+                : "DATEDIFF(e.event_date, ?)";
+            $types = $mode === 'year' ? "sss" : "ssss";
+            $params = $mode === 'year' ? [$today, $from, $to] : [$from, $today, $from, $to];
+            foreach (fetchRows($connect, "
+                SELECT e.plan_id, $bucket AS k, COUNT(*) AS n, SUM(e.status = 1) AS d, SUM(e.status <> 1 AND e.event_date < ?) AS o
+                FROM pm_plan_events e
+                WHERE e.plan_id IN ($in) AND e.event_date BETWEEN ? AND ?
+                GROUP BY e.plan_id, k", $types, $params) as $r) {
+                $cells[$r['plan_id']][] = "{$r['k']}:{$r['n']}:{$r['d']}:{$r['o']}";
+            }
+            foreach (fetchRows($connect, "
+                SELECT plan_id, MIN(event_date) AS d FROM pm_plan_events
+                WHERE plan_id IN ($in) AND status = 0 AND event_date >= ?
+                GROUP BY plan_id", "s", [$today]) as $r) {
+                $nextPending[$r['plan_id']] = $r['d'];
+            }
         }
 
         $rows = [];
-        foreach ($plans as $p) {
+        $pageGroups = [];
+        foreach ($page as $p) {
             $days = json_decode($p['days_config'] ?? '', true);
+            $name = (string)($p['checksheet'] ?? '');
+            $pageGroups[$name] = $groups[$name];
             $rows[] = [
-                'plan_id' => (int)$p['id'],
-                'checksheet' => $p['checksheet'] ?? '',
+                'id' => (int)$p['id'],
+                'cs' => $name,
                 'code' => $p['ass_code'] ?? '',
-                'machine' => $p['asset_name'] ?? '',
-                'group' => $p['TGroupName'] ?? '',
-                'location' => trim($p['location'] ?? ''),
-                'freq' => (string)$p['frequency'],
-                'alert' => (string)$p['alert_value'],
-                'days' => is_array($days) ? array_values($days) : [],
-                'start_date' => $p['start_date'],
-                'next_date' => $nextPending[$p['id']] ?? $p['next_date'],
-                'weeks' => (object)($weeks[$p['id']] ?? [])
+                'mc' => trim($p['asset_name'] ?? ''),
+                'loc' => trim($p['location'] ?? ''),
+                'f' => (string)$p['frequency'],
+                'a' => (string)$p['alert_value'],
+                'dy' => is_array($days) ? implode(', ', $days) : '',
+                'nx' => $nextPending[$p['id']] ?? $p['next_date'],
+                'sd' => $p['start_date'],
+                'c' => implode(',', $cells[$p['id']] ?? [])
             ];
         }
-        jsonOut(['success' => true, 'data' => ['year' => $year, 'today' => $today, 'rows' => $rows,
-                 'contract' => ['start' => $contract_start, 'end' => $contract_end]]]);
-    }
 
-    // กำหนดการรายวันในช่วงวันที่ (มุมมองรายเดือน/รายสัปดาห์) => {plan_id: {YYYY-MM-DD: {n, done, overdue}}}
-    if ($action === 'get_days') {
-        $from = (string)($_GET['from'] ?? '');
-        $to = (string)($_GET['to'] ?? '');
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to) || $from > $to) {
-            throw new Exception('ช่วงวันที่ไม่ถูกต้อง');
+        $out = ['mode' => $mode, 'from' => $from, 'to' => $to, 'today' => $today, 'total' => $total, 'offset' => $offset,
+                'counts' => $counts, 'groups' => (object)$pageGroups, 'rows' => $rows];
+        if (!empty($_GET['opts'])) {
+            ksort($csOpts, SORT_STRING);
+            $freqDesc = [];
+            foreach (getFreqOptions($connect) as $v => $o) $freqDesc[(string)$v] = $o['desc'];
+            $out['opts'] = [
+                'checksheets' => array_map(fn($k, $v) => [(string)$k, $v], array_keys($csOpts), $csOpts),
+                'freqs' => (object)$freqDesc,
+                'alerts' => (object)array_column(fetchRows($connect, "SELECT alert_value, description FROM pm_alert_options"), 'description', 'alert_value'),
+                'contract' => ['start' => $contract_start, 'end' => $contract_end],
+                'agency' => fetchRows($connect, "SELECT ag_contract FROM tb_agency WHERE ag_id = ?", "s", [$ag_id])[0]['ag_contract'] ?? ''
+            ];
         }
-        if ((strtotime($to) - strtotime($from)) / 86400 > 62) throw new Exception('ช่วงวันที่ยาวเกินไป (สูงสุด 62 วัน)');
-        $today = date('Y-m-d');
-
-        $days = [];
-        foreach (fetchRows($connect, "
-            SELECT e.plan_id, e.event_date, e.status
-            FROM pm_plan_events e
-            JOIN pm_plans p ON p.id = e.plan_id
-            WHERE p.ag_id = ? AND p.status = 1 AND e.event_date BETWEEN ? AND ?",
-            "sss", [$ag_id, $from, $to]) as $e) {
-            $d = &$days[$e['plan_id']][$e['event_date']];
-            if (!$d) $d = ['n' => 0, 'done' => 0, 'overdue' => 0];
-            $d['n']++;
-            if ((int)$e['status'] === 1) $d['done']++;
-            elseif ($e['event_date'] < $today) $d['overdue']++;
-            unset($d);
-        }
-        jsonOut(['success' => true, 'data' => ['from' => $from, 'to' => $to, 'today' => $today, 'days' => (object)$days]]);
+        jsonOut(['success' => true, 'data' => $out]);
     }
 
     // แก้แผนหลายรายการ: อัปเดตแผน แล้วสร้างกำหนดการที่ยังไม่ดำเนินการใหม่ตั้งแต่ "รอบถัดไป" จนสิ้นสุดสัญญา

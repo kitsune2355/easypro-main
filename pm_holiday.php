@@ -111,7 +111,7 @@ include "config_ctrl/checksession.php";
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    pmLazy('holiday', function() {   // โหลดเมื่อเปิดแท็บครั้งแรก (ดู pmLazy ใน pm.php)
         let gridApi;
         window.holidays = [];
 

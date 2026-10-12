@@ -5,7 +5,12 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-include 'config_ctrl/connect.php'; 
+include 'config_ctrl/connect.php';
+
+// หน่วยงานจาก session (ใช้กับ action ใหม่ list / filters) แล้วปลดล็อก session ทันทีไม่ให้คำขออื่นรอ
+@session_start();
+$SESS_AG = (string)($_SESSION['sess_user_agency'] ?? '');
+session_write_close();
 
 if (mysqli_connect_errno()) {
     http_response_code(500); 
@@ -257,6 +262,121 @@ elseif ($action === 'get_all') {
     exit;
 }
 
+/**
+ * action=list — รายการแผนแบบแบ่งหน้า (แท็บจัดการแผน PM)
+ *  q (ค้นหา: เครื่องจักร/รหัส/S/N/เช็คชีต/ประเภท), status (active|off|overdue), type (mac_type_id), chk (checksheet_id),
+ *  sort (created|machine|checksheet|next|overdue|status), dir (asc|desc), offset, limit (สูงสุด 200)
+ *  => { rows, total, counts: {all, active, off, overdue} }  (counts นับตามตัวกรองอื่น ไม่รวม status)
+ */
+elseif ($action === 'list') {
+    if ($SESS_AG === '') {
+        echo json_encode(['success' => false, 'error' => 'หมดเวลาการเข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $today  = date('Y-m-d');
+    $q      = trim((string)($_GET['q'] ?? ''));
+    $status = (string)($_GET['status'] ?? '');
+    $offset = max(0, (int)($_GET['offset'] ?? 0));
+    $limit  = min(200, max(1, (int)($_GET['limit'] ?? 50)));
+    $overdueSql = "EXISTS (SELECT 1 FROM pm_plan_events e WHERE e.plan_id = p.id AND e.status = 0 AND e.event_date < '$today')";
+
+    // เงื่อนไขร่วม (ยกเว้นสถานะ) ใช้ทั้งนับและดึงแถว
+    $where = ['p.ag_id = ?'];
+    $types = 's';
+    $params = [$SESS_AG];
+    if ($q !== '') {
+        $like = '%' . $q . '%';
+        $where[] = '(a.asset_name LIKE ? OR a.ass_code LIKE ? OR a.asset_sn LIKE ? OR c.name LIKE ? OR m.TGroupName LIKE ?)';
+        $types .= 'sssss';
+        array_push($params, $like, $like, $like, $like, $like);
+    }
+    if (($_GET['type'] ?? '') !== '') { $where[] = 'p.mac_type_id = ?'; $types .= 's'; $params[] = (string)$_GET['type']; }
+    if (($_GET['chk'] ?? '') !== '')  { $where[] = 'p.checksheet_id = ?'; $types .= 's'; $params[] = (string)$_GET['chk']; }
+
+    $from = "FROM pm_plans p
+             LEFT JOIN tb_ass_list a ON p.machine_id = a.ass_id
+             LEFT JOIN pm_checksheets c ON p.checksheet_id = c.id
+             LEFT JOIN tb_asset_group m ON p.mac_type_id = m.GroupId";
+
+    $run = function ($sql, $types, $params) use ($connect) {
+        $stmt = mysqli_prepare($connect, $sql);
+        if (!$stmt) throw new Exception('Query failed: ' . mysqli_error($connect));
+        mysqli_stmt_bind_param($stmt, $types, ...$params);
+        mysqli_stmt_execute($stmt);
+        $res = mysqli_stmt_get_result($stmt);
+        $out = mysqli_fetch_all($res, MYSQLI_ASSOC);
+        mysqli_stmt_close($stmt);
+        return $out;
+    };
+
+    try {
+        // 1) จำนวนแต่ละสถานะ
+        $c = $run("SELECT COUNT(*) AS n, SUM(p.status = 1) AS active, SUM(p.status <> 1) AS off,
+                          SUM(p.status = 1 AND $overdueSql) AS overdue
+                   $from WHERE " . implode(' AND ', $where), $types, $params)[0];
+        $counts = ['all' => (int)$c['n'], 'active' => (int)$c['active'], 'off' => (int)$c['off'], 'overdue' => (int)$c['overdue']];
+
+        $statusSql = ['active' => 'p.status = 1', 'off' => 'p.status <> 1', 'overdue' => "p.status = 1 AND $overdueSql"];
+        if (isset($statusSql[$status])) $where[] = $statusSql[$status];
+        $total = isset($statusSql[$status]) ? $counts[$status] : $counts['all'];
+
+        // 2) แถวของหน้านี้
+        $desc = strtolower($_GET['dir'] ?? '') === 'desc';
+        $d = $desc ? 'DESC' : 'ASC';
+        $sorts = [
+            'machine'    => "a.asset_name $d",
+            'checksheet' => "c.name $d",
+            'next'       => $desc ? 'next_ev DESC' : 'next_ev IS NULL, next_ev ASC',
+            'overdue'    => "overdue_n $d",
+            'status'     => "p.status $d",
+        ];
+        $order = $sorts[$_GET['sort'] ?? ''] ?? 'p.created_at DESC';
+
+        $rows = $run("SELECT p.id, p.machine_id, p.mac_type_id, p.checksheet_id, p.frequency, p.alert_value, p.days_config,
+                             p.status, p.start_date, p.next_date, p.created_by, p.created_at,
+                             a.asset_name AS equipmentName, a.ass_code, a.asset_sn,
+                             m.TGroupName AS macTypeName, c.name AS checksheetName,
+                             (SELECT f.description FROM pm_freq_options f WHERE f.freq_value = p.frequency LIMIT 1) AS freqDesc,
+                             (SELECT al.description FROM pm_alert_options al WHERE al.alert_value = p.alert_value LIMIT 1) AS alertDesc,
+                             (SELECT MIN(e.event_date) FROM pm_plan_events e WHERE e.plan_id = p.id AND e.status = 0 AND e.event_date >= '$today') AS next_ev,
+                             (SELECT COUNT(*) FROM pm_plan_events e WHERE e.plan_id = p.id AND e.status = 0 AND e.event_date < '$today') AS overdue_n
+                      $from WHERE " . implode(' AND ', $where) . "
+                      ORDER BY $order, p.id DESC LIMIT ?, ?", $types . 'ii', array_merge($params, [$offset, $limit]));
+
+        foreach ($rows as &$r) {
+            $r['days_config'] = json_decode($r['days_config'] ?? '[]', true) ?: [];
+            $r['overdue_n'] = (int)$r['overdue_n'];
+        }
+        unset($r);
+        echo json_encode(['success' => true, 'rows' => $rows, 'total' => $total, 'counts' => $counts], JSON_UNESCAPED_UNICODE);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
+// action=filters — ตัวเลือกตัวกรอง (ประเภทเครื่องจักร / เช็คชีต ที่มีในแผนของหน่วยงาน พร้อมจำนวนแผน)
+elseif ($action === 'filters') {
+    $out = ['types' => [], 'checksheets' => []];
+    $sqls = [
+        'types'       => "SELECT p.mac_type_id AS id, COALESCE(m.TGroupName, p.mac_type_id) AS name, COUNT(*) AS n
+                          FROM pm_plans p LEFT JOIN tb_asset_group m ON p.mac_type_id = m.GroupId
+                          WHERE p.ag_id = ? GROUP BY p.mac_type_id, m.TGroupName ORDER BY name",
+        'checksheets' => "SELECT p.checksheet_id AS id, COALESCE(c.name, p.checksheet_id) AS name, COUNT(*) AS n
+                          FROM pm_plans p LEFT JOIN pm_checksheets c ON p.checksheet_id = c.id
+                          WHERE p.ag_id = ? GROUP BY p.checksheet_id, c.name ORDER BY name",
+    ];
+    foreach ($sqls as $k => $sql) {
+        $stmt = mysqli_prepare($connect, $sql);
+        mysqli_stmt_bind_param($stmt, 's', $SESS_AG);
+        mysqli_stmt_execute($stmt);
+        $out[$k] = mysqli_fetch_all(mysqli_stmt_get_result($stmt), MYSQLI_ASSOC);
+        mysqli_stmt_close($stmt);
+    }
+    echo json_encode(['success' => true, 'data' => $out], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 elseif ($action === 'get_by_id') {
     $plan_id = $_GET['id'] ?? $_POST['id'] ?? null;
     
@@ -293,10 +413,11 @@ elseif ($action === 'delete') {
         exit;
     }
 
-    $sql = "DELETE FROM pm_plans WHERE id = ?";
+    // ลบได้เฉพาะแผนของหน่วยงานตัวเอง (ถ้ามี session)
+    $sql = "DELETE FROM pm_plans WHERE id = ? AND (? = '' OR ag_id = ?)";
     $stmt = mysqli_prepare($connect, $sql);
     if ($stmt) {
-        mysqli_stmt_bind_param($stmt, "i", $plan_id);
+        mysqli_stmt_bind_param($stmt, "iss", $plan_id, $SESS_AG, $SESS_AG);
         if (mysqli_stmt_execute($stmt)) {
             echo json_encode(['success' => true, 'message' => 'ลบแผน PM สำเร็จ'], JSON_UNESCAPED_UNICODE);
         } else {
@@ -415,11 +536,11 @@ elseif ($action === 'update_status') {
         exit;
     }
 
-    $sql = "UPDATE pm_plans SET status = ? WHERE id = ?";
+    $sql = "UPDATE pm_plans SET status = ? WHERE id = ? AND (? = '' OR ag_id = ?)";
     $stmt = mysqli_prepare($connect, $sql);
-    
+
     if ($stmt) {
-        mysqli_stmt_bind_param($stmt, "ii", $status, $plan_id);
+        mysqli_stmt_bind_param($stmt, "iiss", $status, $plan_id, $SESS_AG, $SESS_AG);
         if (mysqli_stmt_execute($stmt)) {
             echo json_encode(['success' => true, 'message' => 'อัปเดตสถานะสำเร็จ'], JSON_UNESCAPED_UNICODE);
         } else {

@@ -27,6 +27,10 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        // ไม่ให้ SweetAlert ตั้ง body เป็น height:auto ตอนเปิด popup (แท็บที่สูงเต็มจอจะยุบ)
+        window.Swal = Swal.mixin({ heightAuto: false });
+    </script>
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/handsontable@17.0.1/dist/handsontable.full.min.js"></script>
     <script src="js/handsontable-light.js"></script>
@@ -99,18 +103,20 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
         .nav-item.active { color: var(--color-primary); border-color: var(--color-primary); font-weight: 500; }
         .nav-item.active i { color: var(--color-primary); }
         
+        /* สลับโหมด หน้างาน / จัดการแผน */
+        .pm-mode { display: inline-flex; background: #f1f5f9; border-radius: .8rem; padding: 3px; flex: none; }
+        .pm-mode button { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .9rem; border-radius: .65rem; font-size: 13px; font-weight: 600; color: #64748b; white-space: nowrap; transition: all .15s; }
+        .pm-mode button:hover { color: #0f172a; }
+        .pm-mode button.on { background: #fff; color: var(--color-primary); box-shadow: 0 1px 3px rgba(15,23,42,.12); }
+        @media (max-width: 400px) { .pm-mode button { padding: .45rem .6rem; } }
+
         /* Hide scrollbar for tabs */
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* แผงซ้าย (ตัวกรอง/ตัวจัดการ) พับได้บนจอใหญ่: แท็บปฏิทิน / เลื่อนแผน PM / จัดการวันหยุด (ดู togglePmPanel)
-           มือถือยังใช้ลิ้นชักเดิมของแต่ละแท็บ */
+        /* แผงซ้ายของแท็บจัดการวันหยุด พับได้บนจอใหญ่ (ดู togglePmPanel) — มือถือใช้ลิ้นชักเดิม
+           (ปฏิทิน / เลื่อนแผน PM ใช้ปุ่ม "ตัวกรอง" แบบ popover แทนแผงซ้ายแล้ว) */
         .pm-expand-btn { display: none; }
-        @media (min-width: 768px) {
-            #tab-dashboard.pm-collapsed > .grid, #tab-postpone.pm-collapsed > .grid { grid-template-columns: minmax(0, 1fr); }
-            #tab-dashboard.pm-collapsed #filter-sidebar, #tab-postpone.pm-collapsed #postpone-filter-sidebar { display: none; }
-            #tab-dashboard.pm-collapsed .pm-expand-btn, #tab-postpone.pm-collapsed .pm-expand-btn { display: inline-flex; }
-        }
         @media (min-width: 1024px) {
             #tab-holiday.pm-collapsed #holiday-drawer { display: none; }
             #tab-holiday.pm-collapsed > .lg\:col-span-8 { grid-column: 1 / -1; }
@@ -156,6 +162,25 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
         .pm-switch input:checked + i { background: #10b981; }
         .pm-switch input:checked + i::after { transform: translateX(.9rem); }
     </style>
+    <script>
+        /* โหลดแท็บเมื่อเปิดครั้งแรก: แต่ละแท็บลงทะเบียนโค้ดเริ่มต้นด้วย pmLazy('tabId', fn) แทน DOMContentLoaded
+           switchTab เรียก pmRunLazy(tabId) ตอนเปิดแท็บนั้นครั้งแรก => หน้าเว็บไม่ต้องโหลดข้อมูลของทุกแท็บพร้อมกัน */
+        window.pmLazyQueue = {};
+        window.pmLazyDone = {};
+        window.pmLazy = function (tabId, fn) {
+            if (window.pmLazyDone[tabId]) { fn(); return; }   // แท็บเปิดไปแล้ว => รันทันที
+            (window.pmLazyQueue[tabId] = window.pmLazyQueue[tabId] || []).push(fn);
+        };
+        // คืนค่า true เมื่อเพิ่งเริ่มต้นแท็บนี้ (ครั้งแรก)
+        window.pmRunLazy = function (tabId) {
+            if (window.pmLazyDone[tabId]) return false;
+            window.pmLazyDone[tabId] = true;
+            const fns = window.pmLazyQueue[tabId] || [];
+            delete window.pmLazyQueue[tabId];
+            fns.forEach(fn => { try { fn(); } catch (e) { console.error('เริ่มต้นแท็บ ' + tabId + ' ไม่สำเร็จ', e); } });
+            return fns.length > 0;
+        };
+    </script>
     <script>
         /* มือถือ: แสดงแถวของตาราง AG Grid หน้าปัจจุบันเป็นการ์ด (ตารางยังเป็นตัวจัดการข้อมูล/แบ่งหน้า/กรอง)
            PmGridCards(api, wrapEl, { card(data) => html, empty, search: placeholder, onSearch(text) }) */
@@ -225,67 +250,72 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
 <body class="flex flex-col antialiased text-slate-700 h-screen w-full relative">
 
     <nav class="flex-none px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b border-slate-200 bg-white z-20 shadow-sm">
-        <div class="flex items-center gap-4">
-            <div class="p-2 bg-[#006B9F] rounded-lg shadow-md text-white">
+        <div class="flex items-center gap-4 min-w-0 mr-3">
+            <div class="hidden sm:block p-2 bg-[#006B9F] rounded-lg shadow-md text-white">
                 <i data-lucide="notebook-pen" class="w-6 h-6"></i>
             </div>
-            <div>
-                <h2 class="text-lg font-bold text-slate-800 leading-tight" id="header-title">Preventive Maintenance</h2>
+            <div class="min-w-0">
+                <h2 class="text-base sm:text-lg font-bold text-slate-800 leading-tight truncate" id="header-title"><span class="sm:hidden">งาน PM</span><span class="hidden sm:inline">Preventive Maintenance</span></h2>
                 <p class="hidden sm:block text-xs text-slate-500 mt-1" id="header-subtitle">ติดตามและตรวจสอบแผนการบำรุงรักษา</p>
             </div>
+        </div>
+        <!-- สลับโหมด: หน้างาน (ช่าง) / จัดการแผน (ผู้วางแผน) -->
+        <div id="pm-mode" class="pm-mode" role="tablist" aria-label="โหมดการใช้งาน">
+            <button type="button" data-mode="field" onclick="switchPmMode('field')" role="tab">
+                <i data-lucide="hard-hat" class="w-4 h-4"></i><span>หน้างาน</span>
+            </button>
+            <button type="button" data-mode="manage" onclick="switchPmMode('manage')" role="tab">
+                <i data-lucide="settings-2" class="w-4 h-4"></i><span>จัดการแผน</span>
+            </button>
         </div>
     </nav>
 
     <div class="flex-none bg-white border-b border-slate-200 px-2 sm:px-6 z-10 shadow-sm relative">
+        <!-- แท็บของโหมดที่เลือก (data-mode) — ซ่อนแท็บของอีกโหมดใน switchTab -->
         <ul id="pm-tabs" class="flex gap-5 sm:gap-8 px-2 sm:px-0 overflow-x-auto hide-scrollbar">
-            <li>
-                <button onclick="switchTab('dashboard')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
-                    <i data-lucide="calendar" class="w-4 h-4"></i> ปฏิทิน
-                </button>
-            </li>
-            <li>
+            <li data-mode="field">
                 <button onclick="switchTab('daily')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
                     <i data-lucide="list-checks" class="w-4 h-4"></i> งานที่ต้องทำ
                 </button>
             </li>
-            <li>
-                <button onclick="switchTab('postpone')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
-                    <i data-lucide="calendar-clock" class="w-4 h-4"></i> เลื่อนแผน PM
+            <li data-mode="field">
+                <button onclick="switchTab('dashboard')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
+                    <i data-lucide="calendar" class="w-4 h-4"></i> ปฏิทิน
                 </button>
             </li>
-            <li>
+            <li data-mode="manage">
+                <button onclick="switchTab('overview')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> ภาพรวม
+                </button>
+            </li>
+            <li data-mode="manage">
+                <button onclick="switchTab('schedule')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
+                    <i data-lucide="table-2" class="w-4 h-4"></i> ตารางแผน PM
+                </button>
+            </li>
+            <li data-mode="manage">
                 <button onclick="switchTab('plan')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
                     <i data-lucide="clipboard-list" class="w-4 h-4"></i> จัดการแผน PM
                 </button>
             </li>
-            <li>
+            <li data-mode="manage">
                 <button onclick="switchTab('checksheet')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
                     <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> สร้างเช็คชีต
                 </button>
             </li>
-            <!-- <li>
-                <button onclick="switchTab('history')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
-                    <i data-lucide="history" class="w-4 h-4"></i> ประวัติการบำรุงรักษา
-                </button>
-            </li> -->
-            <li>
-                <button onclick="switchTab('holiday')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
-                    <i data-lucide="calendar-days" class="w-4 h-4"></i> จัดการวันหยุด
-                </button>
-            </li>
-            <!-- <li>
-                <button onclick="switchTab('feedback')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
-                    <i data-lucide="star" class="w-4 h-4"></i> ประเมิน
-                </button>
-            </li> -->
-            <li>
+            <li data-mode="manage">
                 <button onclick="switchTab('import')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
                     <i data-lucide="file-up" class="w-4 h-4"></i> นำเข้าแผนจาก Excel
                 </button>
             </li>
-            <li>
-                <button onclick="switchTab('schedule')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
-                    <i data-lucide="table-2" class="w-4 h-4"></i> ตารางแผน PM
+            <li data-mode="manage">
+                <button onclick="switchTab('postpone')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
+                    <i data-lucide="calendar-clock" class="w-4 h-4"></i> เลื่อนแผน PM
+                </button>
+            </li>
+            <li data-mode="manage">
+                <button onclick="switchTab('holiday')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
+                    <i data-lucide="calendar-days" class="w-4 h-4"></i> จัดการวันหยุด
                 </button>
             </li>
         </ul>
@@ -297,12 +327,11 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
         <main class="flex-1 overflow-y-auto px-2 sm:px-4 pt-3 sm:pt-4 pb-4 relative">
             <?php include 'pm_dashboard.php'; ?>
             <?php include 'pm_daily.php'; ?>
+            <?php include 'pm_overview.php'; ?>
             <?php include 'pm_postpone.php'; ?>
             <?php include 'pm_plan.php'; ?>
             <?php include 'pm_checksheet.php'; ?>
-            <?php include 'pm_history.php'; ?>
             <?php include 'pm_holiday.php'; ?>
-            <?php include 'pm_feedback.php'; ?>
             <?php include 'pm_import.php'; ?>
             <?php include 'pm_schedule.php'; ?>
         </main>
@@ -409,7 +438,39 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
 
         lucide.createIcons();
 
-        window.switchTab = function(tabId) {
+        // ---------- โหมด หน้างาน (ช่าง) / จัดการแผน (ผู้วางแผน) ----------
+        const PM_MODE_DEFAULT = { field: 'daily', manage: 'overview' };
+        const pmModeOf = tabId => document.querySelector(`#pm-tabs li button[onclick*="'${tabId}'"]`)?.closest('li').dataset.mode || 'field';
+        const pmLastTabs = () => { try { return JSON.parse(localStorage.getItem('pmModeTabs')) || {}; } catch (e) { return {}; } };
+
+        function applyPmMode(mode) {
+            document.querySelectorAll('#pm-mode button').forEach(b => {
+                const on = b.dataset.mode === mode;
+                b.classList.toggle('on', on);
+                b.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+            document.querySelectorAll('#pm-tabs li').forEach(li => li.classList.toggle('hidden', li.dataset.mode !== mode));
+            // จำนวนแท็บเปลี่ยน => คำนวณเงาจางขอบขวาใหม่
+            document.getElementById('pm-tabs')?.dispatchEvent(new Event('scroll'));
+            document.getElementById('header-subtitle').textContent = mode === 'manage'
+                ? 'ตั้งค่าเช็คชีต วางแผน และติดตามภาพรวมการบำรุงรักษา'
+                : 'งาน PM ที่ต้องทำ และบันทึกผลการปฏิบัติงาน';
+        }
+
+        // กดสลับโหมด => กลับไปแท็บล่าสุดของโหมดนั้น
+        window.switchPmMode = function(mode) {
+            const last = pmLastTabs()[mode];
+            window.switchTab(last && pmModeOf(last) === mode ? last : PM_MODE_DEFAULT[mode]);
+        };
+
+        window.switchTab = function(tabId, opts) {
+            if (!document.getElementById('tab-' + tabId)) tabId = PM_MODE_DEFAULT.field;
+            const mode = pmModeOf(tabId);
+            applyPmMode(mode);
+            const lastTabs = pmLastTabs();
+            lastTabs[mode] = tabId;
+            try { localStorage.setItem('pmModeTabs', JSON.stringify(lastTabs)); } catch (e) { /* โหมดส่วนตัว: ไม่จำค่า */ }
+
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
             document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
 
@@ -426,8 +487,11 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
 
             localStorage.setItem('activePMTab', tabId);
 
+            // เปิดครั้งแรก => โค้ดเริ่มต้นของแท็บโหลดข้อมูลเอง ไม่ต้องรีเฟรชซ้ำด้านล่าง
+            if (window.pmRunLazy(tabId) && ['dashboard', 'postpone'].includes(tabId)) return;
+
             if (tabId === 'dashboard') {
-                if (window.calendar) { 
+                if (window.calendar) {
                     window.calendar.updateSize();
                     if (typeof window.refreshCalendarEvents === 'function') window.refreshCalendarEvents();
                 }
@@ -448,7 +512,11 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                 }
             } else if (tabId === 'daily') {
                 if (typeof window.initDailyTab === 'function') {
-                    window.initDailyTab();
+                    window.initDailyTab(opts);
+                }
+            } else if (tabId === 'overview') {
+                if (typeof window.initOverviewTab === 'function') {
+                    window.initOverviewTab();
                 }
             } else if (tabId === 'schedule') {
                 if (typeof window.initScheduleTab === 'function') {
@@ -490,7 +558,8 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
         })();
 
         document.addEventListener('DOMContentLoaded', () => {
-            const savedTab = localStorage.getItem('activePMTab') || 'dashboard';
+            // เข้าเมนูใหม่ (หรือจากการแจ้งเตือน) => หน้างาน > งานที่ต้องทำ, ลิงก์จากคู่มือกำหนด activePMTab ไว้
+            const savedTab = localStorage.getItem('activePMTab') || PM_MODE_DEFAULT.field;
             
             // สลับไปยังแท็บที่เคยเปิดไว้
             window.switchTab(savedTab);
