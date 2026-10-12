@@ -65,7 +65,7 @@ include "config_ctrl/checksession.php";
     .pmc-overdue .pmc-cnt { color: #b91c1c; }
     .pmc-pending .pmc-pill { background: #f0f9ff; border-color: #bae6fd; color: #0c4a6e; }
     .pmc-pending .pmc-dot { background: #0284c7; }
-    .pmc-done .pmc-pill { color: #64748b; }
+    .pmc-done .pmc-pill { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
     .pmc-done .pmc-dot { background: #10b981; }
     .pmc-done .pmc-cnt { color: #059669; }
     /* รายปี: ช่องเล็ก แสดงแค่จำนวนงาน */

@@ -22,9 +22,14 @@ include_once "config_ctrl/checksession.php";
                 <p class="text-[12px] text-slate-500">ขั้นที่ 1: อ่านไฟล์ Yearly PM Schedule แล้วสร้างเช็คชีตให้อัตโนมัติ
                     <span id="imp-contract" class="font-medium text-sky-600"></span></p>
             </div>
-            <button id="imp-template-btn" class="border border-emerald-600 text-emerald-700 hover:bg-emerald-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors shadow-sm">
-                <i data-lucide="file-down" class="w-4 h-4"></i> <span class="sm:hidden">Template</span><span class="hidden sm:inline">ดาวน์โหลดไฟล์ Template สำหรับ Import</span>
-            </button>
+            <div class="flex flex-wrap gap-2">
+                <button id="imp-defaults-btn" type="button" title="จุดตรวจที่ใส่ให้เช็คชีตใหม่ที่สร้างจากการนำเข้า (แยกตามหน่วยงาน)" class="border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+                    <i data-lucide="list-checks" class="w-4 h-4"></i> ตั้งค่าจุดตรวจเริ่มต้น
+                </button>
+                <button id="imp-template-btn" class="border border-emerald-600 text-emerald-700 hover:bg-emerald-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors shadow-sm">
+                    <i data-lucide="file-down" class="w-4 h-4"></i> <span class="sm:hidden">Template</span><span class="hidden sm:inline">ดาวน์โหลดไฟล์ Template สำหรับ Import</span>
+                </button>
+            </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -49,7 +54,7 @@ include_once "config_ctrl/checksession.php";
 
             <h4 class="text-sm font-semibold text-slate-700 mb-1">เช็คชีต</h4>
             <p class="text-[12px] text-slate-500 mb-2">
-                เช็คชีตใหม่มีจุดตรวจ default "ตรวจสอบอุปกรณ์" · ผ่าน/ไม่ผ่าน · ไม่บังคับถ่ายรูป — กด <b>แก้ไขจุดตรวจ</b> เพื่อเพิ่ม/แก้ไขจุดตรวจก่อนสร้าง (แก้ไขภายหลังได้ที่แท็บสร้างเช็คชีต) ·
+                เช็คชีตใหม่ใช้<span id="imp-default-desc">จุดตรวจเริ่มต้นของหน่วยงาน</span> — กด <b>แก้ไขจุดตรวจ</b> เพื่อเพิ่ม/แก้ไขเฉพาะเช็คชีตก่อนสร้าง (แก้ไขภายหลังได้ที่แท็บสร้างเช็คชีต) ·
                 แนบภาพจุดตรวจสอบได้สูงสุด 5 รูป และคำแนะนำในการทำงานสูงสุด 5 ไฟล์ ไม่เกิน 5MB/ไฟล์
             </p>
             <div class="overflow-auto border border-slate-200 rounded-lg mb-5" style="max-height: 420px;">
@@ -148,6 +153,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             contract = res.data.data.contract;
             defaultAlert = res.data.data.default_alert || '';
             agencyName = res.data.data.agency || '';
+            setAgencyDefaults(res.data.data.default_items, res.data.data.default_items_custom);
             if (contract.start || contract.end) $('imp-contract').innerText = `· ระยะเวลาสัญญา: ${contract.start} ถึง ${contract.end}`;
         } catch (e) {
             Swal.fire('ข้อผิดพลาด', 'โหลดตัวเลือกไม่สำเร็จ: ' + e.message, 'error');
@@ -347,7 +353,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
         sheets.forEach(s => {
             if (s.existing_id) return;
             keep[s.key] = attachState[s.key] || { images: [], docs: [] };
-            keepItems[s.key] = itemState[s.key] || [defaultItem()];
+            keepItems[s.key] = itemState[s.key] || defaultItems();
         });
         attachState = keep;
         itemState = keepItems;
@@ -403,9 +409,19 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
         { f: 'unit', label: 'หน่วย', w: 80 },
         { f: 'expected_value', label: 'ค่ามาตรฐาน', w: 100 },
     ];
-    const defaultItem = () => ({ check_point: 'ตรวจสอบอุปกรณ์', standard_text: 'ตรวจสอบอุปกรณ์', method_text: 'ตรวจสอบอุปกรณ์', action_abnormal: '',
-                                 check_type_id: 1, photo_required_id: 2, value_name: '', unit: '', expected_value: '' });
     const blankItem = () => ({ check_point: '', standard_text: '', method_text: '', action_abnormal: '', check_type_id: 1, photo_required_id: 2, value_name: '', unit: '', expected_value: '' });
+
+    // จุดตรวจเริ่มต้นของหน่วยงาน (ตั้งค่าได้ที่ปุ่ม "ตั้งค่าจุดตรวจเริ่มต้น") — โหลดมากับ get_options
+    let agencyDefaults = [{ ...blankItem(), check_point: 'ตรวจสอบอุปกรณ์', standard_text: 'ตรวจสอบอุปกรณ์', method_text: 'ตรวจสอบอุปกรณ์' }];
+    let agencyDefaultsCustom = false;
+    const defaultItems = () => agencyDefaults.map(it => ({ ...it }));
+    function setAgencyDefaults(items, custom) {
+        if (Array.isArray(items) && items.length) agencyDefaults = items.map(it => ({ ...blankItem(), ...it }));
+        agencyDefaultsCustom = !!custom;
+        const names = agencyDefaults.map(it => it.check_point);
+        $('imp-default-desc').innerHTML = `จุดตรวจเริ่มต้น${agencyDefaultsCustom ? 'ของหน่วยงาน' : 'ของระบบ'} ${names.length} จุด`
+            + ` (${escHtml(names.slice(0, 3).join(', '))}${names.length > 3 ? ' ...' : ''})`;
+    }
 
     function itemsCell(i) {
         const items = itemState[sheetList[i].key] || [];
@@ -424,7 +440,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
         return `<tr data-r="${r}" class="border-t border-slate-100 align-top">
             <td class="px-1 py-1 text-center text-slate-400 text-xs pt-2.5">${r + 1}</td>
             ${ITEM_COLS.map(c => `<td class="px-1 py-1">${c.opts
-                ? `<select data-f="${c.f}" class="w-full border border-slate-300 rounded px-1.5 py-1.5 text-[13px]">${c.opts.map(o => `<option value="${o.id}" ${+it[c.f] === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}</select>`
+                ? `<select data-f="${c.f}" class="w-full border border-slate-300 rounded px-1.5 py-1.5 text-[13px]" style="min-width:${c.w}px">${c.opts.map(o => `<option value="${o.id}" ${+it[c.f] === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}</select>`
                 : `<input data-f="${c.f}" value="${escHtml(it[c.f])}" class="w-full border border-slate-300 rounded px-2 py-1.5 text-[13px]" style="min-width:${c.w}px">`}</td>`).join('')}
             <td class="px-1 py-1"><button type="button" class="imp-it-del p-1.5 text-rose-500 hover:bg-rose-50 rounded" title="ลบจุดตรวจ">&times;</button></td>
         </tr>`;
@@ -439,16 +455,19 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
         });
     }
 
-    async function editSheetItems(i) {
-        const sheet = sheetList[i];
-        const newCount = sheetList.filter(s => !s.existing_id).length;
-        let rows = (itemState[sheet.key] || []).map(it => ({ ...it }));
+    /**
+     * หน้าต่างแก้ไขจุดตรวจ (ใช้ทั้งแก้ไขรายเช็คชีต และตั้งค่าจุดตรวจเริ่มต้นของหน่วยงาน)
+     * opts: { title, rows, note, footerHtml, confirmText, denyText } => { items, all, denied } | null (ยกเลิก)
+     */
+    async function openItemEditor(opts) {
+        let rows = (opts.rows || []).map(it => ({ ...it }));
         if (!rows.length) rows = [blankItem()];
 
         const res = await Swal.fire({
-            title: 'จุดตรวจ: ' + escHtml(sheet.name),
+            title: opts.title,
             width: '95vw',
             html: `<div class="text-left">
+                ${opts.note || ''}
                 <p class="text-[12px] text-slate-500 mb-2">วางข้อมูลจาก Excel ได้ (คัดลอกหลายแถว/หลายคอลัมน์ ตามลำดับคอลัมน์ด้านล่าง แล้ววางในช่องเริ่มต้น) ·
                     กรอก <b>ค่ามาตรฐาน</b> เมื่อต้องการให้ช่างกรอกค่าที่วัดได้</p>
                 <div class="overflow-auto border border-slate-200 rounded-lg" style="max-height:55vh">
@@ -460,9 +479,10 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
                 </div>
                 <div class="flex flex-wrap items-center gap-3 mt-3">
                     <button type="button" id="imp-it-add" class="px-3 py-1.5 rounded-lg border border-sky-300 text-sky-700 hover:bg-sky-50 text-sm">+ เพิ่มจุดตรวจ</button>
-                    ${newCount > 1 ? `<label class="ml-auto inline-flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="imp-it-all"> ใช้จุดตรวจชุดนี้กับเช็คชีตใหม่ทั้งหมด (${newCount} ชุด)</label>` : ''}
+                    ${opts.footerHtml || ''}
                 </div></div>`,
-            showCancelButton: true, confirmButtonText: 'บันทึกจุดตรวจ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#006B9F',
+            showCancelButton: true, confirmButtonText: opts.confirmText || 'บันทึกจุดตรวจ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#006B9F',
+            showDenyButton: !!opts.denyText, denyButtonText: opts.denyText || '', denyButtonColor: '#64748b',
             didOpen: () => {
                 const body = $('imp-it-body');
                 const renumber = () => body.querySelectorAll('tr').forEach((tr, r) => { tr.dataset.r = r; tr.cells[0].textContent = r + 1; });
@@ -515,8 +535,20 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
                 return { items, all: !!$('imp-it-all')?.checked };
             }
         });
-        if (!res.isConfirmed) return;
-        const { items, all } = res.value;
+        if (res.isDenied) return { denied: true };
+        return res.isConfirmed ? res.value : null;
+    }
+
+    async function editSheetItems(i) {
+        const sheet = sheetList[i];
+        const newCount = sheetList.filter(s => !s.existing_id).length;
+        const res = await openItemEditor({
+            title: 'จุดตรวจ: ' + escHtml(sheet.name),
+            rows: itemState[sheet.key] || [],
+            footerHtml: newCount > 1 ? `<label class="ml-auto inline-flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" id="imp-it-all"> ใช้จุดตรวจชุดนี้กับเช็คชีตใหม่ทั้งหมด (${newCount} ชุด)</label>` : '',
+        });
+        if (!res) return;
+        const { items, all } = res;
         sheetList.forEach(s => {
             if (!s.existing_id && (all || s.key === sheet.key)) itemState[s.key] = items.map(it => ({ ...it }));
         });
@@ -526,6 +558,41 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
     $('imp-sheet-body').addEventListener('click', (ev) => {
         const btn = ev.target.closest('.imp-items-edit');
         if (btn) editSheetItems(+btn.dataset.idx);
+    });
+
+    // ตั้งค่าจุดตรวจเริ่มต้นของหน่วยงาน (บันทึกที่เซิร์ฟเวอร์ ใช้กับการนำเข้าครั้งต่อ ๆ ไป)
+    $('imp-defaults-btn').addEventListener('click', async () => {
+        const res = await openItemEditor({
+            title: 'ตั้งค่าจุดตรวจเริ่มต้น' + (agencyName ? ' · ' + escHtml(agencyName) : ''),
+            rows: defaultItems(),
+            note: `<div class="mb-3 p-3 rounded-lg bg-sky-50 border border-sky-100 text-[13px] text-sky-900">
+                จุดตรวจชุดนี้จะใส่ให้ <b>เช็คชีตใหม่ทุกชุดที่สร้างจากการนำเข้า Excel</b> ของหน่วยงานนี้ (แก้ไขรายเช็คชีตได้อีกครั้งก่อนสร้าง)
+                — ${agencyDefaultsCustom ? 'ตอนนี้ใช้ค่าที่หน่วยงานตั้งไว้' : 'ตอนนี้ใช้ค่าเริ่มต้นของระบบ'}</div>`,
+            confirmText: 'บันทึกเป็นค่าเริ่มต้น',
+            denyText: agencyDefaultsCustom ? 'คืนค่าเริ่มต้นของระบบ' : '',
+        });
+        if (!res) return;
+        try {
+            const r = await axios.post('handle_pm_import.php?action=save_defaults', res.denied ? { reset: true } : { items: res.items });
+            if (!r.data.success) throw new Error(r.data.error);
+            setAgencyDefaults(r.data.data.default_items, r.data.data.default_items_custom);
+        } catch (e) {
+            Swal.fire('ข้อผิดพลาด', 'บันทึกจุดตรวจเริ่มต้นไม่สำเร็จ: ' + e.message, 'error');
+            return;
+        }
+        // เช็คชีตใหม่ในไฟล์ที่เปิดอยู่ซึ่งยังใช้ค่าเริ่มต้นเดิม => ถามว่าจะใช้ชุดใหม่ไหม
+        const pending = sheetList.filter(s => !s.existing_id);
+        if (pending.length) {
+            const ask = await Swal.fire({ icon: 'success', title: 'บันทึกจุดตรวจเริ่มต้นแล้ว',
+                html: `ใช้จุดตรวจชุดใหม่กับเช็คชีตใหม่ ${pending.length} ชุดในไฟล์ที่เปิดอยู่ด้วยไหม?<br><span class="text-xs text-slate-500">จุดตรวจที่แก้ไขรายเช็คชีตไว้จะถูกแทนที่</span>`,
+                showCancelButton: true, confirmButtonText: 'ใช้กับไฟล์นี้ด้วย', cancelButtonText: 'ไม่ต้อง', confirmButtonColor: '#006B9F' });
+            if (ask.isConfirmed) {
+                pending.forEach(s => { itemState[s.key] = defaultItems(); });
+                refreshItemsCells();
+            }
+        } else {
+            Swal.fire({ icon: 'success', title: 'บันทึกจุดตรวจเริ่มต้นแล้ว', timer: 1400, showConfirmButton: false });
+        }
     });
 
     $('imp-sheet-body').addEventListener('change', (ev) => {

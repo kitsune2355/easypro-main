@@ -1,5 +1,5 @@
 <?php
-//handle_pm_daily.php — งานที่ต้องทำ (pm_daily.php) และภาพรวมการจัดการแผน (pm_overview.php)
+//handle_pm_daily.php — งานที่ต้องทำ (pm_daily.php)
 //  งานที่ต้องทำส่งเฉพาะตัวเลขสรุป/กลุ่ม (summary) แล้วโหลดรายการเครื่องทีละหน้าเมื่อเปิดกลุ่ม (items)
 //  เพื่อไม่ให้หน่วยงานที่มีงานหลายหมื่นรายการต้องโหลดข้อมูลทั้งหมดในครั้งเดียว
 @session_start();
@@ -192,41 +192,6 @@ if ($action === 'items') {
             'machine_type' => $r['machine_type'] ?? '', 'location' => $r['location'] ?? '',
         ];
     }, $rows)]);
-}
-
-// ภาพรวมสำหรับหน้าจัดการแผน: ตัวเลขสรุป + เช็คชีตที่มีงานค้างมากที่สุด
-if ($action === 'overview') {
-    $today = date('Y-m-d');
-    $monthStart = date('Y-m-01');
-    $monthEnd = date('Y-m-t');
-    $week = date('Y-m-d', strtotime('+6 days'));
-
-    $plans = pmdQuery($connect, "SELECT COUNT(*) AS plans, COUNT(DISTINCT machine_id) AS machines FROM pm_plans WHERE ag_id = ? AND status = 1", "s", [$ag_id])[0];
-    $sheets = pmdQuery($connect, "SELECT COUNT(*) AS n FROM pm_checksheets WHERE ag_id = ?", "s", [$ag_id])[0]['n'];
-    $ev = pmdQuery($connect, "SELECT
-                SUM(e.event_date = ?) AS today_total,
-                SUM(e.event_date = ? AND e.status = 1) AS today_done,
-                SUM(e.event_date < ? AND e.status = 0) AS overdue,
-                SUM(e.event_date > ? AND e.event_date <= ? AND e.status = 0) AS next7,
-                SUM(e.event_date BETWEEN ? AND ?) AS month_total,
-                SUM(e.event_date BETWEEN ? AND ? AND e.status = 1) AS month_done
-            FROM pm_plan_events e JOIN pm_plans p ON p.id = e.plan_id AND p.status = 1
-            WHERE e.ag_id = ?", "ssssssssss",
-        [$today, $today, $today, $today, $week, $monthStart, $monthEnd, $monthStart, $monthEnd, $ag_id])[0];
-    $topOverdue = pmdQuery($connect, "SELECT c.name, COUNT(*) AS n, MIN(e.event_date) AS oldest
-            FROM pm_plan_events e
-            JOIN pm_plans p ON p.id = e.plan_id AND p.status = 1
-            LEFT JOIN pm_checksheets c ON c.id = e.checksheet_id
-            WHERE e.ag_id = ? AND e.event_date < ? AND e.status = 0
-            GROUP BY e.checksheet_id ORDER BY n DESC LIMIT 5", "ss", [$ag_id, $today]);
-
-    jsonOut(['success' => true, 'data' => [
-        'plans' => (int)$plans['plans'], 'machines' => (int)$plans['machines'], 'checksheets' => (int)$sheets,
-        'today_total' => (int)$ev['today_total'], 'today_done' => (int)$ev['today_done'],
-        'overdue' => (int)$ev['overdue'], 'next7' => (int)$ev['next7'],
-        'month_total' => (int)$ev['month_total'], 'month_done' => (int)$ev['month_done'],
-        'top_overdue' => array_map(function ($r) { return ['name' => $r['name'] ?? '-', 'n' => (int)$r['n'], 'oldest' => $r['oldest']]; }, $topOverdue),
-    ]]);
 }
 
 jsonOut(['success' => false, 'error' => 'ไม่ระบุการดำเนินการ (action)']);

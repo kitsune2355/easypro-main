@@ -40,7 +40,7 @@ $input  = json_decode(file_get_contents('php://input'), true) ?: [];
 // ตัวอักษรใน Excel (หมายเหตุท้ายชีต) => คำอธิบาย (แสดงอ้างอิงในตารางกรอกแผน)
 $LETTER_LABEL = ['D' => 'Daily', 'W' => 'Weekly', 'M' => 'Monthly', 'Q' => 'Quarterly', 'H' => 'Half Year', 'Y' => 'Yearly', 'R' => 'Reading'];
 
-// จุดตรวจ default เมื่อไฟล์ Excel ไม่มีจุดตรวจ
+// จุดตรวจเริ่มต้นของระบบ (ใช้เมื่อหน่วยงานยังไม่ได้ตั้งค่าจุดตรวจเริ่มต้นเอง — ดู agencyDefaultItems)
 $DEFAULT_ITEM = [
     'check_point'       => 'ตรวจสอบอุปกรณ์',
     'standard_text'     => 'ตรวจสอบอุปกรณ์',
@@ -160,12 +160,35 @@ function suggestPlan($cells, $year, $freqOptions, $contractStart, $contractEnd) 
     return $out;
 }
 
+// ---------- จุดตรวจเริ่มต้นของหน่วยงาน (ใช้กับเช็คชีตที่สร้างจากการนำเข้า) ----------
+// ตารางสร้างอัตโนมัติถ้ายังไม่มี (ดู sql/2026-10-13_pm_import_settings.sql)
+function ensureImportSettingsTable($connect) {
+    $ok = mysqli_query($connect, "CREATE TABLE IF NOT EXISTS pm_import_settings (
+        ag_id VARCHAR(50) NOT NULL PRIMARY KEY,
+        default_items LONGTEXT NOT NULL COMMENT 'JSON: จุดตรวจเริ่มต้นของเช็คชีตที่สร้างจากการนำเข้า Excel',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_by VARCHAR(50) NULL,
+        updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        updated_by VARCHAR(50) NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    if (!$ok) throw new Exception('สร้างตารางตั้งค่าการนำเข้าไม่สำเร็จ: ' . mysqli_error($connect));
+}
+
+// จุดตรวจเริ่มต้นของหน่วยงาน (ยังไม่ตั้งค่า => ค่าเริ่มต้นของระบบ) — คืนค่า [items, is_custom]
+function agencyDefaultItems($connect, $ag_id) {
+    global $DEFAULT_ITEM;
+    $system = [$DEFAULT_ITEM + ['value_name' => '', 'unit' => '', 'expected_value' => '']];
+    ensureImportSettingsTable($connect);
+    $rows = fetchAll($connect, "SELECT default_items FROM pm_import_settings WHERE ag_id = ?", "s", [$ag_id]);
+    $items = $rows ? cleanSheetItems(json_decode($rows[0]['default_items'], true) ?: [], []) : [];
+    return $items ? [$items, true] : [$system, false];
+}
+
 /**
- * จุดตรวจที่ผู้ใช้กำหนดในหน้านำเข้า => รายการที่บันทึกได้ (ไม่มีรายการที่ใช้ได้ => จุดตรวจ default)
+ * จุดตรวจที่ผู้ใช้กำหนดในหน้านำเข้า => รายการที่บันทึกได้ (ไม่มีรายการที่ใช้ได้ => $fallback)
  * item: {check_point, standard_text, method_text, action_abnormal, check_type_id (1-2), photo_required_id (1-3), value_name, unit, expected_value}
  */
-function cleanSheetItems($items) {
-    global $DEFAULT_ITEM;
+function cleanSheetItems($items, $fallback) {
     $cut = function ($v, $len) { return mb_substr(trim((string)$v), 0, $len); };
     $out = [];
     foreach ((array)$items as $it) {
@@ -186,7 +209,7 @@ function cleanSheetItems($items) {
             'expected_value'    => $cut($it['expected_value'] ?? '', 100),
         ];
     }
-    return $out ?: [$DEFAULT_ITEM + ['value_name' => '', 'unit' => '', 'expected_value' => '']];
+    return $out ?: $fallback;
 }
 
 function normCode($s) {
@@ -312,9 +335,32 @@ try {
             foreach ($alerts as $al) if ((string)$al['value'] === '0') { $defaultAlert = '0'; break; }
         }
 
+        [$defaultItems, $customDefault] = agencyDefaultItems($connect, $ag_id);
         jsonOut(['success' => true, 'data' => ['freqs' => $freqs, 'alerts' => $alerts, 'default_alert' => (string)$defaultAlert,
                  'contract' => ['start' => $contract_start, 'end' => $contract_end],
-                 'agency' => (fetchAll($connect, "SELECT ag_contract FROM tb_agency WHERE ag_id = ?", "s", [$ag_id])[0]['ag_contract'] ?? '')]]);
+                 'agency' => (fetchAll($connect, "SELECT ag_contract FROM tb_agency WHERE ag_id = ?", "s", [$ag_id])[0]['ag_contract'] ?? ''),
+                 'default_items' => $defaultItems, 'default_items_custom' => $customDefault]]);
+    }
+
+    // ตั้งค่าจุดตรวจเริ่มต้นของหน่วยงาน: items = [...] บันทึก, reset = true กลับไปใช้ค่าเริ่มต้นของระบบ
+    if ($action === 'save_defaults') {
+        ensureImportSettingsTable($connect);
+        if (!empty($input['reset'])) {
+            $stmt = mysqli_prepare($connect, "DELETE FROM pm_import_settings WHERE ag_id = ?");
+            mysqli_stmt_bind_param($stmt, "s", $ag_id);
+        } else {
+            $items = cleanSheetItems($input['items'] ?? [], []);
+            if (!$items) throw new Exception('ต้องมีจุดตรวจอย่างน้อย 1 จุด');
+            if (count($items) > 100) throw new Exception('จุดตรวจเริ่มต้นได้ไม่เกิน 100 จุด');
+            $json = json_encode($items, JSON_UNESCAPED_UNICODE);
+            $stmt = mysqli_prepare($connect, "INSERT INTO pm_import_settings (ag_id, default_items, created_by, updated_by) VALUES (?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE default_items = VALUES(default_items), updated_by = VALUES(updated_by)");
+            mysqli_stmt_bind_param($stmt, "ssss", $ag_id, $json, $user_id, $user_id);
+        }
+        if (!mysqli_stmt_execute($stmt)) throw new Exception('บันทึกจุดตรวจเริ่มต้นไม่สำเร็จ: ' . mysqli_error($connect));
+        mysqli_stmt_close($stmt);
+        [$defaultItems, $customDefault] = agencyDefaultItems($connect, $ag_id);
+        jsonOut(['success' => true, 'data' => ['default_items' => $defaultItems, 'default_items_custom' => $customDefault]]);
     }
 
     // รายการเครื่องจักรของหน่วยงาน (ใส่ใน Template ให้กรอกตารางปีต่อได้เลย)
@@ -342,6 +388,8 @@ try {
         $a = analyzeRows($connect, $ag_id, $input['rows'] ?? []);
         $sheetIds = [];
         $createdIds = [];   // key => id ของเช็คชีตที่สร้างใหม่ (ใช้อัปโหลดไฟล์แนบต่อ)
+        // อ่านก่อนเริ่ม transaction (CREATE TABLE IF NOT EXISTS จะ commit อัตโนมัติ)
+        $agencyItems = agencyDefaultItems($connect, $ag_id)[0];   // ไม่ได้กำหนด => จุดตรวจเริ่มต้นของหน่วยงาน
 
         mysqli_begin_transaction($connect);
         try {
@@ -356,7 +404,7 @@ try {
                 $sheetIds[$key] = $sid;
                 $createdIds[$key] = $sid;
 
-                foreach (cleanSheetItems($sheetItems[$key] ?? []) as $n => $it) {
+                foreach (cleanSheetItems($sheetItems[$key] ?? [], $agencyItems) as $n => $it) {
                     $sort = $n + 1;
                     mysqli_stmt_bind_param($stmtItem, "issssiisssi", $sid, $it['check_point'], $it['standard_text'], $it['method_text'],
                         $it['action_abnormal'], $it['check_type_id'], $it['photo_required_id'], $it['value_name'], $it['unit'], $it['expected_value'], $sort);

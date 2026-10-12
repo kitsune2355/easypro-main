@@ -15,6 +15,8 @@ include "config_ctrl/checksession.php";
     #tab-checksheet .cs-act.e:hover { color: #0284c7; }
     #tab-checksheet .cs-act.c:hover { color: #4f46e5; }
     #tab-checksheet .cs-act.d:hover { color: #dc2626; background: #fef2f2; }
+    #tab-checksheet .cs-file { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .55rem; border-radius: 9999px; border: 1px solid #e2e8f0; font-size: 12px; color: #475569; background: #fff; white-space: nowrap; }
+    #tab-checksheet .cs-file:hover { border-color: #7dd3fc; color: #006B9F; background: #f0f9ff; }
     #tab-checksheet .cs-sec-no { width: 1.6rem; height: 1.6rem; border-radius: 9999px; background: #e0f2fe; color: #006B9F; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
     #tab-checksheet .cs-in { width: 100%; border: 1px solid #cbd5e1; border-radius: .5rem; padding: .5rem .65rem; font-size: 14px; outline: none; background: #fff; }
     #tab-checksheet .cs-in:focus { box-shadow: 0 0 0 2px rgba(14,165,233,.35); border-color: #38bdf8; }
@@ -309,7 +311,17 @@ include "config_ctrl/checksession.php";
         {
             headerName: 'จุดตรวจ', field: 'itemCount', width: 190, sortable: true,
             cellRenderer: p => !p.data ? '' : `<div class="cs-cell"><span class="l1">${p.data.itemCount} จุด</span>
-                <span class="l2">${p.data.estimatedTime || 0} นาที${p.data.sparePartsCount ? ` · อะไหล่ ${p.data.sparePartsCount}` : ''}${p.data.fileCount ? ` · ไฟล์ ${p.data.fileCount}` : ''}</span></div>`
+                <span class="l2">${p.data.estimatedTime || 0} นาที${p.data.sparePartsCount ? ` · อะไหล่ ${p.data.sparePartsCount}` : ''}</span></div>`
+        },
+        {
+            // ไฟล์แนบ: กดเพื่อดูรูปจุดตรวจ / เอกสาร WI (โหลดรายชื่อไฟล์เมื่อกด)
+            headerName: 'ไฟล์แนบ', field: 'fileCount', width: 200, sortable: false,
+            cellRenderer: p => !p.data ? '' : `<div class="cs-cell">${p.data.fileCount
+                ? `<span class="flex gap-1.5">
+                    ${p.data.imageCount ? `<button type="button" class="cs-file" onclick="showChecksheetFiles(${Number(p.data.id)}, 'images')" title="ดูภาพจุดตรวจสอบ">${ico('image', 'w-3.5 h-3.5')} รูป ${p.data.imageCount}</button>` : ''}
+                    ${p.data.docCount ? `<button type="button" class="cs-file" onclick="showChecksheetFiles(${Number(p.data.id)}, 'docs')" title="ดูคำแนะนำในการทำงาน">${ico('file-text', 'w-3.5 h-3.5')} เอกสาร ${p.data.docCount}</button>` : ''}
+                  </span>`
+                : '<span class="l2">ไม่มี</span>'}</div>`
         },
         {
             headerName: 'ใช้ในแผน', field: 'planCount', width: 110, sortable: false,
@@ -363,6 +375,7 @@ include "config_ctrl/checksession.php";
                 <div class="flex items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-slate-100">
                     <span class="text-xs text-slate-400">มีผล ${fmtD(d.effectiveDate)}</span>
                     <span class="flex gap-1.5">
+                        ${d.fileCount ? `<button type="button" class="pm-mc-btn !w-auto px-2.5 gap-1 text-xs" title="ไฟล์แนบ" onclick="showChecksheetFiles(${Number(d.id)}, '${d.imageCount ? 'images' : 'docs'}')"><i data-lucide="paperclip" class="w-4 h-4"></i>${d.fileCount}</button>` : ''}
                         <button type="button" class="pm-mc-btn" title="แก้ไข" onclick="editChecksheet(${Number(d.id)})"><i data-lucide="pencil" class="w-4 h-4"></i></button>
                         <button type="button" class="pm-mc-btn" title="คัดลอก" onclick="copyChecksheet(${Number(d.id)})"><i data-lucide="copy" class="w-4 h-4"></i></button>
                         <button type="button" class="pm-mc-btn !text-red-500" title="ลบ" onclick="deleteChecksheet(${Number(d.id)})"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
@@ -850,6 +863,44 @@ include "config_ctrl/checksession.php";
     };
 
     // ---------- ดูรายละเอียด ----------
+    // ดูไฟล์แนบของเช็คชีต (รูปจุดตรวจ / เอกสาร WI) — focus = 'images' | 'docs' ให้ส่วนนั้นขึ้นก่อน
+    window.showChecksheetFiles = async function (id, focus) {
+        Swal.fire({ title: 'กำลังโหลดไฟล์...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        let data;
+        try {
+            const res = await axios.get(`handle_pm_checksheet.php?action=get_by_id&id=${encodeURIComponent(id)}`);
+            if (!res.data.success) throw new Error(res.data.error || 'โหลดไฟล์ไม่สำเร็จ');
+            data = res.data.data;
+        } catch (e) {
+            Swal.fire('ผิดพลาด', e.message || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+            return;
+        }
+        const { main, images, instructions } = data;
+        const docIcon = name => {
+            const ext = String(name || '').split('.').pop().toLowerCase();
+            if (ext === 'pdf') return ico('file-text', 'w-5 h-5 text-red-500 shrink-0');
+            if (/^xls[xm]?$|^csv$/.test(ext)) return ico('file-spreadsheet', 'w-5 h-5 text-emerald-600 shrink-0');
+            if (/^docx?$/.test(ext)) return ico('file-text', 'w-5 h-5 text-sky-600 shrink-0');
+            return ico('file', 'w-5 h-5 text-slate-500 shrink-0');
+        };
+        const imgHtml = `<div><div class="text-xs font-medium text-slate-500 mb-2">ภาพจุดตรวจสอบ (${images.length})</div>
+            ${images.length ? `<div class="grid grid-cols-2 sm:grid-cols-3 gap-2">${images.map(img => `
+                <a href="${esc(img.file_path)}" target="_blank" rel="noopener" class="block group" title="${esc(img.file_name || '')}">
+                    <img src="${esc(img.file_path)}" loading="lazy" class="w-full aspect-square object-cover rounded-lg border border-slate-200 group-hover:border-sky-400">
+                    <div class="text-[11px] text-slate-500 truncate mt-1">${esc(img.file_name || '')}</div></a>`).join('')}</div>`
+                : '<div class="text-sm text-slate-400 py-4">ไม่มีรูป</div>'}</div>`;
+        const docHtml = `<div><div class="text-xs font-medium text-slate-500 mb-2">คำแนะนำในการทำงาน / WI (${instructions.length})</div>
+            ${instructions.length ? `<div class="space-y-1.5">${instructions.map(f => `
+                <a href="${esc(f.file_path)}" target="_blank" rel="noopener" class="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-slate-200 hover:bg-sky-50 hover:border-sky-300 text-slate-700">
+                    ${docIcon(f.file_name)}<span class="text-sm truncate flex-1">${esc(f.file_name || f.file_path)}</span>${ico('external-link', 'w-3.5 h-3.5 text-slate-400 shrink-0')}</a>`).join('')}</div>`
+                : '<div class="text-sm text-slate-400 py-4">ไม่มีเอกสาร</div>'}</div>`;
+        Swal.fire({
+            title: `<div class="text-base font-semibold text-slate-800 text-left">ไฟล์แนบ: ${esc(main.name)}</div>`,
+            html: `<div class="text-left space-y-5 max-h-[65vh] overflow-y-auto pr-1">${focus === 'docs' ? docHtml + imgHtml : imgHtml + docHtml}</div>`,
+            width: 'min(720px, 95vw)', showCloseButton: true, confirmButtonText: 'ปิด', confirmButtonColor: '#64748b'
+        });
+    };
+
     window.previewChecksheet = async function (id) {
         try {
             Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });

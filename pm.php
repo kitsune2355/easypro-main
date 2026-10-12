@@ -284,11 +284,6 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                 </button>
             </li>
             <li data-mode="manage">
-                <button onclick="switchTab('overview')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
-                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> ภาพรวม
-                </button>
-            </li>
-            <li data-mode="manage">
                 <button onclick="switchTab('schedule')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
                     <i data-lucide="table-2" class="w-4 h-4"></i> ตารางแผน PM
                 </button>
@@ -327,7 +322,6 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
         <main class="flex-1 overflow-y-auto px-2 sm:px-4 pt-3 sm:pt-4 pb-4 relative">
             <?php include 'pm_dashboard.php'; ?>
             <?php include 'pm_daily.php'; ?>
-            <?php include 'pm_overview.php'; ?>
             <?php include 'pm_postpone.php'; ?>
             <?php include 'pm_plan.php'; ?>
             <?php include 'pm_checksheet.php'; ?>
@@ -439,7 +433,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
         lucide.createIcons();
 
         // ---------- โหมด หน้างาน (ช่าง) / จัดการแผน (ผู้วางแผน) ----------
-        const PM_MODE_DEFAULT = { field: 'daily', manage: 'overview' };
+        const PM_MODE_DEFAULT = { field: 'daily', manage: 'schedule' };
         const pmModeOf = tabId => document.querySelector(`#pm-tabs li button[onclick*="'${tabId}'"]`)?.closest('li').dataset.mode || 'field';
         const pmLastTabs = () => { try { return JSON.parse(localStorage.getItem('pmModeTabs')) || {}; } catch (e) { return {}; } };
 
@@ -513,10 +507,6 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
             } else if (tabId === 'daily') {
                 if (typeof window.initDailyTab === 'function') {
                     window.initDailyTab(opts);
-                }
-            } else if (tabId === 'overview') {
-                if (typeof window.initOverviewTab === 'function') {
-                    window.initOverviewTab();
                 }
             } else if (tabId === 'schedule') {
                 if (typeof window.initScheduleTab === 'function') {

@@ -519,7 +519,8 @@ elseif ($action === 'list') {
                    t.TGroupName AS category_name,
                    (SELECT COUNT(*) FROM pm_checksheet_items WHERE checksheet_id = c.id) AS item_count,
                    (SELECT COUNT(*) FROM pm_checksheet_spares WHERE checksheet_id = c.id) AS spare_count,
-                   (SELECT COUNT(*) FROM pm_checksheet_files WHERE checksheet_id = c.id) AS file_count
+                   (SELECT COUNT(*) FROM pm_checksheet_files WHERE checksheet_id = c.id) AS file_count,
+                   (SELECT COUNT(*) FROM pm_checksheet_files WHERE checksheet_id = c.id AND file_type = 'image') AS image_count
             FROM pm_checksheets c
             LEFT JOIN tb_asset_group t ON c.ass_type_id = t.GroupId
             WHERE $where
@@ -542,6 +543,8 @@ elseif ($action === 'list') {
             'itemCount' => (int)$row['item_count'],
             'sparePartsCount' => (int)$row['spare_count'],
             'fileCount' => (int)$row['file_count'],
+            'imageCount' => (int)$row['image_count'],
+            'docCount' => (int)$row['file_count'] - (int)$row['image_count'],
             'estimatedTime' => (int)$row['estimated_time'],
             'updatedAt' => $row['updated_at'],
             'planCount' => 0
