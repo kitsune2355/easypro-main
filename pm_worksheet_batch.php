@@ -49,62 +49,63 @@ $date = isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'
         .tag.todo { color: #64748b; } .tag.part { background: #fef3c7; color: #b45309; }
         .tag.done { background: #dcfce7; color: #15803d; } .tag.fail { background: #fee2e2; color: #b91c1c; }
         .tag.sent { background: #f1f5f9; color: #64748b; } .tag.error { background: #fef3c7; color: #b45309; }
-        .btn { border-radius: .8rem; padding: .7rem 1rem; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; }
+        .btn { border-radius: .75rem; padding: .6rem .9rem; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; }
         .btn:disabled { opacity: .45; cursor: not-allowed; }
         .foot { flex: none; background: #fff; border-top: 1px solid #e2e8f0; padding: .6rem .75rem; padding-bottom: calc(.6rem + env(safe-area-inset-bottom, 0px)); display: flex; gap: .5rem; }
 
         /* ตรวจทีละเครื่อง (เต็มจอ) */
         .focus { position: absolute; inset: 0; background: #f8fafc; display: flex; flex-direction: column; z-index: 20; transform: translateY(100%); transition: transform .22s ease; }
         .focus.open { transform: none; }
-        .nav-btn { width: 2.5rem; height: 2.5rem; border-radius: .75rem; border: 1px solid #e2e8f0; background: #fff; display: grid; place-items: center; color: #334155; flex: none; }
+        .nav-btn { width: 2.25rem; height: 2.25rem; border-radius: .75rem; border: 1px solid #e2e8f0; background: #fff; display: grid; place-items: center; color: #334155; flex: none; }
         .nav-btn:disabled { opacity: .35; }
         .nav-btn.sm { width: 2.25rem; height: 2.25rem; border: 0; background: transparent; }
-        .txt-btn { height: 2.5rem; padding: 0 .75rem; border-radius: .75rem; border: 1px solid #e2e8f0; background: #fff; display: inline-flex; align-items: center; gap: .35rem; font-size: 14px; font-weight: 600; color: #334155; flex: none; }
+        .txt-btn { height: 2.25rem; padding: 0 .65rem; border-radius: .75rem; border: 1px solid #e2e8f0; background: #fff; display: inline-flex; align-items: center; gap: .35rem; font-size: 14px; font-weight: 600; color: #334155; flex: none; }
         .txt-btn:hover, .nav-btn:hover:not(:disabled) { background: #f1f5f9; }
         .qty { display: inline-flex; align-items: center; border: 1px solid #e2e8f0; border-radius: .6rem; overflow: hidden; flex: none; }
         .qty button { width: 2rem; height: 2.1rem; color: #475569; font-weight: 700; }
         .qty input { width: 3rem; height: 2.1rem; text-align: center; font-weight: 600; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; }
-        .blk { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: .9rem; }
+        .blk { background: #fff; border: 1px solid #e2e8f0; border-radius: .75rem; padding: .65rem .75rem; }
         /* ===== จุดตรวจสอบ: การ์ดแบบเดียวกับใบงาน PM (pm_worksheet.php บนมือถือ) ===== */
-        .wsc { border: 1px solid #e2e8f0; border-left: 4px solid #cbd5e1; border-radius: .75rem; overflow: hidden; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .05); }
-        .wsc + .wsc { margin-top: .75rem; }
+        .wsc { border: 1px solid #e2e8f0; border-left: 3px solid #cbd5e1; border-radius: .625rem; overflow: hidden; background: #fff; }
+        .wsc + .wsc { margin-top: .5rem; }
         .wsc[data-state="Pass"] { border-left-color: #16a34a; }
         .wsc[data-state="Fail"] { border-left-color: #dc2626; }
         .wsc[data-state="N/A"]  { border-left-color: #64748b; }
-        .wsc-head { background: #f8fafc; padding: .625rem .875rem; }
-        .wsc-no { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 1.75rem; height: 1.75rem; border-radius: 9999px; background: rgba(0, 107, 159, .1); color: #006b9f; font-weight: 700; font-size: .8125rem; }
-        .wsc-badge { font-size: 10px; padding: .125rem .5rem; border-radius: 9999px; font-weight: 600; border: 1px solid; white-space: nowrap; }
-        .wsc-more { display: inline-flex; align-items: center; gap: .375rem; margin-top: .5rem; font-size: .75rem; font-weight: 500; color: #006b9f; }
-        .wsc-row { display: flex; flex-direction: column; }
-        .wsc-sec { padding: .625rem .875rem; border-top: 1px solid #f1f5f9; min-width: 0; }
-        .wsc[data-state="Fail"] .wsc-sec { background: #fef2f2; }
-        .wsc-lbl { display: block; font-size: .6875rem; font-weight: 600; color: #64748b; margin-bottom: .375rem; }
-        /* จอกว้าง: ผลการตรวจ | ค่าที่วัดได้จริง | รูปภาพหลักฐาน เรียงในแถวเดียว เหมือนตารางใบงาน */
+        /* หัวการ์ดบรรทัดเดียว: ลำดับ · ชื่อจุดตรวจ · ป้าย · ปุ่มมาตรฐาน */
+        .wsc-head { padding: .45rem .625rem; display: flex; align-items: center; gap: .5rem; }
+        .wsc-no { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 1.375rem; height: 1.375rem; border-radius: 9999px; background: rgba(0, 107, 159, .1); color: #006b9f; font-weight: 700; font-size: .6875rem; }
+        .wsc-badge { font-size: 10px; padding: 0 .4rem; border-radius: 9999px; font-weight: 600; border: 1px solid; white-space: nowrap; line-height: 1.5; }
+        .wsc-more { flex: none; width: 1.75rem; height: 1.75rem; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; color: #94a3b8; }
+        .wsc-more:hover { color: #006b9f; background: #f1f5f9; }
+        /* ผลการตรวจ + รูป อยู่แถวเดียวกันทุกขนาดจอ, ค่าที่วัดขึ้นบรรทัดใหม่บนจอเล็ก */
+        .wsc-row { display: flex; flex-wrap: wrap; align-items: stretch; gap: .5rem; padding: 0 .625rem .5rem; }
+        .wsc-sec { flex: 1 1 0; min-width: 0; }
+        .wsc-sec.v { flex: 1 1 100%; order: 3; }
+        .wsc-sec.p { flex: 0 0 4.25rem; }
+        .wsc[data-state="Fail"] { background: #fef2f2; }
+        .wsc-lbl { display: block; font-size: .6875rem; font-weight: 600; color: #64748b; margin-bottom: .2rem; }
         @media (min-width: 640px) {
-            .wsc-row { flex-direction: row; }
-            .wsc-row > .wsc-sec { flex: 1 1 0; }
-            .wsc-row > .wsc-sec + .wsc-sec { border-left: 1px solid #f1f5f9; }
-            .wsc-row > .wsc-sec.v { flex: 0 0 11rem; }
-            .wsc-row > .wsc-sec.p { flex: 0 0 8.5rem; }
+            .wsc-sec.v { flex: 0 0 10rem; order: 0; }
+            .wsc-sec.p { flex: 0 0 5rem; }
         }
-        .ws-choice { flex: 1 1 0; min-height: 2.75rem; display: flex; align-items: center; justify-content: center; gap: .375rem; padding: 0 .5rem; border-radius: .5rem; border: 2px solid #e2e8f0; background: #fff; color: #475569; font-size: .875rem; font-weight: 500; white-space: nowrap; transition: background .15s, border-color .15s; }
+        .ws-choice { flex: 1 1 0; min-height: 2.25rem; display: flex; align-items: center; justify-content: center; gap: .3rem; padding: 0 .375rem; border-radius: .5rem; border: 1.5px solid #e2e8f0; background: #fff; color: #475569; font-size: 13px; font-weight: 500; white-space: nowrap; transition: background .15s, border-color .15s; }
+        .ws-choice i { font-size: 11px; }
         .ws-choice:hover { border-color: #cbd5e1; }
-        .ws-choice.on-pass { background: #16a34a; border-color: #16a34a; color: #fff; font-weight: 700; }
-        .ws-choice.on-fail { background: #dc2626; border-color: #dc2626; color: #fff; font-weight: 700; }
-        .ws-choice.on-na   { background: #475569; border-color: #475569; color: #fff; font-weight: 700; }
-        .ws-value { width: 100%; min-width: 0; padding: .5rem .625rem; border: 1px solid #cbd5e1; border-radius: .5rem; font-weight: 600; color: #1e293b; outline: none; font-size: 16px; }
+        .ws-choice.on-pass { background: #16a34a; border-color: #16a34a; color: #fff; font-weight: 600; }
+        .ws-choice.on-fail { background: #dc2626; border-color: #dc2626; color: #fff; font-weight: 600; }
+        .ws-choice.on-na   { background: #475569; border-color: #475569; color: #fff; font-weight: 600; }
+        .ws-value { width: 100%; min-width: 0; height: 2.25rem; padding: .3rem .5rem; border: 1px solid #cbd5e1; border-radius: .5rem; font-weight: 600; color: #1e293b; outline: none; font-size: 15px; }
         .ws-value:focus { border-color: #006b9f; box-shadow: 0 0 0 2px rgba(0, 107, 159, .25); }
         .ws-value.miss { border-color: #ef4444; background: #fef2f2; }
         .ws-unit { display: flex; align-items: center; font-size: .75rem; color: #475569; font-weight: 600; background: #f8fafc; padding: 0 .5rem; border-radius: .5rem; border: 1px solid #e2e8f0; white-space: nowrap; }
-        .ws-photo { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 4.5rem; padding: .25rem; cursor: pointer; text-align: center; border: 2px dashed #cbd5e1; border-radius: .75rem; background: #f8fafc; overflow: hidden; position: relative; transition: all .2s; }
+        .ws-photo { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-height: 2.25rem; padding: .125rem; cursor: pointer; text-align: center; border: 1.5px dashed #cbd5e1; border-radius: .5rem; background: #f8fafc; overflow: hidden; position: relative; transition: all .2s; }
         .ws-photo:hover { border-color: #006b9f; background: #eff6ff; }
         .ws-photo.has { border-style: solid; border-color: #006b9f; padding: 0; }
         .ws-photo.miss { border-color: #ef4444; background: #fef2f2; }
-        .ws-photo img { width: 100%; height: 7rem; object-fit: cover; }
-        @media (min-width: 640px) { .ws-photo img { height: 4.25rem; } }
-        .ws-sec-title { font-size: .75rem; font-weight: 600; color: #64748b; margin: .25rem .125rem .5rem; }
-        .bigok { background: #16a34a; color: #fff; padding: 1rem; font-size: 17px; }
-        .bigbad { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; padding: .9rem; }
+        .ws-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .ws-sec-title { font-size: .75rem; font-weight: 600; color: #64748b; margin: .125rem .125rem .375rem; }
+        .bigok { background: #16a34a; color: #fff; padding: .7rem 1rem; font-size: 15px; }
+        .bigbad { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; padding: .7rem .75rem; font-size: 14px; }
 
         /* แผ่นจากด้านล่าง */
         .scrim { position: absolute; inset: 0; background: rgba(15,23,42,.5); z-index: 30; opacity: 0; pointer-events: none; transition: opacity .2s; }
@@ -172,7 +173,7 @@ $date = isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'
             </div>
             <div class="h-1.5 rounded-full bg-slate-200 overflow-hidden mt-2"><span id="fBar" class="block h-full bg-[#006B9F]" style="width:0%"></span></div>
         </div>
-        <div class="flex-1 overflow-y-auto p-3 space-y-3" id="fBody"></div>
+        <div class="flex-1 overflow-y-auto p-2.5 space-y-2" id="fBody"></div>
         <div class="foot" id="fFoot"></div>
     </section>
 
@@ -414,14 +415,14 @@ function nextTodo() {
 const BADGE = {
     photo: '<span class="wsc-badge bg-red-50 text-red-600 border-red-200"><i class="fa-solid fa-camera mr-1"></i>บังคับถ่ายรูป</span>',
     photoFail: '<span class="wsc-badge bg-amber-50 text-amber-600 border-amber-200"><i class="fa-solid fa-camera mr-1"></i>ถ่ายรูปเมื่อผิดปกติ</span>',
-    meas: '<span class="wsc-badge bg-blue-50 text-[#006B9F] border-blue-200"><i class="fa-solid fa-ruler mr-1"></i>ต้องวัดค่า</span>'
+    // ค่าที่ต้องวัด + มาตรฐาน อยู่ในหัวการ์ด (แถวกรอกค่าสูงเท่าปุ่มผลการตรวจ)
+    meas: it => `<span class="wsc-badge bg-blue-50 text-[#006B9F] border-blue-200"><i class="fa-solid fa-ruler mr-1"></i>${esc(it.measurement_name || 'ต้องวัดค่า')} · มาตรฐาน ${esc(it.expected_value)} ${esc(it.unit || '')}</span>`
 };
 function photoBox(it) {
     const src = pe(cur).photos[it.id], need = photoNeeded(cur, it);
     return `<label class="ws-photo ${src ? 'has' : ''} ${tried && need && !src ? 'miss' : ''}" title="${src ? 'เปลี่ยนรูป' : 'เพิ่มรูป'}">
-        ${src ? `<img src="${src}" alt=""><span class="absolute bottom-1 right-1 text-white text-[10px] bg-black/60 px-1.5 py-0.5 rounded"><i class="fa-solid fa-pen"></i></span>`
-              : `<span class="flex flex-col items-center"><i class="fa-solid fa-camera text-slate-300 text-lg"></i>
-                 <span class="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">เพิ่มรูป ${need ? '<span class="text-red-500">*</span>' : '<span class="text-slate-400 font-normal">(ถ้ามี)</span>'}</span></span>`}
+        ${src ? `<img src="${src}" alt=""><span class="absolute bottom-0.5 right-0.5 text-white text-[9px] bg-black/60 px-1 rounded"><i class="fa-solid fa-pen"></i></span>`
+              : `<span class="flex flex-col items-center leading-none"><i class="fa-solid fa-camera text-slate-400 text-sm"></i><span class="text-[10px] mt-0.5 ${need ? 'text-red-500 font-semibold' : 'text-slate-400'}">${need ? 'ต้องถ่าย*' : 'ถ้ามี'}</span></span>`}
         <input type="file" accept="image/*" capture="environment" class="hidden" data-photo="${it.id}"></label>`;
 }
 function valueBox(it) {
@@ -429,13 +430,12 @@ function valueBox(it) {
     return `<div class="flex items-stretch gap-1.5">
             <input type="text" inputmode="decimal" enterkeyhint="next" data-val="${it.id}" value="${esc(v)}" placeholder="กรอกค่า" class="ws-value num ${tried && !String(v).trim() ? 'miss' : ''}">
             ${it.unit ? `<span class="ws-unit">${esc(it.unit)}</span>` : ''}
-        </div>
-        <div class="text-xs text-slate-500 mt-1">มาตรฐาน <b class="text-[#006B9F]">${esc(it.expected_value)}</b> ${esc(it.unit || '')}</div>`;
+        </div>`;
 }
 function wsCard(it) {
     const k = ITEMS.indexOf(it), v = statusOf(cur, it), f = v === 'Fail';
     const pr = +it.photo_required_id;
-    const badges = (pr === 1 ? BADGE.photo : pr === 3 ? BADGE.photoFail : '') + (isMeas(it) ? BADGE.meas : '');
+    const badges = (pr === 1 ? BADGE.photo : pr === 3 ? BADGE.photoFail : '') + (isMeas(it) ? BADGE.meas(it) : '');
     const sec = (icon, label, html, cls = 'bg-white border-slate-200', lcls = 'text-slate-500') => html ? `<div class="rounded-xl border p-3 ${cls}">
             <div class="text-[11px] font-bold uppercase tracking-wider mb-1 ${lcls}"><i class="${icon} mr-1"></i>${label}</div><div class="leading-relaxed break-words">${html}</div></div>` : '';
     const info = sec('fa-solid fa-book-open', 'มาตรฐานการตรวจสอบ', esc(it.standard_text || '') + (it.reference_image ? ` <a href="${esc(it.reference_image)}" target="_blank" class="text-[#006B9F] underline">ดูรูปประกอบ</a>` : ''))
@@ -446,28 +446,25 @@ function wsCard(it) {
     const showPhoto = needPhotoAlways(it) || f || pe(cur).photos[it.id];
     return `<div class="wsc" data-state="${v}">
         <div class="wsc-head">
-            <div class="flex items-start gap-2">
-                <span class="wsc-no">${k + 1}</span>
-                <div class="flex-1 min-w-0">
-                    <div class="font-semibold text-slate-800 leading-snug break-words">${esc(it.check_point || '-')}</div>
-                    ${badges ? `<div class="flex flex-wrap gap-1 mt-1.5">${badges}</div>` : ''}
-                </div>
+            <span class="wsc-no">${k + 1}</span>
+            <div class="flex-1 min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <span class="text-sm font-semibold text-slate-800 leading-snug break-words">${esc(it.check_point || '-')}</span>${badges}
             </div>
-            ${info ? `<button type="button" data-info class="wsc-more"><i class="fa-solid fa-book-open"></i><span>ดูมาตรฐาน / วิธีตรวจ</span></button>
-                <div class="item-info hidden mt-2 space-y-2 text-sm text-slate-700">${info}</div>` : ''}
+            ${info ? `<button type="button" data-info class="wsc-more" title="ดูมาตรฐาน / วิธีตรวจ"><i class="fa-solid fa-book-open text-xs"></i></button>` : ''}
         </div>
+        ${info ? `<div class="item-info hidden px-2.5 pb-2 space-y-1.5 text-[13px] text-slate-700">${info}</div>` : ''}
         <div class="wsc-row">
-            <div class="wsc-sec"><span class="wsc-lbl">ผลการตรวจ *</span>
-                <div class="flex gap-1.5" data-item="${it.id}">
+            <div class="wsc-sec">
+                <div class="flex gap-1 h-full" data-item="${it.id}">
                     ${choice('Pass', 'ปกติ', 'fa-check', 'on-pass')}
                     ${choice('Fail', 'ผิดปกติ', 'fa-xmark', 'on-fail')}
                     ${canNA(it) ? choice('N/A', 'N/A', 'fa-ban', 'on-na') : ''}
                 </div>
-                ${f && it.action_text ? `<div class="mt-2 text-xs text-red-700"><b>เมื่อผิดปกติ:</b> ${esc(it.action_text)}</div>` : ''}
             </div>
-            ${isMeas(it) ? `<div class="wsc-sec v"><span class="wsc-lbl">${esc(it.measurement_name || 'ค่าที่วัดได้จริง')}</span>${valueBox(it)}</div>` : ''}
-            ${showPhoto ? `<div class="wsc-sec p"><span class="wsc-lbl">รูปภาพหลักฐาน</span>${photoBox(it)}</div>` : ''}
+            ${isMeas(it) ? `<div class="wsc-sec v">${valueBox(it)}</div>` : ''}
+            ${showPhoto ? `<div class="wsc-sec p">${photoBox(it)}</div>` : ''}
         </div>
+        ${f && it.action_text ? `<div class="px-2.5 pb-2 -mt-1 text-xs text-red-700"><b>เมื่อผิดปกติ:</b> ${esc(it.action_text)}</div>` : ''}
     </div>`;
 }
 function renderFocus() {
@@ -484,7 +481,7 @@ function renderFocus() {
         <div class="blk">
             <div class="flex items-start gap-2">
                 <div class="min-w-0 flex-1">
-                    <div class="text-xl font-semibold text-slate-800 leading-tight">${esc(e.machine_code || '-')}</div>
+                    <div class="text-lg font-semibold text-slate-800 leading-tight">${esc(e.machine_code || '-')}</div>
                     <div class="text-sm text-slate-600">${esc(e.machine_name || '')}${e.machine_sn ? ` · S/N ${esc(e.machine_sn)}` : ''}</div>
                     <div class="text-xs text-slate-400 mt-0.5">${esc(e.location || '')}</div>
                 </div>${pill}
@@ -499,9 +496,9 @@ function renderFocus() {
     $('fFoot').innerHTML = showItems && rest.length
         ? `<button type="button" class="btn border border-slate-200 bg-white text-slate-700" data-act="allok">${must.length ? 'ข้ออื่นปกติ' : 'ปกติทั้งหมด'}</button>
            <button type="button" class="btn flex-1 bg-[#006B9F] text-white" data-act="save">บันทึกแล้วไปถัดไป <i class="fa-solid fa-chevron-right"></i></button>`
-        : `<div class="flex-1 grid gap-2">
-            <button type="button" class="btn bigok" data-act="ok"><i class="fa-solid fa-check"></i>${!mustSet ? 'ปกติทุกข้อ → ถัดไป' : rest.length ? 'ข้ออื่นปกติ → ถัดไป' : 'บันทึก → ถัดไป'}</button>
-            ${rest.length ? `<button type="button" class="btn bigbad" data-act="bad"><i class="fa-solid fa-triangle-exclamation"></i>${must.length ? 'ข้ออื่นมีผิดปกติ' : 'มีข้อผิดปกติ'}${rest.some(canNA) ? ' / N/A' : ''}</button>` : ''}</div>`;
+        : `<div class="flex-1 flex gap-2">
+            <button type="button" class="btn bigok flex-[2] order-2" data-act="ok"><i class="fa-solid fa-check"></i>${!mustSet ? 'ปกติทุกข้อ → ถัดไป' : rest.length ? 'ข้ออื่นปกติ → ถัดไป' : 'บันทึก → ถัดไป'}</button>
+            ${rest.length ? `<button type="button" class="btn bigbad flex-1 order-1" data-act="bad"><i class="fa-solid fa-triangle-exclamation"></i>${must.length ? 'ข้ออื่นผิดปกติ' : 'ผิดปกติ'}${rest.some(canNA) ? '/N/A' : ''}</button>` : ''}</div>`;
 }
 // ปุ่ม "ปกติ" ใหญ่ = ตั้งจุดตรวจอื่นเป็นปกติ (ข้อในกล่อง "กรอกทุกเครื่อง" เลือกผลเองแล้ว ไม่แตะ)
 function clearRest() {

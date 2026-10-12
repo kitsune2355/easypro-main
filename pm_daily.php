@@ -339,8 +339,9 @@
         }
         const op = e.target.closest('[data-open]'), hi = e.target.closest('[data-history]'), ba = e.target.closest('[data-batch]');
         const more = e.target.closest('[data-more]'), retry = e.target.closest('[data-retry]');
-        if (op) openWin('pm_worksheet.php?plan_id=' + encodeURIComponent(op.dataset.open));
-        else if (hi) openWin('pm_worksheet.php?plan_id=' + encodeURIComponent(hi.dataset.history) + '&mode=history');
+        // ใบงาน / ประวัติ: เปิดเป็น dialog บนหน้านี้ (ปิดแล้วโหลดสถานะใหม่ผ่าน pm:batch-closed)
+        if (op) window.openPmWorksheetDialog ? window.openPmWorksheetDialog(op.dataset.open, false) : openWin('pm_worksheet.php?plan_id=' + encodeURIComponent(op.dataset.open));
+        else if (hi) window.openPmWorksheetDialog ? window.openPmWorksheetDialog(hi.dataset.history, true) : openWin('pm_worksheet.php?plan_id=' + encodeURIComponent(hi.dataset.history) + '&mode=history');
         else if (ba) window.openPmBatchDialog('pm_worksheet_batch.php?checksheet_id=' + encodeURIComponent(ba.dataset.batch) + '&date=' + encodeURIComponent(ba.dataset.date));
         else if (more) loadItems(more.dataset.more, true);
         else if (retry) loadItems(retry.dataset.retry);

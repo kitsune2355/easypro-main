@@ -601,11 +601,16 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
             return `${datePart}, ${hours}:${minutes} น.`;
         };
 
-        // บันทึกพร้อมกันหลายเครื่อง (pm_worksheet_batch.php): เปิดเป็น dialog บนหน้านี้ แทนหน้าต่างใหม่
+        // หน้าทำงานของช่าง (ใบงาน PM / บันทึกพร้อมกันหลายเครื่อง): เปิดเป็น dialog บนหน้านี้ แทนหน้าต่างใหม่
         //  สร้าง iframe ใหม่ทุกครั้ง/ลบทิ้งตอนปิด (ไม่ทิ้งประวัติ back ของ iframe ไว้) · ปุ่มย้อนกลับของมือถือ = ปิด dialog
         (function () {
             let dlg = null, ignorePop = false;
-            const busy = () => { try { const w = dlg.querySelector('iframe').contentWindow; return !!(w.pmBatchBusy && w.pmBatchBusy()); } catch (e) { return false; } };
+            const frameWin = () => { try { return dlg.querySelector('iframe').contentWindow; } catch (e) { return null; } };
+            const busy = () => { try { const w = frameWin(); return !!(w.pmBatchBusy && w.pmBatchBusy()); } catch (e) { return false; } };
+            // หน้าข้างในมีข้อมูลที่กรอกแต่ยังไม่บันทึก (ใบงาน PM) — หน้าบันทึกพร้อมกันเก็บร่างเองจึงไม่ถาม
+            const dirty = () => { try { const w = frameWin(); return !!(w.pmDirty && w.pmDirty()); } catch (e) { return false; } };
+            const confirmLeave = () => Swal.fire({ icon: 'warning', title: 'ปิดใบงาน?', text: 'ข้อมูลที่กรอกไว้ยังไม่ได้บันทึก ถ้าปิดจะหายไป',
+                showCancelButton: true, confirmButtonText: 'ปิดเลย', cancelButtonText: 'กลับไปกรอกต่อ', confirmButtonColor: '#dc2626', reverseButtons: true }).then(r => r.isConfirmed);
             const isOpen = () => !!dlg;
             function teardown() {
                 dlg.remove(); dlg = null;
@@ -614,20 +619,27 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                 if (window.calendar && typeof window.refreshCalendarEvents === 'function') window.refreshCalendarEvents();
                 window.dispatchEvent(new CustomEvent('pm:batch-closed'));
             }
-            window.openPmBatchDialog = function (url) {
+            window.openPmDialog = function (url, label) {
                 if (dlg) return;
                 dlg = document.createElement('div');
                 dlg.className = 'fixed inset-0 z-[1000] bg-slate-900/50 flex items-center justify-center sm:p-4';
-                dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-label', 'บันทึกพร้อมกันหลายเครื่อง');
+                dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-label', label || 'งาน PM');
                 dlg.innerHTML = '<div class="w-full h-full sm:h-[94vh] sm:max-w-4xl sm:rounded-2xl overflow-hidden bg-white shadow-2xl"><iframe class="w-full h-full border-0 block" allow="camera"></iframe></div>';
                 dlg.querySelector('iframe').src = url + (url.includes('?') ? '&' : '?') + 'embed=1';
+                // คลิกพื้นหลังรอบกรอบ (นอกหน้าต่าง) = ปิด
+                dlg.addEventListener('click', e => { if (e.target === dlg) window.closePmDialog(); });
                 document.body.appendChild(dlg);
                 document.body.style.overflow = 'hidden';
                 try { history.pushState({ pmBatch: 1 }, ''); } catch (e) {}
             };
-            window.closePmBatchDialog = function () {
+            window.openPmBatchDialog = url => window.openPmDialog(url, 'บันทึกพร้อมกันหลายเครื่อง');
+            window.openPmWorksheetDialog = (planId, history) => window.openPmDialog('pm_worksheet.php?plan_id=' + encodeURIComponent(planId) + (history ? '&mode=history' : ''), 'ใบงาน PM');
+            // force = ปิดโดยไม่ถาม (เช่น หลังบันทึกสำเร็จ)
+            window.closePmBatchDialog = window.closePmDialog = async function (force) {
                 if (!isOpen()) return;
-                if (busy()) { Swal.fire({ icon: 'info', title: 'กำลังส่งข้อมูล', text: 'รอให้ส่งเสร็จก่อนจึงปิดได้', confirmButtonColor: '#006b9f' }); return; }
+                if (busy()) { Swal.fire({ icon: 'info', title: 'กำลังบันทึกข้อมูล', text: 'รอให้บันทึกเสร็จก่อนจึงปิดได้', confirmButtonColor: '#006b9f' }); return; }
+                if (force !== true && dirty() && !(await confirmLeave())) return;
+                if (!isOpen()) return;
                 teardown();
                 if (history.state && history.state.pmBatch) { ignorePop = true; history.back(); }
             };
@@ -635,9 +647,14 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                 if (ignorePop) { ignorePop = false; return; }
                 if (!isOpen()) return;
                 if (busy()) { try { history.pushState({ pmBatch: 1 }, ''); } catch (e) {} return; }
+                if (dirty()) {   // ย้อนกลับแต่ยังไม่บันทึก => ถามก่อน (ยกเลิก = คงอยู่ในใบงาน)
+                    try { history.pushState({ pmBatch: 1 }, ''); } catch (e) {}
+                    window.closePmDialog();
+                    return;
+                }
                 teardown();
             });
-            document.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen()) window.closePmBatchDialog(); });
+            document.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen() && !Swal.isVisible()) window.closePmDialog(); });
         })();
     </script>
 </body>

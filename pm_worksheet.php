@@ -15,7 +15,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
     <title>ใบงานบำรุงรักษาเชิงป้องกัน (PM Worksheet)</title>
     <script>
         // ขนาดตัวอักษรทั้งโปรแกรม (เมนู ตั้งค่าการแสดงผล) — หน้านี้เปิดเป็นหน้าต่างแยก จึงขยายเองด้วย zoom
-        (function () { let z = 1; try { z = parseFloat(localStorage.getItem('easypro_font_scale')) || 1; } catch (e) {} if (z !== 1) document.documentElement.style.zoom = Math.min(1.5, Math.max(0.8, z)); })();
+        //  เปิดเป็น dialog (iframe ในหน้าวางแผน PM) => กรอบนอกถูกขยายตามขนาดตัวอักษรอยู่แล้ว ไม่ต้องขยายซ้ำ
+        (function () { if (window.parent !== window) return; let z = 1; try { z = parseFloat(localStorage.getItem('easypro_font_scale')) || 1; } catch (e) {} if (z !== 1) document.documentElement.style.zoom = Math.min(1.5, Math.max(0.8, z)); })();
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -143,25 +144,55 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
         .ws-topbtn:hover { background: rgba(255, 255, 255, .25); }
         .ws-pbar { height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .25); overflow: hidden; }
         .ws-pbar > span { display: block; height: 100%; background: #fff; border-radius: 99px; transition: width .3s; }
-        .ws-blk { background: #fff; border: 1px solid #e2e8f0; border-radius: 1rem; padding: .9rem; }
+        .ws-blk { background: #fff; border: 1px solid #e2e8f0; border-radius: .75rem; padding: .65rem .75rem; }
+        .ws-chip2 { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .55rem; border-radius: 9999px; border: 1px solid; font-size: 11.5px; font-weight: 600; }
+        /* อะไหล่ที่ต้องเตรียม + ไฟล์แนบ ต่อกันในการ์ดเครื่อง: เส้นคั่นเส้นเดียว */
+        #spares-container:not(.hidden) + #checksheet-files-section { border-top: 0; padding-top: 0; margin-top: .5rem; }
         .ws-info-lbl { display: block; font-size: .6875rem; color: #64748b; font-weight: 500; margin-bottom: .125rem; }
         /* กล่องของแต่ละส่วน: มุมมน ไม่มีเงา ระยะห่างแบบหน้าบันทึกพร้อมกัน */
         #pmForm .ws-step > div.bg-white { border-radius: 1rem; box-shadow: none; margin-bottom: .75rem; }
         #pmForm .ws-step > div.bg-white > div:first-child h2 { font-size: .9375rem; }
         #pmForm .ws-step > div.bg-white > div:first-child { padding: .75rem 1rem; }
         .ws-sheet-wrap { padding: .75rem; }
-        /* จอกว้าง: ผลการตรวจ | ค่าที่วัดได้จริง | รูปภาพหลักฐาน เรียงในแถวเดียว */
+        /* การ์ดจุดตรวจแบบกะทัดรัด (เหมือนหน้าบันทึกพร้อมกัน): หัวบรรทัดเดียว · ผลการตรวจ + รูป แถวเดียวกัน · ค่าที่วัดขึ้นบรรทัดใหม่บนจอเล็ก */
+        .ws-sheet-wrap { padding: .5rem; }
+        .ws-sheet tbody tr.ws-item { flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: .5rem; padding: 0 .625rem .5rem; margin-bottom: .5rem; border-left-width: 3px; border-radius: .625rem; box-shadow: none; }
+        .ws-sheet tr.ws-item > td { padding: 0; border: 0; background: transparent !important; }
+        .ws-sheet tbody tr.ws-item[data-state="Fail"] { background: #fef2f2; }
+        .ws-sheet tr.ws-item > td.ws-col-point { flex: 0 0 100%; padding: .45rem 0 0; background: transparent; }
+        .ws-sheet tr.ws-item > td.ws-col-status { flex: 1 1 0; min-width: 0; }
+        .ws-sheet tr.ws-item > td.ws-col-value { flex: 1 1 100%; order: 3; }
+        .ws-sheet tr.ws-item > td.ws-col-photo { flex: 0 0 4.25rem; }
+        .ws-sheet td.ws-col-status[data-label]::before, .ws-sheet td.ws-col-photo[data-label]::before { display: none; }
+        .ws-sheet td.ws-col-value[data-label]::before { margin-bottom: .2rem; }
+        .ws-sheet .ws-status-box, .ws-sheet .ws-status-box > .flex { height: 100%; }
+        .ws-sheet .ws-status-box > .flex { gap: .25rem; }
+        .ws-mobile-no { width: 1.375rem !important; height: 1.375rem !important; font-size: .6875rem !important; }
+        .ws-sheet .ws-choice { min-height: 2.25rem; border-width: 1.5px; font-size: 13px; padding: 0 .375rem; gap: .3rem; }
+        .ws-sheet .ws-choice i { font-size: 11px; }
+        .ws-sheet .ws-photo { min-height: 2.25rem; height: 100%; padding: .125rem; border-width: 1.5px; border-radius: .5rem; }
+        .ws-sheet .ws-photo .fa-camera { font-size: .875rem; }
+        .ws-sheet .ws-photo [id^="upload_ui_"] > span { font-size: 10px; }
+        .ws-sheet tr.ws-item img[id^="img_preview_"] { height: 2.5rem; }
+        .ws-sheet .ws-value-input { padding: .3rem .5rem; height: 2.25rem; }
+        /* ผลการตรวจ | ค่าที่วัด | รูป อยู่ระนาบเดียวกัน: ชื่อค่า/มาตรฐานย้ายไปเป็นป้ายในหัวการ์ดแล้ว */
+        .ws-sheet td.ws-col-value[data-label]::before, .ws-sheet td.ws-col-value > div.text-xs { display: none; }
+        .ws-sheet td.ws-col-value > .flex { height: 100%; }
+        .ws-sheet [id^="photo_label_"] { display: none; }
+        .ws-sheet .ws-photo [id^="upload_ui_"] { flex-direction: row !important; gap: .25rem; line-height: 1; }
+        .ws-sheet .ws-photo [id^="upload_ui_"] > span { margin-top: 0 !important; }
+        .ws-sheet .ws-photo { min-height: 0 !important; }
+        .ws-sheet tr.ws-item img[id^="img_preview_"] { height: 1.95rem !important; }
+        .ws-more-btn { display: inline-flex !important; flex: none; width: 1.75rem; height: 1.75rem; margin: 0 !important; border-radius: 9999px; align-items: center; justify-content: center; color: #94a3b8 !important; }
+        .ws-more-btn:hover { color: #006b9f !important; background: #f1f5f9; }
+        .ws-chip { font-size: 10px !important; padding: 0 .4rem !important; }
         @media (min-width: 640px) {
-            .ws-sheet tbody tr.ws-item { flex-direction: row; flex-wrap: wrap; }
-            .ws-sheet tr.ws-item > td.ws-col-point { flex: 0 0 100%; }
-            .ws-sheet tr.ws-item > td.ws-col-status { flex: 1 1 0; }
-            .ws-sheet tr.ws-item > td.ws-col-value { flex: 0 0 11rem; border-left: 1px solid #f1f5f9; }
-            .ws-sheet tr.ws-item > td.ws-col-photo { flex: 0 0 8.5rem; border-left: 1px solid #f1f5f9; }
-            .ws-sheet tr.ws-item img[id^="img_preview_"] { height: 4.25rem; }
+            .ws-sheet tr.ws-item > td.ws-col-value { flex: 0 0 10rem; order: 0; }
+            .ws-sheet tr.ws-item > td.ws-col-photo { flex: 0 0 5rem; }
         }
         /* แถบปุ่มล่าง */
         .ws-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: #fff; border-top: 1px solid #e2e8f0; padding: .6rem .75rem; padding-bottom: calc(.6rem + env(safe-area-inset-bottom, 0px)); }
-        .ws-btn { border-radius: .8rem; padding: .75rem 1rem; font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; transition: background .15s; }
+        .ws-btn { border-radius: .75rem; padding: .6rem .9rem; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; transition: background .15s; }
         .ws-btn:disabled { opacity: .5; cursor: not-allowed; }
         /* แผ่นลงชื่อและบันทึก (โหมดบันทึกเท่านั้น) */
         .ws-edit-only { display: none !important; }
@@ -267,7 +298,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                 <?php if (!empty($mode)): ?>
                 <button type="button" onclick="openPmPrintPage()" title="พิมพ์ใบงาน PM" class="ws-topbtn"><i class="fa-solid fa-print"></i></button>
                 <?php endif; ?>
-                <button type="button" onclick="window.close()" title="ปิด" class="ws-topbtn"><i class="fa-solid fa-xmark text-lg"></i></button>
+                <button type="button" onclick="wsClose()" title="ปิด" class="ws-topbtn"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
             <div class="ws-pbar mt-2"><span id="ws-nav-bar" style="width:0%"></span></div>
             <div class="flex items-center justify-between mt-1.5 text-[11px] opacity-90">
@@ -290,12 +321,31 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             <!-- ===== ขั้นที่ 1: ข้อมูลงาน — การ์ดเครื่องแบบเดียวกับหน้าบันทึกพร้อมกัน ===== -->
             <section class="ws-step" data-ws-step="1">
             <div class="ws-blk">
-                <div id="ws-job-machine" class="text-xl font-semibold text-slate-800 leading-tight break-words">-</div>
+                <!-- รายละเอียดงานจากปฏิทิน (สถานะ เลยกำหนด เลื่อน) — เติมโดย wsLoadJobDetail() -->
+                <div id="ws-job-chips" class="flex flex-wrap items-center gap-1.5 mb-2 empty:hidden"></div>
+                <div id="ws-job-machine" class="text-lg font-semibold text-slate-800 leading-tight break-words">-</div>
                 <div class="text-sm text-slate-600 mt-0.5" id="ws-job-sub"></div>
                 <div class="text-xs text-slate-400 mt-0.5">เลขที่เอกสาร <span id="ws-job-doc">-</span> · กำหนดการ <span id="ws-job-date">-</span></div>
-                <details class="mt-2 group">
-                    <summary class="inline-flex items-center gap-1.5 text-xs text-primary font-semibold cursor-pointer select-none"><i class="fa-solid fa-circle-info"></i>ข้อมูลงานทั้งหมด <i class="fa-solid fa-chevron-down text-[10px] transition-transform group-open:rotate-180"></i></summary>
-                    <div class="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3 text-sm">
+                <div id="ws-job-tiles" class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 empty:hidden"></div>
+                <div id="ws-job-extra" class="empty:hidden"></div>
+                <!-- อะไหล่ที่ต้องเตรียม + ไฟล์แนบประกอบเช็คชีต: อยู่ในการ์ดเครื่อง — เติมโดย renderSpares() / renderFiles() -->
+                <div id="spares-container" class="hidden mt-3 pt-2.5 border-t border-slate-100">
+                    <div class="ws-info-lbl"><i class="fa-solid fa-screwdriver-wrench mr-1"></i>อะไหล่ที่ต้องเตรียม</div>
+                    <div id="spares-list" class="flex flex-wrap gap-1.5"></div>
+                </div>
+                <div id="checksheet-files-section" class="hidden mt-3 pt-2.5 border-t border-slate-100 space-y-2">
+                    <div id="checksheet-images-block" class="hidden">
+                        <div class="ws-info-lbl"><i class="fa-regular fa-image mr-1"></i>ภาพจุดตรวจสอบ</div>
+                        <div id="checksheet-images-list" class="flex flex-wrap gap-1.5"></div>
+                    </div>
+                    <div id="checksheet-docs-block" class="hidden">
+                        <div class="ws-info-lbl"><i class="fa-solid fa-paperclip mr-1"></i>คำแนะนำในการทำงาน</div>
+                        <div id="checksheet-docs-list" class="flex flex-wrap gap-1.5"></div>
+                    </div>
+                </div>
+                <!-- ข้อมูลหัวใบงาน: ไม่แสดง (ใช้เติมการ์ดเครื่อง/หัวหน้า และโหมดประวัติ) — คง id ไว้ -->
+                <div class="hidden" aria-hidden="true">
+                    <div class="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 text-[13px] rounded-lg bg-slate-50 border border-slate-100 p-2.5">
                         <div><label class="ws-info-lbl">เลขที่เอกสาร</label><div id="info-doc-no" class="font-semibold text-slate-900">-</div></div>
                         <div><label class="ws-info-lbl">Revision No</label><div id="info-rev-no" class="font-semibold text-slate-900">-</div></div>
                         <div class="col-span-2"><label class="ws-info-lbl">ชื่อเช็คชีต</label><div id="info-checksheet-name" class="font-semibold text-slate-900">-</div></div>
@@ -306,48 +356,10 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                         <div><label class="ws-info-lbl">วันที่ตามกำหนดการ</label><div id="info-plan-date" class="font-semibold text-amber-700 flex items-center gap-1.5"><i class="fa-solid fa-calendar-day"></i><span>-</span></div></div>
                         <div><label class="ws-info-lbl">วันที่ดำเนินการจริง</label><div id="info-actual-date" class="font-semibold text-green-700 flex items-center gap-1.5"><i class="fa-solid fa-calendar-check"></i><span><?php echo date('Y-m-d'); ?></span></div></div>
                     </div>
-                </details>
-            </div>
-
-			<div id="checksheet-files-section" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6 hidden">
-				<div class="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center gap-2.5">
-					<i class="fa-solid fa-paperclip text-primary text-lg"></i>
-					<h2 class="text-lg font-semibold text-slate-800">ไฟล์แนบประกอบเช็คชีต</h2>
-				</div>
-			
-				<div class="p-6 space-y-8">
-					<!-- รูปภาพ -->
-					<div id="checksheet-images-block" class="hidden">
-						<h3 class="text-base font-semibold text-slate-800 mb-3">ภาพจุดตรวจสอบ</h3>
-						<div id="checksheet-images-list" class="flex flex-wrap gap-3"></div>
-					</div>
-			
-					<!-- เอกสาร -->
-					<div id="checksheet-docs-block" class="hidden">
-						<h3 class="text-base font-semibold text-slate-800 mb-3">คำแนะนำในการทำงาน</h3>
-						<div id="checksheet-docs-list" class="flex flex-wrap gap-3"></div>
-					</div>
-				</div>
-			</div>
-
-            <div id="spares-container" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6 hidden">
-                <div class="bg-amber-50 border-b border-amber-200 px-6 py-4 flex items-center gap-2.5">
-                    <i class="fa-solid fa-screwdriver-wrench text-amber-700 text-lg"></i>
-                    <h2 class="text-lg font-semibold text-amber-900">รายการอะไหล่ที่ต้องเตรียม</h2>
-                </div>
-                <div class="p-0 overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead class="bg-amber-100/50 text-amber-900 border-b border-amber-200">
-                            <tr>
-                                <th class="py-3 px-6 text-center w-16">ลำดับ</th>
-                                <th class="py-3 px-6 text-left">ชื่ออะไหล่ / รหัสอะไหล่</th>
-                                <th class="py-3 px-6 text-center w-32">จำนวนที่ใช้</th>
-                            </tr>
-                        </thead>
-                        <tbody id="spares-list" class="divide-y divide-amber-100"></tbody>
-                    </table>
                 </div>
             </div>
+
+
             </section>
 
             <!-- ===== ขั้นที่ 2: ตรวจสอบ ===== -->
@@ -560,6 +572,64 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		
 		const pageMode = urlParams.get('mode') || '<?php echo htmlspecialchars($mode, ENT_QUOTES, 'UTF-8'); ?>';
 		const isHistoryMode = pageMode === 'history';
+
+		// เปิดได้ 2 แบบ: dialog ในหน้าวางแผน PM (iframe) หรือหน้าต่างแยก
+		const WS_EMBED = window.parent !== window;
+		let wsSaving = false;
+		window.pmBatchBusy = () => wsSaving;   // dialog ถามก่อนปิด: กำลังบันทึกอยู่ห้ามปิด
+		// force = ปิดโดยไม่ถาม (หลังบันทึกสำเร็จ)
+		function wsClose(force) {
+			if (WS_EMBED && window.parent.closePmDialog) window.parent.closePmDialog(force === true);
+			else window.close();
+		}
+		// มีข้อมูลที่กรอกแต่ยังไม่บันทึก => dialog ถามก่อนปิด (คลิกพื้นหลัง / ✕ / Esc / ย้อนกลับ)
+		window.pmDirty = () => {
+			if (isHistoryMode) return false;
+			if (document.querySelector('#items-list input[type="radio"]:checked')) return true;
+			if ([...document.querySelectorAll('#items-list .ws-value-input')].some(i => i.value.trim())) return true;
+			if ([...document.querySelectorAll('input[id^="photo_base64_"]')].some(i => i.value)) return true;
+			if (document.querySelectorAll('#parts_wrap > div').length) return true;
+			return !!(document.getElementById('remarks')?.value || '').trim();
+		};
+
+		// รายละเอียดงานจากปฏิทิน (เดิมเป็นป๊อปอัปแยกก่อนเปิดใบงาน): สถานะ เลยกำหนด ความถี่ เวลาโดยประมาณ ทำครั้งล่าสุด ประวัติเลื่อน ผลการทำงาน
+		async function wsLoadJobDetail() {
+			let r;
+			try { r = await (await fetch(`handle_pm_dashboard.php?action=get_event_detail&id=${encodeURIComponent(planId)}`)).json(); } catch (e) { return; }
+			if (!r || !r.success) return;
+			const d = r.data, ev = d.event || {};
+			const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+			const fmt = s => { if (!s) return '-'; const x = new Date(String(s).slice(0, 10) + 'T00:00:00'); return isNaN(x) ? s : x.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }); };
+			const chip = (cls, icon, text) => `<span class="ws-chip2 ${cls}"><i class="${icon}"></i>${text}</span>`;
+			const done = String(ev.status) === '1';
+			const chips = [done ? chip('bg-emerald-50 text-emerald-700 border-emerald-200', 'fa-solid fa-circle-check', 'ดำเนินการแล้ว')
+				: chip('bg-sky-50 text-sky-700 border-sky-200', 'fa-solid fa-clock', 'รอดำเนินการ')];
+			if (!done && ev.event_date && d.today) {
+				const diff = Math.round((new Date(ev.event_date + 'T00:00:00') - new Date(d.today + 'T00:00:00')) / 86400000);
+				chips.push(diff < 0 ? chip('bg-red-50 text-red-700 border-red-200', 'fa-solid fa-triangle-exclamation', `เลยกำหนด ${-diff} วัน`)
+					: diff === 0 ? chip('bg-amber-50 text-amber-700 border-amber-200', 'fa-solid fa-bolt', 'ครบกำหนดวันนี้')
+					: chip('bg-slate-50 text-slate-600 border-slate-200', 'fa-regular fa-clock', `อีก ${diff} วัน`));
+			}
+			if ((d.postpones || []).length) chips.push(chip('bg-violet-50 text-violet-700 border-violet-200', 'fa-solid fa-clock-rotate-left', `เลื่อนแล้ว ${d.postpones.length} ครั้ง`));
+			document.getElementById('ws-job-chips').innerHTML = chips.join('');
+
+			const tile = (icon, color, label, value) => `<div class="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-100 min-w-0">
+				<span class="w-7 h-7 shrink-0 rounded-lg bg-white shadow-sm flex items-center justify-center ${color}"><i class="${icon} text-xs"></i></span>
+				<span class="min-w-0"><span class="block text-[10.5px] text-slate-400 leading-tight">${label}</span><span class="block text-[13px] font-semibold text-slate-700 truncate">${value}</span></span></div>`;
+			document.getElementById('ws-job-tiles').innerHTML =
+				tile('fa-solid fa-calendar-day', 'text-sky-600', 'วันที่กำหนด', fmt(ev.event_date))
+				+ tile('fa-solid fa-rotate-right', 'text-indigo-500', 'ความถี่', esc(ev.freq_desc || '-'))
+				+ tile('fa-solid fa-stopwatch', 'text-amber-500', 'เวลาโดยประมาณ', ev.estimated_time ? `~${esc(ev.estimated_time)} นาที` : '-')
+				+ tile('fa-solid fa-check-double', 'text-emerald-600', 'ทำครั้งล่าสุด', d.last_done ? fmt(d.last_done) : 'ยังไม่เคยทำ');
+
+			const pp = (d.postpones || [])[0], w = d.work;
+			document.getElementById('ws-job-extra').innerHTML = (pp ? `<div class="mt-2 p-2.5 rounded-xl bg-violet-50 border border-violet-100 text-[13px] text-violet-800">
+					<i class="fa-solid fa-clock-rotate-left mr-1"></i> เลื่อนจาก <b>${fmt(pp.old_date)}</b> เป็น <b>${fmt(pp.new_date)}</b>${pp.reason ? `<div class="text-[12px] text-violet-600 mt-0.5">เหตุผล: ${esc(pp.reason)}</div>` : ''}</div>` : '')
+				+ (w ? `<div class="mt-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-100 text-[13px] text-emerald-900 space-y-0.5">
+					<div><i class="fa-solid fa-calendar-check mr-1"></i> ทำเมื่อ <b>${fmt(w.actual_date || ev.completed_at)}</b></div>
+					${(w.inspectors || []).length ? `<div><i class="fa-solid fa-user-check mr-1"></i> ผู้ตรวจ: ${w.inspectors.map(esc).join(', ')}</div>` : ''}
+					<div><i class="fa-solid fa-star mr-1"></i> ${w.evaluation ? `ประเมินแล้ว คะแนนเฉลี่ย <b>${esc(w.evaluation.average_score)}</b>${w.evaluation.evaluator_name ? ` โดย ${esc(w.evaluation.evaluator_name)}` : ''}` : 'ยังไม่ได้ประเมิน'}</div></div>` : '');
+		}
         let inspectorPad, evaluatorPad;
         let totalEvalTopics = 0;
         let usersData = [];
@@ -904,6 +974,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		
 					document.getElementById('app-container').style.display = 'block';
 					wsInitSteps();
+					wsLoadJobDetail();
 					window.dispatchEvent(new Event('resize'));
 		
 				} else {
@@ -953,8 +1024,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 				const imageUrlsJson = JSON.stringify(imageUrls).replace(/"/g, '&quot;');
 		
 				imagesList.innerHTML = imageFiles.map((file, index) => `
-					<div class="group block w-[88px] cursor-pointer">
-						<div class="w-[88px] h-[88px] rounded-xl overflow-hidden border border-slate-200 bg-slate-50 shadow-sm group-hover:shadow-md group-hover:border-primary transition"
+					<div class="group block w-14 cursor-pointer" title="${file.file_name}">
+						<div class="w-14 h-14 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 group-hover:border-primary transition"
 							 onclick='ImageCarousel.open(${imageUrlsJson}, ${index})'>
 							<img src="${file.file_path}" alt="${file.file_name}"
 								 class="w-full h-full object-cover">
@@ -970,10 +1041,10 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		
 				docsList.innerHTML = docFiles.map(file => `
 					<a href="${file.file_path}" target="_blank"
-					   class="inline-flex items-center gap-2 max-w-full px-4 py-2 rounded-full border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 transition shadow-sm">
-						<i class="fa-regular fa-file-lines text-emerald-600"></i>
-						<span class="truncate max-w-[220px] text-sm font-medium">${file.file_name}</span>
-						<i class="fa-solid fa-arrow-up-right-from-square text-slate-400 text-xs"></i>
+					   class="inline-flex items-center gap-1.5 max-w-full px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-primary transition" title="${file.file_name}">
+						<i class="fa-regular fa-file-lines text-emerald-600 text-xs"></i>
+						<span class="truncate max-w-[118px] sm:max-w-[200px] text-xs font-medium">${file.file_name}</span>
+						<i class="fa-solid fa-arrow-up-right-from-square text-slate-400 text-[10px]"></i>
 					</a>
 				`).join('');
 			} else {
@@ -1009,18 +1080,12 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             const container = document.getElementById('spares-container');
             const tbody = document.getElementById('spares-list');
             container.classList.remove('hidden');
-            let html = '';
-            spares.forEach((sp, index) => {
-                const spareDisplayName = `${sp.part_name || '-'} ${sp.part_no ? '('+sp.part_no+')' : ''}`;
-                html += `
-                    <tr class="hover:bg-amber-50 transition-colors">
-                        <td class="py-3 px-6 text-center text-slate-500 font-medium">${index + 1}</td>
-                        <td class="py-3 px-6 font-medium text-slate-900">${spareDisplayName}</td>
-                        <td class="py-3 px-6 text-center font-bold text-amber-700 text-base">${sp.quantity || sp.qty || '-'}</td>
-                    </tr>
-                `;
-            });
-            tbody.innerHTML = html;
+            tbody.innerHTML = spares.map(sp => wsSpareChip(`${sp.part_name || '-'}${sp.part_no ? ' (' + sp.part_no + ')' : ''}`, sp.quantity || sp.qty)).join('');
+        }
+        // อะไหล่ที่ต้องเตรียม: ป้ายเล็ก "ชื่อ ×จำนวน" ในการ์ดเครื่อง
+        function wsSpareChip(name, qty) {
+            const q = parseFloat(qty);
+            return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-xs text-slate-700">${wsAttr(name)}${isNaN(q) ? '' : ` <b class="text-amber-700">×${q}</b>`}</span>`;
         }
 
         // ---------- ขั้นตอนของใบงาน (stepper) ----------
@@ -1080,7 +1145,10 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             document.body.classList.remove('ws-sheet-open');
         }
         document.addEventListener('keydown', e => {
-            if (e.key === 'Escape' && document.getElementById('ws-signsheet')?.classList.contains('open') && !Swal.isVisible()) wsCloseSign();
+            if (e.key !== 'Escape' || Swal.isVisible()) return;
+            if (document.getElementById('ws-signsheet')?.classList.contains('open')) wsCloseSign();
+            else if (document.getElementById('ws-detail')?.classList.contains('is-open')) wsCloseDetail();
+            else if (WS_EMBED) wsClose();   // dialog ในหน้าวางแผน PM
         });
 
         // canvas ลายเซ็นถูกสร้างตอนขั้นที่ 4 ยังซ่อนอยู่ (กว้าง 0) จึงต้องปรับขนาดเมื่อแสดงครั้งแรก
@@ -1214,15 +1282,14 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             return `
                 <td class="ws-col-no">${index + 1}</td>
                 <td class="ws-col-point">
-                    <div class="flex items-start gap-2">
+                    <div class="flex items-center gap-2">
                         <span class="ws-mobile-no">${index + 1}</span>
-                        <div class="flex-1 min-w-0">
-                            <div class="font-semibold text-slate-800 leading-snug break-words">${item.check_point || '-'}</div>
-                            ${badges ? `<div class="flex flex-wrap gap-1 mt-1.5">${badges}</div>` : ''}
+                        <div class="flex-1 min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                            <span class="text-sm font-semibold text-slate-800 leading-snug break-words">${item.check_point || '-'}</span>${badges}
                         </div>
                         ${chipHtml}
+                        <button type="button" class="ws-more-btn" title="ดูมาตรฐาน / วิธีตรวจ"><i class="fa-solid fa-book-open"></i></button>
                     </div>
-                    <button type="button" class="ws-more-btn"><i class="fa-solid fa-book-open"></i><span>ดูมาตรฐาน / วิธีตรวจ</span></button>
                 </td>`;
         }
 
@@ -1343,8 +1410,9 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     requirePhotoBadge = '<span class="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-semibold border border-amber-200 whitespace-nowrap"><i class="fa-solid fa-camera mr-1"></i>ถ่ายรูปเมื่อผิดปกติ</span>';
                 }
                 const needMeasure = hasMeasurementConfig(item);
+                // ค่าที่ต้องวัด + มาตรฐาน อยู่ในหัวการ์ด (แถวกรอกค่าจะได้สูงเท่าปุ่มผลการตรวจ)
                 const measureBadge = needMeasure
-                    ? `<span class="text-[10px] bg-blue-50 text-primary px-2 py-0.5 rounded-full font-semibold border border-blue-200 whitespace-nowrap"><i class="fa-solid fa-ruler mr-1"></i>ต้องวัดค่า</span>` : '';
+                    ? `<span class="text-[10px] bg-blue-50 text-primary px-2 py-0.5 rounded-full font-semibold border border-blue-200 whitespace-nowrap"><i class="fa-solid fa-ruler mr-1"></i>${wsAttr(item.measurement_name || 'ต้องวัดค่า')} · มาตรฐาน ${wsAttr(item.expected_value)} ${wsAttr(item.unit || '')}</span>` : '';
                 const badges = requirePhotoBadge + measureBadge;
                 wsSetDetail(item.id, index + 1, item, badges, item.reference_image,
                     item.action_text || item.action_if_abnormal || item.action_abnormal);
@@ -1710,7 +1778,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 						<td class="ws-col-status" data-label="ผลการตรวจ">
 							<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-bold ${statusCls}"><i class="${statusIcon}"></i>${statusLabel}</span>
 						</td>
-						<td class="ws-col-value ${needMeasure || item.actual_value ? '' : 'ws-empty'}" data-label="ค่าที่วัดได้จริง">
+						<td class="ws-col-value ${needMeasure || (item.actual_value && item.actual_value !== '-') ? '' : 'ws-empty'}" data-label="ค่าที่วัดได้จริง">
 							<b class="text-slate-800">${item.actual_value || '-'}</b> <span class="text-xs text-slate-500">${item.unit || ''}</span>
 							${needMeasure ? `<div class="text-xs text-slate-500 mt-1">มาตรฐาน <b class="text-primary">${item.expected_value}</b> ${item.unit || ''}</div>` : ''}
 						</td>
@@ -1787,20 +1855,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 			if (!container || !tbody) return;
 		
 			container.classList.remove('hidden');
-		
-			let html = '';
-		
-			spares.forEach((sp, index) => {
-				html += `
-					<tr class="hover:bg-amber-50 transition-colors">
-						<td class="py-3 px-6 text-center text-slate-500 font-medium">${index + 1}</td>
-						<td class="py-3 px-6 font-medium text-slate-900">${sp.part_name || '-'}</td>
-						<td class="py-3 px-6 text-center font-bold text-amber-700 text-base">${sp.quantity || '-'}</td>
-					</tr>
-				`;
-			});
-		
-			tbody.innerHTML = html;
+			tbody.innerHTML = spares.map(sp => wsSpareChip(sp.part_name || '-', sp.quantity)).join('');
 		}
 		
 		function renderHistorySignature(signaturePath) {
@@ -2586,9 +2641,10 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 					}
 				});
 				
-				const response = await axios.post('handle_pm_worksheet.php', formBody);
+				wsSaving = true;   // dialog ในหน้าวางแผน PM จะไม่ให้ปิดระหว่างนี้
+				const response = await axios.post('handle_pm_worksheet.php', formBody).finally(() => { wsSaving = false; });
 				Swal.close();
-		
+
 				if (response.data.success) {
 					document.getElementById('evaluation_section').classList.remove('hidden');
 					document.getElementById('btn_save_eval').classList.remove('hidden');
@@ -2653,10 +2709,13 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 						}
 					});
 					
+					// เปิดเป็น dialog ในหน้าวางแผน PM => ปิด dialog (หน้าหลักโหลดปฏิทิน/งานที่ต้องทำใหม่เอง)
+					if (WS_EMBED) { wsClose(true); return; }
+
 					// พยายามปิดหน้าต่าง
 					window.open('', '_self');
 					window.close();
-					
+
 					// ถ้าปิดไม่ได้ ให้กลับหน้าก่อนหน้า หรือ redirect ไปหน้ารายการ
 					setTimeout(() => {
 						if (!window.closed) {

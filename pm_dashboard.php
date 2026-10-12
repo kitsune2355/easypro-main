@@ -77,7 +77,7 @@ include "config_ctrl/checksession.php";
     .pmc-wait .pmc-pill { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
     .pmc-wait .pmc-mini { background: #fef3c7; color: #92400e; box-shadow: inset 0 0 0 1px #fcd34d; }
     .pmc-wb { flex: none; font-size: 10px; font-weight: 700; color: #b45309; background: #fef3c7; border-radius: 4px; padding: 0 4px; }
-    .pmc-hol { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 1px 6px; border-radius: 6px; font-size: 11px; color: #be123c; background: #fff1f2; }
+    .pmc-hol { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 1px 6px; border-radius: 6px; font-size: 11px; color: #6d28d9; background: #f5f3ff; border: 1px solid #ddd6fe; }   /* วันหยุด: ม่วง (ไม่ซ้ำกับสีเลยกำหนด) */
     .pmc-hol span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fc-bg-event { opacity: 1 !important; }
 
@@ -189,7 +189,7 @@ include "config_ctrl/checksession.php";
             <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-sky-600"></span> รอทำ</span>
             <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> ทำครบแล้ว</span>
             <span class="inline-flex items-center gap-1.5" title="ตรวจครบในหน้าบันทึกพร้อมกันแล้ว แต่ยังไม่กดส่ง (นับจากร่างในเครื่องนี้)"><span class="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-300"></span> รอส่ง</span>
-            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-rose-100 border border-rose-200"></span> วันหยุด</span>
+            <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-violet-100 border border-violet-300"></span> วันหยุด</span>
             <span class="text-slate-400">ตัวเลข = ทำแล้ว / ทั้งหมด</span>
             <span id="pmc-active-filters" class="flex flex-wrap gap-1.5"></span>
         </div>
@@ -543,7 +543,7 @@ include "config_ctrl/checksession.php";
             else if (h.type === 'yearly') {
                 for (let y = y0; y <= y1; y++) out.push({ ...base, id: `hol_${h.id}_yr_${y}`, start: `${y}-${String(h.date).slice(5)}` });
             } else if (h.type === 'daily' && PMC_DAYS[h.date] !== undefined) {
-                out.push({ id: 'hol_recurring_' + h.id, title: h.name, daysOfWeek: [PMC_DAYS[h.date]], display: 'background', backgroundColor: '#f8fafc', extendedProps: { kind: 'hol', type: h.type } });
+                out.push({ id: 'hol_recurring_' + h.id, title: h.name, daysOfWeek: [PMC_DAYS[h.date]], display: 'background', backgroundColor: '#faf5ff', extendedProps: { kind: 'hol', type: h.type } });
             }
         });
         return out;
@@ -888,7 +888,7 @@ include "config_ctrl/checksession.php";
         if (p.t > 1) { openPmDayPanel(p.d, p.cs_id ?? 'none'); return; }
         try {
             const r = await pmcGet({ action: 'get_events', start: p.d, end: pmcAddDays(p.d, 1), cs: p.cs_id ?? 'none', limit: 1, ...pmcFilterParams() });
-            if (r.data[0]) openPmEventDetail(r.data[0].id, r.data[0], p.d);
+            if (r.data[0]) window.openPmWorksheetDialog(r.data[0].id, r.data[0].status == 1);
         } catch (e) {
             Swal.fire('ข้อผิดพลาด', 'โหลดงาน PM ไม่สำเร็จ: ' + e.message, 'error');
         }
@@ -912,7 +912,7 @@ include "config_ctrl/checksession.php";
             return `
             <div class="text-left">
                 <div class="text-sm text-slate-500 mb-3">งาน PM ${total.toLocaleString()} งาน · ${late && pendingAll ? '<span class="text-red-600">เลยกำหนด</span>' : 'ยังไม่ทำ'} <b class="${late && pendingAll ? 'text-red-600' : 'text-[#006B9F]'}">${pendingAll.toLocaleString()}</b> · ทำแล้ว <b class="text-emerald-600">${(total - pendingAll).toLocaleString()}</b>${waitAll ? ` · <span class="text-amber-700">รอส่ง <b>${waitAll.toLocaleString()}</b></span>` : ''}${Object.keys(filters).length ? ' <span class="text-slate-400">(ตามตัวกรอง)</span>' : ''}</div>
-                ${holidays.length ? `<div class="mb-3 flex flex-wrap gap-1.5">${holidays.map(h => `<span class="pm-dt-chip bg-rose-50 text-rose-700 border-rose-200"><i class="fas fa-calendar-times"></i> ${esc(h.name)}</span>`).join('')}</div>` : ''}
+                ${holidays.length ? `<div class="mb-3 flex flex-wrap gap-1.5">${holidays.map(h => `<span class="pm-dt-chip bg-violet-50 text-violet-700 border-violet-200"><i class="fas fa-umbrella-beach"></i> ${esc(h.name)}</span>`).join('')}</div>` : ''}
                 <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1" data-scroll>
                 ${arr.map((g, gi) => `
                     <div class="border rounded-xl p-3 ${g.wait ? '' : 'border-slate-200'}" data-group="${gi}">
@@ -992,7 +992,7 @@ include "config_ctrl/checksession.php";
             const b = e.target.closest('[data-batch]');
             if (b) { Swal.close(); openPmBatch(b.dataset.batch, dateStr); return; }
             const op = e.target.closest('[data-open]');
-            if (op) { Swal.close(); openPmFullWindow('pm_worksheet.php?plan_id=' + encodeURIComponent(op.dataset.open) + (op.dataset.done === '1' ? '&mode=history' : '')); return; }
+            if (op) { Swal.close(); window.openPmWorksheetDialog(op.dataset.open, op.dataset.done === '1'); return; }
             const tg = e.target.closest('[data-toggle]');
             if (tg) {
                 const box = popup.querySelector(`[data-list="${tg.dataset.toggle}"]`);
@@ -1004,7 +1004,7 @@ include "config_ctrl/checksession.php";
             if (one) {
                 const [gi, i] = one.dataset.ev.split(':').map(Number);
                 const ev = arr[gi] && arr[gi].list && arr[gi].list[i];
-                if (ev) openPmEventDetail(ev.id, ev, dateStr, { back: () => openPmDayPanel(dateStr, arr[gi].id ?? 'none') });
+                if (ev) { Swal.close(); window.openPmWorksheetDialog(ev.id, ev.status == 1); }
             }
         }
     }
@@ -1013,7 +1013,7 @@ include "config_ctrl/checksession.php";
     function openPmEventChooser(eventId, props, start) {
         const dateStr = moment(start).format('YYYY-MM-DD');
         const same = props.status == 1 ? 0 : pmSameDayPending(props.checksheet_id, dateStr);
-        if (same < 2) { openPmEventDetail(eventId, props, start); return; }
+        if (same < 2) { window.openPmWorksheetDialog(eventId, props.status == 1); return; }
         const esc = pmcEsc;
         const dTh = new Date(dateStr + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
         const card = (act, icon, color, title, desc) => `
@@ -1032,7 +1032,7 @@ include "config_ctrl/checksession.php";
                     <div class="text-sm text-slate-500 mt-0.5">วันที่ ${dTh} · มีงานเช็คชีตนี้ที่ยังไม่ทำ <b class="text-[#006B9F]">${same} เครื่อง</b></div>
                     <div class="mt-4 space-y-2.5">
                         ${card('batch', 'fas fa-layer-group', 'sky', `บันทึกพร้อมกันหลายเครื่อง (${same} เครื่อง)`, 'ผลตรวจปกติเหมือนกัน กรอกผล เลือกผู้ตรวจ และเซ็นครั้งเดียว')}
-                        ${card('one', 'fas fa-file-alt', 'emerald', 'รายเครื่อง', `ดูรายละเอียดและเปิดใบงานของ ${esc(props.machine || 'เครื่องนี้')}`)}
+                        ${card('one', 'fas fa-file-alt', 'emerald', 'รายเครื่อง', `เปิดใบงานของ ${esc(props.machine || 'เครื่องนี้')} (รายละเอียดงานอยู่ในใบงาน)`)}
                     </div>
                 </div>`,
             width: '32rem', showConfirmButton: false, showCloseButton: true,
@@ -1043,174 +1043,14 @@ include "config_ctrl/checksession.php";
                     if (!b) return;
                     Swal.close();
                     if (b.dataset.choose === 'batch') openPmBatch(props.checksheet_id, dateStr);
-                    else openPmEventDetail(eventId, props, start, { back: () => openPmEventChooser(eventId, props, start) });
+                    else window.openPmWorksheetDialog(eventId, false);
                 });
             }
         });
     }
 
-    // ==========================================
-    // Popup รายละเอียดงาน PM: แสดงข้อมูลที่มีทันที แล้วโหลดรายละเอียดเพิ่ม
-    // (สิ่งที่ต้องเตรียม / ทำครั้งล่าสุด / ประวัติเลื่อน / ผลการทำงาน) จาก handle_pm_dashboard.php?action=get_event_detail
-    // opts.back = ฟังก์ชันของปุ่ม "ย้อนกลับ" (กลับไปป๊อปอัปก่อนหน้า)
-    // ==========================================
-    function openPmEventDetail(eventId, props, start, opts) {
-        opts = opts || {};
-        const token = openPmEventDetail.token = {};   // กันผลของ popup ก่อนหน้ามาเขียนทับ popup ใหม่
-        const esc = pmcEsc;
-        const fmt = d => d ? moment(d).format('DD/MM/YYYY') : '-';
-        const done = props.status == 1;
-        const eventDate = moment(start).format('YYYY-MM-DD');
-
-        // วันที่กำหนดเทียบกับวันนี้ (งานที่ยังไม่ทำเท่านั้น)
-        function dueChip(today) {
-            if (done) return '';
-            const diff = moment(eventDate).diff(moment(today), 'days');
-            if (diff < 0) return `<span class="pm-dt-chip bg-red-50 text-red-700 border-red-200"><i class="fas fa-exclamation-triangle"></i> เลยกำหนด ${-diff} วัน</span>`;
-            if (diff === 0) return `<span class="pm-dt-chip bg-amber-50 text-amber-700 border-amber-200"><i class="fas fa-bolt"></i> ครบกำหนดวันนี้</span>`;
-            return `<span class="pm-dt-chip bg-slate-50 text-slate-600 border-slate-200"><i class="far fa-clock"></i> อีก ${diff} วัน</span>`;
-        }
-        const tile = (icon, color, label, value) => `
-            <div class="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100 min-w-0">
-                <div class="w-8 h-8 shrink-0 rounded-lg bg-white shadow-sm flex items-center justify-center ${color}"><i class="${icon}"></i></div>
-                <div class="min-w-0">
-                    <div class="text-[11px] text-slate-400 leading-tight">${label}</div>
-                    <div class="text-[13px] font-semibold text-slate-700 truncate">${value}</div>
-                </div>
-            </div>`;
-        const skel = w => `<span class="inline-block h-3 ${w} rounded bg-slate-200 animate-pulse align-middle"></span>`;
-
-        function build(d) {
-            const ev = d ? d.event : {};
-            const today = d ? d.today : moment().format('YYYY-MM-DD');
-            // ข้อมูลเครื่องจากรายละเอียด (กรณีเปิดจากกลุ่มที่ยังไม่มีข้อมูลเครื่อง)
-            const machine = props.machine || ev.asset_name, location = props.location || ev.location_name, type = props.type || ev.machine_type;
-            const status = done
-                ? `<span class="pm-dt-chip bg-emerald-50 text-emerald-700 border-emerald-200"><i class="fas fa-check-circle"></i> ดำเนินการแล้ว</span>`
-                : `<span class="pm-dt-chip bg-sky-50 text-sky-700 border-sky-200"><i class="fas fa-clock"></i> รอดำเนินการ</span>`;
-            const postponed = d && d.postpones.length
-                ? `<span class="pm-dt-chip bg-violet-50 text-violet-700 border-violet-200"><i class="fas fa-history"></i> เลื่อนแล้ว ${d.postpones.length} ครั้ง</span>` : '';
-
-            const code = ev.ass_code ? ` · <span class="font-mono">${esc(ev.ass_code)}</span>` : '';
-            const model = d ? [ev.asset_model, ev.asset_sn ? 'S/N ' + ev.asset_sn : ''].filter(Boolean).map(esc).join(' · ') : '';
-            const est = d ? (ev.estimated_time ? `~${esc(ev.estimated_time)} นาที` : '-') : skel('w-14');
-            const last = d ? (d.last_done ? fmt(d.last_done) : 'ยังไม่เคยทำ') : skel('w-16');
-            const freq = d ? esc(ev.freq_desc || '-') : skel('w-16');
-
-            // สิ่งที่ต้องเตรียม
-            let prep = '';
-            if (!d) {
-                prep = `<div class="space-y-2">${skel('w-2/3')}<br>${skel('w-1/2')}</div>`;
-            } else {
-                const it = d.items;
-                const photo = [it.photo_always ? `บังคับถ่ายรูป ${it.photo_always}` : '', it.photo_abnormal ? `ถ่ายรูปเมื่อผิดปกติ ${it.photo_abnormal}` : ''].filter(Boolean).join(' · ');
-                const spares = d.spares.length
-                    ? d.spares.map(s => `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[12px] text-slate-700">${esc(s.part_name)} <b class="text-slate-500">×${parseFloat(s.quantity) || 0}</b></span>`).join('')
-                    : '<span class="text-slate-400">ไม่มี</span>';
-                // ไฟล์แนบ: คลิกเพื่อดาวน์โหลด (ไอคอนตามชนิดไฟล์)
-                const fileIcon = (name, type) => {
-                    const ext = String(name).split('.').pop().toLowerCase();
-                    if (type === 'image' || /^(jpe?g|png|gif|webp|bmp|heic)$/.test(ext)) return 'fas fa-file-image text-violet-500';
-                    if (ext === 'pdf') return 'fas fa-file-pdf text-red-500';
-                    if (/^xls[xm]?$|^csv$/.test(ext)) return 'fas fa-file-excel text-emerald-600';
-                    if (/^docx?$/.test(ext)) return 'fas fa-file-word text-blue-600';
-                    if (/^pptx?$/.test(ext)) return 'fas fa-file-powerpoint text-orange-500';
-                    return 'fas fa-file text-slate-400';
-                };
-                const docs = d.files.length
-                    ? `<div class="mt-1 space-y-1 max-h-40 overflow-y-auto pr-0.5">${d.files.map(fi => `
-                        <a href="${esc(encodeURI(fi.file_path))}" download="${esc(fi.file_name)}" title="ดาวน์โหลด ${esc(fi.file_name)}"
-                           class="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-sky-300 hover:bg-sky-50 text-slate-700 no-underline transition-colors group">
-                            <i class="${fileIcon(fi.file_name, fi.file_type)} w-4 text-center shrink-0"></i>
-                            <span class="flex-1 min-w-0 truncate text-[12.5px]">${esc(fi.file_name || fi.file_path.split('/').pop())}</span>
-                            <i class="fas fa-download text-[11px] text-slate-400 group-hover:text-sky-600 shrink-0"></i>
-                        </a>`).join('')}</div>`
-                    : '<span class="text-slate-400">ไม่มี</span>';
-                prep = `
-                    <div class="pm-dt-row"><i class="fas fa-list-check text-sky-600"></i><div>จุดตรวจ <b>${it.total}</b> รายการ${photo ? `<div class="text-[12px] text-slate-500"><i class="fas fa-camera mr-1"></i>${photo}</div>` : ''}</div></div>
-                    <div class="pm-dt-row"><i class="fas fa-toolbox text-amber-600"></i><div class="min-w-0"><div class="mb-1">อะไหล่ / วัสดุ</div><div class="flex flex-wrap gap-1">${spares}</div></div></div>
-                    <div class="pm-dt-row"><i class="fas fa-paperclip text-slate-500"></i><div class="flex-1 min-w-0">คู่มือ / ไฟล์แนบ${d.files.length ? ` <span class="text-slate-400">(${d.files.length})</span>` : ': '}${docs}</div></div>`;
-            }
-
-            const pp = d && d.postpones.length ? d.postpones[0] : null;
-            const postponeBox = pp ? `
-                <div class="mt-3 p-3 rounded-xl bg-violet-50 border border-violet-100 text-[13px] text-violet-800">
-                    <i class="fas fa-history mr-1"></i> เลื่อนจาก <b>${fmt(pp.old_date)}</b> เป็น <b>${fmt(pp.new_date)}</b>
-                    ${pp.reason ? `<div class="text-[12px] text-violet-600 mt-0.5">เหตุผล: ${esc(pp.reason)}</div>` : ''}
-                </div>` : '';
-
-            const w = d && d.work;
-            const workBox = w ? `
-                <div class="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-[13px] text-emerald-900 space-y-1">
-                    <div><i class="fas fa-calendar-check mr-1"></i> ทำเมื่อ <b>${fmt(w.actual_date || ev.completed_at)}</b></div>
-                    ${w.inspectors.length ? `<div><i class="fas fa-user-check mr-1"></i> ผู้ตรวจ: ${w.inspectors.map(esc).join(', ')}</div>` : ''}
-                    <div><i class="fas fa-star mr-1"></i> ${w.evaluation ? `ประเมินแล้ว คะแนนเฉลี่ย <b>${esc(w.evaluation.average_score)}</b>${w.evaluation.evaluator_name ? ` โดย ${esc(w.evaluation.evaluator_name)}` : ''}` : '<span class="text-emerald-700">ยังไม่ได้ประเมิน</span>'}</div>
-                </div>` : '';
-
-            return `
-                <div class="text-left">
-                    <div class="flex flex-wrap items-center gap-1.5 pr-6">${status}${d ? dueChip(today) : ''}${postponed}</div>
-                    <h3 class="mt-3 text-lg font-bold text-slate-800 leading-snug">${esc(props.checksheet || ev.checksheet_name || '-')}</h3>
-                    <div class="mt-0.5 text-[13px] text-slate-500"><i class="fas fa-cogs mr-1 text-slate-400"></i>${esc(machine || '-')}${code}</div>
-
-                    <div class="mt-4 grid grid-cols-2 gap-2">
-                        ${tile('fas fa-calendar-day', 'text-sky-600', 'วันที่กำหนด', fmt(eventDate))}
-                        ${tile('fas fa-redo', 'text-indigo-500', 'ความถี่', freq)}
-                        ${tile('fas fa-stopwatch', 'text-amber-500', 'เวลาโดยประมาณ', est)}
-                        ${tile('fas fa-check-double', 'text-emerald-600', 'ทำครั้งล่าสุด', last)}
-                    </div>
-
-                    <div class="mt-3 p-3 rounded-xl border border-slate-100 text-[13px] text-slate-700 space-y-1">
-                        <div><i class="fas fa-map-marker-alt w-4 text-rose-500"></i> ${esc(location || '-')}</div>
-                        <div class="text-slate-500"><i class="fas fa-layer-group w-4 text-purple-500"></i> ${esc(type || '-')}${model ? ` · ${model}` : ''}</div>
-                    </div>
-
-                    ${done ? '' : `
-                    <div class="mt-3 p-3 rounded-xl bg-sky-50/60 border border-sky-100 text-[13px] text-slate-700">
-                        <div class="text-[12px] font-semibold text-sky-800 mb-2">สิ่งที่ต้องเตรียม</div>
-                        <div class="space-y-2">${prep}</div>
-                    </div>`}
-                    ${postponeBox}
-                    ${workBox}
-                </div>`;
-        }
-
-        Swal.fire({
-            html: build(null),
-            width: '34rem',
-            showCloseButton: true,
-            showCancelButton: true,
-            showDenyButton: !!opts.back,
-            denyButtonText: '<i class="fas fa-arrow-left mr-2"></i> ย้อนกลับ',
-            confirmButtonText: done ? '<i class="fas fa-search mr-2"></i> ดูประวัติ' : '<i class="fas fa-external-link-alt mr-2"></i> เปิดใบงาน',
-            cancelButtonText: 'ปิด',
-            reverseButtons: true,
-            buttonsStyling: false,
-            customClass: {
-                confirmButton: (done ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100' : 'bg-sky-600 hover:bg-sky-700 shadow-sky-100') + ' text-white px-6 py-2.5 rounded-lg font-semibold text-sm mx-1.5 shadow-lg transition-all',
-                cancelButton: 'bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 py-2.5 rounded-lg font-semibold text-sm mx-1.5 transition-all',
-                denyButton: 'bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-5 py-2.5 rounded-lg font-semibold text-sm mx-1.5 transition-all',
-                actions: 'flex-wrap gap-y-2',
-                popup: 'rounded-3xl border-none shadow-2xl',
-                htmlContainer: 'pm-dt-body'
-            },
-            showClass: { popup: 'animate__animated animate__fadeInUp animate__faster' },
-            hideClass: { popup: 'animate__animated animate__fadeOutDown animate__faster' }
-        }).then(result => {
-            if (result.isDenied) { opts.back(); return; }
-            if (!result.isConfirmed) return;
-            openPmFullWindow('pm_worksheet.php?plan_id=' + encodeURIComponent(eventId) + (done ? '&mode=history' : ''));
-        });
-
-        fetch(`handle_pm_dashboard.php?action=get_event_detail&id=${encodeURIComponent(eventId)}`)
-            .then(r => r.json())
-            .then(res => {
-                const box = Swal.getHtmlContainer();
-                if (!res.success || !box || openPmEventDetail.token !== token) return;
-                box.innerHTML = build(res.data);
-            })
-            .catch(err => console.error('โหลดรายละเอียดงาน PM ไม่สำเร็จ', err));
-    }
+    // รายละเอียดงาน (สถานะ เลยกำหนด ความถี่ เวลาโดยประมาณ ทำครั้งล่าสุด ประวัติเลื่อน ผลการทำงาน) แสดงในใบงาน PM แล้ว
+    //  กดงานในปฏิทิน => เปิดใบงานเป็น dialog ทันที (window.openPmWorksheetDialog ใน pm.php)
 
     // เริ่มต้นแท็บเมื่อเปิดครั้งแรก (ดู pmLazy ใน pm.php) — สร้างปฏิทิน แล้ว datesSet จะโหลดข้อมูลเอง
     pmLazy('dashboard', function() {
@@ -1266,8 +1106,8 @@ include "config_ctrl/checksession.php";
                         title: `<span class="text-xl font-bold text-slate-800">วันหยุด</span>`,
                         html: `
                             <div class="flex flex-col items-center">
-                                <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4 text-red-500">
-                                    <i class="fas fa-calendar-times text-3xl"></i>
+                                <div class="w-16 h-16 bg-violet-50 rounded-full flex items-center justify-center mb-4 text-violet-600">
+                                    <i class="fas fa-umbrella-beach text-3xl"></i>
                                 </div>
                                 <div class="text-lg font-bold text-slate-700 mb-1">${pmcEsc(ev.title)}</div>
                                 <div class="text-sm text-slate-500">วันที่ ${moment(ev.start).format('DD/MM/YYYY')}</div>
