@@ -1353,10 +1353,10 @@ include "config_ctrl/checksession.php";
                                 </div>
                                 <div class="ml-3 text-sm">
                                     <label for="is_rollover" class="text-[11px] font-bold text-orange-600 uppercase flex items-center gap-2 cursor-pointer">
-                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> ยืนยันมิเตอร์วนรอบ (Meter Rollover)
+                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> เริ่มนับใหม่ (มิเตอร์วนรอบ / เปลี่ยนมิเตอร์)
                                     </label>
                                     <p class="text-orange-600/80 text-[11px] mt-1 leading-relaxed">
-                                        * ติ๊กเฉพาะกรณีที่เลขมิเตอร์ปัจจุบันน้อยกว่าเลขรอบก่อนหน้า เนื่องจากหน้าปัดมิเตอร์วิ่งครบรอบแล้วเท่านั้น
+                                        * ติ๊กเมื่อหน้าปัดวนกลับมาเริ่มใหม่ หรือเปลี่ยนมิเตอร์ใหม่ — ระบบจะนับปริมาณการใช้ของรอบนี้ตั้งแต่ 0 (เท่ากับเลขที่อ่านได้)
                                     </p>
                                 </div>
                             </div>
@@ -1380,10 +1380,10 @@ include "config_ctrl/checksession.php";
                                 </div>
                                 <div class="ml-3 text-sm">
                                     <label for="is_rollover" class="text-[11px] font-bold text-orange-600 uppercase flex items-center gap-2 cursor-pointer">
-                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> ยืนยันมิเตอร์วนรอบ (Meter Rollover)
+                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> เริ่มนับใหม่ (มิเตอร์วนรอบ / เปลี่ยนมิเตอร์)
                                     </label>
                                     <p class="text-orange-600/80 text-[11px] mt-1 leading-relaxed">
-                                        * ติ๊กเฉพาะกรณีที่เลขมิเตอร์ปัจจุบันน้อยกว่าเลขรอบก่อนหน้า เนื่องจากหน้าปัดมิเตอร์วิ่งครบรอบแล้วเท่านั้น
+                                        * ติ๊กเมื่อหน้าปัดวนกลับมาเริ่มใหม่ หรือเปลี่ยนมิเตอร์ใหม่ — ระบบจะนับปริมาณการใช้ของรอบนี้ตั้งแต่ 0 (เท่ากับเลขที่อ่านได้)
                                     </p>
                                 </div>
                             </div>

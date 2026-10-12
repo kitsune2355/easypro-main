@@ -59,12 +59,13 @@ function meter_prefix($tab) {
 }
 
 /**
- * คำนวณปริมาณการใช้ (usage) รองรับมิเตอร์วนรอบ (rollover)
- * ใช้ร่วมกันทั้งตอนดึงประวัติและตอนเช็คแจ้งเตือน (ลดโค้ดซ้ำ)
+ * คำนวณปริมาณการใช้ (usage)
+ * ติ๊ก "เริ่มนับใหม่" (is_rollover = 1) => มิเตอร์วนรอบ/เปลี่ยนมิเตอร์ เริ่มนับจาก 0 ใหม่ ปริมาณการใช้ = เลขที่อ่านได้
+ * ใช้ร่วมกันทั้งตอนดึงประวัติและตอนเช็คแจ้งเตือน (ลดโค้ดซ้ำ) — $max เก็บไว้เพื่อความเข้ากันได้ (ไม่ใช้แล้ว)
  */
 function calc_usage($curr, $prev, $is_roll, $max) {
-    if ($is_roll == 1 && $curr < $prev) {
-        return ($max - $prev) + $curr;
+    if ($is_roll == 1) {
+        return $curr < 0 ? 0 : $curr;
     }
     $u = $curr - $prev;
     return $u < 0 ? 0 : $u;
@@ -454,11 +455,9 @@ function validate_simple_rollback($connect, $tab, $mt_id, $ag_id, $log_date, $ro
     if (empty($rows)) return;
 
     $prev_val = (float)$rows[0]['val'];
-    if ($is_rollover && $curr_val >= $prev_val) {
-        send_error('คุณเลือก "มิเตอร์วนรอบ" แต่ค่าปัจจุบันไม่ได้น้อยกว่ารอบก่อนหน้า', 200);
-    }
+    // ติ๊ก "เริ่มนับใหม่" ได้ทุกกรณี (มิเตอร์ใหม่อาจเริ่มที่เลขใดก็ได้)
     if (!$is_rollover && $curr_val < $prev_val) {
-        send_error('ค่ามิเตอร์น้อยกว่ารอบก่อนหน้า (' . $prev_val . ') หากมิเตอร์วนรอบกรุณาติ๊กช่องยืนยัน', 200);
+        send_error('ค่ามิเตอร์น้อยกว่ารอบก่อนหน้า (' . $prev_val . ') หากมิเตอร์วนรอบหรือเปลี่ยนมิเตอร์ กรุณาติ๊ก "เริ่มนับใหม่"', 200);
     }
 }
 
@@ -493,7 +492,7 @@ function validate_tou_rollback($connect, $mt_id, $ag_id, $log_datetime, $is_roll
     foreach ($map as $label => $col) {
         $prev = (float)$p[$col];
         if (!$is_rollover && $v[$label] < $prev) {
-            send_error("ค่า $label ต่ำกว่าข้อมูลก่อนหน้า [ $prev ] หากมิเตอร์วนรอบกรุณาติ๊กช่องยืนยัน", 200);
+            send_error("ค่า $label ต่ำกว่าข้อมูลก่อนหน้า [ $prev ] หากมิเตอร์วนรอบหรือเปลี่ยนมิเตอร์ กรุณาติ๊ก \"เริ่มนับใหม่\"", 200);
         }
     }
 }

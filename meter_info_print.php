@@ -50,6 +50,7 @@ if (isset($simple_tables[$category])) {
                 DATE(td.{$prefix}_time) as log_date,
                 td.{$prefix}_mt as curr_val,
                 td.{$prefix}_rm as note,
+                td.{$prefix}_is_rollover as is_rollover,
                 u.user_name as recorder,
                 mr.round_time as time
               FROM {$table_name} td
@@ -71,7 +72,8 @@ if (isset($simple_tables[$category])) {
                 td.toudt_032 as off_peak_demand,
                 td.toudt_071 as on_peak_reactive,
                 td.toudt_072 as off_peak_reactive,
-                td.toudt_note as note
+                td.toudt_note as note,
+                td.toudt_is_rollover as is_rollover
               FROM tb_tou_detail td
               LEFT JOIN tb_meter_round mr ON td.toudt_round_id = mr.round_id
               LEFT JOIN tb_user u ON td.toudt_user_ins = u.user_id
@@ -194,13 +196,12 @@ $res_h = mysqli_query($connect, $sql_h);
                     <?php if($category !== 'tou'): 
                         $curr_val = floatval($row['curr_val']);
                         
-                        // 🌟 คำนวณ Usage แบบรองรับ Rollover
-                        if ($curr_val < $prev_val) {
-                            // กรณีมิเตอร์วนรอบ (ค่าใหม่น้อยกว่าค่าเก่า)
-                            $usage = ($mt_max_val - $prev_val) + $curr_val;
+                        // 🌟 คำนวณ Usage: ติ๊ก "เริ่มนับใหม่" => นับจาก 0 (เหมือน calc_usage ใน handle_meter_info.php)
+                        if (!empty($row['is_rollover'])) {
+                            $usage = max(0, $curr_val);
                         } else {
                             // กรณีปกติ (รวมถึงกรณีค่าเท่าเดิม 12450 - 12450 = 0)
-                            $usage = $curr_val - $prev_val;
+                            $usage = max(0, $curr_val - $prev_val);
                         }
 
                         // คำนวณ % Diff
@@ -228,9 +229,10 @@ $res_h = mysqli_query($connect, $sql_h);
                         $c_on  = floatval($row['on_val']);
                         $c_off = floatval($row['off_val']);
                         
-                        // 🌟 คำนวณ On/Off แบบรองรับ Rollover
-                        $u_on = ($c_on < $prev_on) ? (($mt_max_val - $prev_on) + $c_on) : ($c_on - $prev_on);
-                        $u_off = ($c_off < $prev_off) ? (($mt_max_val - $prev_off) + $c_off) : ($c_off - $prev_off);
+                        // 🌟 คำนวณ On/Off: ติ๊ก "เริ่มนับใหม่" => นับจาก 0
+                        $restart = !empty($row['is_rollover']);
+                        $u_on = $restart ? max(0, $c_on) : max(0, $c_on - $prev_on);
+                        $u_off = $restart ? max(0, $c_off) : max(0, $c_off - $prev_off);
                         $u_tot = $u_on + $u_off;
 
                         // คำนวณ % Diff สำหรับ TOU
