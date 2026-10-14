@@ -159,6 +159,8 @@ include "config_ctrl/checksession.php";
                                 switch(item.type) {
                                     case 'repair_request':
                                     case 'repair_completed':
+                                    case 'repair_hold':
+                                    case 'repair_parts_arrived':
                                         sessionStorage.setItem('_edit_id', item.related_id);
                                         window.parent.navigate('maintenance_info.php');
                                         break;

@@ -923,8 +923,10 @@ function renderNotifications(data, isAppend) {
             switch(item.type) {
                 case 'repair_request':
                 case 'repair_completed':
+                case 'repair_hold':            // พักงานซ่อม
+                case 'repair_parts_arrived':   // อะไหล่ของงานที่พักเข้าคลังแล้ว
                     sessionStorage.setItem('_edit_id', item.related_id);
-                    navigate('maintenance_info.php'); 
+                    navigate('maintenance_info.php');
                     break;
 
                 case 'meter_exceeded':
@@ -1025,7 +1027,7 @@ async function fetchNotifications(isAppend = false) {
                                 window.focus(); // ดึงหน้าต่างเบราว์เซอร์ขึ้นมาด้านหน้า
                                 
                                 // เช็ค Type เพื่อนำทางไปยังหน้าจอที่ถูกต้อง
-                                if(item.type === 'repair_request' || item.type === 'repair_completed'){
+                                if(['repair_request', 'repair_completed', 'repair_hold', 'repair_parts_arrived'].includes(item.type)){
                                     sessionStorage.setItem('_edit_id', item.related_id);
                                     if(typeof navigate === 'function') navigate('maintenance_info.php');
                                 } else if (item.type === 'meter_exceeded') {

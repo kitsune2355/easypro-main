@@ -25,6 +25,9 @@ if (mysqli_connect_errno()) {
   exit;
 }
 mysqli_set_charset($connect, "utf8mb4");
+// พักงานซ่อม: สร้างตารางก่อนเริ่ม transaction ใด ๆ (CREATE TABLE ใน transaction จะ commit ให้เอง)
+require_once 'config_ctrl/repair_hold.php';
+rh_ensure($connect);
 
 $action = $_GET['action'] ?? '';
 if (!$action) {
@@ -275,6 +278,10 @@ if ($action === 'get_one') {
 
       r.created_by,
       r.created_at,
+      (SELECT CONCAT(h.reason, '|', h.started_at, '|', IFNULL(h.eta, ''), '|',
+              (SELECT COUNT(*) FROM repair_hold_parts hp WHERE hp.hold_id = h.id AND hp.arrived_at IS NOT NULL), '/',
+              (SELECT COUNT(*) FROM repair_hold_parts hp WHERE hp.hold_id = h.id))
+         FROM repair_holds h WHERE h.rp_id = r.id AND h.ended_at IS NULL ORDER BY h.id DESC LIMIT 1) AS hold_info,
 
       a.ass_id   AS asset_ass_id,
       a.ass_code AS asset_code,
@@ -807,6 +814,17 @@ if ($action === 'get_all') {
       $col = $filterMap[$field];
 
       // set filter
+      if (($info['filterType'] ?? '') === 'set' && $field === 'status' && in_array('onhold', (array)($info['values'] ?? []), true)) {
+        // "พักงาน" ไม่ใช่ค่าในคอลัมน์ status — คือ inprogress ที่มีรอบพักงานค้างอยู่ (เลือกร่วมกับสถานะอื่นได้)
+        $others = array_values(array_filter((array)$info['values'], function ($v) { return $v !== 'onhold'; }));
+        $cond = "EXISTS (SELECT 1 FROM repair_holds rh WHERE rh.rp_id = r.id AND rh.ended_at IS NULL)";
+        if ($others) {
+          $cond = "($col IN (" . implode(',', array_fill(0, count($others), '?')) . ") OR $cond)";
+          foreach ($others as $v) { $params[] = $v; $types .= "s"; }
+        }
+        $whereSql .= " AND $cond ";
+        continue;
+      }
       if (($info['filterType'] ?? '') === 'set') {
         $values = $info['values'] ?? [];
         if (!empty($values)) {
@@ -993,6 +1011,10 @@ if ($action === 'get_all') {
       ) AS responsible_names,
       r.created_by,
       r.created_at,
+      (SELECT CONCAT(h.reason, '|', h.started_at, '|', IFNULL(h.eta, ''), '|',
+              (SELECT COUNT(*) FROM repair_hold_parts hp WHERE hp.hold_id = h.id AND hp.arrived_at IS NOT NULL), '/',
+              (SELECT COUNT(*) FROM repair_hold_parts hp WHERE hp.hold_id = h.id))
+         FROM repair_holds h WHERE h.rp_id = r.id AND h.ended_at IS NULL ORDER BY h.id DESC LIMIT 1) AS hold_info,
 
       a.ass_id   AS asset_ass_id,
       a.ass_code AS asset_code,
@@ -1064,6 +1086,8 @@ if ($action === 'get_all') {
       'urgency'         => $row['urgency'],
 
       'status'          => $row['status'],
+      'hold'            => (function ($v) { if (!$v) return null; $p = explode('|', $v); $a = explode('/', $p[3] ?? '0/0');
+                              return ['reason' => $p[0], 'label' => rh_reasons()[$p[0]] ?? $p[0], 'since' => $p[1] ?? '', 'eta' => $p[2] ?? '', 'arrived' => (int)$a[0], 'parts' => (int)($a[1] ?? 0)]; })($row['hold_info'] ?? null),
       'ag_id'           => $row['ag_id'],
       'rp_format'       => $row['rp_format'],
       'machine_id'      => $row['machine_id'],
@@ -1359,6 +1383,7 @@ if ($action === 'cancel') {
       throw new Exception('Execute cancel repair_requests failed: ' . $err);
     }
     $stmtCancel->close();
+    rh_end_active($connect, $repairId, $updatedBy, 'cancel');
 
     $connect->commit();
 
@@ -2132,6 +2157,8 @@ if ($hasCompleted) {
     }
     $stmtUpd->close();
 	
+    if ($status !== 'inprogress') rh_end_active($connect, $repairId, $updatedBy, $status === 'completed' ? 'close' : 'cancel');
+
 // ---------- บันทึกผู้รับผิดชอบหลายคน ----------
 $responsible_saved = save_repair_responsibles(
   $connect,

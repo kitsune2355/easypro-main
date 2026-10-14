@@ -486,7 +486,10 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
 				  return true;
 				})
 				.sort((a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b));
-	
+			  // พักงาน = งานกำลังดำเนินการที่พักอยู่ (กรองฝั่ง server)
+			  const ip = normalized.indexOf('inprogress');
+			  normalized.splice(ip >= 0 ? ip + 1 : normalized.length, 0, 'onhold');
+
 			  params.success(normalized);
 			})
 			.catch(() => params.success([]));
@@ -577,6 +580,8 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
     const STATUS_META = {
       pending:    { th:'รอดำเนินการ',   pct:10,  bg:'bg-amber-50',  text:'text-amber-700',  bar:'bg-amber-500' },
       inprogress: { th:'กำลังดำเนินการ', pct:50,  bg:'bg-sky-50',    text:'text-sky-700',    bar:'bg-sky-500' },
+      // พักงาน: ไม่ใช่ค่าในคอลัมน์ status จริง (ยังเป็น inprogress) — ใช้กับตัวกรอง และป้ายเมื่อแถวมี row.hold
+      onhold:     { th:'พักงาน',         pct:50,  bg:'bg-amber-50',  text:'text-amber-700',  bar:'bg-amber-500' },
       completed:  { th:'เสร็จสิ้น',      pct:100, bg:'bg-emerald-50', text:'text-emerald-700', bar:'bg-emerald-500' },
 	  feedback:   { th:'ประเมินแล้ว',   pct:100, bg:'bg-emerald-50', text:'text-emerald-700', bar:'bg-emerald-500'},
       cancel:     { th:'ยกเลิก',        pct:0,   bg:'bg-rose-50',    text:'text-rose-700',    bar:'bg-rose-500' },
@@ -591,7 +596,28 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
 
     const statusToThai = (v) => STATUS_META[normalizeStatus(v)]?.th || (v ?? '');
 
+    // ป้ายพักงาน (row.hold จาก get_all): เหตุผล · พักมากี่วัน + อะไหล่เข้าแล้ว / วันที่คาดว่ากลับมาทำ (เลยกำหนด = แดง)
+    const holdSubText = (h) => {
+      if (!h) return '';
+      const days = Math.max(0, Math.floor((Date.now() - new Date(String(h.since).replace(' ', 'T')).getTime()) / 864e5));
+      const today = new Date(); const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const bits = [days ? `${days} วัน` : 'วันนี้'];
+      if (h.parts) bits.push(h.arrived === h.parts ? 'อะไหล่ครบ' : `อะไหล่ ${h.arrived}/${h.parts}`);
+      const over = h.eta && h.eta < ymd;
+      if (h.eta) bits.push(`${over ? 'เลยกำหนด' : 'กลับมาทำ'} ${formatThaiDate(h.eta)}`);
+      return `<span class="${over ? 'text-rose-600 font-bold' : 'text-slate-500'}">${escapeHtml(bits.join(' · '))}</span>`;
+    };
+
     const statusRenderer = (p) => {
+      if (p.data?.hold && normalizeStatus(p.value) === 'inprogress') {
+        const h = p.data.hold;
+        return `
+        <div class="flex flex-col w-full min-w-[140px] px-1 py-1.5 leading-tight">
+          <span class="text-[12px] font-bold tracking-tight text-amber-700">⏸ พักงาน</span>
+          <span class="text-[10.5px] font-semibold text-amber-700 truncate" title="${escapeHtml(h.label)}">${escapeHtml(h.label)}</span>
+          <span class="text-[10.5px] truncate">${holdSubText(h)}</span>
+        </div>`;
+      }
       const k = normalizeStatus(p.value);
       const meta = STATUS_META[k] || { th:'ไม่ทราบสถานะ', pct:0, bg:'bg-slate-50', text:'text-slate-600', bar:'bg-slate-400' };
       const pct = Math.max(0, Math.min(100, Number(meta.pct) || 0));
@@ -1440,7 +1466,7 @@ const uiColumns = [
       {
         headerName:"สถานะ",
         field:"status",
-        width:100,
+        width:150, minWidth:140,   // ป้ายพักงานมี 3 บรรทัด (สถานะ / เหตุผล / วัน-อะไหล่)
         filter:"agSetColumnFilter",
         filterParams: { ...getFilterParams("status"), valueFormatter:(p)=>statusToThai(p.value) },
         cellRenderer: statusRenderer
@@ -2129,6 +2155,9 @@ let CL = { keepUrls: [], newFiles: [] };
     // งานที่ยังไม่ปิด -> เน้น Step 1 ก่อน
     setActionStep(1);
   }
+
+  // พักงาน / ติดตามงาน (js/repair-hold.js)
+  if (window.RepairHold) window.RepairHold.load(row);
 
   // ผูก event watcher ให้ Step 1 (เผื่อเปิด drawer ครั้งแรก)
   initActionStepWatcher();
@@ -4183,6 +4212,7 @@ const MobileList = (() => {
     { key: 'pending,inprogress', label: 'งานค้าง' },
     { key: 'pending',    label: 'รอดำเนินการ' },
     { key: 'inprogress', label: 'กำลังดำเนินการ' },
+    { key: 'onhold',     label: 'พักงาน' },
     { key: 'completed',  label: 'เสร็จสิ้น' },
     { key: 'feedback',   label: 'ประเมินแล้ว' },
     { key: 'cancel',     label: 'ยกเลิก' }
@@ -4213,7 +4243,8 @@ const MobileList = (() => {
 
   function cardHtml(row, idx) {
     const st = normalizeStatus(row.status);
-    const meta = STATUS_META[st] || { th: 'ไม่ทราบสถานะ', bg: 'bg-slate-50', text: 'text-slate-600' };
+    const onHold = !!(row.hold && st === 'inprogress');
+    const meta = onHold ? { ...STATUS_META.onhold, th: '⏸ ' + (row.hold.label || 'พักงาน') } : (STATUS_META[st] || { th: 'ไม่ทราบสถานะ', bg: 'bg-slate-50', text: 'text-slate-600' });
     const urg = urgencyMeta(row.urgency);
     const loc = [row.building_name, row.floor_name, row.room_name].filter(v => v && v !== '-' && v !== 'ไม่ระบุ').join(' · ') || 'ไม่ระบุสถานที่';
     const phone = String(row.phone || '').trim();
@@ -4793,6 +4824,7 @@ const MobileList = (() => {
     <ul class="text-xs text-slate-600 space-y-1 list-disc list-inside">
       <li><span class="font-semibold text-emerald-700">สเตปที่ 1:</span> กรอกวันที่ เวลา และผู้รับผิดชอบฝั่งรับงานให้ครบ</li>
       <li><span class="font-semibold text-emerald-700">สเตปที่ 2:</span> ระบบจะเปิดส่วน <span class="font-semibold">“ปิดงาน / รายงานผล”</span> ให้โดยอัตโนมัติ</li>
+      <li><span class="font-semibold text-amber-700">ถ้างานยังทำต่อไม่ได้</span> (รออะไหล่ / ส่งต่อผู้รับเหมา / รอเข้าพื้นที่) กด <span class="font-semibold">“พักงาน”</span> — บันทึกทันที และกด <span class="font-semibold">“กลับมาดำเนินการ”</span> เมื่อพร้อม</li>
       <li>ตรวจสอบข้อมูลให้เรียบร้อย จากนั้นกด <span class="font-semibold">“บันทึกข้อมูล (Save)”</span> ด้านล่างขวา</li>
     </ul>
   </div>
@@ -4838,14 +4870,25 @@ const MobileList = (() => {
               </div>
 
 
-              <!-- STEP 2: CLOSE -->
+              <!-- STEP 2: HOLD — พักงาน / ติดตามงาน (js/repair-hold.js บันทึกทันที ไม่ต้องกดบันทึกข้อมูล) -->
+              <div id="step-hold" class="relative pl-4 border-l-2 border-amber-300 transition-colors">
+                <span class="absolute -left-[9px] top-0 w-4 h-4 rounded-full border-2 border-white shadow-sm
+                             flex items-center justify-center text-[10px] font-bold bg-amber-500 text-white">2</span>
+                <h4 class="text-xs font-bold text-slate-800 mb-3 flex items-center gap-2">
+                  พักงาน / ติดตามงาน
+                  <span class="text-[9px] font-normal text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">On hold</span>
+                </h4>
+                <div id="hold_box"></div>
+              </div>
+
+              <!-- STEP 3: CLOSE -->
              <div id="step-close"
      class="relative pl-4 border-l-2 border-slate-200  border-emerald-400 transition-colors">
   <span
     class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-emerald-100 border-2 border-white shadow-sm
-           flex items-center justify-center text-[10px] font-bold 
+           flex items-center justify-center text-[10px] font-bold
             bg-emerald-500 text-white transition-colors">
-    2
+    3
   </span>
 
                 <h4 class="text-xs font-bold text-slate-800 mb-3 flex items-center gap-2">
@@ -6337,5 +6380,7 @@ window.RepairEvaluationCenter = {
 </script>
 
 
+<!-- พักงาน / ติดตามงาน ในรายละเอียดงานซ่อม -->
+<script src="js/repair-hold.js?v=<?php echo @filemtime(__DIR__ . '/js/repair-hold.js') ?: time(); ?>"></script>
 </body>
 </html>

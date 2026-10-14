@@ -4,7 +4,10 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-include 'config_ctrl/connect.php'; 
+include 'config_ctrl/connect.php';
+// พักงานซ่อม (รออะไหล่): ของเข้าคลังแล้วจองให้งานที่รอ + แจ้งเตือน — สร้างตารางก่อนเริ่ม transaction
+require_once 'config_ctrl/repair_hold.php';
+rh_ensure($connect);
 
 if (mysqli_connect_errno()) {
     http_response_code(500); 
@@ -722,6 +725,7 @@ if ($action === 'save_product') {
             }
             // ใช้ยอดคงเหลือหลังรับเข้า + จุดสั่งซื้อขั้นต่ำของคลังนั้นจริง ๆ
             checkAndNotifyLowStock($connect, $pd_id, $wh_id, $new_balance, $stock_qty_min);
+            rh_check_arrivals($connect, $pd_id, $wh_id);   // งานซ่อมที่พักรออะไหล่นี้
         }
 
         mysqli_commit($connect);
@@ -822,6 +826,7 @@ if ($action === 'save_product') {
                 }
                 // ใช้ยอดหลังปรับ + จุดสั่งซื้อขั้นต่ำของคลังนั้นจริง ๆ
                 checkAndNotifyLowStock($connect, $pd_id, $wh_id, $new_qty, $stock_qty_min);
+                if ($diff > 0) rh_check_arrivals($connect, $pd_id, $wh_id);   // งานซ่อมที่พักรออะไหล่นี้
             }
         }
 

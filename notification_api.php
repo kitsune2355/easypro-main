@@ -168,7 +168,7 @@ switch ($action) {
         // ---------------------------------------------------------
         $sql_count = "SELECT COUNT(n.id) as total_unread
                       FROM notifications n 
-                      LEFT JOIN repair_requests rep ON n.related_id = rep.id AND n.type IN ('repair_request', 'repair_completed')
+                      LEFT JOIN repair_requests rep ON n.related_id = rep.id AND n.type IN ('repair_request', 'repair_completed', 'repair_hold', 'repair_parts_arrived')
                       LEFT JOIN tb_meter tm ON n.related_id = tm.mt_id AND n.type = 'meter_exceeded'
                       LEFT JOIN tb_repair_product trp ON n.related_id = trp.pd_id AND n.type = 'low_stock'
                       LEFT JOIN pm_plan_events pe ON n.related_id = pe.id AND n.type IN ('pm_advance_alert', 'pm_today_alert')
@@ -197,7 +197,7 @@ switch ($action) {
                        tar.ar_name AS room_name,
                        tm.mt_name
                 FROM notifications n
-                LEFT JOIN repair_requests rep ON n.related_id = rep.id AND n.type IN ('repair_request', 'repair_completed')
+                LEFT JOIN repair_requests rep ON n.related_id = rep.id AND n.type IN ('repair_request', 'repair_completed', 'repair_hold', 'repair_parts_arrived')
                 LEFT JOIN tb_meter tm ON n.related_id = tm.mt_id AND n.type = 'meter_exceeded'
                 LEFT JOIN tb_repair_product trp ON n.related_id = trp.pd_id AND n.type = 'low_stock'
                 LEFT JOIN pm_plan_events pe ON n.related_id = pe.id AND n.type IN ('pm_advance_alert', 'pm_today_alert')
@@ -258,6 +258,14 @@ switch ($action) {
             } elseif ($row['type'] === 'repair_completed') {
                 $title_text = '✅ ซ่อมเสร็จแล้ว';
                 $title_display = '✅ ' . $row['rp_format'] . " ซ่อมเสร็จแล้ว";
+                $link_url = "maintenance_info.php?id=" . $row['related_id'];
+            } elseif ($row['type'] === 'repair_hold') {          // พักงานซ่อม (ข้อความ: เลขที่ใบงาน + เหตุผล + วันที่คาดว่ากลับมาทำ)
+                $title_text = '⏸ พักงานซ่อม';
+                $title_display = '⏸ ' . $row['rp_format'];
+                $link_url = "maintenance_info.php?id=" . $row['related_id'];
+            } elseif ($row['type'] === 'repair_parts_arrived') { // อะไหล่ที่งานพักรอเข้าคลังแล้ว
+                $title_text = '📦 อะไหล่เข้าคลังแล้ว';
+                $title_display = '📦 ' . $row['rp_format'];
                 $link_url = "maintenance_info.php?id=" . $row['related_id'];
             } elseif ($row['type'] === 'meter_exceeded') {
                 $title_text = '🚨 ค่ามิเตอร์เกินกำหนด';
