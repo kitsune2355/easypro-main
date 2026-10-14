@@ -1715,6 +1715,9 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		
 			// แสดงลายเซ็นแทน canvas
 			renderHistorySignature(record.inspector_signature_path);
+
+			// ผลการประเมิน (หรือปุ่มประเมินสำหรับผู้ประเมิน)
+			renderEvaluationResult();
 		
 			// ซ่อนปุ่มและส่วนประเมิน
 			document.getElementById('btn_save_work')?.classList.add('hidden');
@@ -1729,6 +1732,39 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 			lockHistoryInputs();
 		}
 		
+		// ===== ผลการประเมินผลงาน PM (โหมดประวัติ) =====
+		async function renderEvaluationResult() {
+			const anchor = document.getElementById('evaluation_section');
+			if (!anchor || document.getElementById('ws-eval-result')) return;
+			const box = document.createElement('div');
+			box.id = 'ws-eval-result';
+			box.className = 'mt-3 bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5';
+			box.innerHTML = '<div class="text-sm text-slate-400"><i class="fa-solid fa-circle-notch fa-spin mr-1"></i> กำลังโหลดผลการประเมิน...</div>';
+			anchor.insertAdjacentElement('beforebegin', box);
+			const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+			let r;
+			try { r = await (await fetch('handle_pm_evaluate.php?action=get_one&event_id=' + encodeURIComponent(planId))).json(); } catch (e) { r = { success: false }; }
+			if (!r.success) { box.remove(); return; }
+			const d = r.data;
+			const head = '<h2 class="text-base font-semibold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-star-half-stroke text-primary"></i> ผลการประเมิน</h2>';
+			if (+d.evaluation_status !== 1 || !d.id) {
+				box.innerHTML = `<div class="flex flex-wrap items-center justify-between gap-3">${head}
+					<div class="flex items-center gap-2"><span class="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold">ยังไม่ได้ประเมิน</span>
+					${r.can_evaluate && !new URLSearchParams(location.search).has('noeval') ? `<a href="pm_evaluate_batch.php?ids=${encodeURIComponent(planId)}&back=${encodeURIComponent(location.pathname.split('/').pop() + location.search)}" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold inline-flex items-center gap-1.5"><i class="fa-solid fa-star"></i> ประเมินใบงานนี้</a>` : ''}</div></div>`;
+				return;
+			}
+			const dt = d.eval_date ? new Date(d.eval_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
+			box.innerHTML = `<div class="flex flex-wrap items-center justify-between gap-3">${head}
+					<div class="text-sm">คะแนนเฉลี่ย <b class="text-2xl text-primary">${Number(d.average_score).toFixed(2)}</b> <span class="text-slate-400">/ 5.00</span></div></div>
+				<div class="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
+					${(d.topics || []).map((x, i) => `<div class="flex items-center justify-between gap-3 text-sm py-1 border-b border-slate-100"><span class="text-slate-600"><span class="text-slate-400 mr-1">${i + 1}.</span>${esc(x.title)}</span><b class="flex-none w-7 h-7 rounded-md bg-primary/10 text-primary flex items-center justify-center">${+x.score}</b></div>`).join('')}
+				</div>
+				${d.eval_comments ? `<div class="mt-3 text-sm bg-slate-50 rounded-lg px-3 py-2"><span class="text-slate-500">ข้อเสนอแนะ:</span> ${esc(d.eval_comments)}</div>` : ''}
+				<div class="mt-3 flex flex-wrap items-end justify-between gap-3 text-sm">
+					<div><div class="text-slate-500">ผู้ประเมิน</div><div class="font-semibold text-slate-800">${esc(d.evaluator_name || '-')}</div><div class="text-xs text-slate-500">ประเมินเมื่อ ${dt}</div></div>
+					${d.evaluator_signature_path ? `<img src="${esc(d.evaluator_signature_path)}" alt="ลายเซ็นผู้ประเมิน" class="h-16 max-w-[220px] object-contain border border-slate-200 rounded-lg bg-white p-1">` : ''}
+				</div>`;
+		}
 		function hideActualSpareInputSection() {
 			const headings = Array.from(document.querySelectorAll('h2'));
 		
@@ -2658,8 +2694,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 				Swal.close();
 
 				if (response.data.success) {
-					document.getElementById('evaluation_section').classList.remove('hidden');
-					document.getElementById('btn_save_eval').classList.remove('hidden');
+					// การประเมินทำที่แท็บ "ประเมิน PM" ในหน้าวางแผน PM (หรือปุ่มในใบงานโหมดประวัติ)
 					document.getElementById('btn_save_work').classList.add('hidden');
 					wsCloseSign();
 					document.getElementById('ws-open-sign')?.classList.add('hidden');

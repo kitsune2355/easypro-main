@@ -284,6 +284,11 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                     <i data-lucide="calendar" class="w-4 h-4"></i> ปฏิทิน
                 </button>
             </li>
+            <li data-mode="field">
+                <button onclick="switchTab('evaluate')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
+                    <i data-lucide="star" class="w-4 h-4"></i> ประเมิน PM
+                </button>
+            </li>
             <li data-mode="manage">
                 <button onclick="switchTab('schedule')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
                     <i data-lucide="table-2" class="w-4 h-4"></i> ตารางแผน PM
@@ -322,6 +327,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
     <div class="flex-1 flex flex-col overflow-hidden bg-[var(--color-bg-light)]">
         <main class="flex-1 overflow-y-auto px-2 sm:px-4 pt-3 sm:pt-4 pb-4 relative">
             <?php include 'pm_dashboard.php'; ?>
+            <?php include 'pm_evaluate.php'; ?>
             <?php include 'pm_daily.php'; ?>
             <?php include 'pm_postpone.php'; ?>
             <?php include 'pm_plan.php'; ?>
@@ -505,6 +511,8 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                 if (typeof window.initFeedbackTab === 'function') {
                     window.initFeedbackTab();
                 }
+            } else if (tabId === 'evaluate') {
+                if (typeof window.reloadEvaluateTab === 'function') window.reloadEvaluateTab();
             } else if (tabId === 'daily') {
                 if (typeof window.initDailyTab === 'function') {
                     window.initDailyTab(opts);

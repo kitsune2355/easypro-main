@@ -25,27 +25,70 @@
         .pmd-row { grid-template-columns: minmax(0, 1fr); }
         .pmd-row .pmd-act button { width: 100%; justify-content: center; padding-top: .6rem; padding-bottom: .6rem; }
     }
+    /* จอคอม (lg+): แบ่งซ้าย-ขวา — รายการกลุ่มทางซ้าย, เครื่องในกลุ่มที่เลือกทางขวา (เลื่อนแยกกัน) */
+    .pmd-split { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: .75rem; min-height: 420px; }
+    .pmd-split > div { min-height: 0; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: .75rem; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+    .pmd-side-item { display: block; width: 100%; text-align: left; padding: .7rem .9rem; border-bottom: 1px solid #f1f5f9; border-left: 3px solid transparent; }
+    .pmd-side-item:hover { background: #f8fafc; }
+    .pmd-side-item.on { background: #f0f9ff; border-left-color: #006B9F; }
+    .pmd-side-item.on .pmd-side-name { color: #006B9F; }
+    .pmd-side-name { font-weight: 600; font-size: 13.5px; color: #1e293b; }
+    .pmd-detail .pmd-group { border: 0; box-shadow: none; border-radius: 0; overflow: visible; }
+    .pmd-detail .pmd-group > summary { position: sticky; top: 0; z-index: 2; background: #fff; border-bottom: 1px solid #e2e8f0; cursor: default; }
+    .pmd-detail .pmd-group > summary:hover { background: #fff; }
+    .pmd-detail .pmd-caret { display: none; }
+    .pmd-detail .pmd-row:first-of-type { border-top: 0; }
+    /* มือถือ: แนวคิดเดียวกับจอคอม — รายการกลุ่ม => แตะแล้วเครื่องในกลุ่มเปิดเป็นหน้าเต็มจอ (ปุ่มกลับด้านบน, บันทึกพร้อมกันติดล่าง) */
+    @keyframes pmdIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+    @media (max-width: 1023.98px) {
+        .pmd-split { display: block; height: auto !important; min-height: 0; }
+        .pmd-split > #pmd-side { overflow: visible; }
+        .pmd-side-item { padding: .85rem 1rem; }
+        .pmd-side-item:last-child { border-bottom: 0; }
+        .pmd-side-item.on { background: #fff; border-left-color: transparent; }
+        .pmd-side-item.on .pmd-side-name { color: #1e293b; }
+        .pmd-side-item:active { background: #f1f5f9; }
+        #pmd-detail { display: none; position: fixed; inset: 0; z-index: 900; border: 0; border-radius: 0; box-shadow: none; background: #f8fafc; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .pmd-split.is-detail #pmd-detail { display: flex; flex-direction: column; animation: pmdIn .18s ease-out; }
+        .pmd-detail .pmd-group { background: #fff; flex: 1 0 auto; }
+        .pmd-detail .pmd-group > summary { display: none; }
+        /* ปุ่มบันทึกพร้อมกันติดล่าง: ปุ่มเดียว = เต็มความกว้าง, หลายวัน = เลื่อนซ้าย-ขวาในแถวเดียว */
+        .pmd-batchbar { position: sticky; bottom: 0; z-index: 2; background: #fff; border-top: 1px solid #e2e8f0; box-shadow: 0 -4px 12px rgba(15,23,42,.06);
+                        padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom)); display: flex; gap: .5rem; overflow-x: auto; scrollbar-width: none; }
+        .pmd-batchbar::-webkit-scrollbar { display: none; }
+        .pmd-batchbar button { flex: 0 0 auto; justify-content: center; padding: .7rem 1rem; font-size: 13.5px; border-radius: .75rem; }
+        .pmd-batchbar button:only-child { flex: 1 1 auto; }
+        #pmd-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -.75rem; padding: 0 .75rem; }
+        #pmd-chips::-webkit-scrollbar { display: none; }
+        #tab-daily:not(.adv-open) .pmd-adv { display: none !important; }
+    }
 </style>
 
 <div id="tab-daily" class="tab-content hidden space-y-3">
     <div class="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <!-- แถว 1: ช่วงวัน + เลื่อนวัน -->
         <div class="flex flex-wrap items-center gap-2">
-            <div class="pmd-seg" id="pmd-range">
+            <!-- มือถือ: ช่วงวัน / รวมงานค้าง อยู่ในตัวกรองเพิ่มเติม (แสดงเป็นแถวถัดไป) -->
+            <div class="pmd-adv order-last basis-full h-0 lg:hidden" aria-hidden="true"></div>
+            <div class="pmd-seg pmd-adv order-last lg:order-none" id="pmd-range">
                 <button type="button" data-days="1">รายวัน</button>
                 <button type="button" data-days="7">7 วัน</button>
             </div>
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1 flex-1 min-w-0 lg:flex-none">
                 <button type="button" id="pmd-prev" class="p-2 rounded-lg border border-slate-200 hover:bg-slate-50" title="ก่อนหน้า" aria-label="ก่อนหน้า"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-                <input type="date" id="pmd-date" class="border border-slate-200 rounded-lg py-1.5 px-2 text-sm outline-none focus:ring-2 focus:ring-sky-500/30">
+                <input type="date" id="pmd-date" class="flex-1 min-w-0 lg:flex-none border border-slate-200 rounded-lg py-1.5 px-2 text-sm outline-none focus:ring-2 focus:ring-sky-500/30">
                 <button type="button" id="pmd-next" class="p-2 rounded-lg border border-slate-200 hover:bg-slate-50" title="ถัดไป" aria-label="ถัดไป"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
                 <button type="button" id="pmd-today" class="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-sm font-medium">วันนี้</button>
             </div>
-            <div id="pmd-date-label" class="text-sm font-semibold text-slate-700"></div>
-            <div class="flex items-center gap-3 ml-auto">
-                <label class="pm-switch text-slate-600" title="แสดงงานที่ยังไม่ได้ทำจากวันก่อนหน้า">
-                    <input type="checkbox" id="pmd-overdue"><i></i> รวมงานค้าง
-                </label>
+            <div id="pmd-date-label" class="hidden lg:block text-sm font-semibold text-slate-700"></div>
+            <label class="pm-switch pmd-adv order-last lg:order-none lg:ml-auto text-slate-600" title="แสดงงานที่ยังไม่ได้ทำจากวันก่อนหน้า">
+                <input type="checkbox" id="pmd-overdue"><i></i> รวมงานค้าง
+            </label>
+            <div class="flex items-center gap-1 lg:gap-2">
+                <!-- มือถือ: ตัวกรองเพิ่มเติม (ช่วงวัน / รวมงานค้าง / จัดกลุ่ม / ประเภทเครื่อง) พับไว้ -->
+                <button type="button" id="pmd-adv-btn" class="lg:hidden relative p-2 rounded-lg border border-slate-200 hover:bg-slate-50" title="ตัวกรองเพิ่มเติม" aria-label="ตัวกรองเพิ่มเติม" aria-expanded="false">
+                    <i data-lucide="sliders-horizontal" class="w-4 h-4"></i><span id="pmd-adv-dot" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-white"></span>
+                </button>
                 <button type="button" id="pmd-refresh" class="p-2 rounded-lg border border-slate-200 hover:bg-slate-50" title="โหลดใหม่" aria-label="โหลดใหม่"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
             </div>
         </div>
@@ -53,24 +96,12 @@
         <!-- แถว 2: สถานะ -->
         <div id="pmd-chips" class="flex flex-wrap gap-2"></div>
 
-        <!-- แถว 3: จัดกลุ่ม / กรอง / ค้นหา -->
+        <!-- แถว 3: ประเภทเครื่อง / ค้นหา -->
         <div class="flex flex-wrap items-center gap-2">
-            <label class="flex items-center gap-1.5 text-xs text-slate-500">จัดกลุ่ม
-                <select id="pmd-group" class="pmd-sel">
-                    <option value="checksheet">เช็คชีต</option>
-                    <option value="location">สถานที่</option>
-                    <option value="machine_type">ประเภทเครื่อง</option>
-                    <option value="event_date">วันที่</option>
-                </select>
-            </label>
-            <select id="pmd-type" class="pmd-sel" aria-label="ประเภทเครื่อง"><option value="">ทุกประเภทเครื่อง</option></select>
-            <div class="relative flex-1 min-w-[200px]">
+            <span class="pmd-adv"><select id="pmd-type" class="pmd-sel" aria-label="ประเภทเครื่อง"><option value="">ทุกประเภทเครื่อง</option></select></span>
+            <div class="relative flex-1 min-w-[200px] basis-full lg:basis-auto">
                 <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
                 <input type="search" id="pmd-q" placeholder="ค้นหาเครื่อง / รหัส / สถานที่ / เช็คชีต" class="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-sky-500/30">
-            </div>
-            <div class="flex items-center gap-1 text-xs">
-                <button type="button" id="pmd-expand" class="px-2.5 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600">ขยายทั้งหมด</button>
-                <button type="button" id="pmd-collapse" class="px-2.5 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600">ย่อทั้งหมด</button>
             </div>
         </div>
     </div>
@@ -89,8 +120,6 @@
     const fmt = n => Number(n || 0).toLocaleString();
 
     const PAGE = 30;            // จำนวนเครื่องที่โหลดต่อครั้งในแต่ละกลุ่ม
-    const AUTO_OPEN_MAX = 60;   // งานตามชิปที่เลือกไม่เกินนี้ => ขยายทุกกลุ่มให้เลย
-    const OPEN_ALL_MAX = 15;    // "ขยายทั้งหมด" เปิดได้ไม่เกินกี่กลุ่ม (กันโหลดพร้อมกันมากเกินไป)
 
     // ค่าที่จำไว้ในเครื่อง
     const pref = (() => { try { return JSON.parse(localStorage.getItem('pmdPref')) || {}; } catch (e) { return {}; } })();
@@ -99,9 +128,28 @@
     let curDate = '', curTo = '', today = ymd(new Date()), filter = 'todo';
     let days = pref.days === 7 ? 7 : 1;
     let summary = null;         // { counts, groups, types } จาก action=summary
-    let openKeys = null;        // กลุ่มที่เปิดอยู่ (null = ค่าเริ่มต้นตามจำนวนงาน)
+    let openKeys = new Set();   // กลุ่มที่เปิดอยู่ (มีได้กลุ่มเดียว = selKey)
     let items = {};             // group key => { rows, loading, error, done(โหลดครบแล้ว) }
     let reqSeq = 0;             // กันผลลัพธ์เก่ามาทับผลลัพธ์ใหม่ (เปลี่ยนตัวกรองเร็ว ๆ)
+    // เปิดได้ทีละกลุ่ม (selKey) — จอคอม: แบ่งซ้าย-ขวา, มือถือ: รายการกลุ่ม แตะแล้วเข้าไปดูเครื่อง
+    const WIDE = window.matchMedia('(min-width: 1024px)');
+    let selKey = null;
+    // จัดกลุ่มตามเช็คชีตเสมอ (ทุกขนาดจอ) — ปุ่มบันทึกพร้อมกันใช้ได้ทุกกลุ่ม
+    const grpVal = () => 'checksheet';
+    function pickSel() {
+        const gs = summary.groups;
+        if (!gs.some(g => g.key === selKey)) selKey = WIDE.matches && gs.length ? gs[0].key : null;   // มือถือ: เริ่มที่รายการกลุ่ม
+        openKeys = new Set(selKey != null ? [selKey] : []);
+    }
+    // ความสูงของส่วนแบ่ง = พื้นที่ที่เหลือของหน้าจอ (แต่ละฝั่งเลื่อนเอง)
+    function fitSplit() {
+        const el = $('pmd-split'), main = el && el.closest('main');
+        if (!main) return;
+        if (!WIDE.matches) { el.style.height = ''; return; }
+        const top = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
+        el.style.height = Math.max(420, main.clientHeight - top - 12) + 'px';
+    }
+    window.addEventListener('resize', fitSplit);
 
     // สถานะของงาน: done = ทำแล้ว, overdue = เลยกำหนดยังไม่ทำ, pending = รอดำเนินการ
     const stateOf = r => r.status === 1 ? 'done' : (r.event_date < today ? 'overdue' : 'pending');
@@ -123,7 +171,7 @@
     function params(extra) {
         return new URLSearchParams(Object.assign({
             date: curDate, date_to: curTo, overdue: $('pmd-overdue').checked ? 1 : 0,
-            q: $('pmd-q').value.trim(), type: $('pmd-type').value, group: $('pmd-group').value, filter,
+            q: $('pmd-q').value.trim(), type: $('pmd-type').value, group: grpVal(), filter,
         }, extra || {})).toString();
     }
 
@@ -134,7 +182,6 @@
         curTo = addDays(curDate, days - 1);
         $('pmd-date-label').textContent = days === 1 ? thDate(curDate) : `${thShort(curDate)} – ${thShort(curTo)}`;
         document.querySelectorAll('#pmd-range button').forEach(b => b.classList.toggle('on', +b.dataset.days === days));
-        if (!keepOpen) openKeys = null;
         items = {};
         if (!summary || !keepOpen) $('pmd-list').innerHTML = `<div class="bg-white rounded-xl border border-slate-200 py-12 text-center text-slate-400 text-sm">กำลังโหลด...</div>`;
         try {
@@ -147,22 +194,15 @@
         } catch (e) {
             if (seq !== reqSeq) return;
             summary = null;
+            const m = mainEl(); if (m) m.style.overflow = '';   // หน้าเต็มจอบนมือถือถูกล้างไปด้วย
             $('pmd-chips').innerHTML = '';
             $('pmd-list').innerHTML = `<div class="bg-white rounded-xl border border-red-200 py-10 text-center text-red-600 text-sm">${esc(e.message)}</div>`;
             return;
         }
         fillTypes();
-        const groups = summary.groups;
-        if (!openKeys) {
-            const total = groups.reduce((s, g) => s + g.n, 0);
-            openKeys = new Set(total <= AUTO_OPEN_MAX ? groups.map(g => g.key)
-                : ($('pmd-q').value.trim() ? groups.slice(0, 3).map(g => g.key) : []));   // ค้นหา => เปิด 3 กลุ่มแรก
-        } else {
-            const exist = new Set(groups.map(g => g.key));
-            openKeys = new Set([...openKeys].filter(k => exist.has(k)));
-        }
+        syncAdvDot();
+        pickSel();
         render();
-        openKeys.forEach(k => loadItems(k));
     }
 
     // โหลดเครื่องในกลุ่มทีละหน้า
@@ -211,24 +251,94 @@
             lucide.createIcons({ root: $('pmd-list') });
             return;
         }
-        $('pmd-list').innerHTML = summary.groups.map(g => `<details class="pmd-group bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden" data-key="${esc(g.key)}"></details>`).join('')
-            + (summary.groups.length >= 500 ? `<div class="text-center text-xs text-slate-400 py-2">แสดง 500 กลุ่มแรก — ค้นหาหรือกรองเพื่อดูกลุ่มอื่น</div>` : '');
-        summary.groups.forEach(g => renderGroup(g.key));
+        const more500 = summary.groups.length >= 500 ? `<div class="text-center text-xs text-slate-400 py-2">แสดง 500 กลุ่มแรก — ค้นหาหรือกรองเพื่อดูกลุ่มอื่น</div>` : '';
+        $('pmd-list').innerHTML = `<div id="pmd-split" class="pmd-split">
+            <div id="pmd-side">${summary.groups.map(sideHtml).join('')}${more500}</div>
+            <div id="pmd-detail" class="pmd-detail"></div></div>`;
+        renderDetail();
+        lucide.createIcons({ root: $('pmd-side') });
+        fitSplit();
+    }
+
+    const labelOf = g => { const grp = grpVal(); return grp === 'event_date' ? thDate(g.key) : (g.label || EMPTY_LABEL[grp]); };
+    const pctOf = g => g.total ? Math.round(g.done * 100 / g.total) : 0;
+
+    // ปุ่มบันทึกพร้อมกัน — เครื่องที่ใช้เช็คชีตเดียวกันในวันเดียวกัน (g.batch จาก summary)
+    //  outline = แบบขอบ (การ์ดในรายการยาว ๆ ไม่ลายตา)
+    const batchBtns = (g, outline) => (g.batch || []).map(b =>
+        `<button type="button" data-batch="${esc(g.key)}" data-date="${b.date}" class="px-2.5 py-1.5 rounded-lg ${outline ? 'border border-sky-200 bg-white text-sky-700 active:bg-sky-50' : 'bg-sky-600 hover:bg-sky-700 text-white'} text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap">
+            <i data-lucide="layers" class="w-3.5 h-3.5"></i> บันทึกพร้อมกัน ${b.n} เครื่อง${days > 1 || b.date !== curDate ? ' · ' + thShort(b.date) : ''}</button>`).join('');
+
+    // รายการเช็คชีต (จอคอม: ฝั่งซ้าย) — มือถือมีปุ่มบันทึกพร้อมกันบนการ์ดด้วย (div แทน button เพราะมีปุ่มซ้อนข้างใน)
+    function sideHtml(g) {
+        const batch = batchBtns(g, true);
+        return `<div role="button" tabindex="0" data-sel="${esc(g.key)}" class="pmd-side-item cursor-pointer ${g.key === selKey ? 'on' : ''}">
+            <div class="flex items-start gap-2">
+                <i data-lucide="${GROUP_ICON[grpVal()]}" class="w-4 h-4 mt-0.5 flex-none text-[#006B9F]"></i>
+                <span class="pmd-side-name flex-1 min-w-0 break-words">${esc(labelOf(g))}</span>
+                <span class="text-xs text-slate-500 flex-none">${fmt(g.n)} เครื่อง</span>
+                <i data-lucide="chevron-right" class="w-4 h-4 flex-none text-slate-300 lg:hidden"></i>
+            </div>
+            <div class="flex items-center gap-2 mt-1.5 pl-6">
+                <span class="pmd-bar flex-1"><i style="width:${pctOf(g)}%"></i></span>
+                <span class="text-[11px] text-slate-500 flex-none">${fmt(g.done)}/${fmt(g.total)}</span>
+                ${g.overdue ? `<span class="pmd-badge ${STATE.overdue.cls} flex-none">เลยกำหนด ${fmt(g.overdue)}</span>` : ''}
+            </div>
+            ${batch ? `<div class="lg:hidden flex gap-2 mt-2.5 pl-6 overflow-x-auto" style="scrollbar-width:none">${batch}</div>` : ''}
+        </div>`;
+    }
+    // กลุ่มที่เลือก (จอคอม: ฝั่งขวา, มือถือ: หน้าถัดไปพร้อมปุ่มกลับ) — ใช้ renderGroup เดิม
+    const GROUP_NAME = { checksheet: 'เช็คชีต', location: 'สถานที่', machine_type: 'ประเภทเครื่อง', event_date: 'วันที่' };
+    function renderDetail() {
+        const box = $('pmd-detail');
+        if (!box) return;
+        $('pmd-split').classList.toggle('is-detail', selKey != null);
+        if (selKey == null) { box.innerHTML = ''; lockMain(); return; }
+        const g = summary.groups.find(x => x.key === selKey);
+        // มือถือ: หัวหน้าเต็มจอ (ปุ่มกลับ + ชื่อกลุ่ม) — จอคอมใช้หัวกลุ่มเดิม (summary)
+        box.innerHTML = `<div class="lg:hidden sticky top-0 z-[3] bg-white border-b border-slate-200 flex items-center gap-1 pl-1 pr-3 py-1.5 shadow-sm">
+                <button type="button" data-back class="w-11 h-11 flex-none rounded-full flex items-center justify-center text-slate-600 active:bg-slate-100" title="กลับไป${GROUP_NAME[grpVal()]}ทั้งหมด" aria-label="กลับ"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
+                <div class="min-w-0 flex-1">
+                    <div class="font-semibold text-slate-800 text-[15px] leading-tight truncate">${esc(labelOf(g))}</div>
+                    <div class="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2">
+                        <span>${fmt(g.n)} เครื่อง</span>
+                        ${g.overdue ? `<span class="text-red-600 font-semibold">เลยกำหนด ${fmt(g.overdue)}</span>` : ''}
+                        <span>ทำแล้ว ${fmt(g.done)}/${fmt(g.total)}</span>
+                    </div>
+                </div>
+            </div>
+            <details class="pmd-group" data-key="${esc(selKey)}"></details>`;
+        lucide.createIcons({ root: box });
+        box.scrollTop = 0;
+        lockMain();
+        if (!items[selKey]) loadItems(selKey); else renderGroup(selKey);
+    }
+    const mainEl = () => $('tab-daily').closest('main');
+    // มือถือ: หน้าเต็มจอเปิดอยู่ => หน้ารายการด้านหลังไม่เลื่อนตาม (กลับมาแล้วอยู่ที่เดิม)
+    function lockMain() { const m = mainEl(); if (m) m.style.overflow = !WIDE.matches && selKey != null && $('pmd-split') ? 'hidden' : ''; }
+    function selectGroup(key) {
+        selKey = key; openKeys = new Set([key]);
+        document.querySelectorAll('#pmd-side [data-sel]').forEach(b => b.classList.toggle('on', b.dataset.sel === key));
+        renderDetail();
+    }
+    function backToList() {
+        selKey = null; openKeys = new Set();
+        document.querySelectorAll('#pmd-side [data-sel]').forEach(b => b.classList.remove('on'));
+        renderDetail();
+        lockMain();
     }
 
     function renderGroup(key) {
         const el = [...document.querySelectorAll('#pmd-list .pmd-group')].find(d => d.dataset.key === key);
         const g = summary && summary.groups.find(x => x.key === key);
         if (!el || !g) return;
-        const grp = $('pmd-group').value;
-        const label = grp === 'event_date' ? thDate(g.key) : (g.label || EMPTY_LABEL[grp]);
-        const pct = g.total ? Math.round(g.done * 100 / g.total) : 0;
+        const grp = grpVal();
+        const wide = WIDE.matches;   // จอคอม: ปุ่มบันทึกพร้อมกันอยู่ขวาสุดของหัวกลุ่ม, มือถือ: ใต้หัวกลุ่ม
+        const label = labelOf(g);
         const open = openKeys.has(key);
         const it = items[key];
 
-        const batch = (g.batch || []).map(b =>
-            `<button type="button" data-batch="${esc(g.key)}" data-date="${b.date}" class="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold inline-flex items-center gap-1.5">
-                <i data-lucide="layers" class="w-3.5 h-3.5"></i> บันทึกพร้อมกัน ${b.n} เครื่อง${days > 1 || b.date !== curDate ? ' · ' + thShort(b.date) : ''}</button>`).join('');
+        const batch = batchBtns(g);
 
         let body = '';
         if (open) {
@@ -246,12 +356,10 @@
                 <span class="font-semibold text-slate-800 text-sm min-w-0 break-words">${esc(label)}</span>
                 <span class="pmd-badge bg-slate-100 text-slate-600">${fmt(g.n)} เครื่อง</span>
                 ${g.overdue ? `<span class="pmd-badge ${STATE.overdue.cls}">เลยกำหนด ${fmt(g.overdue)}</span>` : ''}
-                <span class="flex items-center gap-2 ml-auto text-xs text-slate-500" title="ทำแล้ว ${fmt(g.done)} จาก ${fmt(g.total)}">
-                    <span class="pmd-bar w-20 sm:w-28"><i style="width:${pct}%"></i></span>${fmt(g.done)}/${fmt(g.total)}
-                </span>
+                ${batch && open && wide ? `<span class="flex-1 min-w-[16rem] flex flex-wrap justify-end gap-2">${batch}</span>` : ''}
             </summary>
-            ${batch && open ? `<div class="flex flex-wrap gap-2 px-4 pb-3">${batch}</div>` : ''}
-            ${body}`;
+            ${body}
+            ${batch && open && !wide ? `<div class="pmd-batchbar">${batch}</div>` : ''}`;
         lucide.createIcons({ root: el });
     }
 
@@ -267,7 +375,7 @@
             // status = 1 แต่ไม่มีใบบันทึกผลในระบบ (เช่น แก้สถานะในฐานข้อมูลโดยตรง)
             btn = `<span class="text-xs text-slate-400" title="งานนี้ถูกตั้งสถานะเป็นทำแล้ว แต่ไม่มีใบบันทึกผลในระบบ">ไม่มีใบบันทึก</span>`;
         }
-        const g = $('pmd-group').value;
+        const g = grpVal();
         const meta = [
             r.machine_code && `<span class="font-mono">${esc(r.machine_code)}</span>`,
             g !== 'machine_type' && r.machine_type && esc(r.machine_type),
@@ -292,14 +400,8 @@
         </div>`;
     }
 
-    function toggleGroup(key, open) {
-        if (open) openKeys.add(key); else openKeys.delete(key);
-        if (open && !items[key]) loadItems(key); else renderGroup(key);
-    }
-
     // ---------- เหตุการณ์ ----------
     $('pmd-overdue').checked = pref.overdue !== false;
-    if (pref.group) $('pmd-group').value = pref.group;
     $('pmd-date').value = today;
 
     $('pmd-range').addEventListener('click', e => {
@@ -314,29 +416,29 @@
     $('pmd-today').addEventListener('click', () => { $('pmd-date').value = ymd(new Date()); load(); });
     $('pmd-refresh').addEventListener('click', () => load(true));
     $('pmd-overdue').addEventListener('change', () => { pref.overdue = $('pmd-overdue').checked; savePref(); load(); });
-    $('pmd-group').addEventListener('change', () => { pref.group = $('pmd-group').value; savePref(); load(); });
     $('pmd-type').addEventListener('change', () => load());
     let qTimer = null;
     $('pmd-q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => load(), 350); });
-    $('pmd-expand').addEventListener('click', () => {
-        if (!summary) return;
-        summary.groups.slice(0, OPEN_ALL_MAX).forEach(g => { if (!openKeys.has(g.key)) toggleGroup(g.key, true); });
+    $('pmd-adv-btn').addEventListener('click', () => {
+        const open = $('tab-daily').classList.toggle('adv-open');
+        $('pmd-adv-btn').setAttribute('aria-expanded', open);
+        $('pmd-adv-btn').classList.toggle('bg-sky-50', open);
     });
-    $('pmd-collapse').addEventListener('click', () => { [...openKeys].forEach(k => toggleGroup(k, false)); });
+    function syncAdvDot() {
+        const custom = days !== 1 || !$('pmd-overdue').checked || !!$('pmd-type').value;
+        $('pmd-adv-dot').classList.toggle('hidden', !custom);
+    }
     $('pmd-chips').addEventListener('click', e => {
         const b = e.target.closest('[data-f]');
         if (b) { filter = b.dataset.f; load(); }
     });
 
     $('pmd-list').addEventListener('click', e => {
-        const sum = e.target.closest('summary');
-        if (sum && !e.target.closest('button')) {
-            // เปิด/ปิดกลุ่มเอง: โหลดรายการเมื่อเปิดครั้งแรก
-            e.preventDefault();
-            const key = sum.parentElement.dataset.key;
-            toggleGroup(key, !openKeys.has(key));
-            return;
-        }
+        const sel = e.target.closest('[data-sel]');
+        if (sel && !e.target.closest('[data-batch]')) { selectGroup(sel.dataset.sel); return; }
+        if (e.target.closest('[data-back]')) { backToList(); return; }
+        // หัวกลุ่มที่เลือกเปิดค้างไว้ (ปุ่มในหัวกลุ่มทำงานต่อด้านล่าง)
+        if (e.target.closest('summary')) { e.preventDefault(); if (!e.target.closest('button')) return; }
         const op = e.target.closest('[data-open]'), hi = e.target.closest('[data-history]'), ba = e.target.closest('[data-batch]');
         const more = e.target.closest('[data-more]'), retry = e.target.closest('[data-retry]');
         // ใบงาน / ประวัติ: เปิดเป็น dialog บนหน้านี้ (ปิดแล้วโหลดสถานะใหม่ผ่าน pm:batch-closed)
@@ -345,6 +447,11 @@
         else if (ba) window.openPmBatchDialog('pm_worksheet_batch.php?checksheet_id=' + encodeURIComponent(ba.dataset.batch) + '&date=' + encodeURIComponent(ba.dataset.date));
         else if (more) loadItems(more.dataset.more, true);
         else if (retry) loadItems(retry.dataset.retry);
+    });
+
+    $('pmd-list').addEventListener('keydown', e => {
+        const sel = e.target.closest && e.target.closest('[data-sel]');
+        if (sel && e.target === sel && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectGroup(sel.dataset.sel); }
     });
 
     // กลับมาจากหน้าต่างใบงาน => โหลดสถานะใหม่ (เฉพาะตอนแท็บนี้เปิดอยู่) โดยคงกลุ่มที่เปิดไว้
@@ -358,6 +465,16 @@
     window.addEventListener('pm:batch-closed', () => {
         if (summary && !$('tab-daily').classList.contains('hidden')) load(true);
     });
+
+    // ย่อ/ขยายหน้าต่างข้ามขนาดจอคอม <-> มือถือ => สลับรูปแบบ
+    WIDE.addEventListener('change', () => {
+        if (!summary) return;
+        pickSel();
+        render();
+    });
+    // แท็บเพิ่งแสดง (ก่อนหน้าซ่อนอยู่ ความสูงเป็น 0) => คำนวณความสูงส่วนแบ่งใหม่
+    new MutationObserver(() => { if (!$('tab-daily').classList.contains('hidden')) fitSplit(); })
+        .observe($('tab-daily'), { attributes: true, attributeFilter: ['class'] });
 
     // switchTab('daily', opts) — เปิดจากหน้าภาพรวม: กรองสถานะที่ต้องการ
     window.initDailyTab = function (opts) {

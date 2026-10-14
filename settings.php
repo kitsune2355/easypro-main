@@ -232,6 +232,7 @@
                 icon: "star",
                 items: [
                     { label: "รายการหัวข้อประเมิน", href: "settings_pm_feedback.php", id: "pm_feedback" },
+                    { label: "ผู้ประเมิน PM", href: "settings_pm_evaluators.php", id: "pm_evaluators" },
                 ]
             }
         ];
