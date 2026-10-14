@@ -486,9 +486,6 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
 				  return true;
 				})
 				.sort((a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b));
-			  // พักงาน = งานกำลังดำเนินการที่พักอยู่ (กรองฝั่ง server)
-			  const ip = normalized.indexOf('inprogress');
-			  normalized.splice(ip >= 0 ? ip + 1 : normalized.length, 0, 'onhold');
 
 			  params.success(normalized);
 			})
@@ -580,8 +577,6 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
     const STATUS_META = {
       pending:    { th:'รอดำเนินการ',   pct:10,  bg:'bg-amber-50',  text:'text-amber-700',  bar:'bg-amber-500' },
       inprogress: { th:'กำลังดำเนินการ', pct:50,  bg:'bg-sky-50',    text:'text-sky-700',    bar:'bg-sky-500' },
-      // พักงาน: ไม่ใช่ค่าในคอลัมน์ status จริง (ยังเป็น inprogress) — ใช้กับตัวกรอง และป้ายเมื่อแถวมี row.hold
-      onhold:     { th:'พักงาน',         pct:50,  bg:'bg-amber-50',  text:'text-amber-700',  bar:'bg-amber-500' },
       completed:  { th:'เสร็จสิ้น',      pct:100, bg:'bg-emerald-50', text:'text-emerald-700', bar:'bg-emerald-500' },
 	  feedback:   { th:'ประเมินแล้ว',   pct:100, bg:'bg-emerald-50', text:'text-emerald-700', bar:'bg-emerald-500'},
       cancel:     { th:'ยกเลิก',        pct:0,   bg:'bg-rose-50',    text:'text-rose-700',    bar:'bg-rose-500' },
@@ -608,13 +603,17 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
       return `<span class="${over ? 'text-rose-600 font-bold' : 'text-slate-500'}">${escapeHtml(bits.join(' · '))}</span>`;
     };
 
+    // แท็กพักงาน: สถานะยังเป็น "กำลังดำเนินการ" แล้วมีแท็กสีส้มต่อท้าย (ไม่ใช่สถานะใหม่)
+    const holdTag = (h) => `<span class="inline-flex items-center gap-1 max-w-full rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[10.5px] font-bold" title="${escapeHtml(h.label)}">
+        ⏸ พักงาน · <span class="truncate">${escapeHtml(h.label)}</span></span>`;
+
     const statusRenderer = (p) => {
       if (p.data?.hold && normalizeStatus(p.value) === 'inprogress') {
-        const h = p.data.hold;
+        const h = p.data.hold, meta = STATUS_META.inprogress;
         return `
-        <div class="flex flex-col w-full min-w-[140px] px-1 py-1.5 leading-tight">
-          <span class="text-[12px] font-bold tracking-tight text-amber-700">⏸ พักงาน</span>
-          <span class="text-[10.5px] font-semibold text-amber-700 truncate" title="${escapeHtml(h.label)}">${escapeHtml(h.label)}</span>
+        <div class="flex flex-col w-full min-w-[140px] px-1 py-1.5 leading-tight gap-1">
+          <span class="text-[12px] font-bold tracking-tight ${meta.text}">${escapeHtml(meta.th)}</span>
+          <span class="flex">${holdTag(h)}</span>
           <span class="text-[10.5px] truncate">${holdSubText(h)}</span>
         </div>`;
       }
@@ -802,6 +801,17 @@ const excelExportColumns = [
     field: 'ex_status',
     hide: true,
     valueGetter: p => statusText[p.data?.status] || p.data?.status || ''
+  },
+  // 2.1) พักงาน (แท็กของงานกำลังดำเนินการ) — เหตุผล + วันที่คาดว่ากลับมาทำ / ว่าง = ไม่ได้พัก
+  {
+    headerName: 'พักงาน',
+    field: 'ex_hold',
+    hide: true,
+    valueGetter: p => {
+      const h = p.data?.hold;
+      if (!h || String(p.data?.status || '').toLowerCase() !== 'inprogress') return '';
+      return h.label + (h.eta ? ` (กลับมาทำ ${formatThaiDate(h.eta)})` : '');
+    }
   },
 
   // 3) ความเร่งด่วน
@@ -1152,6 +1162,14 @@ async function exportToExcelFull() {
 
     sheet.columns = cols;
 
+    // รูปยึดกับช่องของแถว (twoCell) — กรองแถวใน Excel แล้วรูปของแถวที่ถูกซ่อนจะหายไปด้วย ไม่ลอยทับแถวอื่น
+    //  ช่องรูปกว้าง ~145px × สูง 160px => กรอบรูปประมาณ 100×100px
+    const imgAnchor = (colIndex, excelRowIndex) => ({
+      tl: { col: colIndex + 0.15, row: excelRowIndex - 1 + 0.15 },
+      br: { col: colIndex + 0.85, row: excelRowIndex - 1 + 0.75 },
+      editAs: 'twoCell'
+    });
+
     // ✅ จุดสำคัญ: ดึงข้อมูลทั้งหมดตาม filter/search/sort จาก API
     const rows = await fetchAllFilteredRowsForExport();
 
@@ -1201,10 +1219,7 @@ async function exportToExcelFull() {
           const colKey = `before_img_${i + 1}`;
           const colIndex = sheet.getColumn(colKey).number - 1;
 
-          sheet.addImage(imgId, {
-            tl: { col: colIndex + 0.15, row: excelRowIndex - 0.8 },
-            ext: { width: 90, height: 90 }
-          });
+          sheet.addImage(imgId, imgAnchor(colIndex, excelRowIndex));
         }
       }
 
@@ -1225,10 +1240,7 @@ async function exportToExcelFull() {
           const colKey = `after_img_${i + 1}`;
           const colIndex = sheet.getColumn(colKey).number - 1;
 
-          sheet.addImage(imgId, {
-            tl: { col: colIndex + 0.15, row: excelRowIndex - 0.8 },
-            ext: { width: 90, height: 90 }
-          });
+          sheet.addImage(imgId, imgAnchor(colIndex, excelRowIndex));
         }
       }
 
@@ -1244,6 +1256,10 @@ async function exportToExcelFull() {
     };
     header.alignment = { horizontal: "center", vertical: "middle" };
     header.height = 25;
+
+    // หัวคอลัมน์กรองได้ (ปุ่มลูกศรใน Excel) เฉพาะคอลัมน์ข้อมูล + ตรึงแถวหัวไว้ตอนเลื่อน
+    sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: excelExportColumns.length } };
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
 
     const buffer = await workbook.xlsx.writeBuffer();
 
@@ -4212,7 +4228,6 @@ const MobileList = (() => {
     { key: 'pending,inprogress', label: 'งานค้าง' },
     { key: 'pending',    label: 'รอดำเนินการ' },
     { key: 'inprogress', label: 'กำลังดำเนินการ' },
-    { key: 'onhold',     label: 'พักงาน' },
     { key: 'completed',  label: 'เสร็จสิ้น' },
     { key: 'feedback',   label: 'ประเมินแล้ว' },
     { key: 'cancel',     label: 'ยกเลิก' }
@@ -4243,8 +4258,8 @@ const MobileList = (() => {
 
   function cardHtml(row, idx) {
     const st = normalizeStatus(row.status);
-    const onHold = !!(row.hold && st === 'inprogress');
-    const meta = onHold ? { ...STATUS_META.onhold, th: '⏸ ' + (row.hold.label || 'พักงาน') } : (STATUS_META[st] || { th: 'ไม่ทราบสถานะ', bg: 'bg-slate-50', text: 'text-slate-600' });
+    const onHold = !!(row.hold && st === 'inprogress');   // แท็กพักงานใต้หัวการ์ด (สถานะยังเป็นกำลังดำเนินการ)
+    const meta = STATUS_META[st] || { th: 'ไม่ทราบสถานะ', bg: 'bg-slate-50', text: 'text-slate-600' };
     const urg = urgencyMeta(row.urgency);
     const loc = [row.building_name, row.floor_name, row.room_name].filter(v => v && v !== '-' && v !== 'ไม่ระบุ').join(' · ') || 'ไม่ระบุสถานที่';
     const phone = String(row.phone || '').trim();
@@ -4267,6 +4282,7 @@ const MobileList = (() => {
               <span class="inline-flex items-center gap-1 ml-auto"><span class="w-2 h-2 rounded-full ${urg.dotClass}"></span>${escapeHtml(urg.label)}</span>
             </div>
             <div class="mt-1.5 text-[14px] font-semibold text-slate-800 leading-snug m-clamp2">${escapeHtml(row.problem_detail || '-')}</div>
+            ${onHold ? `<div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">${holdTag(row.hold)}<span class="text-[11px]">${holdSubText(row.hold)}</span></div>` : ''}
           </div>
         </div>
         <div class="mt-2.5 space-y-1 text-[12.5px] text-slate-500" data-act="open" data-i="${idx}">
