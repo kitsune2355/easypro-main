@@ -289,6 +289,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
     <nav class="ws-topbar bg-primary text-white sticky top-0 z-50">
         <div class="max-w-4xl mx-auto px-4 pt-3 pb-2.5">
             <div class="flex items-center gap-2">
+                <!-- เปิดจากรายการเครื่อง/ป๊อปอัปเลือกในปฏิทิน => กลับไปหน้านั้น -->
+                <button type="button" id="ws-back" onclick="wsBack()" class="ws-topbtn hidden !w-auto px-2.5 gap-1.5 text-sm font-semibold"><i class="fa-solid fa-chevron-left"></i><span id="ws-back-label" class="hidden sm:inline">กลับ</span></button>
                 <div class="min-w-0 flex-1">
                     <h1 class="text-base sm:text-lg font-semibold leading-tight truncate"><span>บันทึกผลการบำรุงรักษา (PM Worksheet)</span></h1>
                     <p id="ws-nav-sub" class="text-xs opacity-90 truncate">กำลังโหลด...</p>
@@ -578,10 +580,20 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		let wsSaving = false;
 		window.pmBatchBusy = () => wsSaving;   // dialog ถามก่อนปิด: กำลังบันทึกอยู่ห้ามปิด
 		// force = ปิดโดยไม่ถาม (หลังบันทึกสำเร็จ)
-		function wsClose(force) {
-			if (WS_EMBED && window.parent.closePmDialog) window.parent.closePmDialog(force === true);
+		function wsClose(force, goBack) {
+			if (WS_EMBED && window.parent.closePmDialog) window.parent.closePmDialog(force === true, goBack === true);
 			else window.close();
 		}
+		// กลับไปหน้าก่อนหน้า (ถามก่อนถ้ามีข้อมูลที่ยังไม่บันทึก — ถามที่หน้าวางแผน PM)
+		function wsBack() { wsClose(false, true); }
+		(function () {
+			let back = null;
+			try { back = WS_EMBED && window.parent.pmDialogBack ? window.parent.pmDialogBack() : null; } catch (e) {}
+			if (!back) return;
+			const b = document.getElementById('ws-back');
+			b.classList.remove('hidden'); b.title = back.label;
+			document.getElementById('ws-back-label').textContent = back.label;
+		})();
 		// มีข้อมูลที่กรอกแต่ยังไม่บันทึก => dialog ถามก่อนปิด (คลิกพื้นหลัง / ✕ / Esc / ย้อนกลับ)
 		window.pmDirty = () => {
 			if (isHistoryMode) return false;
@@ -2710,7 +2722,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 					});
 					
 					// เปิดเป็น dialog ในหน้าวางแผน PM => ปิด dialog (หน้าหลักโหลดปฏิทิน/งานที่ต้องทำใหม่เอง)
-					if (WS_EMBED) { wsClose(true); return; }
+					if (WS_EMBED) { wsClose(true, true); return; }
 
 					// พยายามปิดหน้าต่าง
 					window.open('', '_self');

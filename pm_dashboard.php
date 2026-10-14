@@ -992,7 +992,7 @@ include "config_ctrl/checksession.php";
             const b = e.target.closest('[data-batch]');
             if (b) { Swal.close(); openPmBatch(b.dataset.batch, dateStr); return; }
             const op = e.target.closest('[data-open]');
-            if (op) { Swal.close(); window.openPmWorksheetDialog(op.dataset.open, op.dataset.done === '1'); return; }
+            if (op) { Swal.close(); window.openPmWorksheetDialog(op.dataset.open, op.dataset.done === '1', { back: { fn: () => openPmDayPanel(dateStr), label: 'กลับไปงานของวัน' } }); return; }
             const tg = e.target.closest('[data-toggle]');
             if (tg) {
                 const box = popup.querySelector(`[data-list="${tg.dataset.toggle}"]`);
@@ -1004,7 +1004,7 @@ include "config_ctrl/checksession.php";
             if (one) {
                 const [gi, i] = one.dataset.ev.split(':').map(Number);
                 const ev = arr[gi] && arr[gi].list && arr[gi].list[i];
-                if (ev) { Swal.close(); window.openPmWorksheetDialog(ev.id, ev.status == 1); }
+                if (ev) { Swal.close(); window.openPmWorksheetDialog(ev.id, ev.status == 1, { back: { fn: () => openPmDayPanel(dateStr, arr[gi].id ?? 'none'), label: 'กลับ' } }); }
             }
         }
     }
@@ -1043,7 +1043,7 @@ include "config_ctrl/checksession.php";
                     if (!b) return;
                     Swal.close();
                     if (b.dataset.choose === 'batch') openPmBatch(props.checksheet_id, dateStr);
-                    else window.openPmWorksheetDialog(eventId, false);
+                    else window.openPmWorksheetDialog(eventId, false, { back: { fn: () => openPmEventChooser(eventId, props, start), label: 'กลับ' } });
                 });
             }
         });

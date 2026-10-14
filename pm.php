@@ -37,6 +37,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise/dist/ag-grid-enterprise.min.js"></script>
     <script src="js/img-carousel.js"></script>
+    <script src="js/search-select.js"></script>   <!-- ทุก select ในหน้าวางแผน PM ค้นหาได้ -->
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
     <style>
@@ -605,6 +606,9 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
         //  สร้าง iframe ใหม่ทุกครั้ง/ลบทิ้งตอนปิด (ไม่ทิ้งประวัติ back ของ iframe ไว้) · ปุ่มย้อนกลับของมือถือ = ปิด dialog
         (function () {
             let dlg = null, ignorePop = false;
+            // หน้าก่อนหน้า (เช่น รายการเครื่องของวัน) — ใบงานแสดงปุ่ม "กลับ" เมื่อมี และหลังบันทึกสำเร็จจะกลับไปหน้านั้น
+            let dlgBack = null;
+            window.pmDialogBack = () => (dlgBack ? { label: dlgBack.label || 'กลับ' } : null);
             const frameWin = () => { try { return dlg.querySelector('iframe').contentWindow; } catch (e) { return null; } };
             const busy = () => { try { const w = frameWin(); return !!(w.pmBatchBusy && w.pmBatchBusy()); } catch (e) { return false; } };
             // หน้าข้างในมีข้อมูลที่กรอกแต่ยังไม่บันทึก (ใบงาน PM) — หน้าบันทึกพร้อมกันเก็บร่างเองจึงไม่ถาม
@@ -612,15 +616,19 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
             const confirmLeave = () => Swal.fire({ icon: 'warning', title: 'ปิดใบงาน?', text: 'ข้อมูลที่กรอกไว้ยังไม่ได้บันทึก ถ้าปิดจะหายไป',
                 showCancelButton: true, confirmButtonText: 'ปิดเลย', cancelButtonText: 'กลับไปกรอกต่อ', confirmButtonColor: '#dc2626', reverseButtons: true }).then(r => r.isConfirmed);
             const isOpen = () => !!dlg;
-            function teardown() {
+            function teardown(goBack) {
                 dlg.remove(); dlg = null;
+                const back = dlgBack; dlgBack = null;
                 document.body.style.overflow = '';
                 // ข้อมูลอาจเปลี่ยน => โหลดปฏิทิน / งานที่ต้องทำใหม่
                 if (window.calendar && typeof window.refreshCalendarEvents === 'function') window.refreshCalendarEvents();
                 window.dispatchEvent(new CustomEvent('pm:batch-closed'));
+                if (goBack && back && typeof back.fn === 'function') setTimeout(back.fn, 0);
             }
-            window.openPmDialog = function (url, label) {
+            // opts.back = { fn, label } หน้าที่จะกลับไป (กดปุ่มกลับในใบงาน / บันทึกสำเร็จ)
+            window.openPmDialog = function (url, label, opts) {
                 if (dlg) return;
+                dlgBack = (opts && opts.back) || null;
                 dlg = document.createElement('div');
                 dlg.className = 'fixed inset-0 z-[1000] bg-slate-900/50 flex items-center justify-center sm:p-4';
                 dlg.setAttribute('role', 'dialog'); dlg.setAttribute('aria-modal', 'true'); dlg.setAttribute('aria-label', label || 'งาน PM');
@@ -633,14 +641,15 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                 try { history.pushState({ pmBatch: 1 }, ''); } catch (e) {}
             };
             window.openPmBatchDialog = url => window.openPmDialog(url, 'บันทึกพร้อมกันหลายเครื่อง');
-            window.openPmWorksheetDialog = (planId, history) => window.openPmDialog('pm_worksheet.php?plan_id=' + encodeURIComponent(planId) + (history ? '&mode=history' : ''), 'ใบงาน PM');
+            window.openPmWorksheetDialog = (planId, history, opts) => window.openPmDialog('pm_worksheet.php?plan_id=' + encodeURIComponent(planId) + (history ? '&mode=history' : ''), 'ใบงาน PM', opts);
             // force = ปิดโดยไม่ถาม (เช่น หลังบันทึกสำเร็จ)
-            window.closePmBatchDialog = window.closePmDialog = async function (force) {
+            //  goBack = กลับไปหน้าก่อนหน้าหลังปิด (ปุ่ม "กลับ" ในใบงาน / บันทึกสำเร็จ)
+            window.closePmBatchDialog = window.closePmDialog = async function (force, goBack) {
                 if (!isOpen()) return;
                 if (busy()) { Swal.fire({ icon: 'info', title: 'กำลังบันทึกข้อมูล', text: 'รอให้บันทึกเสร็จก่อนจึงปิดได้', confirmButtonColor: '#006b9f' }); return; }
                 if (force !== true && dirty() && !(await confirmLeave())) return;
                 if (!isOpen()) return;
-                teardown();
+                teardown(goBack === true);
                 if (history.state && history.state.pmBatch) { ignorePop = true; history.back(); }
             };
             window.addEventListener('popstate', () => {
