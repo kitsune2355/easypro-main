@@ -729,6 +729,16 @@ if ($action === 'get_all') {
     array_push($params, $s,$s,$s,$s,$s,$s,$s,$s,$s,$s,$s,$s,$s,$s);
     $types .= str_repeat("s", 14);
 
+    // ชื่อช่าง: ผู้รับผิดชอบ (หลายคน) + ผู้รับงาน / ผู้ปิดงาน — ค้นจากชื่อผู้ใช้หรือชื่อ-นามสกุล
+    $whereSql .= "
+      OR EXISTS (SELECT 1 FROM repair_request_responsible sx
+                 WHERE sx.repair_request_id = r.id AND (sx.user_name LIKE ? OR sx.user_fname LIKE ?))
+      OR EXISTS (SELECT 1 FROM tb_user su
+                 WHERE su.user_id IN (r.received_by, r.completed_by) AND (su.user_name LIKE ? OR su.user_fname LIKE ?))
+    ";
+    array_push($params, $s, $s, $s, $s);
+    $types .= "ssss";
+
     if ($searchDigits !== '') {
       $whereSql .= " OR REPLACE(REPLACE(REPLACE(REPLACE(r.phone,'-',''),' ',''),'(',''),')','') LIKE ? ";
       $params[] = "%{$searchDigits}%";

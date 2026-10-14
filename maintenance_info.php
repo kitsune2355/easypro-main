@@ -392,7 +392,7 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
       <div class="relative flex-1 min-w-0 md:flex-none md:w-96">
         <i data-lucide="search" class="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
         <input id="grid-search" type="text" oninput="onSearchChanged()"
-               placeholder="ค้นหา... (ชื่อผู้แจ้ง/อาการ/อาคาร/สถานะ/ครุภัณฑ์)"
+               placeholder="ค้นหา... (ชื่อผู้แจ้ง/ช่าง/อาการ/อาคาร/สถานะ/ครุภัณฑ์)"
                class="w-full bg-white border border-slate-200 rounded-xl pl-11 pr-4 py-2.5 text-sm shadow-sm focus:ring-2 focus:ring-sky-500 outline-none transition-all">
       </div>
 
