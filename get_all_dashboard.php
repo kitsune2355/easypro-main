@@ -393,105 +393,117 @@ if ($ag_id) {
     }
 }
 
-// Helpers to fetch "last reading per day" for WT/ET/TOU (works on MySQL old)
-function fetch_last_per_day_wt($connect, $startDT, $endDT, $meterIds) {
-    if (!$meterIds) return array(); // [mt_id][date]=value
-    $in = implode(',', array_map('intval', $meterIds));
-    $sql = "
-        SELECT x.mt_id, x.d, t.toumdt_wt_mt AS value
-        FROM (
-            SELECT toumdt_wt_toum_id AS mt_id, DATE(toumdt_wt_time) AS d, MAX(toumdt_wt_time) AS mx
-            FROM tb_toum_detail_wt
-            WHERE toumdt_wt_toum_id IN ($in)
-              AND toumdt_wt_time BETWEEN ? AND ?
-            GROUP BY toumdt_wt_toum_id, DATE(toumdt_wt_time)
-        ) x
-        JOIN tb_toum_detail_wt t
-          ON t.toumdt_wt_toum_id = x.mt_id AND t.toumdt_wt_time = x.mx
-    ";
-    $stmt = $connect->prepare($sql);
-    $stmt->bind_param("ss", $startDT, $endDT);
-    $stmt->execute();
-    $rows = fetch_all_assoc($stmt);
-    $stmt->close();
-
-    $map = array();
-    foreach ($rows as $r) {
-        $mid = (int)$r['mt_id'];
-        $d = $r['d'];
-        if (!isset($map[$mid])) $map[$mid] = array();
-        $map[$mid][$d] = (float)$r['value'];
-    }
-    return $map;
+// ปริมาณการใช้มิเตอร์รายวัน — คำนวณแบบเดียวกับหน้าข้อมูลมิเตอร์ (handle_meter_info.php calc_usage)
+//  - ทุกครั้งที่จด: ใช้ = เลขที่อ่านได้ - เลขครั้งก่อนหน้า (ข้ามวันที่ไม่ได้จดได้ ไม่ถือว่าเป็น 0), ติดลบ = 0
+//  - ติ๊ก "เริ่มนับใหม่" (is_rollover = 1): ใช้ = เลขที่อ่านได้
+//  - ฐานของครั้งแรกในช่วง = เลขครั้งล่าสุดก่อนช่วงวันที่ (ไม่มี = 0)
+//  - ปริมาณรายวัน = ผลรวมของทุกครั้งที่จดในวันนั้น
+function meter_calc_usage($curr, $prev, $is_roll) {
+    if ((int)$is_roll === 1) return $curr < 0 ? 0.0 : $curr;
+    $u = $curr - $prev;
+    return $u < 0 ? 0.0 : $u;
 }
 
-function fetch_last_per_day_et($connect, $startDT, $endDT, $meterIds) {
+// เลขครั้งล่าสุดก่อนช่วงวันที่ ของแต่ละมิเตอร์ — [mt_id] => array(col => value)
+function meter_baseline($connect, $table, $idCol, $timeCol, $pkCol, $cols, $startDT, $meterIds) {
     if (!$meterIds) return array();
     $in = implode(',', array_map('intval', $meterIds));
+    $sel = implode(', ', array_map(function ($c) { return "t.$c"; }, $cols));
     $sql = "
-        SELECT x.mt_id, x.d, t.toumdt_et_mt AS value
-        FROM (
-            SELECT toumdt_et_toum_id AS mt_id, DATE(toumdt_et_time) AS d, MAX(toumdt_et_time) AS mx
-            FROM tb_toum_detail_et
-            WHERE toumdt_et_toum_id IN ($in)
-              AND toumdt_et_time BETWEEN ? AND ?
-            GROUP BY toumdt_et_toum_id, DATE(toumdt_et_time)
-        ) x
-        JOIN tb_toum_detail_et t
-          ON t.toumdt_et_toum_id = x.mt_id AND t.toumdt_et_time = x.mx
+        SELECT t.$idCol AS mt_id, $sel
+        FROM $table t
+        JOIN (
+            SELECT $idCol AS mt_id, MAX($timeCol) AS mx
+            FROM $table
+            WHERE $idCol IN ($in) AND $timeCol < ?
+            GROUP BY $idCol
+        ) x ON x.mt_id = t.$idCol AND x.mx = t.$timeCol
+        ORDER BY t.$pkCol ASC
     ";
     $stmt = $connect->prepare($sql);
-    $stmt->bind_param("ss", $startDT, $endDT);
+    $stmt->bind_param("s", $startDT);
     $stmt->execute();
     $rows = fetch_all_assoc($stmt);
     $stmt->close();
-
     $map = array();
-    foreach ($rows as $r) {
-        $mid = (int)$r['mt_id'];
-        $d = $r['d'];
-        if (!isset($map[$mid])) $map[$mid] = array();
-        $map[$mid][$d] = (float)$r['value'];
+    foreach ($rows as $r) {   // เวลาเดียวกันหลายแถว => แถวหลังสุด (pk มากสุด) ทับ
+        $v = array();
+        foreach ($cols as $c) $v[$c] = (float)$r[$c];
+        $map[(int)$r['mt_id']] = $v;
     }
     return $map;
 }
 
-function fetch_last_per_day_tou($connect, $startDT, $endDT, $meterIds) {
-    if (!$meterIds) return array(); // [mt_id][date]=array(total,on,off)
+// ทุกครั้งที่จดในช่วงวันที่ เรียงตามเวลา — [mt_id] => list of array(d, is_roll, col => value)
+function meter_readings($connect, $table, $idCol, $timeCol, $pkCol, $rollCol, $cols, $startDT, $endDT, $meterIds) {
+    if (!$meterIds) return array();
     $in = implode(',', array_map('intval', $meterIds));
+    $sel = implode(', ', $cols);
     $sql = "
-        SELECT x.mt_id, x.d,
-               t.toudt_010 AS total,
-               t.toudt_011 AS on_peak,
-               t.toudt_012 AS off_peak
-        FROM (
-            SELECT toudt_tou_id AS mt_id, DATE(toudt_time) AS d, MAX(toudt_time) AS mx
-            FROM tb_tou_detail
-            WHERE toudt_tou_id IN ($in)
-              AND toudt_time BETWEEN ? AND ?
-            GROUP BY toudt_tou_id, DATE(toudt_time)
-        ) x
-        JOIN tb_tou_detail t
-          ON t.toudt_tou_id = x.mt_id AND t.toudt_time = x.mx
+        SELECT $idCol AS mt_id, DATE($timeCol) AS d, $rollCol AS is_roll, $sel
+        FROM $table
+        WHERE $idCol IN ($in) AND $timeCol BETWEEN ? AND ?
+        ORDER BY $idCol, $timeCol, $pkCol
     ";
     $stmt = $connect->prepare($sql);
     $stmt->bind_param("ss", $startDT, $endDT);
     $stmt->execute();
     $rows = fetch_all_assoc($stmt);
     $stmt->close();
-
     $map = array();
     foreach ($rows as $r) {
-        $mid = (int)$r['mt_id'];
-        $d = $r['d'];
-        if (!isset($map[$mid])) $map[$mid] = array();
-        $map[$mid][$d] = array(
-            "total" => (float)$r['total'],
-            "on_peak" => (float)$r['on_peak'],
-            "off_peak" => (float)$r['off_peak']
-        );
+        $v = array("d" => $r['d'], "is_roll" => (int)$r['is_roll']);
+        foreach ($cols as $c) $v[$c] = (float)$r[$c];
+        $map[(int)$r['mt_id']][] = $v;
     }
     return $map;
+}
+
+// มิเตอร์ธรรมดา (น้ำ/ไฟ) — [mt_id][date] => array(value = เลขล่าสุดของวัน, usage = ปริมาณที่ใช้ในวัน)
+function meter_daily_simple($connect, $kind, $startDT, $endDT, $meterIds) {
+    $table = "tb_toum_detail_$kind"; $p = "toumdt_{$kind}";
+    $base = meter_baseline($connect, $table, "{$p}_toum_id", "{$p}_time", "{$p}_id", array("{$p}_mt"), $startDT, $meterIds);
+    $reads = meter_readings($connect, $table, "{$p}_toum_id", "{$p}_time", "{$p}_id", "{$p}_is_rollover", array("{$p}_mt"), $startDT, $endDT, $meterIds);
+    $out = array();
+    foreach ($meterIds as $mid) {
+        $mid = (int)$mid;
+        $prev = isset($base[$mid]) ? $base[$mid]["{$p}_mt"] : 0.0;
+        $out[$mid] = array("_base" => $prev);
+        foreach (isset($reads[$mid]) ? $reads[$mid] : array() as $r) {
+            $curr = $r["{$p}_mt"];
+            $u = meter_calc_usage($curr, $prev, $r['is_roll']);
+            if (!isset($out[$mid][$r['d']])) $out[$mid][$r['d']] = array("value" => 0.0, "usage" => 0.0);
+            $out[$mid][$r['d']]['usage'] += $u;
+            $out[$mid][$r['d']]['value'] = $curr;
+            $prev = $curr;
+        }
+    }
+    return $out;
+}
+
+// มิเตอร์ TOU — ใช้ On Peak (011) + Off Peak (012) แบบเดียวกับหน้าข้อมูลมิเตอร์; [mt_id][date] => array(total,on_peak,off_peak, on_unit, off_unit)
+function meter_daily_tou($connect, $startDT, $endDT, $meterIds) {
+    $cols = array('toudt_010', 'toudt_011', 'toudt_012');
+    $base = meter_baseline($connect, 'tb_tou_detail', 'toudt_tou_id', 'toudt_time', 'toudt_id', $cols, $startDT, $meterIds);
+    $reads = meter_readings($connect, 'tb_tou_detail', 'toudt_tou_id', 'toudt_time', 'toudt_id', 'toudt_is_rollover', $cols, $startDT, $endDT, $meterIds);
+    $out = array();
+    foreach ($meterIds as $mid) {
+        $mid = (int)$mid;
+        $prev = isset($base[$mid]) ? $base[$mid] : array('toudt_010' => 0.0, 'toudt_011' => 0.0, 'toudt_012' => 0.0);
+        $out[$mid] = array("_base" => $prev);
+        foreach (isset($reads[$mid]) ? $reads[$mid] : array() as $r) {
+            $on  = meter_calc_usage($r['toudt_011'], $prev['toudt_011'], $r['is_roll']);
+            $off = meter_calc_usage($r['toudt_012'], $prev['toudt_012'], $r['is_roll']);
+            if (!isset($out[$mid][$r['d']])) $out[$mid][$r['d']] = array("on_unit" => 0.0, "off_unit" => 0.0);
+            $out[$mid][$r['d']]['on_unit'] += $on;
+            $out[$mid][$r['d']]['off_unit'] += $off;
+            $out[$mid][$r['d']]['total'] = $r['toudt_010'];
+            $out[$mid][$r['d']]['on_peak'] = $r['toudt_011'];
+            $out[$mid][$r['d']]['off_peak'] = $r['toudt_012'];
+            $prev = $r;
+        }
+    }
+    return $out;
 }
 
 // Prepare meter ids by type
@@ -521,82 +533,53 @@ if ($mt_id && $mt_type && $meters) {
     if ($typeReq === 'tou') $touIds = array($mt_id_int);
 }
 
-// Fetch readings
-$wtMap  = fetch_last_per_day_wt($connect, $startDT, $endDT, $wtIds);
-$etMap  = fetch_last_per_day_et($connect, $startDT, $endDT, $etIds);
-$touMap = fetch_last_per_day_tou($connect, $startDT, $endDT, $touIds);
+// Fetch readings + ปริมาณการใช้รายวัน
+$wtMap  = meter_daily_simple($connect, 'wt', $startDT, $endDT, $wtIds);
+$etMap  = meter_daily_simple($connect, 'et', $startDT, $endDT, $etIds);
+$touMap = meter_daily_tou($connect, $startDT, $endDT, $touIds);
 
-// Compute per-day meter arrays with unitDay (same logic as original: diff from previous day, clamp >=0)
-$prevWtValues = array();
-$prevEtValues = array();
-$prevTouValues = array();
+// เลขมิเตอร์ล่าสุด ณ วันนั้น (วันที่ไม่ได้จด = เลขครั้งก่อนหน้า)
+$lastWt = array(); $lastEt = array(); $lastTou = array();
+foreach ($wtIds as $mid)  $lastWt[(int)$mid]  = $wtMap[(int)$mid]['_base'];
+foreach ($etIds as $mid)  $lastEt[(int)$mid]  = $etMap[(int)$mid]['_base'];
+foreach ($touIds as $mid) $lastTou[(int)$mid] = $touMap[(int)$mid]['_base'];
 
 foreach ($dailyDates as $d) {
-    // WT
-    foreach ($wtIds as $mid) {
-        $val = 0.0;
-        if (isset($wtMap[$mid]) && isset($wtMap[$mid][$d])) $val = (float)$wtMap[$mid][$d];
+    foreach (array('wt' => $wtIds, 'et' => $etIds) as $kind => $ids) {
+        foreach ($ids as $mid) {
+            $mid = (int)$mid;
+            $day = $kind === 'wt' ? (isset($wtMap[$mid][$d]) ? $wtMap[$mid][$d] : null) : (isset($etMap[$mid][$d]) ? $etMap[$mid][$d] : null);
+            if ($kind === 'wt') { if ($day) $lastWt[$mid] = $day['value']; $val = $lastWt[$mid]; }
+            else                { if ($day) $lastEt[$mid] = $day['value']; $val = $lastEt[$mid]; }
 
-        $prev = isset($prevWtValues[$mid]) ? $prevWtValues[$mid] : $val;
-        $unitDay = $val - $prev;
-        if ($unitDay < 0) $unitDay = 0;
-
-        $prevWtValues[$mid] = $val;
-
-        $dailyMap[$d]['meter']['wt'][] = array(
-            "mt_id" => (int)$mid,
-            "text" => isset($meterTextById[$mid]) ? $meterTextById[$mid] : "",
-            "value" => (float)$val,
-            "unitDay" => (float)$unitDay
-        );
-    }
-
-    // ET
-    foreach ($etIds as $mid) {
-        $val = 0.0;
-        if (isset($etMap[$mid]) && isset($etMap[$mid][$d])) $val = (float)$etMap[$mid][$d];
-
-        $prev = isset($prevEtValues[$mid]) ? $prevEtValues[$mid] : $val;
-        $unitDay = $val - $prev;
-        if ($unitDay < 0) $unitDay = 0;
-
-        $prevEtValues[$mid] = $val;
-
-        $dailyMap[$d]['meter']['et'][] = array(
-            "mt_id" => (int)$mid,
-            "text" => isset($meterTextById[$mid]) ? $meterTextById[$mid] : "",
-            "value" => (float)$val,
-            "unitDay" => (float)$unitDay
-        );
+            $dailyMap[$d]['meter'][$kind][] = array(
+                "mt_id" => $mid,
+                "text" => isset($meterTextById[$mid]) ? $meterTextById[$mid] : "",
+                "value" => (float)$val,
+                "unitDay" => $day ? round($day['usage'], 3) : 0.0
+            );
+        }
     }
 
     // TOU
     foreach ($touIds as $mid) {
-        $tou = array("total" => 0.0, "on_peak" => 0.0, "off_peak" => 0.0);
-        if (isset($touMap[$mid]) && isset($touMap[$mid][$d])) $tou = $touMap[$mid][$d];
-
-        $prev = isset($prevTouValues[$mid]) ? $prevTouValues[$mid] : $tou;
-
-        $total_unit = $tou['total'] - $prev['total'];
-        $on_unit    = $tou['on_peak'] - $prev['on_peak'];
-        $off_unit   = $tou['off_peak'] - $prev['off_peak'];
-
-        if ($total_unit < 0) $total_unit = 0;
-        if ($on_unit < 0)    $on_unit = 0;
-        if ($off_unit < 0)   $off_unit = 0;
-
-        $prevTouValues[$mid] = $tou;
+        $mid = (int)$mid;
+        $day = isset($touMap[$mid][$d]) ? $touMap[$mid][$d] : null;
+        if ($day) $lastTou[$mid] = array('toudt_010' => $day['total'], 'toudt_011' => $day['on_peak'], 'toudt_012' => $day['off_peak']);
+        $on_unit  = $day ? $day['on_unit'] : 0.0;
+        $off_unit = $day ? $day['off_unit'] : 0.0;
+        $total_unit = $on_unit + $off_unit;
 
         $sum_tou_total += $total_unit;
         $sum_tou_on_peak += $on_unit;
         $sum_tou_off_peak += $off_unit;
 
         $dailyMap[$d]['meter']['tou'][] = array(
-            "mt_id" => (int)$mid,
+            "mt_id" => $mid,
             "text" => isset($meterTextById[$mid]) ? $meterTextById[$mid] : "",
-            "total" => (float)$tou['total'],
-            "on_peak" => (float)$tou['on_peak'],
-            "off_peak" => (float)$tou['off_peak'],
+            "total" => (float)$lastTou[$mid]['toudt_010'],
+            "on_peak" => (float)$lastTou[$mid]['toudt_011'],
+            "off_peak" => (float)$lastTou[$mid]['toudt_012'],
             "total_unit" => round($total_unit, 2),
             "on_peak_unit" => round($on_unit, 2),
             "off_peak_unit" => round($off_unit, 2)

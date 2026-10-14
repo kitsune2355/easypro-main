@@ -1375,19 +1375,18 @@ include "config_ctrl/checksession.php";
                     if(day.service) day.service.forEach(s => svcSum[s.text] = (svcSum[s.text] || 0) + Number(s.value || 0));
                     if(day.type) day.type.forEach(t => typeSum[t.text] = (typeSum[t.text] || 0) + Number(t.value || 0));
 
-                    if (day.meter && day.meter.wt) {
-                        day.meter.wt.forEach(m => {
-                            if (!wtSeriesMap[m.text]) wtSeriesMap[m.text] = [];
-                            wtSeriesMap[m.text].push(Number(m.unitDay || 0));
+                    // แยกเส้นตาม mt_id (ไม่ใช่ชื่อ) — มิเตอร์ชื่อซ้ำกันจะได้ไม่รวมเป็นเส้นเดียวจนค่าเลื่อนวัน
+                    //  ใส่ค่าตามตำแหน่งวัน (dayIdx) ให้ตรงกับแกน X เสมอ
+                    const dayIdx = allDates.length - 1;
+                    ['wt', 'et'].forEach(kind => {
+                        if (!day.meter || !day.meter[kind]) return;
+                        const map = kind === 'wt' ? wtSeriesMap : etSeriesMap;
+                        day.meter[kind].forEach(m => {
+                            const key = m.mt_id != null ? 'id' + m.mt_id : 't' + m.text;
+                            if (!map[key]) map[key] = { text: m.text, id: m.mt_id, values: [] };
+                            map[key].values[dayIdx] = Number(m.unitDay || 0);
                         });
-                    }
-
-                    if (day.meter && day.meter.et) {
-                        day.meter.et.forEach(m => {
-                            if (!etSeriesMap[m.text]) etSeriesMap[m.text] = [];
-                            etSeriesMap[m.text].push(Number(m.unitDay || 0));
-                        });
-                    }
+                    });
                     
                     let tT = 0, tOn = 0, tOff = 0;
                     if (day.meter && day.meter.tou) {
@@ -1667,8 +1666,18 @@ include "config_ctrl/checksession.php";
                     layoutEnergyLegend(chart);
                 }
 
-                updateLineChart(charts.wt, wtSeriesMap, 'Water_Usage');
-                updateLineChart(charts.et, etSeriesMap, 'Electric_Usage');
+                // { ชื่อเส้น: ค่ารายวัน } — ชื่อซ้ำกันต่อท้ายด้วยรหัสมิเตอร์ (legend ของ ECharts ใช้ชื่อเป็นตัวแยกเส้น)
+                const toNamedSeries = map => {
+                    const list = Object.values(map), count = {}, out = {};
+                    list.forEach(s => count[s.text] = (count[s.text] || 0) + 1);
+                    list.forEach(s => {
+                        const name = count[s.text] > 1 ? `${s.text} (#${s.id})` : s.text;
+                        out[name] = allDates.map((_, i) => s.values[i] ?? 0);
+                    });
+                    return out;
+                };
+                updateLineChart(charts.wt, toNamedSeries(wtSeriesMap), 'Water_Usage');
+                updateLineChart(charts.et, toNamedSeries(etSeriesMap), 'Electric_Usage');
 
                 charts.tou.setOption({
                     ...getBaseOption('TOU_Stats'),
