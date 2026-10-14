@@ -592,7 +592,29 @@ include "config_ctrl/checksession.php";
             : params.value;
         return Number(value) === 0 ? '' : formatNum(value);
     };
-	
+
+    // tooltip กราฟมิเตอร์น้ำ/ไฟ — หน่วยงานที่มีมิเตอร์มากจะยาวเกินจอ:
+    //  แสดงเฉพาะมิเตอร์ที่มีการใช้ เรียงมากไปน้อย ไม่เกิน ENERGY_TIP_MAX รายการ + รวมทั้งหมด + สรุปที่เหลือ
+    const ENERGY_TIP_MAX = 12;
+    const energyTooltip = (params) => {
+        const list = Array.isArray(params) ? params : [params];
+        if (!list.length) return '';
+        const enc = s => echarts.format.encodeHTML(String(s ?? ''));
+        const used = list.filter(p => Number(p.value) > 0).sort((a, b) => b.value - a.value);
+        const total = used.reduce((s, p) => s + Number(p.value), 0);
+        const row = p => `<div style="display:flex;align-items:center;gap:8px;min-width:220px;max-width:340px">
+                ${p.marker}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${enc(p.seriesName)}</span>
+                <b style="margin-left:12px">${formatNum(p.value)}</b></div>`;
+        const more = used.length - ENERGY_TIP_MAX;
+        return `<div style="font-weight:600;margin-bottom:6px">${enc(list[0].axisValueLabel)}</div>`
+            + (used.length
+                ? used.slice(0, ENERGY_TIP_MAX).map(row).join('')
+                  + (more > 0 ? `<div style="color:#64748b;font-size:12px;margin-top:4px">และอีก ${more} มิเตอร์ (รวม ${formatNum(used.slice(ENERGY_TIP_MAX).reduce((s, p) => s + Number(p.value), 0))})</div>` : '')
+                  + `<div style="display:flex;justify-content:space-between;gap:12px;border-top:1px solid #e2e8f0;margin-top:6px;padding-top:6px;font-weight:600"><span>รวม ${used.length} มิเตอร์ที่มีการใช้</span><span>${formatNum(total)}</span></div>`
+                : '<div style="color:#64748b">ไม่มีการใช้ในวันนี้</div>')
+            + (list.length - used.length > 0 && used.length ? `<div style="color:#94a3b8;font-size:11px;margin-top:2px">ไม่มีการใช้ ${list.length - used.length} มิเตอร์</div>` : '');
+    };
+
     const hideZeroPieLabel = (params) => {
         return Number(params.value) === 0
             ? ''
@@ -1627,13 +1649,15 @@ include "config_ctrl/checksession.php";
                         },
                         tooltip: {
                             trigger: 'axis',
+                            confine: true,          // ไม่ล้นออกนอกกรอบกราฟ
                             backgroundColor: 'rgba(255, 255, 255, 0.95)',
                             borderColor: '#e2e8f0',
                             borderWidth: 1,
                             textStyle: { color: '#334155' },
                             shadowBlur: 10,
                             shadowColor: 'rgba(0,0,0,0.05)',
-                            padding: 12
+                            padding: 12,
+                            formatter: energyTooltip
                         },
                         grid: {
                             left: '3%',
