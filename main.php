@@ -40,7 +40,7 @@ $rolePerms = array();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EasyPro</title>
     <script>
-        // ขนาดตัวอักษรที่บันทึกไว้ในเครื่อง (ตั้งได้ที่เมนู ตั้งค่าการแสดงผล) — ใช้ก่อนวาดหน้า
+        // ขนาดตัวอักษรที่บันทึกไว้ในเครื่อง (ตั้งได้ที่เมนู การแสดงผล) — ใช้ก่อนวาดหน้า
         window.FONT_SCALE_KEY = 'easypro_font_scale';
         window.applyFontScale = function (z) {
             z = Math.min(1.5, Math.max(0.8, parseFloat(z) || 1));
@@ -110,7 +110,7 @@ $rolePerms = array();
         .sidebar-expanded { width: 240px; }
         .sidebar-collapsed { width: 70px; }
 
-        /* ===== ขนาดตัวอักษรทั้งโปรแกรม (เมนู ตั้งค่าการแสดงผล) — --fs = ตัวคูณ (1 = ปกติ) =====
+        /* ===== ขนาดตัวอักษรทั้งโปรแกรม (เมนู การแสดงผล) — --fs = ตัวคูณ (1 = ปกติ) =====
            หน้าใน iframe: ขยายด้วย transform แล้วลดขนาดกรอบลงตามสัดส่วน => หน้าข้างในเห็นพื้นที่เล็กลง จัดหน้าใหม่ได้เอง (เหมือนซูมเบราว์เซอร์)
            ไม่ใช้ zoom กับ iframe เพราะ Chrome คำนวณตำแหน่งคลิกในกรอบที่ zoom ผิด
            เมนูด้านซ้าย/แถบด้านบน: zoom ที่ลูกของ sidebar (sidebar เองสูงเต็มจอ ถ้า zoom จะยาวเกินจอ) และขยายความกว้าง sidebar ตาม */
@@ -404,9 +404,9 @@ const allMenuItems = [
     { icon: 'drill', label: 'ข้อมูลอุปกรณ์เครื่องจักร', href: 'machine_info.php', perm: 'machine_data' },
     { icon: 'package', label: 'จัดการสต็อก', href: 'stock.php', perm: 'stock_manage' },
     { icon: 'notebook-pen', label: 'วางแผน PM', href: 'pm.php', perm: 'pm_plan' },
+    { icon: 'type', label: 'การแสดงผล', href: 'display_settings.php', perm: null },
+    { icon: 'book-open-check', label: 'คู่มือการใช้งาน', href: 'tutorial.php', perm: null },
     { icon: 'settings', label: 'ตั้งค่าข้อมูล', href: 'settings.php', roles: ['admin', 'super_admin'] },
-    { icon: 'type', label: 'ตั้งค่าการแสดงผล', href: 'display_settings.php', perm: null },
-    { icon: 'book-open-check', label: 'คู่มือการใช้งาน', href: 'tutorial.php', perm: null }
 ];
 
 const menuItems = allMenuItems.filter(function(item) {
