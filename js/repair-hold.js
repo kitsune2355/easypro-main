@@ -106,13 +106,26 @@
     </div>`;
   }
 
+  // ระยะเวลาพัก (เริ่ม → จบ)
+  const span = (a, b) => { const ms = new Date(String(b).replace(' ', 'T')) - new Date(String(a).replace(' ', 'T')); const d = Math.floor(ms / 864e5), h = Math.floor(ms % 864e5 / 36e5), m = Math.round(ms % 36e5 / 6e4);
+    return d > 0 ? `${d} วัน${h ? ' ' + h + ' ชม.' : ''}` : (h > 0 ? `${h} ชม.${m ? ' ' + m + ' นาที' : ''}` : `${Math.max(1, m)} นาที`); };
+
+  // ประวัติการพักงาน: แต่ละครั้งแสดงเหตุผลและรายละเอียดครบ (แบบเดียวกับตอนกำลังพัก) + ใครพัก / ใครกลับมาทำ / พักนานเท่าไร
   function historyHtml() {
-    const end = { resume: 'กลับมาดำเนินการ', close: 'ปิดงาน', cancel: 'ยกเลิก/ล้างการรับงาน' };
-    return `<details class="mt-3 group"><summary class="cursor-pointer text-[11px] font-bold text-slate-500 select-none">ประวัติการพักงาน (${S.history.length} ครั้ง)</summary>
-      <ul class="mt-2 space-y-2">${S.history.map(h => `<li class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600">
-        <div class="font-bold text-slate-700">${esc((REASONS[h.reason] || REASONS.other).label)} <span class="font-normal text-slate-400">· ${thDT(h.started_at)} → ${thDT(h.ended_at)} (${esc(end[h.end_type] || '-')})</span></div>
-        ${h.reason === 'parts' && (h.parts || []).length ? `<div>${h.parts.map(p => `${esc(p.name)} ×${p.qty}${p.arrived_at ? ' ✓' : ''}`).join(', ')}</div>` : ''}
-        ${h.note ? `<div class="text-slate-500">${esc(h.note)}</div>` : ''}</li>`).join('')}</ul></details>`;
+    const end = { resume: 'กลับมาดำเนินการ', close: 'ปิดงาน', cancel: 'ยกเลิกงาน / ล้างการรับงาน' };
+    return `<details class="mt-3" ${S.active ? '' : 'open'}><summary class="cursor-pointer text-[11px] font-bold text-slate-500 select-none">ประวัติการพักงาน (${S.history.length} ครั้ง)</summary>
+      <ul class="mt-2 space-y-2">${S.history.map(h => { const r = REASONS[h.reason] || REASONS.other;
+        return `<li class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600 space-y-1.5">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span class="px-2 py-0.5 rounded-full border ${TONE[r.cls]} font-bold text-[10.5px]">⏸ ${esc(r.label)}</span>
+          <span class="text-slate-500">พัก ${span(h.started_at, h.ended_at)}</span>
+          <span class="ml-auto text-slate-400">${esc(end[h.end_type] || '-')}</span>
+        </div>
+        <dl class="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1">
+          ${detailRows(h).map(([k, v]) => `<dt class="text-slate-400">${k}</dt><dd class="text-slate-700">${v}</dd>`).join('')}
+          <dt class="text-slate-400">พักงานโดย</dt><dd class="text-slate-700">${esc(h.started_by)} · ${thDT(h.started_at)}</dd>
+          <dt class="text-slate-400">${esc(end[h.end_type] || 'สิ้นสุด')}</dt><dd class="text-slate-700">${esc(h.ended_by || '-')} · ${thDT(h.ended_at)}</dd>
+        </dl></li>`; }).join('')}</ul></details>`;
   }
 
   function formHtml() {

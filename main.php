@@ -330,10 +330,10 @@ if (isset($_SESSION['sess_user_level_es']) && ($_SESSION['sess_user_level_es'] =
       <div class="flex items-center gap-1.5 md:gap-2 bg-black/20 p-1 pr-2 md:pr-3 rounded-full backdrop-blur-sm border border-white/10 max-w-[60%] md:max-w-none">
           
           <div id="agency-selector-trigger" 
-              class="flex items-center gap-1.5 bg-white/10 px-2 md:px-3 py-1 rounded-full shrink min-w-0
+              class="flex items-center gap-1.5 bg-white/10 px-2 md:px-3 py-1 rounded-full shrink min-w-0 lg:shrink-0
               <?php echo (isset($_SESSION['sess_user_level_es']) && $_SESSION['sess_user_level_es'] == 'super_admin') ? 'cursor-pointer hover:bg-white/20 transition-colors' : ''; ?>">
               <span class="material-symbols-rounded text-[18px] md:text-sm shrink-0">corporate_fare</span> 
-              <p class="text-[11px] md:text-sm font-medium truncate max-w-[70px] md:max-w-[150px]">
+              <p class="text-[11px] md:text-sm font-medium truncate max-w-[70px] md:max-w-[150px] lg:max-w-none">
                   <?php echo isset($sess_agency_name) ? $sess_agency_name : 'หน่วยงาน'; ?>
               </p>
           </div>
