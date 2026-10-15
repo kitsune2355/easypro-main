@@ -268,6 +268,8 @@ include "config_ctrl/checksession.php";
         font-weight: 600;
         color: #334155;
       }
+      /* แถวที่งานซ้อนกันหลายชั้นจะสูงมาก — ชิดบนให้เห็นชื่อช่าง/วันที่เสมอ */
+      .timeline-body .timeline-sidebar { align-items: flex-start; }
       .timeline-header .timeline-sidebar {
         background: #f8fafc;
         z-index: 30;
