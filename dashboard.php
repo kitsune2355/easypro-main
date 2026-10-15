@@ -1,6 +1,19 @@
-<?php 
+<?php
 @session_start();
 include "config_ctrl/checksession.php";
+include_once "config_ctrl/connect.php";
+
+// แสดงส่วนของหน้าหลักตามสิทธิ์การใช้งานระบบของหน่วยงาน (ตั้งที่ agency.php — ตัวเดียวกับที่ใช้ซ่อนเมนูใน main.php)
+//  แจ้งซ่อม = repair_request / repair_data · Energy = meter_data · PM = pm_plan
+$dashPerms = [];
+$rsDashPerm = mysqli_query($connect, "SELECT perm_key FROM tb_agency_role_permission WHERE ag_id = " . (int)$sess_user_agency_es . " AND can_view = 1");
+if ($rsDashPerm) while ($rowDashPerm = mysqli_fetch_assoc($rsDashPerm)) $dashPerms[] = $rowDashPerm['perm_key'];
+$DASH = [
+    'repair' => in_array('repair_request', $dashPerms, true) || in_array('repair_data', $dashPerms, true),
+    'energy' => in_array('meter_data', $dashPerms, true),
+    'pm'     => in_array('pm_plan', $dashPerms, true),
+];
+$dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -273,6 +286,16 @@ include "config_ctrl/checksession.php";
 
     <main class="max-w-full mx-auto px-3 sm:px-6 pb-12">
         
+        <?php if (!$DASH['repair'] && !$DASH['energy'] && !$DASH['pm']): ?>
+        <div class="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500">
+            <i data-lucide="layout-dashboard" class="w-10 h-10 mx-auto text-slate-300"></i>
+            <p class="mt-3 font-semibold text-slate-700">ยังไม่มีข้อมูลที่แสดงในหน้าหลัก</p>
+            <p class="text-sm">หน่วยงานนี้ยังไม่ได้เปิดสิทธิ์ระบบแจ้งซ่อม มิเตอร์ หรือ PM — ติดต่อผู้ดูแลระบบ</p>
+        </div>
+        <?php endif; ?>
+
+        <!-- ส่วนแจ้งซ่อม (สิทธิ์ แจ้งซ่อม / ข้อมูลแจ้งซ่อม) -->
+        <div id="dashRepair" class="<?php echo trim($dashHide('repair')); ?>">
         <!-- เตือนงานค้างที่แจ้งก่อนช่วงวันที่ที่กรอง (กันงานตกหล่นข้ามเดือน) -->
         <div id="backlogAlert" class="hidden-backlog mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
             <div class="flex items-start gap-3 flex-1 min-w-0">
@@ -452,7 +475,10 @@ include "config_ctrl/checksession.php";
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        </div><!-- /dashRepair -->
+
+        <!-- Energy Monitoring (สิทธิ์ ข้อมูลมิเตอร์) -->
+        <div id="dashEnergy" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden<?php echo $dashHide('energy'); ?>">
             <div class="p-3 sm:p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4">
                 <div class="flex items-center gap-3">
                     <div class="bg-yellow-100 p-2 rounded-lg text-yellow-600">
@@ -522,6 +548,44 @@ include "config_ctrl/checksession.php";
                             </div>
                             <div id="touDonutChart" class="echart-box-sm"></div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PM Monitoring: แผนบำรุงรักษาเชิงป้องกัน (อิงวันที่ในแผน + ตัวกรองช่วงเวลา/สถานที่ด้านบน) -->
+        <div id="pmSection" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden<?php echo $DASH['energy'] ? ' mt-8' : ''; ?><?php echo $dashHide('pm'); ?>">
+            <div class="p-3 sm:p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="bg-sky-100 p-2 rounded-lg text-sky-600"><i data-lucide="notebook-pen" class="w-5 h-5"></i></div>
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-bold text-slate-800">PM Monitoring</h2>
+                        <p class="text-xs text-slate-500">ติดตามแผนบำรุงรักษาเชิงป้องกัน (นับตามวันที่ในแผน PM ของช่วงที่เลือก)</p>
+                    </div>
+                </div>
+                <a href="pm.php" onclick="try { localStorage.setItem('activePMTab', 'report'); } catch (e) {}" class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-sky-50 hover:border-sky-300">
+                    <i data-lucide="file-bar-chart" class="w-4 h-4 text-sky-700"></i> รายงาน PM <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400"></i>
+                </a>
+            </div>
+            <div class="p-3 sm:p-4 space-y-4">
+                <div id="pmKpis" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div class="chart-container relative">
+                        <div class="flex items-center justify-between mb-4 gap-3">
+                            <h4 class="font-bold text-lg text-slate-800">สถานะแผน PM</h4>
+                            <button type="button" onClick="toggleChartFullscreen('pmStatusChart')" class="btn-chart-action" title="เต็มจอ"><i data-lucide="maximize" class="w-4 h-4"></i><span class="btn-label">เต็มจอ</span></button>
+                        </div>
+                        <div id="pmStatusChart" class="echart-box"></div>
+                    </div>
+                    <div class="chart-container relative lg:col-span-2">
+                        <div class="flex items-center justify-between mb-4 gap-3">
+                            <div>
+                                <h4 class="font-bold text-lg text-slate-800">ความคืบหน้าตามประเภทเครื่อง</h4>
+                                <p class="text-xs text-slate-400">ประเภทที่มีแผนมากที่สุด 12 อันดับ</p>
+                            </div>
+                            <button type="button" onClick="toggleChartFullscreen('pmTypeChart')" class="btn-chart-action" title="เต็มจอ"><i data-lucide="maximize" class="w-4 h-4"></i><span class="btn-label">เต็มจอ</span></button>
+                        </div>
+                        <div id="pmTypeChart" class="echart-box"></div>
                     </div>
                 </div>
             </div>
@@ -1020,7 +1084,9 @@ include "config_ctrl/checksession.php";
         wt: echarts.init(document.querySelector("#wtChart")),
         et: echarts.init(document.querySelector("#etChart")),
         tou: echarts.init(document.querySelector("#touChart")),
-        touDonut: echarts.init(document.querySelector("#touDonutChart"))
+        touDonut: echarts.init(document.querySelector("#touDonutChart")),
+        pmStatus: echarts.init(document.querySelector("#pmStatusChart")),
+        pmType: echarts.init(document.querySelector("#pmTypeChart"))
     };
     // ทุกครั้งที่กราฟได้ข้อมูลใหม่ => จัดวางใหม่ (fitChart เรียก setOption เองโดยตั้ง __fitting กันวนซ้ำ)
     Object.values(charts).forEach(c => {
@@ -1309,7 +1375,88 @@ include "config_ctrl/checksession.php";
         $('#filterInputs').html(html);
     }).trigger('change');
 
+    // ===== PM Monitoring =====
+    const pmEnc = (t) => echarts.format.encodeHTML(String(t ?? ''));
+    // สีเดียวกับชุดสีของกราฟอื่น (chartColors) และการ์ดแจ้งซ่อม: เสร็จ = เขียว · ล่าช้า = เหลือง · ค้าง = แดง · ยังไม่ถึงกำหนด = ฟ้า
+    const PM_COLORS = { ontime: '#10b981', late: '#f59e0b', overdue: '#f43f5e', upcoming: '#0ea5e9' };
+    const PM_LABELS = { ontime: 'ทำแล้วตามแผน', late: 'ทำแล้วล่าช้า', overdue: 'ค้าง / เกินกำหนด', upcoming: 'ยังไม่ถึงกำหนด' };
+    const pmEmpty = (text) => ({ title: { text, left: 'center', top: 'middle', textStyle: { color: '#94a3b8', fontSize: 14, fontWeight: 'normal' } }, series: [], xAxis: { show: false }, yAxis: { show: false } });
+    function renderPmKpis(k) {
+        // การ์ดแบบเดียวกับการ์ดแจ้งซ่อมด้านบน (kpi-card)
+        const card = (label, value, sub, color, icon, tone) => `<div class="kpi-card group">
+            <div class="flex justify-between items-center gap-3">
+                <div class="min-w-0">
+                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">${label}</p>
+                    <h3 class="text-4xl font-black tracking-tight ${color}">${value}</h3>
+                    <p class="text-xs text-slate-400 mt-2">${sub}</p>
+                </div>
+                <div class="kpi-icon-wrapper bg-${tone}-50 text-${tone}-500 group-hover:bg-${tone}-500 group-hover:text-white transition-colors duration-300 shrink-0"><i data-lucide="${icon}" class="w-6 h-6"></i></div>
+            </div></div>`;
+        $('#pmKpis').html(
+            card('แผน PM', formatNum(k.planned), 'รอบตามแผนในช่วงนี้', 'text-slate-800', 'calendar-check', 'blue') +
+            card('ดำเนินการแล้ว', formatNum(k.done), k.rate + '% ของแผน', 'text-emerald-500', 'check-circle-2', 'emerald') +
+            card('ค้าง / เกินกำหนด', formatNum(k.overdue), 'ยังไม่ได้ทำ เลยวันตามแผน', 'text-rose-500', 'alarm-clock', 'rose') +
+            card('ทำตรงตามแผน', k.ontime_rate + '%', formatNum(k.ontime) + ' จาก ' + formatNum(k.done) + ' รอบที่ทำแล้ว', 'text-sky-500', 'timer', 'sky')
+        );
+        if (window.lucide) lucide.createIcons();
+    }
+    function loadPmDashboard(s, e) {
+        const pmCharts = [charts.pmStatus, charts.pmType];
+        pmCharts.forEach(c => c.showLoading({ color: '#0ea5e9', maskColor: 'rgba(255, 255, 255, 0.6)' }));
+        $('#pmKpis').html(Array.from({ length: 4 }, () => '<div class="kpi-card"><div class="h-[88px] shimmer rounded-lg"></div></div>').join(''));
+        const params = { startDate: s.format('YYYY-MM-DD'), endDate: e.format('YYYY-MM-DD'), };
+        const area = $('#buildingFilter').val();
+        if (area) params.area_id = area;
+        $.getJSON('handle_dashboard_pm.php', params).done(function (r) {
+            pmCharts.forEach(c => c.hideLoading());
+            if (!r || !r.success) { $('#pmKpis').html('<div class="col-span-full text-sm text-rose-600">' + ((r && r.error) || 'โหลดข้อมูล PM ไม่สำเร็จ') + '</div>'); return; }
+            const k = r.kpi;
+            renderPmKpis(k);
+            const states = ['ontime', 'late', 'overdue', 'upcoming'];
+
+            // สถานะรวม
+            if (!k.planned) charts.pmStatus.setOption(pmEmpty('ไม่มีแผน PM ในช่วงนี้'), true);
+            else charts.pmStatus.setOption({
+                ...getBaseOption('PM_Status'),
+                tooltip: { trigger: 'item', formatter: p => p.marker + p.name + ': <b>' + formatNum(p.value) + '</b> (' + p.percent + '%)' },
+                legend: { type: 'plain', bottom: 0, left: 'center', icon: 'roundRect', itemWidth: 18, itemHeight: 10, textStyle: { fontSize: 12, color: '#475569' } },
+                title: { text: k.rate + '%', subtext: 'ทำแล้ว', left: 'center', top: '36%', textStyle: { fontSize: 24, fontWeight: 'bold', color: '#0f172a' }, subtextStyle: { color: '#64748b' } },
+                series: [{ name: 'สถานะแผน PM', type: 'pie', radius: ['48%', '68%'], center: ['50%', '45%'], avoidLabelOverlap: true, label: { show: false },
+                    itemStyle: { borderColor: '#fff', borderWidth: 1 },
+                    data: states.map(st => ({ name: PM_LABELS[st], value: k[st], itemStyle: { color: PM_COLORS[st] } })).filter(d => d.value > 0) }]
+            }, true);
+
+            // ตามประเภทเครื่อง (12 อันดับที่มีแผนมากที่สุด)
+            const types = r.by_type.slice(0, 12).reverse();
+            if (!types.length) charts.pmType.setOption(pmEmpty('ไม่มีแผน PM ในช่วงนี้'), true);
+            else charts.pmType.setOption({
+                ...getBaseOption('PM_By_Machine_Type'),
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: ps => {
+                    const t = types[ps[0].dataIndex], done = t.ontime + t.late;
+                    return '<b>' + pmEnc(t.name) + '</b> (' + t.machines + ' เครื่อง)<br>' + ps.map(p => p.marker + p.seriesName + ': ' + formatNum(p.value)).join('<br>') + '<br>ทำแล้ว ' + (t.planned ? Math.round(done * 1000 / t.planned) / 10 : 0) + '%';
+                } },
+                legend: { type: 'plain', bottom: 0, left: 'center', icon: 'roundRect', itemWidth: 18, itemHeight: 10, textStyle: { fontSize: 12, color: '#475569' } },
+                grid: { left: '3%', right: '8%', top: 36, bottom: 36, containLabel: true },
+                xAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { type: 'dashed' } } },
+                yAxis: { type: 'category', data: types.map(t => t.name), axisTick: { show: false }, axisLine: { show: false }, axisLabel: { width: 150, overflow: 'truncate' } },
+                series: [
+                    { name: 'ทำแล้ว', type: 'bar', stack: 't', barMaxWidth: 26, itemStyle: { color: PM_COLORS.ontime }, data: types.map(t => t.ontime + t.late) },
+                    { name: PM_LABELS.overdue, type: 'bar', stack: 't', itemStyle: { color: PM_COLORS.overdue }, data: types.map(t => t.overdue) },
+                    { name: PM_LABELS.upcoming, type: 'bar', stack: 't', itemStyle: { color: PM_COLORS.upcoming, borderRadius: [0, 4, 4, 0] }, data: types.map(t => t.upcoming),
+                      label: { show: true, position: 'right', color: '#475569', fontSize: 11, formatter: p => { const t = types[p.dataIndex]; return t.planned ? Math.round((t.ontime + t.late) * 100 / t.planned) + '%' : ''; } } }
+                ]
+            }, true);
+
+        }).fail(function () {
+            pmCharts.forEach(c => c.hideLoading());
+            $('#pmKpis').html('<div class="col-span-full text-sm text-rose-600">โหลดข้อมูล PM ไม่สำเร็จ</div>');
+        });
+    }
+
+    const DASH = <?php echo json_encode($DASH); ?>;   // ส่วนที่หน่วยงานมีสิทธิ์ (agency.php)
     function loadDashboardData(s, e) {
+        if (DASH.pm) loadPmDashboard(s, e);
+        if (!DASH.repair && !DASH.energy) return;   // ไม่มีสิทธิ์แจ้งซ่อม/มิเตอร์ — ไม่ต้องโหลดข้อมูลชุดนี้
         toggleLoaders(true);
         Object.values(charts).forEach(c => c.showLoading({ color: '#0ea5e9', maskColor: 'rgba(255, 255, 255, 0.6)' }));
 
