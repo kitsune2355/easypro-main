@@ -2,6 +2,31 @@
 // pm_evaluate_batch.php — ประเมินผลงาน PM ทีละใบหรือรวมหลายใบ (?ids=1,2,3 หรือ ?cs=<checksheet>&date=YYYY-MM-DD)
 @session_start();
 include "config_ctrl/checksession.php";
+include "config_ctrl/connect.php";
+// เฉพาะ super_admin และผู้ประเมิน PM ของหน่วยงาน
+$pmCanEvaluate = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');
+if (!$pmCanEvaluate) {
+    try {
+        $stEv = $connect->prepare("SELECT 1 FROM pm_evaluators WHERE ag_id = ? AND user_id = ? LIMIT 1");
+        $agEv = (int)($_SESSION['sess_user_agency'] ?? 0);
+        $uidEv = (string)($_SESSION['sess_user_id_es'] ?? '');
+        $stEv->bind_param('is', $agEv, $uidEv);
+        $stEv->execute();
+        $pmCanEvaluate = (bool)$stEv->get_result()->fetch_row();
+        $stEv->close();
+    } catch (Throwable $e) { $pmCanEvaluate = false; }   // ยังไม่มีตาราง = ยังไม่ได้ตั้งผู้ประเมิน
+}
+if (!$pmCanEvaluate) {
+    http_response_code(403);
+    echo '<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ประเมินผลงาน PM</title>'
+        . '<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600&display=swap" rel="stylesheet"></head>'
+        . '<body style="margin:0;font-family:Kanit,sans-serif;background:#f1f5f9;display:grid;place-items:center;min-height:100vh;padding:16px">'
+        . '<div style="max-width:420px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;text-align:center">'
+        . '<div style="font-size:40px">🔒</div><h2 style="margin:8px 0 4px;color:#0f172a">ไม่มีสิทธิ์ประเมินผลงาน PM</h2>'
+        . '<p style="color:#64748b;font-size:14px;line-height:1.6">ใช้ได้เฉพาะ super admin และผู้ประเมิน PM ของหน่วยงาน<br>กำหนดผู้ประเมินได้ที่ ตั้งค่าข้อมูล → ผู้ประเมิน PM</p>'
+        . '</div></body></html>';
+    exit;
+}
 $ids = preg_replace('/[^0-9,]/', '', $_GET['ids'] ?? '');
 $cs = preg_replace('/[^0-9a-zA-Z_-]/', '', $_GET['cs'] ?? '');
 $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') ? $_GET['date'] : '';

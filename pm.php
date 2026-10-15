@@ -23,6 +23,19 @@ if (($_SESSION['sess_user_level_es'] ?? '') === 'employer') {
     $stPos->close();
     if ($rowPos && mb_strpos(trim((string)$rowPos['user_position']), 'ช่าง') === 0) $pmCanManage = false;
 }
+// แท็บ "ประเมิน PM": เฉพาะ super_admin และผู้ที่อยู่ในรายชื่อผู้ประเมิน PM ของหน่วยงาน (ตั้งค่าข้อมูล → ผู้ประเมิน PM)
+$pmCanEvaluate = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');
+if (!$pmCanEvaluate) {
+    try {
+        $stEv = $connect->prepare("SELECT 1 FROM pm_evaluators WHERE ag_id = ? AND user_id = ? LIMIT 1");
+        $agEv = (int)($_SESSION['sess_user_agency'] ?? 0);
+        $uidEv = (string)($_SESSION['sess_user_id_es'] ?? '');
+        $stEv->bind_param('is', $agEv, $uidEv);
+        $stEv->execute();
+        $pmCanEvaluate = (bool)$stEv->get_result()->fetch_row();
+        $stEv->close();
+    } catch (Throwable $e) { $pmCanEvaluate = false; }   // ยังไม่มีตาราง = ยังไม่ได้ตั้งผู้ประเมิน
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -299,11 +312,13 @@ if (($_SESSION['sess_user_level_es'] ?? '') === 'employer') {
                     <i data-lucide="calendar" class="w-4 h-4"></i> ปฏิทิน
                 </button>
             </li>
+            <?php if ($pmCanEvaluate): ?>
             <li data-mode="field">
                 <button onclick="switchTab('evaluate')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
                     <i data-lucide="star" class="w-4 h-4"></i> ประเมิน PM
                 </button>
             </li>
+            <?php endif; ?>
             <?php if ($pmCanManage): ?>
             <li data-mode="manage">
                 <button onclick="switchTab('schedule')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
@@ -349,7 +364,7 @@ if (($_SESSION['sess_user_level_es'] ?? '') === 'employer') {
     <div class="flex-1 flex flex-col overflow-hidden bg-[var(--color-bg-light)]">
         <main class="flex-1 overflow-y-auto px-2 sm:px-4 pt-3 sm:pt-4 pb-4 relative">
             <?php include 'pm_dashboard.php'; ?>
-            <?php include 'pm_evaluate.php'; ?>
+            <?php if ($pmCanEvaluate) include 'pm_evaluate.php'; ?>
             <?php include 'pm_daily.php'; ?>
             <?php include 'pm_postpone.php'; ?>
             <?php include 'pm_plan.php'; ?>
@@ -466,6 +481,7 @@ if (($_SESSION['sess_user_level_es'] ?? '') === 'employer') {
         const PM_MODE_DEFAULT = { field: 'daily', manage: 'schedule' };
         // ช่าง: เปิดแท็บของโหมดจัดการแผนไม่ได้ (แท็บที่จำไว้ / ลิงก์จากคู่มือ => ไปงานที่ต้องทำแทน)
         const PM_CAN_MANAGE = <?php echo $pmCanManage ? 'true' : 'false'; ?>;
+        const PM_CAN_EVALUATE = <?php echo $pmCanEvaluate ? 'true' : 'false'; ?>;
         const PM_MANAGE_TABS = ['schedule', 'plan', 'checksheet', 'import', 'postpone', 'holiday', 'report'];
         const pmModeOf = tabId => document.querySelector(`#pm-tabs li button[onclick*="'${tabId}'"]`)?.closest('li').dataset.mode || 'field';
         const pmLastTabs = () => { try { return JSON.parse(localStorage.getItem('pmModeTabs')) || {}; } catch (e) { return {}; } };
@@ -493,6 +509,7 @@ if (($_SESSION['sess_user_level_es'] ?? '') === 'employer') {
         window.switchTab = function(tabId, opts) {
             if (!document.getElementById('tab-' + tabId)) tabId = PM_MODE_DEFAULT.field;
             if (!PM_CAN_MANAGE && PM_MANAGE_TABS.includes(tabId)) tabId = PM_MODE_DEFAULT.field;
+            if (!PM_CAN_EVALUATE && tabId === 'evaluate') tabId = PM_MODE_DEFAULT.field;   // ไม่ใช่ผู้ประเมิน => งานที่ต้องทำ
             const mode = pmModeOf(tabId);
             applyPmMode(mode);
             const lastTabs = pmLastTabs();

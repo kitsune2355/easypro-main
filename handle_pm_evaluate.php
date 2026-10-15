@@ -119,6 +119,7 @@ if ($action === 'me') {
 // แท็บประเมิน PM: กลุ่ม วัน × เช็คชีต ของใบงานที่บันทึกผลแล้ว
 // =========================================
 if ($action === 'groups') {
+    if (!is_evaluator($connect, $AG, $ME)) fail('แท็บประเมิน PM ใช้ได้เฉพาะ super admin และผู้ประเมิน PM ของหน่วยงาน (กำหนดได้ที่ ตั้งค่าข้อมูล → ผู้ประเมิน PM)', 403);
     $from = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['from'] ?? '') ? $_GET['from'] : date('Y-m-01');
     $to = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['to'] ?? '') ? $_GET['to'] : date('Y-m-t');
     $cs = trim($_GET['cs'] ?? '');
@@ -149,6 +150,7 @@ if ($action === 'groups') {
 
 // ใบงานในกลุ่ม (หรือตามรายการ id) — ใช้ทั้งรายใบในแท็บ และหน้าประเมิน
 if ($action === 'items') {
+    if (!is_evaluator($connect, $AG, $ME)) fail('แท็บประเมิน PM ใช้ได้เฉพาะ super admin และผู้ประเมิน PM ของหน่วยงาน (กำหนดได้ที่ ตั้งค่าข้อมูล → ผู้ประเมิน PM)', 403);
     $ids = array_values(array_filter(array_map('intval', explode(',', (string)($_GET['ids'] ?? '')))));
     $sql = "SELECT e.id, e.event_date, e.evaluation_status, wr.doc_no, wr.machine_code, wr.machine_name, wr.location, wr.actual_date,
                    wr.inspector_name, wr.checksheet_name, ev.average_score, ev.evaluator_name, ev.eval_date
