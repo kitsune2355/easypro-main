@@ -22,6 +22,8 @@ include "config_ctrl/checksession.php";
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/search-select.js"></script>   <!-- เลือกช่าง: พิมพ์ค้นหาชื่อได้ -->
+
     <script>
       tailwind.config = {
         theme: {
@@ -319,6 +321,86 @@ include "config_ctrl/checksession.php";
         background: #f8fafc;
       }
 
+      /* ===== จอคอม (lg+): ทุกแท็บสูงพอดีจอ — หน้าไม่เลื่อน เลื่อนเฉพาะในกล่อง (ปฏิทิน / คอลัมน์ Kanban / ไทม์ไลน์) ===== */
+      @media (min-width: 1024px) {
+        #whMain { display: flex; flex-direction: column; overflow: hidden; }
+        #whToolbar { flex: none; }
+        #whTabs { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+        #whTabs > .tab-panel:not(.hidden) { flex: 1 1 auto; min-height: 0; }
+        /* ปฏิทิน: KPI + (ปฏิทิน | กราฟ 2 กล่อง) */
+        #tab-calendar:not(.hidden) { display: flex; flex-direction: column; }
+        #tab-calendar > #kpiCards { flex: none; }
+        #calGrid { flex: 1 1 auto; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+        #calCard { display: flex; flex-direction: column; min-height: 0; }
+        #calCard > div:first-child { flex: none; }
+        #monthCalendarWrap:not(.hidden), #dayTimelineWrap:not(.hidden), #yearCalendarWrap:not(.hidden) { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+        #monthCalendarWrap:not(.hidden) { display: flex; flex-direction: column; }
+        #monthCalendar { flex: 1 1 0; min-height: 0; grid-auto-rows: minmax(46px, 1fr); }
+        #monthCalendar .calendar-day { min-height: 0; padding: 6px; }
+        #monthCalendar .calendar-day > div:first-child { margin-bottom: 2px; }
+        #calSide { display: flex; flex-direction: column; min-height: 0; }
+        #calSide > * { margin: 0 !important; }
+        #calSide > * + * { margin-top: .75rem !important; }
+        #perfCard, #techJobsCard { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+        #perfWrap, #techJobsChartWrap { flex: 1 1 auto; min-height: 120px; height: auto !important; position: relative; }
+        /* Kanban: คอลัมน์สูงเต็มพื้นที่ เลื่อนการ์ดในคอลัมน์ */
+        #tab-kanban > div { height: 100%; }
+        #kanbanContainer { height: 100%; }
+        #kanbanContainer .kanban-col { max-height: none; min-height: 0; height: 100%; }
+        /* ไทม์ไลน์ */
+        #timelineDailyPanel, #timelineTeamPanel { height: 100%; }
+        #timelineDailyPanel > div:last-child, #timelineTeamPanel > div:last-child { min-height: 0; }
+        #timelineDailyContainer, #timelineTeamContainer { flex: 1 1 auto; min-height: 0; max-height: none; }
+      }
+
+      /* ===== แถบเครื่องมือ / ชิปสถานะ ===== */
+      .wh-icon-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; color: #475569; flex: none; }
+      .wh-icon-btn:hover { background: #f8fafc; color: var(--color-primary); }
+      .wh-icon-btn[aria-expanded="true"] { background: #eef6fb; color: var(--color-primary); border-color: rgba(0,107,159,.3); }
+      .wh-seg { display: inline-flex; background: #f1f5f9; border-radius: 10px; padding: 3px; gap: 2px; flex: none; }
+      .wh-seg .view-btn { padding: 4px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: #64748b; white-space: nowrap; }
+      .wh-seg .view-btn.on { background: #fff; color: var(--color-primary); box-shadow: 0 1px 2px rgba(15,23,42,.12); }
+      .wh-input { height: 32px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: 0 10px; font-size: 12.5px; color: #334155; outline: none; min-width: 0; }
+      .wh-input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(0,107,159,.12); }
+      .wh-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; font-size: 12px; font-weight: 600; color: #475569; white-space: nowrap; }
+      .wh-chip b { font-weight: 700; color: #0f172a; }
+      .wh-chip:hover { border-color: #cbd5e1; }
+      .wh-chip.on { background: #0f3d55; border-color: #0f3d55; color: #fff; }
+      .wh-chip.on b { color: #fff; }
+      /* KPI: มือถือเลื่อนแนวนอน / จอใหญ่ 5 ช่อง */
+      .wh-kpis { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px; padding: 0 2px 2px; }
+      .wh-kpis::-webkit-scrollbar { display: none; }
+      .wh-kpis > * { flex: 0 0 150px; }
+      @media (min-width: 768px) { .wh-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); overflow: visible; } .wh-kpis > * { flex: none; } }
+      /* ปฏิทินเดือน: มือถือแสดงจุดสถานะแทนชื่องาน */
+      .cal-dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; }
+      .calendar-day.is-today { background: #f0f9ff !important; }
+      .calendar-day.is-weekend .cal-num { color: #e11d48; }
+      /* Kanban มือถือ: เลือกดูทีละสถานะ */
+      .kb-switch { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; background: #f1f5f9; border-radius: 10px; padding: 3px; margin-bottom: 10px; }
+      .kb-switch button { padding: 6px 2px; border-radius: 8px; font-size: 11.5px; font-weight: 600; color: #64748b; line-height: 1.2; }
+      .kb-switch button b { display: block; font-size: 14px; }
+      .kb-switch button.on { background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.12); }
+      @media (max-width: 639.98px) {
+        .kanban-col { max-height: none; min-height: 0; }
+        .kanban-col.kb-off { display: none; }
+        .kanban-col > div:first-child { display: none; }   /* หัวคอลัมน์ซ้ำกับปุ่มเลือก */
+      }
+      /* ไทม์ไลน์: วันนี้ / เส้นเวลาปัจจุบัน / วันหยุดสุดสัปดาห์ */
+      .timeline-row.is-today .timeline-sidebar { background: #f0f9ff; color: var(--color-primary); box-shadow: inset 3px 0 0 var(--color-primary); }
+      .timeline-row.is-today .timeline-content { background-color: #f8fcff; }
+      .timeline-now { position: absolute; top: 0; bottom: 0; width: 2px; background: #ef4444; z-index: 4; pointer-events: none; }
+      .timeline-now::before { content: ""; position: absolute; top: -3px; left: -3px; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; }
+      .timeline-header-cell.is-today { background: #e0f2fe; color: var(--color-primary); font-weight: 700; }
+      .timeline-header-cell.is-weekend { color: #e11d48; }
+      .tl-day-col { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+      .tl-day-col.is-today { background: rgba(14,165,233,.07); }
+      .tl-day-col.is-weekend { background: rgba(241,245,249,.7); }
+      @media (max-width: 639.98px) {
+        .timeline-sidebar { width: 104px; min-width: 104px; padding: .5rem; }
+        .timeline-container { max-height: calc(100vh - 290px); }
+      }
+
       /* Zoom controls */
       .timeline-zoom-controls {
         display: flex;
@@ -380,11 +462,6 @@ include "config_ctrl/checksession.php";
               </p>
             </div>
           </div>
-          <div class="flex flex-wrap gap-2">
-            <button id="btnToday" class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50">
-              วันนี้
-            </button>
-          </div>
         </nav>
 
         <div class="border-b border-slate-200 px-6">
@@ -405,72 +482,53 @@ include "config_ctrl/checksession.php";
         </div>
       </header>
 
-      <main class="relative z-10 px-4 pb-4 flex-1 min-h-0 overflow-y-auto scrollbar-thin">
-        <section class="mt-4 grid grid-cols-1 md:grid-cols-12 gap-4">
-          <aside class="md:col-span-3 lg:col-span-2 space-y-4 md:sticky md:top-4 h-fit">
-            <div class="relative w-full" id="filterWrapper">
-              <button id="filterToggleBtn" class="md:hidden w-full flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 mb-2">
-                <div class="flex items-center gap-2">
-                  <i data-lucide="filter" class="w-4 h-4 text-slate-500"></i>
-                  <span>ตัวกรองข้อมูล</span>
-                </div>
-                <i data-lucide="chevron-down" id="filterChevron" class="w-4 h-4 text-slate-500 transition-transform duration-200"></i>
-              </button>
-
-              <div id="filterDropdown" class="hidden md:block absolute md:relative z-20 w-full left-0 mt-1 md:mt-0">
-                <div class="bg-white rounded-xl p-4 shadow-card border border-slate-100">
-                  <h2 class="hidden md:block font-semibold text-base text-slate-950">ตัวกรอง</h2>
-                  
-                  <div class="mt-0 md:mt-3 space-y-3">
-                    <div>
-                      <label class="block text-xs font-medium text-slate-600 mb-1">ค้นหา</label>
-                      <input id="jobSearchInput" type="text" placeholder="ค้นหาเลขที่งาน / ชื่อ..." class="w-full rounded-lg border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                    <div>
-                      <label class="block text-xs font-medium text-slate-600 mb-1">เลือกช่าง</label>
-                      <select id="technicianSelect" class="w-full rounded-lg border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500"></select>
-                    </div>
-                    
-                    <div>
-                      <label class="block text-xs font-medium text-slate-600 mb-1">เลือกช่วงเวลา</label>
-                      <div class="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-lg mb-2">
-                        <button class="view-btn rounded-md text-xs font-medium" data-view="day">รายวัน</button>
-                        <button class="view-btn rounded-md text-xs font-medium" data-view="month">รายเดือน</button>
-                        <button class="view-btn rounded-md text-xs font-medium" data-view="year">รายปี</button>
-                      </div>
-                      <div class="grid grid-cols-2 gap-2">
-                        <div>
-                          <label class="block text-[10px] text-slate-500 mb-0.5">เริ่มต้น</label>
-                          <input id="startDatePicker" type="date" class="w-full rounded-lg border-slate-200 bg-slate-50 px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
-                        </div>
-                        <div>
-                          <label class="block text-[10px] text-slate-500 mb-0.5">สิ้นสุด</label>
-                          <input id="endDatePicker" type="date" class="w-full rounded-lg border-slate-200 bg-slate-50 px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <button id="btnReset" class="w-full rounded-lg py-1.5 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100">
-                      ล้างตัวกรอง
-                    </button>
-                  </div>
-                </div>
+      <main id="whMain" class="relative z-10 px-4 pb-4 flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+        <!-- แถบเครื่องมือ (ทุกแท็บ): ช่วงเวลา ‹ › / รายวัน-เดือน-ปี / ค้นหา ช่าง วันที่ / ชิปสถานะ (กดเพื่อกรอง) -->
+        <section id="whToolbar" class="mt-4 bg-white rounded-xl shadow-card border border-slate-100 p-3 space-y-2.5">
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-1 min-w-0">
+              <button id="btnPrevPeriod" type="button" class="wh-icon-btn" title="ช่วงก่อนหน้า" aria-label="ช่วงก่อนหน้า"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+              <button id="btnNextPeriod" type="button" class="wh-icon-btn" title="ช่วงถัดไป" aria-label="ช่วงถัดไป"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+              <h2 id="periodLabel" class="ml-1 text-[15px] sm:text-base font-bold text-slate-900 truncate"></h2>
+            </div>
+            <button id="btnToday" type="button" class="rounded-lg border border-slate-200 bg-white px-3 h-8 text-xs font-semibold text-slate-700 hover:bg-slate-50">วันนี้</button>
+            <div class="wh-seg ml-auto md:ml-2" role="group" aria-label="ช่วงเวลา">
+              <button class="view-btn" data-view="day">รายวัน</button>
+              <button class="view-btn" data-view="month">รายเดือน</button>
+              <button class="view-btn" data-view="year">รายปี</button>
+            </div>
+            <!-- มือถือ: ตัวกรองเพิ่มเติมพับไว้ -->
+            <button id="filterToggleBtn" type="button" class="md:hidden wh-icon-btn relative" title="ตัวกรองเพิ่มเติม" aria-label="ตัวกรองเพิ่มเติม" aria-expanded="false">
+              <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+              <span id="filterDot" class="hidden absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-white"></span>
+              <i id="filterChevron" class="hidden"></i>
+            </button>
+            <div id="filterDropdown" class="hidden md:flex w-full md:w-auto md:ml-auto flex-wrap items-end gap-2">
+              <div class="relative flex-1 md:flex-none min-w-[160px] md:w-56">
+                <i data-lucide="search" class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input id="jobSearchInput" type="text" placeholder="ค้นหาเลขที่งาน / ชื่อ..." class="wh-input pl-8 w-full" aria-label="ค้นหา" />
               </div>
+              <select id="technicianSelect" class="wh-input flex-1 md:flex-none md:w-44" aria-label="เลือกช่าง"></select>
+              <div class="flex items-center gap-1.5 w-full md:w-auto">
+                <input id="startDatePicker" type="date" class="wh-input flex-1 md:w-[132px]" aria-label="เริ่มต้น" />
+                <span class="text-slate-400 text-xs">–</span>
+                <input id="endDatePicker" type="date" class="wh-input flex-1 md:w-[132px]" aria-label="สิ้นสุด" />
+              </div>
+              <button id="btnReset" type="button" class="h-8 px-3 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 inline-flex items-center gap-1" title="ล้างตัวกรอง">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> ล้าง
+              </button>
             </div>
+          </div>
+          <div id="statusLegend" class="flex items-center gap-2 overflow-x-auto hide-scrollbar -mx-1 px-1" role="group" aria-label="กรองตามสถานะ"></div>
+        </section>
 
-            <div class="bg-white rounded-xl p-4 shadow-card border border-slate-100">
-              <h2 class="font-semibold text-base text-slate-950">สถานะงาน</h2>
-              <div class="mt-3 space-y-2 text-xs" id="statusLegend"></div>
-            </div>
-          </aside>
-
-          <section class="md:col-span-9 lg:col-span-10">
+          <section id="whTabs" class="mt-3">
             <!-- ปฏิทินงาน -->
             <div id="tab-calendar" class="tab-panel space-y-3">
-              <div class="grid grid-cols-3 md:grid-cols-5 gap-2.5" id="kpiCards"></div>
+              <div class="wh-kpis" id="kpiCards"></div>
 
-              <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                <div class="lg:col-span-2 bg-white rounded-xl shadow-card border border-slate-100 overflow-hidden">
+              <div id="calGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div id="calCard" class="lg:col-span-2 bg-white rounded-xl shadow-card border border-slate-100 overflow-hidden">
                   <div class="p-3 border-b border-slate-100 flex flex-col xs:flex-row xs:items-center xs:justify-between gap-2">
                     <div class="flex justify-between items-center gap-2">
                       <div>
@@ -494,8 +552,8 @@ include "config_ctrl/checksession.php";
                   </div>
                 </div>
 
-                <div class="space-y-3">
-                  <div class="bg-white rounded-xl shadow-card border border-slate-100 p-3">
+                <div id="calSide" class="space-y-3">
+                  <div id="perfCard" class="bg-white rounded-xl shadow-card border border-slate-100 p-3">
                     <div class="flex items-start justify-between gap-2">
                       <div>
                         <h2 class="text-base font-bold text-slate-950">ประสิทธิภาพ</h2>
@@ -503,7 +561,7 @@ include "config_ctrl/checksession.php";
                       </div>
                       <span id="scoreBadge" class="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold">0%</span>
                     </div>
-                    <div class="mt-3 h-40"><canvas id="performanceChart"></canvas></div>
+                    <div id="perfWrap" class="mt-3 h-40 relative"><canvas id="performanceChart"></canvas></div>
                   </div>
 
                   <div id="techJobsCard" class="fullscreen-panel bg-white rounded-xl shadow-card border border-slate-100 p-3 relative group/card flex flex-col">
@@ -528,7 +586,8 @@ include "config_ctrl/checksession.php";
                     <p id="kanbanSubtitle" class="text-[11px] text-slate-500 mt-0.5">จัดกลุ่มงานตามสถานะในช่วงเวลาและช่างที่เลือก</p>
                   </div>
                 </div>
-                <div class="p-4 flex-1 bg-slate-50/50">
+                <div class="p-3 sm:p-4 flex-1 min-h-0 bg-slate-50/50">
+                  <div id="kanbanSwitch" class="kb-switch sm:hidden" role="tablist" aria-label="เลือกสถานะ"></div>
                   <div id="kanbanContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 h-full"></div>
                 </div>
               </div>
@@ -605,7 +664,6 @@ include "config_ctrl/checksession.php";
             </div>
 
           </section>
-        </section>
       </main>
     </div>
 
@@ -615,22 +673,12 @@ include "config_ctrl/checksession.php";
       const filterDropdown = document.getElementById("filterDropdown");
       const filterChevron = document.getElementById("filterChevron");
 
+      // มือถือ: กดไอคอนตัวกรองเพื่อกาง/พับแถวตัวกรอง (จอใหญ่แสดงตลอด)
       if (filterToggleBtn && filterDropdown) {
         filterToggleBtn.addEventListener("click", () => {
-          filterDropdown.classList.toggle("hidden");
-          if (filterDropdown.classList.contains("hidden")) {
-            filterChevron.classList.remove("rotate-180");
-          } else {
-            filterChevron.classList.add("rotate-180");
-          }
-        });
-
-        document.addEventListener("click", (event) => {
-          const isClickInside = filterToggleBtn.contains(event.target) || filterDropdown.contains(event.target);
-          if (!isClickInside && window.innerWidth < 768 && !filterDropdown.classList.contains("hidden")) {
-            filterDropdown.classList.add("hidden");
-            filterChevron.classList.remove("rotate-180");
-          }
+          const open = filterDropdown.classList.toggle("hidden") === false;
+          filterDropdown.classList.toggle("flex", open);
+          filterToggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
         });
       }
 
@@ -659,6 +707,8 @@ include "config_ctrl/checksession.php";
         startDate: new Date(TODAY.getFullYear(), TODAY.getMonth(), 1),
         endDate: new Date(TODAY.getFullYear(), TODAY.getMonth() + 1, 0),
         activeTab: "calendar",
+        status: "all",          // กรองสถานะจากชิปในแถบเครื่องมือ
+        kanbanCol: "pending",   // มือถือ: คอลัมน์ Kanban ที่เลือกดู
         zoomDailyIdx: 2, // index into ZOOM_STEPS -> 1x (100%)
         zoomTeamIdx: 2,
       };
@@ -818,6 +868,11 @@ include "config_ctrl/checksession.php";
           chart.resize();
           if (techChart) techChart.resize();
         }
+        // ปฏิทินเดือน: คำนวณจำนวนชื่องานต่อช่องใหม่ตามความสูงจริง (ตอนซ่อนอยู่วัดไม่ได้)
+        if (tab === "calendar" && state.view === "month" && mockData.jobs.length) renderMonthCalendar(getFilteredJobs());
+        // ไทม์ไลน์รายวัน: วาดใหม่ตอนเปิดแท็บ เพื่อเลื่อนไปชั่วโมงแรกที่มีงาน (ตอนซ่อนอยู่เลื่อนไม่ได้)
+        if (tab === "timeline_daily" && mockData.jobs.length) renderTimelineDaily(getFilteredJobs());
+        if (tab === "timeline_team" && mockData.jobs.length) renderTimelineTeam(getFilteredJobs());
       }
 
       // ==================== API ====================
@@ -908,16 +963,50 @@ include "config_ctrl/checksession.php";
         els.technicianSelect.value = state.technicianId;
       }
 
+      // ชิปสถานะ: จำนวนงานตามสถานะ (ไม่ขึ้นกับสถานะที่เลือก) — กดเพื่อกรอง กดซ้ำ = ทั้งหมด
+      const STATUS_DOT = { completed: "bg-emerald-400", in_progress: "bg-sky-400", pending: "bg-amber-400", cencel: "bg-rose-400" };
       function renderStatusLegend() {
-        const rows = Object.entries(mockData.status)
-          .map(([key, s]) => {
-            const map = { completed: "bg-emerald-400", in_progress: "bg-sky-400", pending: "bg-amber-400", cencel: "bg-rose-400" };
-            return `<div class="flex items-center justify-between gap-2">
-              <span class="inline-flex items-center gap-2"><span class="status-dot ${map[key]}"></span>${s.label}</span>
-              <span class="text-slate-400" id="legend-${key}">0</span>
-            </div>`;
-          }).join("");
-        els.statusLegend.innerHTML = rows;
+        const chip = (key, label, dot) => `<button type="button" class="wh-chip ${state.status === key ? "on" : ""}" data-st="${key}">
+            ${dot ? `<span class="status-dot ${dot}"></span>` : ""}${label} <b id="legend-${key}">0</b></button>`;
+        els.statusLegend.innerHTML = chip("all", "ทั้งหมด", "")
+          + Object.entries(mockData.status).map(([key, s]) => chip(key, s.label, STATUS_DOT[key])).join("");
+        els.statusLegend.onclick = (e) => {
+          const b = e.target.closest("[data-st]");
+          if (!b) return;
+          state.status = b.dataset.st === state.status ? "all" : b.dataset.st;
+          els.statusLegend.querySelectorAll("[data-st]").forEach((x) => x.classList.toggle("on", x.dataset.st === state.status));
+          render();
+        };
+      }
+
+      // ‹ › เลื่อนช่วงเวลา: รายวัน ±1 วัน / รายเดือน ±1 เดือน / รายปี ±1 ปี — ช่วงที่กำหนดเอง เลื่อนเท่าความยาวช่วง
+      function shiftPeriod(dir) {
+        const s = new Date(state.startDate), e = new Date(state.endDate);
+        const isMonth = s.getDate() === 1 && toYMD(e) === toYMD(new Date(s.getFullYear(), s.getMonth() + 1, 0));
+        const isYear = s.getMonth() === 0 && s.getDate() === 1 && e.getMonth() === 11 && e.getDate() === 31 && s.getFullYear() === e.getFullYear();
+        if (state.view === "year" && isYear) {
+          state.startDate = new Date(s.getFullYear() + dir, 0, 1);
+          state.endDate = new Date(s.getFullYear() + dir, 11, 31);
+        } else if (state.view === "month" && isMonth) {
+          state.startDate = new Date(s.getFullYear(), s.getMonth() + dir, 1);
+          state.endDate = new Date(s.getFullYear(), s.getMonth() + dir + 1, 0);
+        } else {
+          const days = Math.round((new Date(e.getFullYear(), e.getMonth(), e.getDate()) - new Date(s.getFullYear(), s.getMonth(), s.getDate())) / 864e5) + 1;
+          state.startDate = new Date(s.getFullYear(), s.getMonth(), s.getDate() + dir * days);
+          state.endDate = new Date(e.getFullYear(), e.getMonth(), e.getDate() + dir * days);
+        }
+        syncDateInput();
+        refreshJobsAndRender();
+      }
+
+      // ชื่อช่วงเวลาในแถบเครื่องมือ
+      function periodLabelText() {
+        const s = state.startDate, e = state.endDate;
+        const th = (d, o) => new Intl.DateTimeFormat("th-TH", o).format(d);
+        if (toYMD(s) === toYMD(e)) return th(s, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+        if (s.getDate() === 1 && toYMD(e) === toYMD(new Date(s.getFullYear(), s.getMonth() + 1, 0))) return th(s, { month: "long", year: "numeric" });
+        if (s.getMonth() === 0 && s.getDate() === 1 && e.getMonth() === 11 && e.getDate() === 31 && s.getFullYear() === e.getFullYear()) return "ปี " + th(s, { year: "numeric" });
+        return `${th(s, { day: "numeric", month: "short" })} – ${th(e, { day: "numeric", month: "short", year: "numeric" })}`;
       }
 
       function bindEvents() {
@@ -977,8 +1066,20 @@ include "config_ctrl/checksession.php";
           refreshJobsAndRender();
         });
 
+        // ย่อ/ขยายหน้าต่าง => ปฏิทินเดือนจัดจำนวนชื่องานต่อช่องใหม่
+        let resizeTimer = null;
+        window.addEventListener("resize", () => {
+          clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(() => { if (state.activeTab === "calendar" && state.view === "month") renderMonthCalendar(getFilteredJobs()); }, 200);
+        });
+
+        byId("btnPrevPeriod").addEventListener("click", () => shiftPeriod(-1));
+        byId("btnNextPeriod").addEventListener("click", () => shiftPeriod(1));
+
         byId("btnReset").addEventListener("click", () => {
           state.technicianId = "all";
+          state.status = "all";
+          renderStatusLegend();
           state.view = "month";
           state.startDate = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
           state.endDate = new Date(TODAY.getFullYear(), TODAY.getMonth() + 1, 0);
@@ -995,14 +1096,19 @@ include "config_ctrl/checksession.php";
       }
 
       function syncDateInput() {
-        document.querySelectorAll(".view-btn").forEach((btn) => {
-          btn.className = `view-btn rounded-xl py-1 text-sm font-medium ${btn.dataset.view === state.view ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`;
-        });
+        document.querySelectorAll(".view-btn").forEach((btn) => btn.classList.toggle("on", btn.dataset.view === state.view));
         els.startDatePicker.value = toYMD(state.startDate);
         els.endDatePicker.value = toYMD(state.endDate);
+        byId("periodLabel").textContent = periodLabelText();
       }
 
-      function getFilteredJobs() {
+      // งานตามตัวกรอง — ignoreStatus = ไม่สนชิปสถานะ (ใช้นับจำนวนบนชิป)
+      function getFilteredJobs(ignoreStatus) {
+        const jobs = getFilteredJobsAllStatus();
+        return ignoreStatus || state.status === "all" ? jobs : jobs.filter((j) => j.status === state.status);
+      }
+
+      function getFilteredJobsAllStatus() {
         return mockData.jobs
           .filter((job) => {
             const workStart = new Date(job.workStart);
@@ -1123,7 +1229,9 @@ include "config_ctrl/checksession.php";
         return dates;
       }
 
+      let dailyScrollKey = "";   // ช่วงเวลาที่เลื่อนอัตโนมัติไปแล้ว (เลื่อนเองแล้วไม่ดึงกลับ)
       function renderTimelineDaily(jobs) {
+        let firstHour = 99;
         const dates = getDatesInRange(state.startDate, state.endDate);
         const zoom = ZOOM_STEPS[state.zoomDailyIdx];
         const totalPx = Math.round(BASE_HOUR_WIDTH * zoom * 24);
@@ -1152,10 +1260,15 @@ include "config_ctrl/checksession.php";
             const calcLeft = (t) => ((t.getHours() * 60 + t.getMinutes()) / 1440) * 100;
             const calcWidth = (s, e) => ((e - s) / 60000) / 1440 * 100;
 
-            const { processedJobs, totalLanes } = calculateTimelineLanes(dayJobs, startOfDay, endOfDay, calcLeft, calcWidth);
-            
+            // ส่ง totalPx เพื่อให้แท่งงานกว้างอย่างน้อย 160px (เห็นเลขที่งาน + ชื่อ) และจัดเลนไม่ทับกัน
+            const { processedJobs, totalLanes } = calculateTimelineLanes(dayJobs, startOfDay, endOfDay, calcLeft, calcWidth, totalPx);
+
             // 40px per lane + 20px padding
-            const rowHeight = totalLanes === 0 ? 60 : Math.max(60, (totalLanes * 34) + 16); 
+            const rowHeight = totalLanes === 0 ? 60 : Math.max(60, (totalLanes * 34) + 16);
+            const isToday = dayYMD === toYMD(new Date());
+            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+            // ชั่วโมงแรกที่มีงาน "เริ่ม" (งานต่อเนื่องจากเมื่อวานไม่นับ ไม่งั้นเลื่อนไป 00:00 ตลอด)
+            dayJobs.forEach((j) => { const s = new Date(j.workStart); if (s >= startOfDay) firstHour = Math.min(firstHour, s.getHours()); });
             
             let barsHtml = "";
             processedJobs.forEach(job => {
@@ -1172,35 +1285,53 @@ include "config_ctrl/checksession.php";
                 `;
             });
 
+            // วันนี้: เส้นสีแดง ณ เวลาปัจจุบัน
+            const nowLine = isToday ? `<div class="timeline-now" style="left:${calcLeft(new Date())}%" title="ตอนนี้ ${fmtTime(new Date())}"></div>` : "";
             bodyHtml += `
-                <div class="timeline-row" style="height: ${rowHeight}px;">
+                <div class="timeline-row ${isToday ? "is-today" : ""}" style="height: ${rowHeight}px;">
                     <div class="timeline-sidebar flex-col !items-start justify-center gap-0.5">
-                        <span class="text-[13px]">${fmtShortDate(day)}</span>
+                        <span class="text-[13px] ${isWeekend && !isToday ? "text-rose-600" : ""}">${new Intl.DateTimeFormat("th-TH", { weekday: "short" }).format(day)} ${fmtShortDate(day)}${isToday ? ' <span class="text-[10px] font-bold">· วันนี้</span>' : ""}</span>
                         <span class="text-[10px] text-slate-400 font-normal">${dayJobs.length} งาน</span>
                     </div>
                     <div class="timeline-content" style="min-width:${totalPx}px; background-size: calc(100% / 24) 100%;">
-                        ${barsHtml}
+                        ${barsHtml}${nowLine}
                     </div>
                 </div>
             `;
         });
 
+        const prevLeft = els.timelineDailyContainer.scrollLeft;
         els.timelineDailyContainer.innerHTML = `
             <div class="timeline-header">${headerHtml}</div>
             <div class="timeline-body">${bodyHtml}</div>
         `;
+        // เลื่อนไปที่ชั่วโมงแรกที่มีงาน (เว้น 1 ชม.) ครั้งแรก / เปลี่ยนช่วงเวลา — ไม่มีงานเริ่มที่ 07:00
+        const rangeKey = toYMD(state.startDate) + toYMD(state.endDate) + state.technicianId;
+        if (dailyScrollKey !== rangeKey && els.timelineDailyContainer.offsetParent) {   // แท็บซ่อนอยู่ เลื่อนไม่ได้ => รอเปิดแท็บ
+            dailyScrollKey = rangeKey;
+            const hr = firstHour === 99 ? 7 : Math.max(0, firstHour - 1);
+            els.timelineDailyContainer.scrollLeft = (totalPx / 24) * hr;
+        } else {
+            els.timelineDailyContainer.scrollLeft = prevLeft;
+        }
         updateZoomUI("daily");
       }
 
+      let teamScrollKey = "";   // ช่วงเวลาที่เลื่อนอัตโนมัติไปแล้ว
       function renderTimelineTeam(jobs) {
         const dates = getDatesInRange(state.startDate, state.endDate);
         const totalDays = dates.length;
         const zoom = ZOOM_STEPS[state.zoomTeamIdx];
         const totalPx = Math.round(BASE_DAY_WIDTH * zoom * totalDays);
 
+        // หัวคอลัมน์วัน: วันนี้ = พื้นฟ้า, เสาร์-อาทิตย์ = ตัวแดง / แถบพื้นหลังของวันเดียวกันในทุกแถว
+        const todayYMD = toYMD(new Date());
         let headerCellsHtml = "";
-        dates.forEach(day => {
-            headerCellsHtml += `<div class="timeline-header-cell border-l border-slate-200">${fmtShortDate(day)}</div>`;
+        let dayColsHtml = "";
+        dates.forEach((day, i) => {
+            const isToday = toYMD(day) === todayYMD, isWeekend = day.getDay() === 0 || day.getDay() === 6;
+            headerCellsHtml += `<div class="timeline-header-cell border-l border-slate-200 ${isToday ? "is-today" : ""} ${isWeekend ? "is-weekend" : ""}">${new Intl.DateTimeFormat("th-TH", { weekday: "narrow" }).format(day)} ${fmtShortDate(day)}</div>`;
+            if (isToday || isWeekend) dayColsHtml += `<div class="tl-day-col ${isToday ? "is-today" : "is-weekend"}" style="left:${(i / totalDays) * 100}%; width:${100 / totalDays}%"></div>`;
         });
         let headerHtml = `<div class="timeline-sidebar">ชื่อช่าง</div><div class="timeline-header-content" style="min-width:${totalPx}px;">${headerCellsHtml}</div>`;
 
@@ -1221,7 +1352,8 @@ include "config_ctrl/checksession.php";
             const calcLeft = (t) => ((t - startBound) / totalMs) * 100;
             const calcWidth = (s, e) => ((e - s) / totalMs) * 100;
 
-            const { processedJobs, totalLanes } = calculateTimelineLanes(techJobs, startBound, endBound, calcLeft, calcWidth);
+            // ส่ง totalPx เพื่อให้แท่งงานกว้างอย่างน้อย 160px (เดิมแท่งงานสั้นเหลือแค่ตัว "D")
+            const { processedJobs, totalLanes } = calculateTimelineLanes(techJobs, startBound, endBound, calcLeft, calcWidth, totalPx);
             
             const rowHeight = totalLanes === 0 ? 70 : Math.max(70, (totalLanes * 34) + 20);
             
@@ -1250,7 +1382,7 @@ include "config_ctrl/checksession.php";
                         </div>
                     </div>
                     <div class="timeline-content" style="min-width:${totalPx}px; background-size: calc(100% / ${totalDays}) 100%;">
-                        ${barsHtml}
+                        ${dayColsHtml}${barsHtml}
                     </div>
                 </div>
             `;
@@ -1260,10 +1392,22 @@ include "config_ctrl/checksession.php";
             bodyHtml = `<div class="p-8 text-center text-slate-400 text-sm">ไม่พบข้อมูลช่าง</div>`;
         }
 
+        const prevLeft = els.timelineTeamContainer.scrollLeft;
         els.timelineTeamContainer.innerHTML = `
             <div class="timeline-header">${headerHtml}</div>
             <div class="timeline-body">${bodyHtml}</div>
         `;
+        // เลื่อนไปวันนี้ (ถ้าอยู่ในช่วง) หรือวันแรกที่มีงาน — ครั้งแรก / เปลี่ยนช่วงเวลา
+        const rangeKey = toYMD(state.startDate) + toYMD(state.endDate) + state.technicianId;
+        if (teamScrollKey !== rangeKey && els.timelineTeamContainer.offsetParent) {
+            teamScrollKey = rangeKey;
+            let idx = dates.findIndex((d) => toYMD(d) === todayYMD);
+            if (idx < 0) { const first = jobs.filter((j) => j.workStart).map((j) => new Date(j.workStart)).sort((a, b) => a - b)[0];
+                idx = first ? Math.max(0, Math.floor((first - startBound) / 864e5)) : 0; }
+            els.timelineTeamContainer.scrollLeft = Math.max(0, (idx - 1) * (totalPx / totalDays));
+        } else {
+            els.timelineTeamContainer.scrollLeft = prevLeft;
+        }
         updateZoomUI("team");
       }
 
@@ -1713,6 +1857,17 @@ include "config_ctrl/checksession.php";
         const startDay = first.getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const cells = [];
+        // จอคอม (สูงพอดีจอ): จำนวนชื่องานต่อช่องตามความสูงของแถวจริง (ที่เหลือเป็น "+ อีก N งาน")
+        const weeks = Math.ceil((startDay + daysInMonth) / 7);
+        const gridH = els.monthCalendar.clientHeight;
+        //  ช่องสูง rowH: ส่วนคงที่ 42px (ขอบ 6+6 + เลขวัน 28 + 2), ชื่องาน 32px/รายการ, บรรทัด "+ อีก N งาน" 20px (วัดจากหน้าจริง)
+        const fitMode = window.innerWidth >= 1024 && gridH > 0;
+        const rowH = fitMode ? gridH / weeks - 1 : 0;   // -1 = เส้นขอบล่าง
+        const pillsFor = (n) => {
+          if (!fitMode) return n > 2 ? 2 : n;                      // เดิม: 2 รายการแรก
+          const all = Math.floor((rowH - 42) / 32);
+          return n <= all ? n : Math.max(0, Math.floor((rowH - 42 - 20) / 32));
+        };
         
         for (let i = 0; i < startDay; i++) {
           cells.push(`<div class="calendar-day border-b border-r border-slate-100 bg-slate-50/60"></div>`);
@@ -1723,17 +1878,25 @@ include "config_ctrl/checksession.php";
           const currentYMD = toYMD(d);
           const dayJobs = jobs.filter((j) => toYMD(new Date(j.workStart)) === currentYMD);
           dayJobs.sort((a, b) => new Date(a.workStart) - new Date(b.workStart));
-          const isToday = currentYMD === toYMD(new Date()); 
+          const isToday = currentYMD === toYMD(new Date());
+          const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+          const shown = pillsFor(dayJobs.length);
+          // มือถือ: จุดสีตามสถานะ (สูงสุด 4) แตะทั้งช่องเพื่อดูงานของวันนั้น / จอใหญ่: ชื่องาน 2 รายการแรก
+          const dots = dayJobs.slice(0, 4).map((j) => `<span class="cal-dot ${STATUS_DOT[j.status] || "bg-slate-400"}"></span>`).join("")
+            + (dayJobs.length > 4 ? `<span class="text-[9px] font-bold text-slate-400 leading-none">+${dayJobs.length - 4}</span>` : "");
           cells.push(`
-            <div class="calendar-day border-b border-r border-slate-100 p-2 bg-white hover:bg-slate-50/70 transition overflow-hidden">
-              <div class="flex items-center justify-between mb-1.5">
-                <span class="${isToday ? "bg-indigo-600 text-white" : "text-slate-500"} h-7 w-7 rounded-full inline-flex items-center justify-center text-sm font-semibold">${day}</span>
-                ${dayJobs.length ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${dayJobs.length}</span>` : ""}
+            <div class="calendar-day relative border-b border-r border-slate-100 p-1.5 sm:p-2 bg-white hover:bg-slate-50/70 transition overflow-hidden ${isToday ? "is-today" : ""} ${isWeekend ? "is-weekend" : ""}">
+              <div class="flex items-center justify-between mb-1 sm:mb-1.5">
+                <span class="cal-num ${isToday ? "!bg-indigo-600 !text-white" : "text-slate-500"} h-6 w-6 sm:h-7 sm:w-7 rounded-full inline-flex items-center justify-center text-[12px] sm:text-sm font-semibold">${day}</span>
+                ${dayJobs.length ? `<span class="hidden sm:inline text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">${dayJobs.length}</span>` : ""}
               </div>
-              <div class="flex flex-col gap-0.5 max-h-[86px] overflow-visible">
-                ${dayJobs.slice(0, 2).map((j) => renderMonthEventPill(j)).join("")}
-                ${dayJobs.length > 2 ? `<button onclick="openDayJobs('${currentYMD}')" class="text-[11px] text-indigo-600 font-medium mt-0.5 w-full text-left truncate hover:underline">+ อีก ${dayJobs.length - 2} งาน</button>` : ""}
+              <div class="hidden sm:flex flex-col gap-0.5 max-h-[86px] overflow-visible">
+                ${dayJobs.slice(0, shown).map((j) => renderMonthEventPill(j)).join("")}
+                ${dayJobs.length > shown && (shown || rowH - 42 >= 20) ? `<button onclick="openDayJobs('${currentYMD}')" class="text-[11px] text-indigo-600 font-medium mt-0.5 w-full text-left truncate hover:underline">${shown ? `+ อีก ${dayJobs.length - shown} งาน` : `${dayJobs.length} งาน`}</button>` : ""}
               </div>
+              ${fitMode && dayJobs.length && !shown && rowH - 42 < 20 ? `<button type="button" class="hidden sm:block absolute inset-0" onclick="openDayJobs('${currentYMD}')" title="${dayJobs.length} งาน — คลิกเพื่อดู" aria-label="งานวันที่ ${day} (${dayJobs.length} งาน)"></button>` : ""}
+              ${dayJobs.length ? `<div class="sm:hidden flex flex-wrap items-center gap-1 px-0.5">${dots}</div>
+                <button type="button" class="sm:hidden absolute inset-0" onclick="openDayJobs('${currentYMD}')" aria-label="งานวันที่ ${day} (${dayJobs.length} งาน)"></button>` : ""}
             </div>
           `);
         }
@@ -1853,11 +2016,19 @@ include "config_ctrl/checksession.php";
           { id: "completed", title: "เสร็จสิ้น", color: "emerald", bgHeader: "bg-emerald-100/50", border: "border-emerald-200", text: "text-emerald-800" },
           { id: "cencel", title: "ยกเลิก", color: "rose", bgHeader: "bg-rose-100/50", border: "border-rose-200", text: "text-rose-800" },
         ];
+        // มือถือ: ปุ่มเลือกสถานะ (แสดงทีละคอลัมน์) — เลือกชิปสถานะไว้ => เปิดคอลัมน์นั้น
+        if (state.status !== "all") state.kanbanCol = state.status;
+        const sw = byId("kanbanSwitch");
+        if (sw) {
+          sw.innerHTML = columns.map((col) => `<button type="button" role="tab" data-kb="${col.id}" class="${col.id === state.kanbanCol ? "on " + col.text : ""}" aria-selected="${col.id === state.kanbanCol}">
+              <b>${jobs.filter((j) => j.status === col.id).length}</b>${col.title}</button>`).join("");
+          sw.onclick = (e) => { const b = e.target.closest("[data-kb]"); if (b) { state.kanbanCol = b.dataset.kb; renderKanban(getFilteredJobs()); } };
+        }
         let html = "";
         columns.forEach((col) => {
           const colJobs = jobs.filter((j) => j.status === col.id);
           html += `
-            <div class="kanban-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+            <div class="kanban-col ${col.id === state.kanbanCol ? "" : "kb-off"} bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
                 <div class="p-3 border-b ${col.border} ${col.bgHeader} flex items-center justify-between sticky top-0 z-10">
                     <h3 class="font-bold text-sm ${col.text}">${col.title}</h3>
                     <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white text-xs font-bold shadow-sm ${col.text}">${colJobs.length}</span>
@@ -1943,9 +2114,13 @@ include "config_ctrl/checksession.php";
         });
       }
 
-      function updateLegends(jobs) {
-        const grouped = jobs.reduce((acc, j) => { acc[j.status] = (acc[j.status] || 0) + 1; return acc; }, {});
+      function updateLegends() {
+        const all = getFilteredJobs(true);
+        const grouped = all.reduce((acc, j) => { acc[j.status] = (acc[j.status] || 0) + 1; return acc; }, {});
         Object.keys(mockData.status).forEach((k) => { const el = byId(`legend-${k}`); if (el) el.textContent = grouped[k] || 0; });
+        const t = byId("legend-all"); if (t) t.textContent = all.length;
+        // มือถือ: จุดบนปุ่มตัวกรองเมื่อมีการค้นหา / เลือกช่าง
+        const dot = byId("filterDot"); if (dot) dot.classList.toggle("hidden", !(apiState.search || state.technicianId !== "all"));
       }
 
       function formatDurationText(diffMs) {
