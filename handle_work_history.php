@@ -25,6 +25,7 @@ if (mysqli_connect_errno()) {
   exit;
 }
 mysqli_set_charset($connect, "utf8mb4");
+require_once __DIR__ . '/config_ctrl/repair_hold.php';
 
 // ============================================================
 //  Helper: เขียนแทน operator ?? (PHP 7.0+) ให้ใช้ได้กับ PHP 5.4
@@ -351,6 +352,54 @@ if ($action === 'get_technicians') {
   exit;
 }
 
+// ช่วงพักงาน (repair_holds) ของแต่ละใบงาน — ended_at = NULL คือยังพักอยู่
+function fetch_holds_map($connect, array $repairIds) {
+  $map = array();
+  if (empty($repairIds)) return $map;
+  rh_ensure($connect);
+  $reasons = rh_reasons();
+
+  $placeholders = implode(',', array_fill(0, count($repairIds), '?'));
+  $types = str_repeat('i', count($repairIds));
+  $sql = "
+    SELECT rp_id, reason, note, eta, started_at, ended_at
+    FROM repair_holds
+    WHERE rp_id IN ($placeholders)
+    ORDER BY started_at ASC, id ASC
+  ";
+  $stmt = $connect->prepare($sql);
+  if (!$stmt) throw new Exception('Prepare repair_holds failed: ' . $connect->error);
+  bind_params_array($stmt, $types, $repairIds);
+  $stmt->execute();
+  $res = $stmt->get_result();
+
+  while ($row = $res->fetch_assoc()) {
+    $rid = (string)$row['rp_id'];
+    if (!isset($map[$rid])) $map[$rid] = array();
+    $map[$rid][] = array(
+      'start'  => str_replace(' ', 'T', $row['started_at']),
+      'end'    => $row['ended_at'] ? str_replace(' ', 'T', $row['ended_at']) : null,
+      'reason' => $row['reason'],
+      'label'  => gv($reasons, $row['reason'], $row['reason']),
+      'note'   => $row['note'],
+      'eta'    => $row['eta'],
+    );
+  }
+  $stmt->close();
+  return $map;
+}
+
+// เวลาพักงาน (วินาที) ที่ทับกับช่วง [$fromTs, $toTs]
+function hold_seconds_between(array $holds, $fromTs, $toTs) {
+  $sum = 0;
+  foreach ($holds as $h) {
+    $hs = max($fromTs, strtotime($h['start']));
+    $he = min($toTs, $h['end'] ? strtotime($h['end']) : time());
+    if ($he > $hs) $sum += $he - $hs;
+  }
+  return $sum;
+}
+
 /* ============================================================
  *  GET JOBS (list หลัก) — มี search / filter / sort / pagination
  *  ไม่ LEFT JOIN กับตารางย่อย ใช้ vw_ref_lookup (UNION ALL) + map ใน PHP แทน
@@ -517,6 +566,7 @@ if ($action === 'get_jobs') {
     $beforeImages  = fetch_images_map($connect, $repairIds, 'repair_images', 'created_at');
     $afterImages   = fetch_images_map($connect, $repairIds, 'repair_completed_images', 'uploaded_at');
     $stockUsed     = fetch_stock_map($connect, $repairIds);
+    $holdsMap      = fetch_holds_map($connect, $repairIds);
 
     $jobs = array();
     foreach ($rows as $r) {
@@ -552,14 +602,19 @@ if ($action === 'get_jobs') {
                       ? trim($r['completed_date'] . 'T' . $r['completed_time'])
                       : null;
 
-      // 2. คำนวณระยะเวลาทำงาน (Duration)
+      // 2. คำนวณระยะเวลาทำงาน (Duration) — หักช่วงพักงานออก
+      $holds = gv($holdsMap, $rid, array());
+      $onHold = false;
+      foreach ($holds as $h) { if (!$h['end']) $onHold = true; }
+      $holdSeconds = 0;
       $workDuration = '-';
       if ($workStart && $workEnd) {
           $start_ts = strtotime($workStart);
           $end_ts = strtotime($workEnd);
           
           if ($start_ts && $end_ts && $end_ts >= $start_ts) {
-              $diff_seconds = $end_ts - $start_ts;
+              $holdSeconds = hold_seconds_between($holds, $start_ts, $end_ts);
+              $diff_seconds = max(0, $end_ts - $start_ts - $holdSeconds);
               $hours = floor($diff_seconds / 3600);
               $minutes = floor(($diff_seconds % 3600) / 60);
               
@@ -588,7 +643,10 @@ if ($action === 'get_jobs') {
         'reportDate'     => trim($r['report_date'] . 'T' . $r['report_time']),
         'workStart'      => $workStart,
         'workEnd'        => $workEnd,
-        'workDuration'   => $workDuration, // เพิ่มฟิลด์นี้เข้าไปใหม่
+        'workDuration'   => $workDuration, // เวลาทำงานสุทธิ (หักช่วงพักงานแล้ว)
+        'holds'          => $holds,        // ช่วงพักงาน [{start, end|null, reason, label, note, eta}]
+        'onHold'         => $onHold,       // กำลังพักงานอยู่
+        'holdSeconds'    => $holdSeconds,
         'reporter'       => $r['name'],
         'phone'          => $r['phone'],
         'location'       => implode(' / ', $locationParts),

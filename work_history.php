@@ -281,6 +281,16 @@ include "config_ctrl/checksession.php";
         background-image: linear-gradient(to right, #f1f5f9 1px, transparent 1px);
         background-size: calc(100% / 24) 100%; 
       }
+      /* ช่วงพักงานบนแถบงาน: สีฟ้าอ่อนลายทาง (ต่างจากแถบฟ้าทึบของ "กำลังดำเนินการ") + ป้ายสาเหตุ */
+      .tl-hold { position: absolute; top: 0; bottom: 0; z-index: 2; pointer-events: none;
+        display: flex; align-items: center; gap: 3px; padding: 0 6px; overflow: hidden; white-space: nowrap;
+        font-size: 0.62rem; font-weight: 700; color: #fff;
+        background: repeating-linear-gradient(-45deg, #7dd3fc 0 5px, #e0f2fe 5px 10px);
+        box-shadow: inset 2px 0 0 #0369a1, inset -2px 0 0 #0369a1; }
+      .tl-hold-tag { background: #075985; border-radius: 4px; padding: 1px 5px; text-shadow: none; overflow: hidden; text-overflow: ellipsis; }
+      .timeline-bar > .tl-label { position: relative; z-index: 1; overflow: hidden; text-overflow: ellipsis; }
+      .tl-legend-hold { display: inline-block; width: 22px; height: 10px; border-radius: 3px; vertical-align: -1px;
+        background: repeating-linear-gradient(-45deg, #7dd3fc 0 3px, #e0f2fe 3px 6px); }
       .timeline-bar {
         position: absolute;
         height: 28px;
@@ -601,7 +611,7 @@ include "config_ctrl/checksession.php";
                 <div class="p-3 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                   <div>
                     <h2 class="text-base xs:text-lg font-bold text-slate-950">ไทม์ไลน์งานรายวัน (Timeline)</h2>
-                    <p class="text-[11px] text-slate-500 mt-1">แสดงงานในแต่ละวันตามช่วงเวลา 24 ชั่วโมง</p>
+                    <p class="text-[11px] text-slate-500 mt-1">แสดงงานในแต่ละวันตามช่วงเวลา 24 ชั่วโมง · <span class="tl-legend-hold"></span> ช่วงพักงาน</p>
                   </div>
                   <div class="flex items-center gap-2">
                     <div class="timeline-zoom-controls" title="กด Ctrl/⌘ + เลื่อนล้อเมาส์เพื่อซูมได้เช่นกัน">
@@ -636,7 +646,7 @@ include "config_ctrl/checksession.php";
                 <div class="p-3 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                   <div>
                     <h2 class="text-base xs:text-lg font-bold text-slate-950">ไทม์ไลน์ทีม (Team Timeline)</h2>
-                    <p class="text-[11px] text-slate-500 mt-1">แสดงงานแยกตามช่างในช่วงเวลาที่เลือก</p>
+                    <p class="text-[11px] text-slate-500 mt-1">แสดงงานแยกตามช่างในช่วงเวลาที่เลือก · <span class="tl-legend-hold"></span> ช่วงพักงาน</p>
                   </div>
                   <div class="flex items-center gap-2">
                     <div class="timeline-zoom-controls" title="กด Ctrl/⌘ + เลื่อนล้อเมาส์เพื่อซูมได้เช่นกัน">
@@ -1104,17 +1114,85 @@ include "config_ctrl/checksession.php";
         byId("periodLabel").textContent = periodLabelText();
       }
 
+      // ===== ช่วงเวลางาน + ช่วงพักงาน =====
+      // จบงาน: เวลาปิดงานจริง / ยังไม่ปิด = แสดง 1 ชม.
+      // openToNow (ไทม์ไลน์ทีม): งานกำลังดำเนินการยืดถึงตอนนี้ — เห็นช่วงที่ช่างติดงาน/พักงานอยู่
+      function jobEndDate(job, openToNow = false) {
+        const s = new Date(job.workStart);
+        if (job.workEnd) { const e = new Date(job.workEnd); if (!isNaN(e.getTime())) return e; }
+        // openToNow = "hold" (ไทม์ไลน์รายวัน): ยืดเฉพาะงานที่มีการพักงาน — งานค้างทั่วไปไม่ยืด จะได้ไม่รก
+        if (openToNow && job.status === "in_progress" && (openToNow !== "hold" || jobHolds(job).length)) {
+          const now = new Date();
+          return now > s ? now : new Date(s.getTime() + 36e5);
+        }
+        return new Date(s.getTime() + 36e5);
+      }
+      function jobHolds(job) { return Array.isArray(job.holds) ? job.holds : []; }
+      // ms ที่พักงานทับกับช่วง [from, to]
+      function holdMsBetween(job, from, to) {
+        return jobHolds(job).reduce((sum, h) => {
+          const hs = Math.max(from, new Date(h.start));
+          const he = Math.min(to, h.end ? new Date(h.end) : new Date());
+          return he > hs ? sum + (he - hs) : sum;
+        }, 0);
+      }
+      // เวลาทำงานสุทธิ (หักพักงาน) — เฉพาะงานที่มีเวลาเริ่ม-จบจริง
+      function jobNetMs(job) {
+        if (!job.workStart || !job.workEnd) return null;
+        const s = new Date(job.workStart), e = new Date(job.workEnd);
+        if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) return null;
+        return Math.max(0, (e - s) - holdMsBetween(job, s, e));
+      }
+      function jobHoldMs(job) {
+        if (!job.workStart) return 0;
+        return holdMsBetween(job, new Date(job.workStart), jobEndDate(job, true));
+      }
+      function holdRangeText(h) {
+        const end = h.end ? fmtDate(h.end, { time: true }) : "ปัจจุบัน";
+        return `${h.label || "พักงาน"}: ${fmtDate(h.start, { time: true })} – ${end}`;
+      }
+      // แถบลายทางช่วงพักงานภายในแถบงาน (ใช้พิกัด % เดียวกับไทม์ไลน์)
+      function holdOverlayHtml(job, calcLeft) {
+        if (!jobHolds(job).length || !job.renderWidth || !job.renderStart) return "";
+        // ตัดตามช่วงที่แสดง แล้วรวมรอบพักที่ติดกัน (ห่างกันไม่เกิน 10 นาที) เป็นแถบเดียว
+        const segs = [];
+        jobHolds(job).forEach((h) => {
+          const hs = Math.max(job.renderStart, new Date(h.start));
+          const he = Math.min(job.renderEnd, h.end ? new Date(h.end) : new Date());
+          if (he <= hs) return;
+          const last = segs[segs.length - 1];
+          if (last && hs - last.e <= 10 * 60000) { last.e = Math.max(last.e, he); last.n++; if (!last.labels.includes(h.label)) last.labels.push(h.label); }
+          else segs.push({ s: hs, e: he, n: 1, labels: [h.label || ""] });
+        });
+        return segs.map((g) => {
+          const l = Math.min(100, Math.max(0, (calcLeft(new Date(g.s)) - job.renderLeft) / job.renderWidth * 100));
+          const w = Math.min(100 - l, (calcLeft(new Date(g.e)) - calcLeft(new Date(g.s))) / job.renderWidth * 100);
+          const text = `⏸ พักงาน${g.n > 1 ? ` ${g.n} ครั้ง` : ""} · ${escapeHtmlLite(g.labels.filter(Boolean).join(", "))}`;
+          // ช่วงสั้นมาก (ไม่กี่นาที) ยังต้องมองเห็น: กว้างอย่างน้อย 28px และไม่ล้นท้ายแถบ
+          return `<span class="tl-hold" style="left:min(${l}%, calc(100% - 28px));width:max(28px, ${w}%)"><b class="tl-hold-tag">${text}</b></span>`;
+        }).join("");
+      }
+      function barTitle(job, timeText) {
+        return [`${job.id} ${job.title} | ${timeText}`, ...jobHolds(job).map((h) => "⏸ " + holdRangeText(h))].join("\n").replace(/"/g, "&quot;");
+      }
+      function holdTagHtml(job, cls = "") {
+        if (!job.onHold) return "";
+        const cur = jobHolds(job).filter((h) => !h.end).map(holdRangeText)[0] || "";
+        return `<span class="inline-flex items-center gap-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-200 px-1.5 py-0.5 text-[9px] font-semibold ${cls}" title="${cur.replace(/"/g, "&quot;")}"><i data-lucide="pause" class="w-2.5 h-2.5"></i>พักงาน</span>`;
+      }
+
       // งานตามตัวกรอง — ignoreStatus = ไม่สนชิปสถานะ (ใช้นับจำนวนบนชิป)
-      function getFilteredJobs(ignoreStatus) {
-        const jobs = getFilteredJobsAllStatus();
+      // openToNow = นับงานกำลังดำเนินการว่ายังอยู่ในช่วงถึงปัจจุบัน (ใช้กับไทม์ไลน์ทีม)
+      function getFilteredJobs(ignoreStatus, openToNow) {
+        const jobs = getFilteredJobsAllStatus(openToNow);
         return ignoreStatus || state.status === "all" ? jobs : jobs.filter((j) => j.status === state.status);
       }
 
-      function getFilteredJobsAllStatus() {
+      function getFilteredJobsAllStatus(openToNow) {
         return mockData.jobs
           .filter((job) => {
             const workStart = new Date(job.workStart);
-            let workEnd = job.workEnd ? new Date(job.workEnd) : workStart;
+            let workEnd = job.workEnd ? new Date(job.workEnd) : (openToNow ? jobEndDate(job, openToNow) : workStart);
             // กันเคส workEnd เป็นสตริงวันที่ไม่สมบูรณ์ (เช่น "2026-07-16T" ไม่มีเวลา)
             // ซึ่ง JS parse เป็น Invalid Date แล้วจะทำให้เงื่อนไขเทียบวันที่ผิดพลาด
             // และงานนั้นถูกกรองทิ้งไปเงียบๆ โดยไม่มี error ให้เห็น
@@ -1173,7 +1251,7 @@ include "config_ctrl/checksession.php";
         cencel: "bg-rose-500"
       };
 
-      function calculateTimelineLanes(jobs, startBound, endBound, calcLeftPct, calcWidthPct, totalPx) {
+      function calculateTimelineLanes(jobs, startBound, endBound, calcLeftPct, calcWidthPct, totalPx, openToNow) {
         const sorted = [...jobs].filter(j => j.workStart).sort((a, b) => new Date(a.workStart) - new Date(b.workStart));
         const lanes = []; // เก็บตำแหน่ง % ฝั่งขวาสุดของแต่ละเลน (เพื่อกันภาพทับกัน)
         
@@ -1183,7 +1261,7 @@ include "config_ctrl/checksession.php";
         
         sorted.forEach(job => {
             let start = new Date(job.workStart);
-            let end = job.workEnd ? new Date(job.workEnd) : new Date(start.getTime() + 60*60*1000);
+            let end = jobEndDate(job, openToNow);
             
             if (start < startBound) start = new Date(startBound);
             if (end > endBound) end = new Date(endBound);
@@ -1212,6 +1290,8 @@ include "config_ctrl/checksession.php";
             }
             job.renderLeft = Math.max(0, left);
             job.renderWidth = renderWidth;
+            job.renderStart = start;   // ช่วงที่ตัดตามขอบเขตแล้ว — ใช้วางช่วงพักงาน
+            job.renderEnd = end;
         });
         
         return { processedJobs: sorted, totalLanes: lanes.length };
@@ -1232,7 +1312,8 @@ include "config_ctrl/checksession.php";
       }
 
       let dailyScrollKey = "";   // ช่วงเวลาที่เลื่อนอัตโนมัติไปแล้ว (เลื่อนเองแล้วไม่ดึงกลับ)
-      function renderTimelineDaily(jobs) {
+      function renderTimelineDaily() {
+        const jobs = getFilteredJobs(false, "hold");
         let firstHour = 99;
         const dates = getDatesInRange(state.startDate, state.endDate);
         const zoom = ZOOM_STEPS[state.zoomDailyIdx];
@@ -1255,7 +1336,7 @@ include "config_ctrl/checksession.php";
             
             const dayJobs = jobs.filter(j => {
                 const s = new Date(j.workStart);
-                const e = j.workEnd ? new Date(j.workEnd) : new Date(s.getTime() + 60*60*1000);
+                const e = jobEndDate(j, "hold");
                 return s <= endOfDay && e >= startOfDay;
             });
 
@@ -1263,7 +1344,7 @@ include "config_ctrl/checksession.php";
             const calcWidth = (s, e) => ((e - s) / 60000) / 1440 * 100;
 
             // ส่ง totalPx เพื่อให้แท่งงานกว้างอย่างน้อย 160px (เห็นเลขที่งาน + ชื่อ) และจัดเลนไม่ทับกัน
-            const { processedJobs, totalLanes } = calculateTimelineLanes(dayJobs, startOfDay, endOfDay, calcLeft, calcWidth, totalPx);
+            const { processedJobs, totalLanes } = calculateTimelineLanes(dayJobs, startOfDay, endOfDay, calcLeft, calcWidth, totalPx, "hold");
 
             // 40px per lane + 20px padding
             const rowHeight = totalLanes === 0 ? 60 : Math.max(60, (totalLanes * 34) + 16);
@@ -1281,8 +1362,8 @@ include "config_ctrl/checksession.php";
                     <div class="timeline-bar ${bgColor}" 
                          style="left: ${job.renderLeft}%; width: ${Math.max(1, job.renderWidth)}%; top: ${topPos}px;"
                          onclick="openJobDetail('${job.id}')"
-                         title="${job.id} ${job.title} | ${fmtTime(job.workStart)} - ${job.workEnd ? fmtTime(job.workEnd) : 'N/A'}">
-                        ${job.id} ${job.title}
+                         title="${barTitle(job, `${fmtTime(job.workStart)} - ${job.workEnd ? fmtTime(job.workEnd) : (job.status === "in_progress" ? "ยังไม่เสร็จ" : "N/A")}`)}">
+                        ${holdOverlayHtml(job, calcLeft)}<span class="tl-label">${job.onHold ? "⏸ " : ""}${job.id} ${job.title}</span>
                     </div>
                 `;
             });
@@ -1320,7 +1401,8 @@ include "config_ctrl/checksession.php";
       }
 
       let teamScrollKey = "";   // ช่วงเวลาที่เลื่อนอัตโนมัติไปแล้ว
-      function renderTimelineTeam(jobs) {
+      function renderTimelineTeam() {
+        const jobs = getFilteredJobs(false, true);
         const dates = getDatesInRange(state.startDate, state.endDate);
         const totalDays = dates.length;
         const zoom = ZOOM_STEPS[state.zoomTeamIdx];
@@ -1355,7 +1437,7 @@ include "config_ctrl/checksession.php";
             const calcWidth = (s, e) => ((e - s) / totalMs) * 100;
 
             // ส่ง totalPx เพื่อให้แท่งงานกว้างอย่างน้อย 160px (เดิมแท่งงานสั้นเหลือแค่ตัว "D")
-            const { processedJobs, totalLanes } = calculateTimelineLanes(techJobs, startBound, endBound, calcLeft, calcWidth, totalPx);
+            const { processedJobs, totalLanes } = calculateTimelineLanes(techJobs, startBound, endBound, calcLeft, calcWidth, totalPx, true);
             
             const rowHeight = totalLanes === 0 ? 70 : Math.max(70, (totalLanes * 34) + 20);
             
@@ -1368,8 +1450,8 @@ include "config_ctrl/checksession.php";
                     <div class="timeline-bar ${bgColor}" 
                          style="left: ${job.renderLeft}%; width: ${Math.max(0.5, job.renderWidth)}%; top: ${topPos}px;"
                          onclick="openJobDetail('${job.id}')"
-                         title="${job.id} ${job.title} | ${fmtDate(job.workStart, {time:true})}">
-                        ${job.id} ${job.title}
+                         title="${barTitle(job, `${fmtDate(job.workStart, {time:true})} - ${job.workEnd ? fmtDate(job.workEnd, {time:true}) : (job.status === "in_progress" ? "ยังไม่เสร็จ" : "-")}`)}">
+                        ${holdOverlayHtml(job, calcLeft)}<span class="tl-label">${job.onHold ? "⏸ " : ""}${job.id} ${job.title}</span>
                     </div>
                 `;
             });
@@ -1415,10 +1497,10 @@ include "config_ctrl/checksession.php";
 
       // --- Export Excel (ไทม์ไลน์ + รายการข้อมูล) ---
 
+      // เวลาทำงานสุทธิ (หักช่วงพักงาน)
       function getJobDurationText(job) {
-        if (job.workStart && job.workEnd) {
-          return formatDurationText(new Date(job.workEnd) - new Date(job.workStart));
-        }
+        const net = jobNetMs(job);
+        if (net !== null) return formatDurationText(net);
         return job.workDuration || "-";
       }
 
@@ -1427,7 +1509,7 @@ include "config_ctrl/checksession.php";
           "เลขที่งาน", "ชื่องาน", "ช่างผู้รับผิดชอบ", "บทบาท", "สถานะ",
           "วันที่แจ้งซ่อม", "ผู้แจ้ง", "เบอร์โทร", "สถานที่",
           "วันที่เข้าดำเนินการ", "เวลาเข้าดำเนินการ",
-          "วันที่เสร็จสิ้น", "เวลาเสร็จสิ้น", "ระยะเวลาทำงาน",
+          "วันที่เสร็จสิ้น", "เวลาเสร็จสิ้น", "ระยะเวลาทำงาน (หักพักงาน)", "เวลาพักงาน", "ช่วงพักงาน",
           "รายละเอียด/สาเหตุที่แจ้งซ่อม", "วิธีที่ช่างแก้ไขปัญหา",
         ];
         const rows = jobs.map((job) => {
@@ -1448,6 +1530,8 @@ include "config_ctrl/checksession.php";
             job.workEnd ? fmtDate(job.workEnd) : "-",
             job.workEnd ? fmtTime(job.workEnd) : "-",
             getJobDurationText(job),
+            jobHoldMs(job) ? formatDurationText(jobHoldMs(job)) : "-",
+            jobHolds(job).length ? jobHolds(job).map(holdRangeText).join("\n") : "-",
             job.issueDetail || "-",
             job.solution || "-",
           ];
@@ -1510,7 +1594,8 @@ include "config_ctrl/checksession.php";
 
       // แผ่นไทม์ไลน์รายวัน: แต่ละวันจะถูกแบ่งเป็นหลาย "เลน" ย่อย (แถวซ้อนใต้กัน) เพื่อไม่ให้งานที่
       // เวลาทับกันในชั่วโมงเดียวกันปนกันอยู่ในช่องเดียว — เหมือนแท่งงานหลายแถวบนหน้าเว็บ
-      function getDailyTimelineBlocks(jobs) {
+      function getDailyTimelineBlocks() {
+        const jobs = getFilteredJobs(false, "hold");
         const dates = getDatesInRange(state.startDate, state.endDate);
         return dates.map((day) => {
           const startOfDay = new Date(day); startOfDay.setHours(0, 0, 0, 0);
@@ -1519,12 +1604,12 @@ include "config_ctrl/checksession.php";
           const items = jobs
             .filter((j) => {
               const s = new Date(j.workStart);
-              const e = j.workEnd ? new Date(j.workEnd) : new Date(s.getTime() + 60 * 60 * 1000);
+              const e = jobEndDate(j, "hold");
               return s <= endOfDay && e >= startOfDay;
             })
             .map((j) => {
               let s = new Date(j.workStart);
-              let e = j.workEnd ? new Date(j.workEnd) : new Date(s.getTime() + 60 * 60 * 1000);
+              let e = jobEndDate(j, "hold");
               if (s < startOfDay) s = new Date(startOfDay);
               if (e > endOfDay) e = new Date(endOfDay);
               let startIdx = s.getHours();
@@ -1545,7 +1630,8 @@ include "config_ctrl/checksession.php";
       }
 
       // แผ่นไทม์ไลน์ทีม: แต่ละช่างแบ่งเป็นหลาย "เลน" ย่อยตามงานที่ช่วงวันที่ทับกัน
-      function getTeamTimelineBlocks(jobs) {
+      function getTeamTimelineBlocks() {
+        const jobs = getFilteredJobs(false, true);
         const dates = getDatesInRange(state.startDate, state.endDate);
         const rangeStart = dates[0];
         const dayMs = 24 * 60 * 60 * 1000;
@@ -1564,7 +1650,7 @@ include "config_ctrl/checksession.php";
             .filter((j) => j.technicianId === tech.id)
             .map((j) => {
               const s = new Date(j.workStart);
-              const e = j.workEnd ? new Date(j.workEnd) : new Date(s.getTime() + 60 * 60 * 1000);
+              const e = jobEndDate(j, true);
               const startIdx = clamp(dateIndex(s));
               const endIdx = Math.max(startIdx, clamp(dateIndex(e)));
               return { id: j.id, title: j.title, startIdx, endIdx };
@@ -1780,18 +1866,15 @@ include "config_ctrl/checksession.php";
         const cencel = jobs.filter((j) => j.status === "cencel").length;
         const pending = jobs.filter((j) => j.status === "pending").length;
         const inProgress = jobs.filter((j) => j.status === "in_progress").length;
-        const totalHours = jobs.reduce((sum, j) => {
-          if (!j.workEnd || !j.workStart) return sum;
-          const start = new Date(j.workStart);
-          const end = new Date(j.workEnd);
-          if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return sum;
-          return sum + (end - start) / 36e5;
-        }, 0);
+        // ชม.ทำงานสุทธิ = เริ่ม→เสร็จ หักช่วงพักงาน
+        const totalHours = jobs.reduce((sum, j) => { const net = jobNetMs(j); return net === null ? sum : sum + net / 36e5; }, 0);
+        const holdHours = jobs.reduce((sum, j) => jobNetMs(j) === null ? sum : sum + holdMsBetween(j, new Date(j.workStart), new Date(j.workEnd)) / 36e5, 0);
+        const onHold = jobs.filter((j) => j.onHold).length;
         const avgHours = total ? totalHours / total : 0;
         const onTime = completed; // Simplified for demo
         const efficiency = total ? Math.round(((completed * 0.55 + onTime * 0.35 + Math.max(0, total - cencel) * 0.1) / total) * 100) : 0;
         const avgRating = 0;
-        return { total, completed, cencel, pending, inProgress, totalHours, avgHours, onTime, efficiency, avgRating };
+        return { total, completed, cencel, pending, inProgress, totalHours, avgHours, onTime, efficiency, avgRating, holdHours, onHold };
       }
 
       function renderKPIs(jobs) {
@@ -1800,7 +1883,7 @@ include "config_ctrl/checksession.php";
           { label: "งานทั้งหมด", value: s.total, icon: "briefcase", hint: "รายการที่กรองอยู่", color: "from-indigo-500 to-blue-500", iconColor: "text-indigo-500" },
           { label: "เสร็จสิ้น", value: s.completed, icon: "check-circle-2", hint: "ปิดงานเรียบร้อย", color: "from-emerald-500 to-teal-500", iconColor: "text-emerald-500" },
           { label: "ตรงเวลา", value: `${s.onTime}/${s.total}`, icon: "clock", hint: "เสร็จก่อนกำหนด", color: "from-sky-500 to-cyan-500", iconColor: "text-sky-500" },
-          { label: "ชม.ทำงาน", value: s.totalHours.toFixed(1), icon: "timer", hint: `เฉลี่ย ${s.avgHours.toFixed(1)} ชม./งาน`, color: "from-amber-500 to-orange-500", iconColor: "text-amber-500" },
+          { label: "ชม.ทำงาน", value: s.totalHours.toFixed(1), icon: "timer", hint: s.holdHours > 0 ? `หักพักงาน ${s.holdHours.toFixed(1)} ชม.${s.onHold ? ` · พักอยู่ ${s.onHold} งาน` : ""}` : `เฉลี่ย ${s.avgHours.toFixed(1)} ชม./งาน`, color: "from-amber-500 to-orange-500", iconColor: "text-amber-500" },
           { label: "คะแนนเฉลี่ย", value: s.avgRating ? s.avgRating.toFixed(1) : "-", icon: "star", hint: "จากผู้แจ้งซ่อม", color: "from-fuchsia-500 to-pink-500", iconColor: "text-fuchsia-500" },
         ];
 
@@ -1830,14 +1913,14 @@ include "config_ctrl/checksession.php";
 
       function renderMonthEventPill(job) {
         const s = mockData.status[job.status] || { className: 'bg-slate-100 text-slate-800' }; 
-        return `<button onclick="openJobDetail('${job.id}')" class="w-full text-left border ${s.className} rounded-xl px-2 py-1.5 mb-1 text-[11px] xs:text-xs leading-tight truncate hover:opacity-80 transition-opacity"><span class="font-semibold">${fmtTime(job.workStart)}</span> ${job.title}</button>`;
+        return `<button onclick="openJobDetail('${job.id}')" class="w-full text-left border ${s.className} rounded-xl px-2 py-1.5 mb-1 text-[11px] xs:text-xs leading-tight truncate hover:opacity-80 transition-opacity">${job.onHold ? "⏸ " : ""}<span class="font-semibold">${fmtTime(job.workStart)}</span> ${job.title}</button>`;
       }
 
       function jobBadge(job, compact = false) {
         const s = mockData.status[job.status] || { className: 'bg-slate-100 text-slate-800' };
         const tech = getJobTech(job);
         return `<button onclick="openJobDetail('${job.id}')" class="event-pill w-full text-left rounded-xl border ${s.className} px-2 py-1.5 mb-1 text-[11px] xs:text-xs leading-tight">
-          <div class="font-semibold truncate">${fmtTime(job.workStart)} ${job.title}</div>
+          <div class="font-semibold truncate">${job.onHold ? "⏸ " : ""}${fmtTime(job.workStart)} ${job.title}</div>
           ${compact ? "" : `<div class="opacity-80 truncate">${tech.name}</div>`}
         </button>`;
       }
@@ -2053,7 +2136,7 @@ include "config_ctrl/checksession.php";
         <button onclick="openJobDetail('${job.id}')" class="w-full text-left bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer group">
             <div class="flex justify-between items-start mb-1.5 gap-2">
                 <span class="text-[10px] font-medium text-slate-400 group-hover:text-indigo-500 transition-colors">${job.id}</span>
-                <span class="text-[9px] px-1.5 py-0.5 rounded-md font-medium ${priorityColor}">${priorityText || job.priority}</span>
+                <span class="flex items-center gap-1 shrink-0">${holdTagHtml(job)}<span class="text-[9px] px-1.5 py-0.5 rounded-md font-medium ${priorityColor}">${priorityText || job.priority}</span></span>
             </div>
             <h4 class="text-[13px] font-semibold text-slate-800 leading-tight mb-1.5 line-clamp-2">${job.title}</h4>
             <div class="flex flex-col gap-1 mb-2.5">
@@ -2125,6 +2208,7 @@ include "config_ctrl/checksession.php";
         const dot = byId("filterDot"); if (dot) dot.classList.toggle("hidden", !(apiState.search || state.technicianId !== "all"));
       }
 
+      function escapeHtmlLite(t) { return String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
       function formatDurationText(diffMs) {
         if (!(diffMs > 0)) return "-";
         const totalMinutes = Math.floor(diffMs / 60000);
@@ -2178,13 +2262,21 @@ include "config_ctrl/checksession.php";
         const tech = getJobTech(job);
         const status = mockData.status[job.status] || { label: job.status, className: '' };
         
-        let durationText = "-";
-        if (job.workStart && job.workEnd) {
-          const diffMs = new Date(job.workEnd) - new Date(job.workStart);
-          durationText = formatDurationText(diffMs);
-        } else if (job.workDuration) {
-          durationText = job.workDuration;
+        const holdMs = jobHoldMs(job);
+        let durationText = getJobDurationText(job);
+        if (!job.workEnd && job.status === "in_progress" && job.workStart) {
+          const sofar = new Date() - new Date(job.workStart) - holdMs;
+          if (sofar > 0) durationText = `${formatDurationText(sofar)} <span class="block text-[10px] font-normal text-slate-400">(ยังไม่เสร็จ)</span>`;
         }
+        const holdsHtml = jobHolds(job).length ? `<div class="rounded-xl border border-sky-200 bg-sky-50/60 p-2.5 text-xs">
+            <div class="flex items-center justify-between mb-1.5"><h4 class="font-semibold text-sm text-sky-900 flex items-center gap-1"><span class="tl-legend-hold"></span> ช่วงพักงาน</h4><span class="text-[11px] text-sky-800">${holdMs ? `รวม ${formatDurationText(holdMs)}` : "ไม่มีช่วงที่หักเวลา"}</span></div>
+            <ul class="space-y-1.5">${jobHolds(job).map((h) => {
+              const ms = (h.end ? new Date(h.end) : new Date()) - new Date(h.start);
+              const outside = job.workEnd && new Date(h.start) >= new Date(job.workEnd);   // พักหลังเวลาปิดงาน (ข้อมูลไม่สอดคล้อง)
+              const live = (h.end ? "" : ' <span class="text-[10px] font-semibold text-sky-700">· กำลังพัก</span>')
+                + (outside ? ' <span class="text-[10px] font-semibold text-rose-600">· หลังเวลาปิดงาน (ไม่นับ)</span>' : "");
+              return `<li class="flex justify-between gap-2"><div class="min-w-0"><span class="font-medium text-sky-900">${h.label || "พักงาน"}</span>${live}<div class="text-[11px] text-slate-500">${fmtDate(h.start, { time: true })} – ${h.end ? fmtDate(h.end, { time: true }) : "ปัจจุบัน"}${h.note ? " · " + escapeHtmlLite(h.note) : ""}</div></div><span class="shrink-0 text-[11px] text-sky-800">${formatDurationText(ms)}</span></li>`;
+            }).join("")}</ul></div>` : "";
 
         const stockHtml = (job.stockUsed && job.stockUsed.length)
           ? `<div class="max-h-48 overflow-y-auto overflow-x-auto rounded-lg border border-slate-100"><table class="w-full text-xs border-collapse">
@@ -2217,15 +2309,16 @@ include "config_ctrl/checksession.php";
         <div class="space-y-3">
           <div class="flex flex-col xs:flex-row gap-2 xs:items-center xs:justify-between rounded-xl bg-slate-50 p-2.5">
             <div class="flex items-center gap-2.5">${renderAvatarLabel(tech, "h-11 w-11 rounded-2xl text-sm")}<div><div class="text-sm font-semibold text-slate-950 leading-tight">${tech.name}</div><div class="text-[11px] text-slate-500 mt-0.5">${tech.role}</div></div></div>
-            <span class="inline-flex w-fit px-2.5 py-1 rounded-full border text-[11px] font-medium ${status.className}">${status.label}</span>
+            <span class="flex items-center gap-1">${holdTagHtml(job, "!text-[11px] !py-1")}<span class="inline-flex w-fit px-2.5 py-1 rounded-full border text-[11px] font-medium ${status.className}">${status.label}</span></span>
           </div>
           <div class="rounded-xl border border-slate-100 p-2.5 text-xs flex justify-between items-center bg-white shadow-sm">
             <div>
               <div class="text-[11px] text-slate-400 mb-0.5">วันที่ช่างเข้าดำเนินการ</div><div class="font-medium text-slate-700 mb-2">${fmtDate(job.workStart, { time: true })}</div>
               <div class="text-[11px] text-slate-400 mb-0.5">วันที่ดำเนินการสำเร็จ</div><div class="font-medium text-slate-700">${job.workEnd ? fmtDate(job.workEnd, { time: true }) : '-'}</div>
             </div>
-            <div class="text-right pl-3 border-l border-slate-100"><div class="text-[11px] text-slate-400 mb-0.5">ใช้เวลาทำงาน</div><div class="font-semibold text-indigo-600">${durationText}</div></div>
+            <div class="text-right pl-3 border-l border-slate-100"><div class="text-[11px] text-slate-400 mb-0.5">ใช้เวลาทำงาน${holdMs ? " (หักพักงาน)" : ""}</div><div class="font-semibold text-indigo-600">${durationText}</div>${holdMs ? `<div class="text-[11px] text-sky-700 mt-1">พักงาน ${formatDurationText(holdMs)}</div>` : ""}</div>
           </div>
+          ${holdsHtml}
           <div class="rounded-xl bg-emerald-50 border border-emerald-100 p-3"><h4 class="font-semibold text-sm text-emerald-900">วิธีที่ช่างแก้ไขปัญหา</h4><p class="mt-1 text-xs text-emerald-800">${job.solution ? job.solution : '-'}</p></div>
           ${renderImageSection("รูปภาพหลังแก้ไข", job.afterImages, `${jobIdSafe}_after`)}
           <div><h4 class="font-semibold text-sm text-slate-950 mb-1.5">ข้อมูลอุปกรณ์ที่นำไปใช้จริง</h4>${stockHtml}</div>
