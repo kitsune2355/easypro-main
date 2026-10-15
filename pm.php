@@ -10,6 +10,19 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
     header("Location: main2.php#maintenance_request.php");
     exit();
 }
+
+// โหมด "จัดการแผน": ช่าง (employer ที่ตำแหน่งขึ้นต้นด้วย "ช่าง" เช่น ช่างไฟฟ้า ช่างประปา) ใช้ได้เฉพาะโหมดหน้างาน
+//  หัวหน้าช่าง / ตำแหน่งอื่น / admin / super_admin จัดการแผนได้ — อ่านตำแหน่งจากฐานข้อมูล (แก้ตำแหน่งแล้วมีผลทันที)
+$pmCanManage = true;
+if (($_SESSION['sess_user_level_es'] ?? '') === 'employer') {
+    $stPos = $connect->prepare("SELECT user_position FROM tb_user WHERE user_id = ?");
+    $uidPos = (string)($_SESSION['sess_user_id_es'] ?? '');
+    $stPos->bind_param('s', $uidPos);
+    $stPos->execute();
+    $rowPos = $stPos->get_result()->fetch_assoc();
+    $stPos->close();
+    if ($rowPos && mb_strpos(trim((string)$rowPos['user_position']), 'ช่าง') === 0) $pmCanManage = false;
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -261,6 +274,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
             </div>
         </div>
         <!-- สลับโหมด: หน้างาน (ช่าง) / จัดการแผน (ผู้วางแผน) -->
+        <?php if ($pmCanManage): /* ช่างมีโหมดเดียว => ไม่ต้องแสดงตัวสลับโหมด */ ?>
         <div id="pm-mode" class="pm-mode" role="tablist" aria-label="โหมดการใช้งาน">
             <button type="button" data-mode="field" onclick="switchPmMode('field')" role="tab">
                 <i data-lucide="hard-hat" class="w-4 h-4"></i><span>หน้างาน</span>
@@ -269,6 +283,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                 <i data-lucide="settings-2" class="w-4 h-4"></i><span>จัดการแผน</span>
             </button>
         </div>
+        <?php endif; ?>
     </nav>
 
     <div class="flex-none bg-white border-b border-slate-200 px-2 sm:px-6 z-10 shadow-sm relative">
@@ -289,6 +304,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                     <i data-lucide="star" class="w-4 h-4"></i> ประเมิน PM
                 </button>
             </li>
+            <?php if ($pmCanManage): ?>
             <li data-mode="manage">
                 <button onclick="switchTab('schedule')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
                     <i data-lucide="table-2" class="w-4 h-4"></i> ตารางแผน PM
@@ -319,6 +335,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
                     <i data-lucide="calendar-days" class="w-4 h-4"></i> จัดการวันหยุด
                 </button>
             </li>
+            <?php endif; ?>
         </ul>
         <!-- มือถือ: เงาจางขอบขวา บอกว่ายังมีแท็บให้เลื่อนดู -->
         <span id="pm-tabs-fade" class="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-white to-transparent"></span>
@@ -441,6 +458,9 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
 
         // ---------- โหมด หน้างาน (ช่าง) / จัดการแผน (ผู้วางแผน) ----------
         const PM_MODE_DEFAULT = { field: 'daily', manage: 'schedule' };
+        // ช่าง: เปิดแท็บของโหมดจัดการแผนไม่ได้ (แท็บที่จำไว้ / ลิงก์จากคู่มือ => ไปงานที่ต้องทำแทน)
+        const PM_CAN_MANAGE = <?php echo $pmCanManage ? 'true' : 'false'; ?>;
+        const PM_MANAGE_TABS = ['schedule', 'plan', 'checksheet', 'import', 'postpone', 'holiday'];
         const pmModeOf = tabId => document.querySelector(`#pm-tabs li button[onclick*="'${tabId}'"]`)?.closest('li').dataset.mode || 'field';
         const pmLastTabs = () => { try { return JSON.parse(localStorage.getItem('pmModeTabs')) || {}; } catch (e) { return {}; } };
 
@@ -466,6 +486,7 @@ if (isset($_SESSION['is_qr_user']) && $_SESSION['is_qr_user'] === true) {
 
         window.switchTab = function(tabId, opts) {
             if (!document.getElementById('tab-' + tabId)) tabId = PM_MODE_DEFAULT.field;
+            if (!PM_CAN_MANAGE && PM_MANAGE_TABS.includes(tabId)) tabId = PM_MODE_DEFAULT.field;
             const mode = pmModeOf(tabId);
             applyPmMode(mode);
             const lastTabs = pmLastTabs();
