@@ -132,7 +132,7 @@ try {
         $cells = [];
         $nextPending = [];
         if ($page) {
-            $in = implode(',', array_map(fn($p) => (int)$p['id'], $page));
+            $in = implode(',', array_map(function ($p) { return (int)$p['id']; }, $page));
             $bucket = $mode === 'year'
                 ? "(MONTH(e.event_date) - 1) * 4 + LEAST(4, CEIL(DAY(e.event_date) / 7)) - 1"
                 : "DATEDIFF(e.event_date, ?)";
@@ -181,7 +181,7 @@ try {
             $freqDesc = [];
             foreach (getFreqOptions($connect) as $v => $o) $freqDesc[(string)$v] = $o['desc'];
             $out['opts'] = [
-                'checksheets' => array_map(fn($k, $v) => [(string)$k, $v], array_keys($csOpts), $csOpts),
+                'checksheets' => array_map(function ($k, $v) { return [(string)$k, $v]; }, array_keys($csOpts), $csOpts),
                 'freqs' => (object)$freqDesc,
                 'alerts' => (object)array_column(fetchRows($connect, "SELECT alert_value, description FROM pm_alert_options"), 'description', 'alert_value'),
                 'contract' => ['start' => $contract_start, 'end' => $contract_end],
