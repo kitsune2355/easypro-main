@@ -156,19 +156,16 @@ function pmr_signs($labels) { ?>
     .rp-sign-line { height: 34px; }
     .empty { color: var(--muted); font-style: italic; padding: 6px 0; }
     .ws-wrap { margin: 0 auto 16px; width: 210mm; }
-    /* ---------- หน้าจอ: เต็มความกว้าง + responsive (ไม่กระทบตอนพิมพ์) ---------- */
+    /* ---------- หน้าจอ: แสดงเป็นแผ่น A4 (แนวตั้ง) เหมือนตอนพิมพ์ — จอที่แคบกว่า A4 ปรับเต็มความกว้าง ---------- */
     @media screen {
-        body { font-size: 12.5px; }
-        .wrap { padding: 16px; }
-        .page { width: 100%; min-height: 0; margin: 0 0 16px; padding: 24px 28px 28px; border-radius: 12px; }
-        table.t { font-size: 12px; }
-        table.t th, table.t td { padding: 5px 7px; }
-        .rp-title { font-size: 18px; } .rp-agency { font-size: 14px; } h2 { font-size: 14px; }
-        .kpi .v { font-size: 20px; } .kpi .l { font-size: 11px; }
-        .ws-wrap { width: 100%; overflow-x: auto; }
-        .ws-wrap > div { margin-left: auto !important; margin-right: auto !important; }
+        .page { border-radius: 2px; }
+        .ws-wrap { max-width: 100%; overflow-x: auto; }
     }
-    @media screen and (max-width: 1024px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+    @media screen and (max-width: 860px) {
+        .page { width: 100%; min-height: 0; padding: 16px 14px 20px; }
+        .ws-wrap { width: 100%; }
+        .kpis { grid-template-columns: repeat(3, 1fr); }
+    }
     @media screen and (max-width: 640px) {
         .bar { flex-wrap: wrap; padding: 8px 12px; } .bar b { font-size: 13px; } .bar .info { font-size: 11px; }
         .bar button { padding: 7px 10px; font-size: 12px; }
@@ -187,9 +184,11 @@ function pmr_signs($labels) { ?>
         body { background: #fff; }
         .bar { display: none; }
         .wrap { padding: 0; }
-        .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; break-after: page; }
-        .page:last-child { break-after: auto; }
+        .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
         .ws-wrap { width: auto; margin: 0; }
+        /* แต่ละเครื่อง และใบงาน/หน้ารูปผลตรวจที่แนบ เริ่มแผ่นใหม่เสมอ — ไม่ปนกับเครื่องอื่น */
+        .page, .ws-wrap > div { break-before: page; break-after: auto !important; }
+        .wrap > .page:first-child { break-before: auto; }
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
 </style>

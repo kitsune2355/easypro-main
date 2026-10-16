@@ -92,16 +92,12 @@ $multiMonth = count($monthCount) > 1;
     .sign { flex: 1; text-align: center; font-size: 10px; line-height: 1.7; }
     .sign .ln { height: 30px; }
 
-    /* ---------- หน้าจอ: เต็มความกว้าง + responsive (ไม่กระทบตอนพิมพ์) ---------- */
-    @media screen {
-        body { font-size: 11.5px; }
-        .sheet { width: auto; margin: 16px; padding: 22px 26px 26px; border-radius: 12px; }
-        th { font-size: 10.5px; padding: 7px 6px; } td { padding: 7px 6px; }
-        .head h1 { font-size: 20px; } .head .ag { font-size: 13px; } .head .side { font-size: 11px; }
-        .stat .v { font-size: 18px; } .stat .l { font-size: 10.5px; }
-        .sm { font-size: 10px; } .tag { font-size: 10px; }
+    /* ---------- หน้าจอ: แสดงเป็นแผ่น A4 แนวนอนเหมือนตอนพิมพ์ — จอที่แคบกว่า A4 ปรับเต็มความกว้าง ตารางเลื่อนซ้าย-ขวาได้ ---------- */
+    @media screen { .sheet { min-height: 210mm; border-radius: 2px; } }
+    @media screen and (max-width: 1180px) {
+        .sheet { width: auto; min-height: 0; margin: 12px; }
+        .tw { overflow-x: auto; -webkit-overflow-scrolling: touch; } .tw table { min-width: 1060px; }
     }
-    @media screen and (max-width: 1180px) { .tw { overflow-x: auto; -webkit-overflow-scrolling: touch; } .tw table { min-width: 1100px; } }
     @media screen and (max-width: 640px) {
         .bar { flex-wrap: wrap; padding: 8px 12px; } .bar b { font-size: 13px; } .bar .info { font-size: 11px; }
         .bar button { padding: 7px 10px; font-size: 12px; }
