@@ -1,7 +1,8 @@
 <?php
 // หน้าพิมพ์รายงานส่งมอบ PM (เปิดจากแท็บ "รายงาน PM")
 //  kind=summary  รายงานสรุป — sec = overview,groups,machines,fails,spares,evals,postpones,sign
-//  kind=machine  รายงานรายเครื่อง — off/lim = แบ่งชุดเครื่อง, attach=1 แนบใบงานเต็ม, photos=1 แนบรูปผลตรวจ
+//  kind=machine  รายงานรายเครื่อง — off/lim = แบ่งชุดเครื่อง · info=1 หน้าข้อมูลเครื่อง · attach=1 ใบงาน PM · photos=1 รูปผลตรวจ
+//                (ไม่ส่ง info มา = แสดงหน้าข้อมูลเครื่อง เหมือนเดิม)
 @session_start();
 include "config_ctrl/checksession.php";
 include "config_ctrl/connect.php";
@@ -21,6 +22,8 @@ $f      = pmr_filters($_REQUEST);
 $secs   = array_filter(explode(',', (string)($_REQUEST['sec'] ?? 'overview,groups,machines,fails,spares,evals,postpones,sign')));
 $sec    = function ($k) use ($secs) { return in_array($k, $secs, true); };
 $attach = !empty($_REQUEST['attach']);
+$info   = !isset($_REQUEST['info']) || !empty($_REQUEST['info']);
+if ($kind === 'machine' && !$info && !$attach) $info = true;   // ต้องมีอย่างน้อย 1 อย่าง
 $photos = !empty($_REQUEST['photos']);
 $off    = max(0, (int)($_REQUEST['off'] ?? 0));
 $lim    = max(0, (int)($_REQUEST['lim'] ?? 0));
@@ -188,7 +191,7 @@ function pmr_signs($labels) { ?>
         .ws-wrap { width: auto; margin: 0; }
         /* แต่ละเครื่อง และใบงาน/หน้ารูปผลตรวจที่แนบ เริ่มแผ่นใหม่เสมอ — ไม่ปนกับเครื่องอื่น */
         .page, .ws-wrap > div { break-before: page; break-after: auto !important; }
-        .wrap > .page:first-child { break-before: auto; }
+        .wrap > .page:first-child, .wrap > .ws-wrap:first-child > div:first-child { break-before: auto; }
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
 </style>
@@ -324,7 +327,8 @@ function pmr_signs($labels) { ?>
 <?php if (!$machines): ?>
 <section class="page"><?php pmr_header($agency, $title, $f); ?><div class="empty">ไม่มีแผน PM ในช่วงนี้</div></section>
 <?php endif; ?>
-<?php foreach ($machines as $mi => $m): $rate = $m['planned'] ? $m['done'] * 100 / $m['planned'] : 0; ?>
+<?php $printed = 0; foreach ($machines as $mi => $m): $rate = $m['planned'] ? $m['done'] * 100 / $m['planned'] : 0; ?>
+<?php if ($info): $printed++; ?>
 <section class="page">
     <?php pmr_header($agency, $title, $f, 'เครื่องที่ ' . ($off + $mi + 1) . ' / ' . $totalMachines); ?>
     <div class="m-title"><?php echo pmr_h(($m['code'] ? $m['code'] . ' · ' : '') . $m['name']); ?></div>
@@ -370,6 +374,7 @@ function pmr_signs($labels) { ?>
 
     <?php pmr_signs(['ผู้ดำเนินการ / ช่าง', 'ผู้ตรวจสอบ', 'ผู้รับมอบ (หน่วยงาน)']); ?>
 </section>
+<?php endif; ?>
 <?php
     if ($attach) {
         foreach ($m['events'] as $e) {
@@ -379,11 +384,15 @@ function pmr_signs($labels) { ?>
             echo '<div class="ws ws-wrap">';
             pm_render_worksheet_sheet($connect, $rec, $photos);
             echo '</div>';
+            $printed++;
         }
         @ob_flush(); @flush();
     }
 ?>
 <?php endforeach; ?>
+<?php if ($machines && !$printed): ?>
+<section class="page"><?php pmr_header($agency, $title, $f, $batchText); ?><div class="empty">เครื่องที่เลือกยังไม่มีใบงาน PM ที่บันทึกผลในช่วงนี้</div></section>
+<?php endif; ?>
 <?php endif; ?>
 </div>
 <script>

@@ -127,7 +127,7 @@
             </button>
             <button type="button" class="pmr-kind" data-kind="machine">
                 <span class="ic bg-emerald-50 text-emerald-600"><i data-lucide="cpu" class="w-5 h-5"></i></span>
-                <span class="min-w-0 pr-5"><span class="t block">รายงานรายเครื่อง</span><span class="d block">เครื่องละ 1 หน้า + แนบใบงาน PM เต็มต่อท้ายได้</span><span class="m block" data-meta="machine"></span></span>
+                <span class="min-w-0 pr-5"><span class="t block">รายงานรายเครื่อง</span><span class="d block">หน้าข้อมูลเครื่อง และ/หรือ ใบงาน PM — เลือกได้</span><span class="m block" data-meta="machine"></span></span>
                 <span class="ck"><i data-lucide="check" class="w-3 h-3"></i></span>
             </button>
         </div>
@@ -172,8 +172,10 @@
                 <!-- รายเครื่อง -->
                 <div data-panel="machine" class="hidden">
                     <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
-                        <label class="pmr-check !px-0"><input type="checkbox" id="pmr-attach" checked> แนบใบงาน PM เต็มทุกฉบับ</label>
-                        <label class="pmr-check !px-0"><input type="checkbox" id="pmr-photos"> แนบรูปผลตรวจ</label>
+                        <span class="text-xs font-semibold text-slate-500">เนื้อหาที่พิมพ์:</span>
+                        <label class="pmr-check !px-0"><input type="checkbox" id="pmr-info" checked> หน้าข้อมูลเครื่อง</label>
+                        <label class="pmr-check !px-0"><input type="checkbox" id="pmr-attach" checked> ใบงาน PM</label>
+                        <label class="pmr-check !px-0"><input type="checkbox" id="pmr-photos"> รูปผลตรวจ</label>
                     </div>
                     <div class="flex items-center gap-2 mb-2">
                         <div class="relative flex-1">
@@ -344,8 +346,9 @@
     }
     function selectedMachines() { return S.data ? S.data.machines.filter((m) => S.sel.has(m.id)) : []; }
     function machinePages(ms) {
-        const attach = $('pmr-attach').checked, photos = attach && $('pmr-photos').checked;
-        return ms.reduce((s, m) => s + 1 + (attach ? m.wrs + (photos ? Math.ceil(m.photos / 4) : 0) : 0), 0);
+        // หน้าข้อมูลเครื่อง 1 หน้า/เครื่อง + ใบงาน 1 หน้า/ฉบับ + หน้ารูปผลตรวจ (ประมาณ 4 รูป/หน้า)
+        const info = $('pmr-info').checked, attach = $('pmr-attach').checked, photos = attach && $('pmr-photos').checked;
+        return ms.reduce((s, m) => s + (info ? 1 : 0) + (attach ? m.wrs + (photos ? Math.ceil(m.photos / 4) : 0) : 0), 0);
     }
     function summaryPages() { return 2 + Math.ceil((S.data ? S.data.machines.length : 0) / 22); }
     function updateMachineSel() {
@@ -389,7 +392,7 @@
             $('pmr-outinfo').innerHTML = `รายงานสรุป <b>${n}</b> หัวข้อ · ${fmt(r.machines.length)} เครื่อง<br><span class="text-xs text-slate-500">A4 แนวตั้ง ประมาณ ${fmt(summaryPages())} หน้า</span>`;
         } else {
             const ms = selectedMachines();
-            $('pmr-outinfo').innerHTML = ms.length ? `รายงาน <b>${fmt(ms.length)}</b> เครื่อง${$('pmr-attach').checked ? ' + ใบงานเต็ม' : ''}${$('pmr-attach').checked && $('pmr-photos').checked ? ' + รูปผลตรวจ' : ''}<br><span class="text-xs text-slate-500">A4 แนวตั้ง ประมาณ ${fmt(machinePages(ms))} หน้า</span>` : '<span class="text-slate-400">ยังไม่ได้เลือกเครื่อง</span>';
+            $('pmr-outinfo').innerHTML = ms.length ? `<b>${fmt(ms.length)}</b> เครื่อง: ${[$('pmr-info').checked ? 'หน้าข้อมูลเครื่อง' : '', $('pmr-attach').checked ? `ใบงาน PM ${fmt(ms.reduce((s, m) => s + m.wrs, 0))} ฉบับ` : '', $('pmr-attach').checked && $('pmr-photos').checked ? 'รูปผลตรวจ' : ''].filter(Boolean).join(' + ')}<br><span class="text-xs text-slate-500">A4 แนวตั้ง ประมาณ ${fmt(machinePages(ms))} หน้า</span>` : '<span class="text-slate-400">ยังไม่ได้เลือกเครื่อง</span>';
         }
         const hasData = S.kind === 'history' ? r.history_count > 0 : (S.kind === 'machine' ? selectedMachines().length > 0 : r.machines.length > 0);
         $('pmr-excel').disabled = S.kind === 'history' ? !r.history_count : !r.machines.length;
@@ -447,7 +450,7 @@
         } else {
             const ms = selectedMachines(), all = ms.length === S.data.machines.length;
             openPrint({ kind: 'machine', ...filters(), m: all ? '' : ms.map((m) => m.id).join(','), off: c.off, lim,
-                attach: $('pmr-attach').checked ? 1 : '', photos: $('pmr-attach').checked && $('pmr-photos').checked ? 1 : '' });
+                info: $('pmr-info').checked ? 1 : 0, attach: $('pmr-attach').checked ? 1 : '', photos: $('pmr-attach').checked && $('pmr-photos').checked ? 1 : '' });
         }
         S.done.add(i);
         // ไปไฟล์ถัดไปที่ยังไม่พิมพ์
@@ -574,7 +577,14 @@
         $('pmr-msearch').addEventListener('input', (e) => { S.q = e.target.value; renderMachines(); });
         $('pmr-mbody').addEventListener('change', (e) => { const c = e.target.closest('[data-mid]'); if (!c) return; c.checked ? S.sel.add(c.dataset.mid) : S.sel.delete(c.dataset.mid); updateMachineSel(); resetFiles(); renderOutput(); });
         $('pmr-mall').addEventListener('click', () => { const list = shownMachines(); const allOn = list.every((m) => S.sel.has(m.id)); list.forEach((m) => allOn ? S.sel.delete(m.id) : S.sel.add(m.id)); renderMachines(); resetFiles(); renderOutput(); });
-        $('pmr-attach').addEventListener('change', () => { $('pmr-photos').disabled = !$('pmr-attach').checked; renderOutput(); });
+        // ต้องเลือกอย่างน้อย 1 อย่าง (หน้าข้อมูลเครื่อง หรือ ใบงาน PM) · รูปผลตรวจแนบได้เมื่อเลือกใบงาน
+        const syncMachineOpts = (e) => {
+            if (!$('pmr-info').checked && !$('pmr-attach').checked) (e && e.target.id === 'pmr-info' ? $('pmr-attach') : $('pmr-info')).checked = true;
+            $('pmr-photos').disabled = !$('pmr-attach').checked;
+            $('pmr-photos').closest('label').classList.toggle('opacity-50', !$('pmr-attach').checked);
+            resetFiles(); renderOutput();
+        };
+        ['pmr-info', 'pmr-attach'].forEach((id) => $(id).addEventListener('change', syncMachineOpts));
         $('pmr-photos').addEventListener('change', renderOutput);
         $('pmr-secs').addEventListener('change', renderOutput);
         $('pmr-print').addEventListener('click', (e) => {
