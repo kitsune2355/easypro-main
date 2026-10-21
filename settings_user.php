@@ -387,6 +387,16 @@ include "config_ctrl/checksession.php";
                 btn.onmousedown = (e) => e.stopPropagation(); 
                 btn.onclick = (e) => { e.stopPropagation(); openChangePasswordDialog(rowData.id, rowData.user_id); };
                 td.appendChild(btn);
+                // คืนค่ารหัสผ่านเป็นค่าตั้งต้น 4123
+                const rst = document.createElement('button');
+                rst.className = 'text-slate-400 rounded hover:bg-amber-50 hover:text-amber-600 flex items-center justify-center';
+                rst.title = 'คืนค่ารหัสผ่านตั้งต้น (4123)';
+                rst.innerHTML = '<i class="fa-solid fa-rotate-left text-[11px]"></i>';
+                rst.onmousedown = (e) => e.stopPropagation();
+                rst.onclick = (e) => { e.stopPropagation(); resetDefaultPassword(rowData.id, rowData.user_id); };
+                td.style.display = 'flex'; td.style.alignItems = 'center'; td.style.justifyContent = 'center'; td.style.gap = '10px';
+                btn.classList.remove('mx-auto');
+                td.appendChild(rst);
             } else {
                 td.innerText = '-'; td.classList.add('text-slate-300', 'text-xs', 'htCenter', 'htMiddle');
             }
@@ -441,7 +451,7 @@ include "config_ctrl/checksession.php";
                 { data: 'user_tel', type: 'text', renderer: customCellRenderer },
                 { data: 'status', type: 'checkbox', checkedTemplate: 'Active', uncheckedTemplate: 'Inactive', renderer: statusCheckboxRenderer, className: 'htCenter htMiddle' },
                 { data: 'qr_action', renderer: qrRenderer, readOnly: true, width: 60, className: 'htCenter htMiddle' },
-                { data: 'action', renderer: actionRenderer, readOnly: true, width: 60, className: 'htCenter htMiddle' }
+                { data: 'action', renderer: actionRenderer, readOnly: true, width: 80, className: 'htCenter htMiddle' }
             ],
             stretchH: 'all', 
             rowHeaders: function(index) {
@@ -785,6 +795,27 @@ include "config_ctrl/checksession.php";
                         Swal.fire('ข้อผิดพลาด', response.data.error || 'ไม่สามารถเปลี่ยนรหัสผ่านได้', 'error');
                     }
                 } catch (error) { Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error'); }
+            }
+        };
+
+        // คืนค่ารหัสผ่านเป็นค่าตั้งต้น 4123 (ตรวจสิทธิ์ที่ handle_account.php)
+        window.resetDefaultPassword = async function(id, user_id) {
+            const ok = await Swal.fire({
+                title: 'คืนค่ารหัสผ่านตั้งต้น?',
+                html: `ตั้งรหัสผ่านของ <b class="text-sky-600">${user_id || '-'}</b> เป็น <b>4123</b><div class="text-xs text-slate-500 mt-2">ผู้ใช้ควรเปลี่ยนรหัสผ่านเองหลังเข้าสู่ระบบ (เมนูชื่อผู้ใช้มุมขวาบน → เปลี่ยนรหัสผ่าน)</div>`,
+                icon: 'warning', showCancelButton: true,
+                confirmButtonText: '<i class="fa-solid fa-rotate-left mr-1"></i> คืนค่า', cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#d97706', customClass: { popup: 'rounded-xl', title: 'text-lg font-bold text-slate-700' }
+            });
+            if (!ok.isConfirmed) return;
+            try {
+                Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                const r = await axios.post('handle_account.php?action=reset_password', { id: id });
+                if (r.data && r.data.success) Swal.fire({ title: 'สำเร็จ!', text: r.data.message, icon: 'success', timer: 2200, showConfirmButton: false });
+                else Swal.fire('ข้อผิดพลาด', (r.data && r.data.error) || 'ไม่สามารถคืนค่ารหัสผ่านได้', 'error');
+            } catch (error) {
+                const msg = error.response && error.response.data && error.response.data.error;
+                Swal.fire('ข้อผิดพลาด', msg || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
             }
         };
 

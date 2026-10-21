@@ -332,13 +332,30 @@ if (isset($_SESSION['sess_user_level_es']) && ($_SESSION['sess_user_level_es'] =
               </p>
           </div>
 
-          <div class="flex items-center gap-1.5 shrink-0">
-              <span class="material-symbols-rounded text-easy-primary bg-white rounded-full p-0.5 shrink-0" style="font-size: 18px;">
-                  person
-              </span>
-              <p class="text-[11px] md:text-sm font-medium truncate max-w-[60px] md:max-w-[120px]">
-                  <?php echo isset($sess_user_name) ? $sess_user_name : 'ผู้ใช้งาน'; ?>
-              </p>
+          <!-- เมนูผู้ใช้: เปลี่ยนรหัสผ่าน / ออกจากระบบ -->
+          <div class="relative shrink-0" id="user-menu-wrapper">
+              <button type="button" id="user-menu-btn" aria-haspopup="menu" aria-expanded="false" title="บัญชีผู้ใช้"
+                  class="flex items-center gap-1.5 rounded-full px-1 py-0.5 hover:bg-white/15 transition-colors cursor-pointer">
+                  <span class="material-symbols-rounded text-easy-primary bg-white rounded-full p-0.5 shrink-0" style="font-size: 18px;">
+                      person
+                  </span>
+                  <span class="text-[11px] md:text-sm font-medium truncate max-w-[60px] md:max-w-[120px]">
+                      <?php echo isset($sess_user_name) ? htmlspecialchars($sess_user_name) : 'ผู้ใช้งาน'; ?>
+                  </span>
+                  <span class="material-symbols-rounded text-[16px] opacity-80 hidden md:inline">expand_more</span>
+              </button>
+              <div id="user-menu" role="menu" class="hidden absolute right-0 top-full mt-2 w-56 bg-white text-slate-700 rounded-xl shadow-xl border border-slate-100 py-1.5 z-[80]">
+                  <div class="px-3 py-2 border-b border-slate-100 mb-1">
+                      <p class="text-sm font-semibold text-slate-800 truncate"><?php echo isset($sess_user_name) ? htmlspecialchars($sess_user_name) : 'ผู้ใช้งาน'; ?></p>
+                      <p class="text-xs text-slate-400 truncate"><?php echo htmlspecialchars((string)($_SESSION['sess_user_id_es'] ?? '')); ?></p>
+                  </div>
+                  <button type="button" role="menuitem" id="menu-change-password" class="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-sky-50 hover:text-sky-700 text-left">
+                      <span class="material-symbols-rounded text-[18px]">lock_reset</span> เปลี่ยนรหัสผ่าน
+                  </button>
+                  <button type="button" role="menuitem" onclick="window.location.href='config_ctrl/logout.php'" class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50 text-left">
+                      <span class="material-symbols-rounded text-[18px]">logout</span> ออกจากระบบ
+                  </button>
+              </div>
           </div>
       </div>
 
@@ -1210,6 +1227,73 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => { window.top.location.href = "https://happylandgroup.biz/es/login.php"; }, 5000);
         }
     }, 1000);
+</script>
+
+<script>
+// ===== เมนูผู้ใช้ (มุมขวาบน): เปลี่ยนรหัสผ่าน / ออกจากระบบ =====
+(function () {
+    const btn = document.getElementById('user-menu-btn');
+    const menu = document.getElementById('user-menu');
+    if (!btn || !menu) return;
+    const close = () => { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = menu.classList.toggle('hidden') === false;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', (e) => { if (!menu.contains(e.target)) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+
+    const field = (id, label, ph) => `
+        <div class="text-left">
+            <label for="${id}" class="text-xs text-slate-500 font-semibold mb-1 block">${label}</label>
+            <div class="relative">
+                <input id="${id}" type="password" autocomplete="${id === 'cp-current' ? 'current-password' : 'new-password'}" placeholder="${ph}"
+                    class="w-full pl-3 pr-10 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+                <button type="button" data-eye="${id}" tabindex="-1" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-sky-600" aria-label="แสดงรหัสผ่าน">
+                    <span class="material-symbols-rounded text-[18px]">visibility</span>
+                </button>
+            </div>
+        </div>`;
+
+    document.getElementById('menu-change-password').addEventListener('click', async () => {
+        close();
+        const r = await Swal.fire({
+            title: 'เปลี่ยนรหัสผ่าน',
+            html: `<div class="flex flex-col gap-3">${field('cp-current', 'รหัสผ่านเดิม', 'กรอกรหัสผ่านปัจจุบัน')}${field('cp-new1', 'รหัสผ่านใหม่', 'อย่างน้อย 4 ตัวอักษร')}${field('cp-new2', 'ยืนยันรหัสผ่านใหม่', 'กรอกรหัสผ่านใหม่อีกครั้ง')}</div>`,
+            focusConfirm: false, showCancelButton: true,
+            confirmButtonText: 'บันทึกรหัสผ่าน', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#006B9F',
+            showLoaderOnConfirm: true, allowOutsideClick: () => !Swal.isLoading(),
+            didOpen: (pop) => {
+                pop.querySelector('#cp-current').focus();
+                pop.querySelectorAll('[data-eye]').forEach((b) => b.addEventListener('click', () => {
+                    const inp = pop.querySelector('#' + b.dataset.eye);
+                    inp.type = inp.type === 'password' ? 'text' : 'password';
+                    b.querySelector('span').textContent = inp.type === 'password' ? 'visibility' : 'visibility_off';
+                }));
+            },
+            preConfirm: async () => {
+                const cur = document.getElementById('cp-current').value;
+                const p1 = document.getElementById('cp-new1').value;
+                const p2 = document.getElementById('cp-new2').value;
+                if (!cur || !p1 || !p2) return Swal.showValidationMessage('กรุณากรอกให้ครบทุกช่อง');
+                if (p1.length < 4) return Swal.showValidationMessage('รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร');
+                if (p1 !== p2) return Swal.showValidationMessage('รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');
+                if (p1 === cur) return Swal.showValidationMessage('รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม');
+                try {
+                    const res = await fetch('handle_account.php?action=change_my_password', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ current: cur, password: p1 })
+                    });
+                    const j = await res.json();
+                    if (!j.success) return Swal.showValidationMessage(j.error || 'เปลี่ยนรหัสผ่านไม่สำเร็จ');
+                    return j;
+                } catch (e) { return Swal.showValidationMessage('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'); }
+            }
+        });
+        if (r.isConfirmed) Swal.fire({ icon: 'success', title: 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว', text: 'ครั้งหน้าใช้รหัสผ่านใหม่เข้าสู่ระบบ', timer: 2200, showConfirmButton: false });
+    });
+})();
 </script>
 
 </body>
