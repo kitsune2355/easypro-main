@@ -185,7 +185,59 @@ $rolePerms = array();
             height: 100%;
             border: none;
         }
-        
+
+        /* ===== มือถือ: แถบเมนูด้านล่าง (bottom navigation) ===== */
+        #bottom-nav { display: none; }
+        @media (max-width: 767px) {
+            #mobile-toggle { display: none !important; }          /* ใช้แถบล่างแทนปุ่ม ☰ */
+            #app-footer { display: none !important; }
+            #bottom-nav {
+                display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+                align-items: end; flex-shrink: 0; position: relative; z-index: 20;
+                background: rgba(255, 255, 255, .97); backdrop-filter: blur(12px);
+                border-top: 1px solid rgba(15, 23, 42, .08);
+                box-shadow: 0 -6px 20px rgba(15, 23, 42, .12);
+                padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+            }
+            #bottom-nav.kb-open { display: none; }                  /* คีย์บอร์ดเปิด => ซ่อน ไม่บังช่องกรอก */
+            .content-wrap-m { padding-bottom: 8px !important; }
+        }
+        .bn-item {
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px;
+            min-height: 52px; padding: 4px 2px; border-radius: 12px; color: #64748b;
+            font-size: 10.5px; font-weight: 500; line-height: 1.2; position: relative;
+            -webkit-tap-highlight-color: transparent; transition: color .15s;
+        }
+        .bn-item .bn-ico { width: 44px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; transition: background .2s; }
+        .bn-item .bn-ico svg { width: 21px; height: 21px; }
+        .bn-item.active { color: #005a87; font-weight: 600; }
+        .bn-item.active .bn-ico { background: #e0f2fe; }
+        .bn-item:active .bn-ico { transform: scale(.92); }
+        .bn-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bn-main .bn-ico {
+            width: 52px; height: 52px; margin-top: -24px; color: #fff;
+            background: linear-gradient(135deg, #0ea5e9, #005a87);
+            box-shadow: 0 6px 16px rgba(0, 90, 135, .4); border: 4px solid #fff;
+        }
+        .bn-main .bn-ico svg { width: 24px; height: 24px; }
+        .bn-main.active .bn-ico { background: linear-gradient(135deg, #0284c7, #004a6f); }
+        /* แผ่นเมนูเพิ่มเติม (bottom sheet) */
+        #more-sheet { position: fixed; inset: 0; z-index: 70; visibility: hidden; }
+        #more-sheet.open { visibility: visible; }
+        #more-sheet .ms-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .45); opacity: 0; transition: opacity .25s; }
+        #more-sheet.open .ms-backdrop { opacity: 1; }
+        #more-sheet .ms-panel {
+            position: absolute; left: 0; right: 0; bottom: 0; max-height: 85dvh; overflow-y: auto;
+            background: #fff; border-radius: 22px 22px 0 0; transform: translateY(100%);
+            transition: transform .28s cubic-bezier(.2, .8, .2, 1);
+            padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+        }
+        #more-sheet.open .ms-panel { transform: translateY(0); }
+        .ms-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px; border-radius: 14px; color: #334155; font-size: 11.5px; text-align: center; line-height: 1.25; }
+        .ms-tile .ms-ico { width: 46px; height: 46px; border-radius: 14px; background: #f1f5f9; color: #005a87; display: flex; align-items: center; justify-content: center; }
+        .ms-tile .ms-ico svg { width: 22px; height: 22px; }
+        .ms-tile.active .ms-ico { background: #005a87; color: #fff; }
+        .ms-tile:active { background: #f8fafc; }
     </style>
 </head>
 <body class="bg-overlay flex min-h-screen overflow-hidden">
@@ -384,7 +436,7 @@ if (isset($_SESSION['sess_user_level_es']) && ($_SESSION['sess_user_level_es'] =
       </div>
   </header>
 
-    <div class="flex-1 px-3 pb-3 md:px-5 md:pb-5 overflow-hidden">
+    <div class="flex-1 px-3 pb-3 md:px-5 md:pb-5 overflow-hidden content-wrap-m">
         <div class="glass-card-loading rounded-2xl h-full shadow-2xl overflow-hidden relative ิเ">
             <div id="iframe-loading" class="absolute inset-0 flex items-center justify-center bg-white/60 z-10 hidden">
                 <div class="flex flex-col items-center gap-3">
@@ -396,12 +448,36 @@ if (isset($_SESSION['sess_user_level_es']) && ($_SESSION['sess_user_level_es'] =
         </div>
     </div>
 
-    <div class="flex justify-end items-center px-6 py-2 bg-easy-secondary/10 shrink-0">
+    <div id="app-footer" class="flex justify-end items-center px-6 py-2 bg-easy-secondary/10 shrink-0">
         <a target="_blank" href="https://www.proactivemanagement.co.th/">
             <p class="text-[10px] md:text-xs font-medium text-white/80">PROACTIVE MANAGEMENT CO,.LTD</p>
         </a>
     </div>
+
+    <!-- มือถือ: แถบเมนูด้านล่าง (สร้างจาก menuItems ตามสิทธิ์ ใน renderBottomNav) -->
+    <nav id="bottom-nav" aria-label="เมนูหลัก"></nav>
 </main>
+
+<!-- มือถือ: เมนูทั้งหมด (เปิดจากปุ่ม "เมนู" ในแถบล่าง) -->
+<div id="more-sheet" aria-hidden="true">
+    <div class="ms-backdrop" data-close-sheet></div>
+    <div class="ms-panel" role="dialog" aria-label="เมนูทั้งหมด">
+        <div class="w-10 h-1.5 rounded-full bg-slate-200 mx-auto mb-3"></div>
+        <div class="flex items-center gap-3 pb-3 mb-2 border-b border-slate-100">
+            <span class="material-symbols-rounded text-easy-primary bg-sky-50 rounded-full p-2" style="font-size:24px">person</span>
+            <div class="min-w-0 flex-1">
+                <p class="text-sm font-semibold text-slate-800 truncate"><?php echo isset($sess_user_name) ? htmlspecialchars($sess_user_name) : 'ผู้ใช้งาน'; ?></p>
+                <p class="text-xs text-slate-400 truncate"><?php echo htmlspecialchars(isset($sess_agency_name) ? (string)$sess_agency_name : ''); ?></p>
+            </div>
+            <button type="button" class="p-2 rounded-full text-slate-400 hover:bg-slate-100" data-close-sheet aria-label="ปิด"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div id="more-grid" class="grid grid-cols-4 gap-1"></div>
+        <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100">
+            <button type="button" id="ms-change-password" class="flex items-center justify-center gap-2 h-11 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium"><span class="material-symbols-rounded text-[19px]">lock_reset</span>เปลี่ยนรหัสผ่าน</button>
+            <button type="button" onclick="window.location.href='config_ctrl/logout.php'" class="flex items-center justify-center gap-2 h-11 rounded-xl bg-red-50 text-red-600 text-sm font-medium"><span class="material-symbols-rounded text-[19px]">logout</span>ออกจากระบบ</button>
+        </div>
+    </div>
+</div>
 
 <script>
 const rolePerms = <?php echo json_encode($rolePerms); ?>;
@@ -517,10 +593,84 @@ function renderMenu(activeHref) {
         '</a>';
     }).join('');
 
+    renderBottomNav(activeHref);
+
     if (window.lucide) {
         lucide.createIcons();
     }
 }
+
+// ===== มือถือ: แถบเมนูด้านล่าง =====
+// ช่องหลัก 3 ช่อง (เลือกตามลำดับความสำคัญจากเมนูที่มีสิทธิ์) + ปุ่มแจ้งซ่อมตรงกลาง + "เมนู" (ที่เหลือทั้งหมด)
+const BN_MAIN = 'maintenance_request.php';
+const BN_PRIORITY = ['dashboard.php', 'maintenance_info.php', 'pm.php', 'work_history.php', 'meter_info.php', 'machine_info.php', 'stock.php'];
+const BN_SHORT = { 'maintenance_info.php': 'งานซ่อม', 'pm.php': 'PM', 'work_history.php': 'งานช่าง', 'meter_info.php': 'มิเตอร์', 'machine_info.php': 'เครื่องจักร', 'stock.php': 'สต็อก' };
+
+function bnEsc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+function bottomNavSlots() {
+    const allowed = function (href) { return menuItems.some(function (m) { return m.href === href; }); };
+    const item = function (href) { return menuItems.find(function (m) { return m.href === href; }); };
+    const side = BN_PRIORITY.filter(allowed).slice(0, 3).map(item);
+    const main = allowed(BN_MAIN) ? item(BN_MAIN) : null;
+    const inBar = side.map(function (m) { return m.href; }).concat(main ? [main.href] : []);
+    const rest = menuItems.filter(function (m) { return inBar.indexOf(m.href) === -1; });
+    return { side: side, main: main, rest: rest };
+}
+
+function renderBottomNav(activeHref) {
+    const nav = document.getElementById('bottom-nav');
+    if (!nav) return;
+    const s = bottomNavSlots();
+    const btn = function (m, extra) {
+        return '<a href="#' + m.href + '" onclick="navigate(\'' + m.href + '\'); return false;" class="bn-item ' + (extra || '') + (m.href === activeHref ? ' active' : '') + '"' + (m.href === activeHref ? ' aria-current="page"' : '') + '>' +
+            '<span class="bn-ico"><i data-lucide="' + m.icon + '"></i></span><span class="bn-label">' + bnEsc(BN_SHORT[m.href] || m.label) + '</span></a>';
+    };
+    const cells = s.side.map(function (m) { return btn(m); });
+    // ปุ่มแจ้งซ่อมไว้ตรงกลาง (หลังช่องที่ 2)
+    if (s.main) cells.splice(Math.min(2, cells.length), 0, btn(s.main, 'bn-main'));
+    const restActive = s.rest.some(function (m) { return m.href === activeHref; });
+    cells.push('<button type="button" id="bn-more" class="bn-item' + (restActive ? ' active' : '') + '" aria-haspopup="dialog">' +
+        '<span class="bn-ico"><i data-lucide="layout-grid"></i></span><span class="bn-label">เมนู</span></button>');
+    nav.innerHTML = cells.join('');
+    document.getElementById('bn-more').addEventListener('click', openMoreSheet);
+
+    document.getElementById('more-grid').innerHTML = s.rest.map(function (m) {
+        return '<a href="#' + m.href + '" onclick="closeMoreSheet(); navigate(\'' + m.href + '\'); return false;" class="ms-tile' + (m.href === activeHref ? ' active' : '') + '">' +
+            '<span class="ms-ico"><i data-lucide="' + m.icon + '"></i></span><span>' + bnEsc(m.label) + '</span></a>';
+    }).join('');
+}
+
+function openMoreSheet() {
+    const sh = document.getElementById('more-sheet');
+    sh.classList.add('open'); sh.setAttribute('aria-hidden', 'false');
+}
+function closeMoreSheet() {
+    const sh = document.getElementById('more-sheet');
+    sh.classList.remove('open'); sh.setAttribute('aria-hidden', 'true');
+}
+window.closeMoreSheet = closeMoreSheet;
+document.querySelectorAll('[data-close-sheet]').forEach(function (el) { el.addEventListener('click', closeMoreSheet); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMoreSheet(); });
+document.getElementById('ms-change-password').addEventListener('click', function () {
+    closeMoreSheet();
+    const b = document.getElementById('menu-change-password');
+    if (b) b.click();
+});
+
+// คีย์บอร์ดบนมือถือเปิด (ความสูงจอที่มองเห็นลดลงมาก) => ซ่อนแถบล่าง ไม่ให้ดันขึ้นมาบังช่องกรอก
+(function () {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const base = { h: window.innerHeight };
+    const check = function () {
+        if (window.innerWidth > 767) return;
+        if (vv.height > base.h) base.h = vv.height;
+        document.getElementById('bottom-nav').classList.toggle('kb-open', vv.height < base.h * 0.75);
+    };
+    vv.addEventListener('resize', check);
+    window.addEventListener('orientationchange', function () { setTimeout(function () { base.h = window.innerHeight; check(); }, 400); });
+})();
 
 window.navigate = function(href, queryString) {
     if (!href) return;
