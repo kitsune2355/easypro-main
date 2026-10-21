@@ -1,5 +1,13 @@
 <?php
 @session_start();
+
+// หน้า login ถูกเปิดภายใน iframe ของ main.php (session หมดอายุ แล้ว checksession.php redirect เฉพาะเฟรม)
+// => พาทั้งหน้าต่างไปหน้า login แทน ไม่ให้หน้า login ซ้อนอยู่ในเฟรม (ยังไม่อ่าน login_error เพื่อให้แสดงที่หน้าเต็ม)
+if (isset($_SERVER['HTTP_SEC_FETCH_DEST']) && $_SERVER['HTTP_SEC_FETCH_DEST'] === 'iframe') {
+    echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><script>window.top.location.replace("login.php");</script></head><body></body></html>';
+    exit;
+}
+
 $login_error = '';
 
 if (!empty($_SESSION['login_error'])) {
@@ -11,6 +19,10 @@ if (!empty($_SESSION['login_error'])) {
 <html lang="th" class="h-full overflow-x-hidden">
 <head>
     <meta charset="UTF-8">
+    <script>
+        // กันกรณีเบราว์เซอร์ไม่ส่ง Sec-Fetch-Dest: ถ้าอยู่ในเฟรม ให้หน้าต่างหลักไปหน้า login
+        if (window.top !== window.self) { window.top.location.replace(window.location.href); }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
     <title>EasyPro - Building Management System</title>
     
