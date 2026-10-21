@@ -1,5 +1,7 @@
 <?php
+@session_start();
 include 'config_ctrl/connect.php';
+require_once __DIR__ . '/config_ctrl/agency_logo.php';
 
 // รับค่าจาก URL
 $meter_id = $_GET['meter_id'] ?? '';
@@ -97,6 +99,7 @@ $res_h = mysqli_query($connect, $sql_h);
         body { font-family: 'Sarabun', sans-serif; font-size: 14px; padding: 20px; zoom:50%; }
         .report-header { display: flex; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
         .logo { width: 100px; height: auto; }
+        .logo-ag { height: 40px; width: auto; max-width: 140px; object-fit: contain; margin-left: 10px; }
         .title-text h2 { margin: 0; font-size: 18px; text-align: center; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #000; padding: 6px; text-align: center; }
@@ -108,6 +111,7 @@ $res_h = mysqli_query($connect, $sql_h);
 
     <div class="report-header">
         <img src="../es/Logo_โปร.png" class="logo" onerror="this.style.display='none'">
+        <?php echo agl_img($connect, $ag_id !== '' ? $ag_id : ($_SESSION['sess_user_agency'] ?? 0), 'class="logo-ag"'); ?>
         <div class="title-text" style="flex-grow:1;">
             <h2>สรุปการจดบันทึกมิเตอร์<?php echo $type_title; ?></h2>
             <h2>ประจำเดือน <?php echo $display_date; ?></h2>

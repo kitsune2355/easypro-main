@@ -9,6 +9,7 @@ mysqli_set_charset($connect, 'utf8mb4');
 ini_set('memory_limit', '1024M');
 set_time_limit(600);
 require_once __DIR__ . '/config_ctrl/pm_report_data.php';
+require_once __DIR__ . '/config_ctrl/agency_logo.php';
 
 $ag = isset($sess_user_agency_es) ? trim((string)$sess_user_agency_es) : '';
 if ($ag === '') die('ไม่พบหน่วยงาน กรุณาเข้าสู่ระบบใหม่');
@@ -60,6 +61,7 @@ $multiMonth = count($monthCount) > 1;
 
     .head { display: flex; align-items: center; gap: 12px; border-bottom: 2px solid var(--brand); padding-bottom: 7px; }
     .head img { width: 92px; height: 34px; object-fit: contain; }
+    .head img.ag-logo { width: auto; max-width: 120px; }
     .head .main { flex: 1; }
     .head h1 { margin: 0; font-size: 17px; color: var(--brand); line-height: 1.2; }
     .head h1 small { font-size: 11px; color: var(--muted); font-weight: 600; }
@@ -126,6 +128,7 @@ $multiMonth = count($monthCount) > 1;
 <div class="sheet">
     <header class="head">
         <img src="Logo_โปร.png" alt="">
+        <?php echo agl_img($connect, $ag, 'class="ag-logo"'); ?>
         <div class="main">
             <h1>ประวัติการบำรุงรักษา (PM History) <small>· รายงานใบงาน PM ที่ดำเนินการแล้ว</small></h1>
             <div class="ag"><?php echo pmr_h($agency['ag_contract']); ?><?php if ($agency['ag_job']): ?> <span class="muted">(<?php echo pmr_h($agency['ag_job']); ?>)</span><?php endif; ?></div>

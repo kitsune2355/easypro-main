@@ -183,7 +183,8 @@
                     { label: "ตั้งค่าผู้ใช้งาน", href: "settings_user.php", id: "users" },
                     // { label: "กำหนดสิทธิ์ผู้ใช้งาน", href: "settings_roles.php", id: "roles" },
                     // { label: "กำหนดสิทธิ์การอนุมัติ", href: "settings_approvals.php", id: "approvals" },
-                    { label: "ข้อมูลพื้นที่หน่วยงาน", href: "settings_agency.php", id: "agencys" }
+                    { label: "ข้อมูลพื้นที่หน่วยงาน", href: "settings_agency.php", id: "agencys" },
+                    { label: "โลโก้หน่วยงาน (ใบพิมพ์)", href: "settings_agency_logo.php", id: "agency_logo" }
                 ]
             },
             {

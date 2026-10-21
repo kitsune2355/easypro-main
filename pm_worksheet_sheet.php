@@ -126,7 +126,10 @@ $signature_path = $record['inspector_signature_path'] ?? '';
 
         <div class="h-[25px] text-center text-[11px] font-bold relative border border-black border-b-0 leading-[24px]">
             MAINTENANCE TASKS REPORT
-            <img src="Logo_โปร.png" class="absolute right-[6px] top-[2px] w-[95px] h-[20px] object-contain" alt="PROACTIVE">
+            <div class="absolute right-[6px] top-[2px] h-[20px] flex items-center gap-[6px]">
+                <img src="Logo_โปร.png" class="w-full h-[20px]  object-contain" alt="PROACTIVE">
+                <?php if (!function_exists('agl_img')) require_once __DIR__ . '/config_ctrl/agency_logo.php'; echo agl_img($connect, isset($record['ag_id']) ? $record['ag_id'] : 0, 'class="h-[20px] w-auto max-w-[90px] object-contain"'); ?>
+            </div>
         </div>
 
         <div class="bg-[#bdd7ee] text-center text-[10px] font-bold h-[20px] leading-[20px] border border-black border-b-0">

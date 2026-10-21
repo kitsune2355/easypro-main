@@ -12,6 +12,7 @@ ini_set('memory_limit', '1024M');
 set_time_limit(600);
 require_once __DIR__ . '/config_ctrl/pm_report_data.php';
 require_once __DIR__ . '/pm_worksheet_sheet.php';
+require_once __DIR__ . '/config_ctrl/agency_logo.php';
 
 $ag = isset($sess_user_agency_es) ? trim((string)$sess_user_agency_es) : '';
 if ($ag === '') die('ไม่พบหน่วยงาน กรุณาเข้าสู่ระบบใหม่');
@@ -64,7 +65,7 @@ $stateCls = ['done' => 'st-done', 'late' => 'st-late', 'overdue' => 'st-over', '
 
 function pmr_header($agency, $title, $f, $sub = '') { ?>
     <header class="rp-head">
-        <img src="Logo_โปร.png" alt="" class="rp-logo">
+        <div class="rp-logos"><img src="Logo_โปร.png" alt="" class="rp-logo"><?php global $connect; echo agl_img($connect, isset($agency['ag_id']) ? $agency['ag_id'] : 0, 'class="rp-logo-ag"'); ?></div>
         <div class="rp-head-main">
             <div class="rp-title"><?php echo pmr_h($title); ?></div>
             <div class="rp-agency"><?php echo pmr_h($agency['ag_contract']); ?><?php if ($agency['ag_job']): ?> <span class="muted">(<?php echo pmr_h($agency['ag_job']); ?>)</span><?php endif; ?></div>
@@ -123,6 +124,8 @@ function pmr_signs($labels) { ?>
     .b { font-weight: 700; }
     .rp-head { display: flex; gap: 12px; align-items: flex-start; border-bottom: 2px solid var(--brand); padding-bottom: 8px; margin-bottom: 10px; }
     .rp-logo { width: 90px; height: 34px; object-fit: contain; }
+    .rp-logos { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .rp-logo-ag { height: 34px; width: auto; max-width: 120px; object-fit: contain; }
     .rp-head-main { flex: 1; }
     .rp-title { font-size: 15px; font-weight: 700; color: var(--brand); }
     .rp-agency { font-size: 13px; font-weight: 700; margin-top: 2px; }
