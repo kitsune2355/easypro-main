@@ -117,6 +117,44 @@ include_once "config_ctrl/checksession.php";
         </div>
         <div id="imp-plan-hot" style="height: 560px; width: 100%; overflow: hidden;"></div>
     </div>
+
+    <?php if (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin') { ?>
+    <!-- Super Admin: ลบแผน PM ที่นำเข้าผิด (ทีละรอบการสร้าง) — handle_pm_bulk_delete.php -->
+    <div id="bd-card" class="bg-white p-5 rounded-xl shadow-sm border border-red-200 mt-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
+            <div>
+                <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2"><i data-lucide="trash-2" class="w-5 h-5 text-red-500"></i> ลบแผน PM ที่นำเข้าผิด <span class="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">Super Admin</span></h3>
+                <p class="text-[12px] text-slate-500 mt-0.5">รายการจัดกลุ่มตาม <b>รอบที่สร้าง</b> (ผู้สร้าง + เวลา) ของหน่วยงาน <b id="bd-agency"></b> — เลือกรอบที่ผิดแล้วกด ตรวจสอบก่อนลบ</p>
+            </div>
+            <button id="bd-reload" type="button" class="border border-slate-300 text-slate-700 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> โหลดใหม่</button>
+        </div>
+        <div class="text-[12px] text-slate-600 bg-amber-50 border border-amber-100 rounded-lg p-3 mb-3 leading-relaxed">
+            <b>ลบเฉพาะกำหนดการที่ยังไม่ได้ทำ</b> — กำหนดการที่ทำแล้วหรือมีใบงานบันทึกไว้จะ<b>ไม่ถูกลบ</b> และแผนนั้นจะถูก<b>ปิดใช้งาน</b>แทน (เก็บประวัติไว้) ·
+            เช็คชีตจะถูกลบเมื่อไม่มีแผน กำหนดการ หรือใบงานอื่นใช้อยู่ · ลบแล้วกู้คืนไม่ได้
+        </div>
+        <div class="overflow-auto border border-slate-200 rounded-lg" style="max-height: 420px">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-600 text-[12px] sticky top-0 z-10">
+                    <tr>
+                        <th class="p-2 w-10 text-center"><input type="checkbox" id="bd-all" class="w-4 h-4 accent-red-600" title="เลือกทั้งหมด"></th>
+                        <th class="p-2 text-left whitespace-nowrap">วันเวลาที่สร้าง</th>
+                        <th class="p-2 text-left">ผู้สร้าง</th>
+                        <th class="p-2 text-left">เช็คชีต (ตัวอย่าง)</th>
+                        <th class="p-2 text-right whitespace-nowrap">แผน</th>
+                        <th class="p-2 text-right whitespace-nowrap">ยังไม่ทำ</th>
+                        <th class="p-2 text-right whitespace-nowrap">ทำแล้ว</th>
+                        <th class="p-2 text-right whitespace-nowrap">เช็คชีตที่สร้าง</th>
+                    </tr>
+                </thead>
+                <tbody id="bd-body"><tr><td colspan="8" class="p-6 text-center text-slate-400">กำลังโหลด...</td></tr></tbody>
+            </table>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-2 mt-3">
+            <span id="bd-selinfo" class="text-[12px] text-slate-500">ยังไม่ได้เลือก</span>
+            <button id="bd-preview" type="button" disabled class="bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"><i data-lucide="search-check" class="w-4 h-4"></i> ตรวจสอบก่อนลบ</button>
+        </div>
+    </div>
+    <?php } ?>
 </div>
 
 <script>
@@ -957,3 +995,89 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
     loadOptions();
 });
 </script>
+<?php if (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin') { ?>
+<script>
+// Super Admin: ลบแผน PM ที่นำเข้าผิด
+pmLazy('import', function () {
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmt = n => Number(n || 0).toLocaleString('th-TH');
+    const thDT = s => { const d = new Date(String(s).replace(' ', 'T')); return isNaN(d) ? s : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'; };
+    let BATCHES = [];
+
+    const selectedKeys = () => [...document.querySelectorAll('.bd-chk:checked')].map(c => c.value);
+    function updateSel() {
+        const keys = selectedKeys();
+        const pick = BATCHES.filter(b => keys.includes(b.key));
+        const sum = f => pick.reduce((a, b) => a + (b[f] || 0), 0);
+        $('bd-selinfo').innerHTML = keys.length ? `เลือก <b>${keys.length}</b> รอบ · แผน ${fmt(sum('plans'))} · ยังไม่ทำ ${fmt(sum('pending'))} · เช็คชีตที่สร้าง ${fmt(sum('sheets_created'))}` : 'ยังไม่ได้เลือก';
+        $('bd-preview').disabled = !keys.length;
+        $('bd-all').checked = keys.length > 0 && keys.length === BATCHES.length;
+    }
+
+    async function load() {
+        $('bd-body').innerHTML = '<tr><td colspan="8" class="p-6 text-center text-slate-400">กำลังโหลด...</td></tr>';
+        try {
+            const r = await (await fetch('handle_pm_bulk_delete.php?action=batches')).json();
+            if (!r.success) throw new Error(r.error);
+            BATCHES = r.batches; $('bd-agency').textContent = r.agency || '';
+            $('bd-body').innerHTML = BATCHES.length ? BATCHES.map(b => `
+                <tr class="border-t border-slate-100 hover:bg-red-50/40">
+                    <td class="p-2 text-center"><input type="checkbox" class="bd-chk w-4 h-4 accent-red-600" value="${esc(b.key)}"></td>
+                    <td class="p-2 whitespace-nowrap">${esc(thDT(b.at))}</td>
+                    <td class="p-2">${esc(b.by || '-')}</td>
+                    <td class="p-2 text-[12px] text-slate-500 max-w-[320px]">${b.sample.map(esc).join(', ') || '-'}${(b.sheets_used || b.sheets_created) > b.sample.length ? ' …' : ''}</td>
+                    <td class="p-2 text-right">${fmt(b.plans)}</td>
+                    <td class="p-2 text-right font-semibold ${b.pending ? 'text-red-600' : 'text-slate-400'}">${fmt(b.pending)}</td>
+                    <td class="p-2 text-right ${b.done ? 'text-emerald-600 font-semibold' : 'text-slate-400'}">${fmt(b.done)}</td>
+                    <td class="p-2 text-right">${fmt(b.sheets_created)}</td>
+                </tr>`).join('') : '<tr><td colspan="8" class="p-6 text-center text-slate-400">ไม่มีแผน PM หรือเช็คชีตในหน่วยงานนี้</td></tr>';
+            document.querySelectorAll('.bd-chk').forEach(c => c.addEventListener('change', updateSel));
+            updateSel();
+        } catch (e) {
+            $('bd-body').innerHTML = `<tr><td colspan="8" class="p-6 text-center text-red-500">${esc(e.message || 'โหลดไม่สำเร็จ')}</td></tr>`;
+        }
+    }
+
+    const post = (action, extra) => {
+        const fd = new FormData();
+        selectedKeys().forEach(k => fd.append('keys[]', k));
+        Object.entries(extra || {}).forEach(([k, v]) => fd.append(k, v));
+        return fetch('handle_pm_bulk_delete.php?action=' + action, { method: 'POST', body: fd }).then(r => r.json());
+    };
+
+    $('bd-all').addEventListener('change', e => { document.querySelectorAll('.bd-chk').forEach(c => c.checked = e.target.checked); updateSel(); });
+    $('bd-reload').addEventListener('click', load);
+    $('bd-preview').addEventListener('click', async () => {
+        Swal.fire({ title: 'กำลังตรวจสอบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const r = await post('preview').catch(() => ({ success: false, error: 'เชื่อมต่อไม่สำเร็จ' }));
+        if (!r.success) { Swal.fire('ข้อผิดพลาด', r.error, 'error'); return; }
+        const s = r.summary;
+        const row = (icon, cls, text) => `<li class="flex gap-2 items-start"><span class="${cls}">${icon}</span><span>${text}</span></li>`;
+        const html = `<ul class="text-left text-[14px] space-y-2">
+            ${row('🗑️', '', `ลบกำหนดการที่ยังไม่ทำ <b class="text-red-600">${fmt(s.pending_events)}</b> รายการ`)}
+            ${row('🗑️', '', `ลบแผน PM <b class="text-red-600">${fmt(s.delete_plans)}</b> แผน`)}
+            ${row('🗑️', '', `ลบเช็คชีต <b class="text-red-600">${fmt(s.delete_sheets)}</b> ชุด (รวมจุดตรวจและไฟล์แนบ)`)}
+            ${s.keep_plans ? row('🛡️', '', `เก็บไว้ ${fmt(s.keep_plans)} แผน (มีงานทำแล้ว ${fmt(s.done_events)} รายการ) — จะ<b>ปิดใช้งาน</b>แผนเหล่านี้`) : ''}
+            ${s.keep_sheets ? row('🛡️', '', `เก็บเช็คชีตไว้ ${fmt(s.keep_sheets)} ชุด (ยังมีแผนหรือใบงานอื่นใช้อยู่)`) : ''}
+        </ul>
+        <p class="text-[13px] text-slate-500 mt-4">ลบแล้วกู้คืนไม่ได้ — พิมพ์คำว่า <b class="text-red-600">ลบ</b> เพื่อยืนยัน</p>`;
+        if (!s.pending_events && !s.delete_plans && !s.delete_sheets && !s.keep_plans) { Swal.fire('ไม่มีรายการที่ลบได้', 'รอบที่เลือกไม่มีกำหนดการที่ยังไม่ทำ หรือเช็คชีตที่ลบได้', 'info'); return; }
+        const c = await Swal.fire({
+            title: 'ยืนยันการลบแผน PM', html, icon: 'warning', input: 'text', inputPlaceholder: 'พิมพ์ ลบ',
+            showCancelButton: true, confirmButtonText: 'ลบถาวร', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', focusCancel: true,
+            preConfirm: v => { if ((v || '').trim() !== 'ลบ') { Swal.showValidationMessage('พิมพ์คำว่า ลบ ให้ถูกต้อง'); return false; } return true; }
+        });
+        if (!c.isConfirmed) return;
+        Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const d = await post('delete', { confirm: 'ลบ' }).catch(() => ({ success: false, error: 'เชื่อมต่อไม่สำเร็จ' }));
+        if (!d.success) { Swal.fire('ลบไม่สำเร็จ', d.error, 'error'); return; }
+        const t = d.summary;
+        await Swal.fire({ icon: 'success', title: 'ลบเรียบร้อย', html: `ลบกำหนดการ ${fmt(t.pending_events)} รายการ · แผน ${fmt(t.delete_plans)} แผน · เช็คชีต ${fmt(t.delete_sheets)} ชุด${t.keep_plans ? `<br>ปิดใช้งาน ${fmt(t.keep_plans)} แผนที่มีงานทำแล้ว` : ''}` });
+        load();
+    });
+
+    load();
+});
+</script>
+<?php } ?>
