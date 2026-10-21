@@ -4079,5 +4079,129 @@
     "h": 9.73
    }
   ]
+ },
+ "change_password_menu": {
+  "src": "manual/img/change_password_menu.jpg",
+  "w": 1280,
+  "h": 800,
+  "mobile": false,
+  "markers": [
+   {
+    "x": 86.49,
+    "y": 2.75,
+    "w": 8.12,
+    "h": 3.25
+   },
+   {
+    "x": 77.19,
+    "y": 15,
+    "w": 17.34,
+    "h": 4.5
+   },
+   {
+    "x": 77.19,
+    "y": 19.5,
+    "w": 17.34,
+    "h": 4.5
+   }
+  ]
+ },
+ "change_password_dialog": {
+  "src": "manual/img/change_password_dialog.jpg",
+  "w": 1280,
+  "h": 800,
+  "mobile": false,
+  "markers": [
+   {
+    "x": 32.25,
+    "y": 39.35,
+    "w": 35.5,
+    "h": 4.75
+   },
+   {
+    "x": 32.25,
+    "y": 48.1,
+    "w": 35.5,
+    "h": 4.75
+   },
+   {
+    "x": 32.25,
+    "y": 56.85,
+    "w": 35.5,
+    "h": 4.75
+   },
+   {
+    "x": 65.41,
+    "y": 48.1,
+    "w": 2.34,
+    "h": 4.75
+   },
+   {
+    "x": 41.28,
+    "y": 65.4,
+    "w": 10.33,
+    "h": 5.5
+   }
+  ]
+ },
+ "change_password_m": {
+  "src": "manual/img/change_password_m.jpg",
+  "w": 390,
+  "h": 844,
+  "mobile": true,
+  "markers": [
+   {
+    "x": 69.47,
+    "y": 2.49,
+    "w": 18.48,
+    "h": 3.08
+   },
+   {
+    "x": 30.77,
+    "y": 14.1,
+    "w": 56.92,
+    "h": 4.27
+   }
+  ]
+ },
+ "settings_user_reset": {
+  "src": "manual/img/settings_user_reset.jpg",
+  "w": 1280,
+  "h": 800,
+  "mobile": false,
+  "markers": [
+   {
+    "x": 48.02,
+    "y": 52.91,
+    "w": 7.38,
+    "h": 3.5
+   },
+   {
+    "x": 42.59,
+    "y": 63.21,
+    "w": 7.7,
+    "h": 5.5
+   }
+  ]
+ },
+ "settings_user_actions": {
+  "src": "manual/img/settings_user_actions.jpg",
+  "w": 1280,
+  "h": 800,
+  "mobile": false,
+  "markers": [
+   {
+    "x": 92.11,
+    "y": 19.81,
+    "w": 0.86,
+    "h": 1.38
+   },
+   {
+    "x": 93.75,
+    "y": 19.81,
+    "w": 0.86,
+    "h": 1.38
+   }
+  ]
  }
 }
