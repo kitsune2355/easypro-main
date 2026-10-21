@@ -219,15 +219,9 @@ if (isset($_SESSION['sess_user_level_es']) && ($_SESSION['sess_user_level_es'] =
     <div class="flex-1 min-h-0 flex flex-col p-4 md:px-8 md:py-6 overflow-hidden">
       
       <!-- ช่องค้นหา (กรองรายการในตารางด้านล่างทันทีที่พิมพ์) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 shrink-0">
-        <div class="relative">
-          <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
-          <input id="fCode" type="search" autocomplete="off" aria-label="ค้นหารหัสหน่วยงาน" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:bg-white focus:border-easy-primary focus:ring-4 focus:ring-easy-primary/10 outline-none transition-all placeholder:text-gray-400" placeholder="ค้นหารหัสหน่วยงาน...">
-        </div>
-        <div class="relative">
-          <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
-          <input id="fName" type="search" autocomplete="off" aria-label="ค้นหาชื่อหน่วยงาน" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:bg-white focus:border-easy-primary focus:ring-4 focus:ring-easy-primary/10 outline-none transition-all placeholder:text-gray-400" placeholder="ค้นหาชื่อหน่วยงาน...">
-        </div>
+      <div class="relative mb-4 shrink-0">
+        <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+        <input id="fSearch" type="search" autocomplete="off" aria-label="ค้นหาหน่วยงาน" class="w-full bg-gray-50 border-2 border-gray-100 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:bg-white focus:border-easy-primary focus:ring-4 focus:ring-easy-primary/10 outline-none transition-all placeholder:text-gray-400" placeholder="ค้นหารหัสหรือชื่อหน่วยงาน...">
       </div>
 
       <div class="flex-1 bg-gray-50/50 rounded-2xl border border-gray-100 overflow-hidden shadow-inner flex flex-col min-h-0">
@@ -652,8 +646,7 @@ async function initAgencyModalOnce() {
     agencyModalInited = true;
 
     const tbody = document.getElementById('agencyTbody');
-    const fCode = document.getElementById('fCode');
-    const fName = document.getElementById('fName');
+    const fSearch = document.getElementById('fSearch');   // ช่องเดียว: ค้นทั้งรหัสและชื่อหน่วยงาน
     const btnSelect = document.getElementById('btnSelectAgency');
 
     const prevPageBtn = document.getElementById('prevPage');
@@ -681,12 +674,10 @@ async function initAgencyModalOnce() {
     }
 
     function applyFilter() {
-        const c = norm(fCode.value);
-        const n = norm(fName.value);
+        const q = norm(fSearch.value);
 
         filteredData = allData.filter(function(x) {
-            return (c === '' || norm(x.code).indexOf(c) !== -1) &&
-                   (n === '' || norm(x.name).indexOf(n) !== -1);
+            return q === '' || norm(x.code).indexOf(q) !== -1 || norm(x.name).indexOf(q) !== -1;
         });
 
         currentPage = 1;
@@ -800,8 +791,7 @@ async function initAgencyModalOnce() {
         return;
     }
 
-    fCode.addEventListener('input', applyFilter);
-    fName.addEventListener('input', applyFilter);
+    fSearch.addEventListener('input', applyFilter);
 
     prevPageBtn.addEventListener('click', function() {
         if (currentPage > 1) {
