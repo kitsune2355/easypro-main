@@ -108,6 +108,10 @@ $current_rows = count($items);
 $empty_rows = max(0, $total_rows_target - $current_rows);
 
 $doc_no = $record['doc_no'] ?? '-';
+// เคยยกเลิกผลบันทึกแล้วบันทึกใหม่ => ฉบับแก้ไข (เลขที่เอกสารเดิม)
+if (!function_exists('pmwc_revision')) require_once __DIR__ . '/config_ctrl/pm_work_cancel.php';
+$ws_revision = pmwc_revision($connect, $real_plan_event_id);
+if ($ws_revision > 0 && $doc_no !== '-') $doc_no .= ' (แก้ไขครั้งที่ ' . $ws_revision . ')';
 $checksheet_name = $record['checksheet_name'] ?? '-';
 $machine_name = $record['machine_name'] ?? '-';
 $machine_code = $record['machine_code'] ?? '-';

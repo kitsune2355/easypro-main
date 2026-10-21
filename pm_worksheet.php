@@ -299,6 +299,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                 <button type="button" onclick="openPmMonthlyReport()" title="รายงาน PM รายเดือน" class="ws-topbtn"><i class="fa-solid fa-table"></i></button>
                 <?php if (!empty($mode)): ?>
                 <button type="button" onclick="openPmPrintPage()" title="พิมพ์ใบงาน PM" class="ws-topbtn"><i class="fa-solid fa-print"></i></button>
+                <button type="button" id="ws-cancel-rec" onclick="wsCancelRecord()" title="ยกเลิกผลบันทึก แล้วส่งกลับให้ทำใหม่" class="ws-topbtn hidden !w-auto px-2.5 gap-1.5 text-sm font-semibold"><i class="fa-solid fa-rotate-left"></i><span class="hidden sm:inline">ยกเลิกผล</span></button>
                 <?php endif; ?>
                 <button type="button" onclick="wsClose()" title="ปิด" class="ws-topbtn"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
@@ -311,6 +312,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
     </nav>
 
     <div class="max-w-4xl mx-auto px-3 sm:px-4 mt-3 space-y-3" id="app-container" style="display: none;">
+        <!-- เคยถูกยกเลิกผลบันทึก (ส่งกลับให้ทำใหม่) — wsRenderCancelInfo() -->
+        <div id="ws-cancel-note" class="hidden rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"></div>
         
         <form id="pmForm" onSubmit="event.preventDefault();">
             <input type="hidden" id="plan_id" name="plan_id" value="<?php echo htmlspecialchars($plan_id); ?>">
@@ -956,6 +959,71 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             });
         } 
 
+        // ===== ยกเลิกผลบันทึก แล้วส่งกลับให้ทำใหม่ (Admin / Super Admin) — handle_pm_work_cancel.php =====
+        function wsThDateTime(s) {
+            const d = new Date(String(s || '').replace(' ', 'T'));
+            return isNaN(d) ? (s || '-') : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+        }
+        function wsEsc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+        function wsRenderCancelInfo(data) {
+            const logs = data.cancel_logs || [];
+            const can = !!(isHistoryMode && data.can_cancel);
+            const btn = document.getElementById('ws-cancel-rec');
+            if (btn) { btn.classList.toggle('hidden', !can); btn.classList.toggle('inline-flex', can); }
+            const note = document.getElementById('ws-cancel-note');
+            if (!logs.length) { note.classList.add('hidden'); return; }
+            const last = logs[0], rev = logs.length;
+            // ประวัติ: เลขที่เอกสาร + ฉบับแก้ไข
+            const docEl = document.getElementById('info-doc-no');
+            if (isHistoryMode && docEl && docEl.textContent && docEl.textContent !== '-') docEl.textContent += ' (แก้ไขครั้งที่ ' + rev + ')';
+            const who = l => wsEsc(l.created_by_name || l.created_by || '-');
+            const hist = logs.map(l => '<li>ครั้งที่ ' + l.revision + ' · ' + wsEsc(wsThDateTime(l.created_at)) + ' · โดย ' + who(l) + ' — ' + wsEsc(l.reason) + '</li>').join('');
+            note.innerHTML = isHistoryMode
+                ? '<div class="font-semibold"><i class="fa-solid fa-rotate-left mr-1"></i> ใบงานฉบับแก้ไขครั้งที่ ' + rev + '</div>'
+                  + '<div class="text-xs mt-1">ผลบันทึกเดิมถูกยกเลิกและบันทึกใหม่แล้ว (ใช้เลขที่เอกสารเดิม)</div>'
+                  + '<ul class="text-xs mt-1.5 list-disc pl-5 space-y-0.5">' + hist + '</ul>'
+                : '<div class="font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1"></i> งานนี้ถูกยกเลิกผลบันทึกเดิม — กรุณาตรวจและบันทึกใหม่</div>'
+                  + '<div class="text-xs mt-1">เหตุผล: <b>' + wsEsc(last.reason) + '</b> · โดย ' + who(last) + ' เมื่อ ' + wsEsc(wsThDateTime(last.created_at)) + '</div>'
+                  + '<div class="text-xs mt-0.5">บันทึกใหม่จะใช้เลขที่เอกสารเดิม <b>' + wsEsc(last.doc_no || '-') + '</b> (แก้ไขครั้งที่ ' + rev + ')</div>';
+            note.classList.remove('hidden');
+        }
+        async function wsCancelRecord() {
+            let info;
+            try { info = (await axios.get('handle_pm_work_cancel.php?action=info&event_id=' + encodeURIComponent(planId))).data; }
+            catch (e) { info = { success: false, error: 'เชื่อมต่อไม่สำเร็จ' }; }
+            if (!info.success) { Swal.fire('ยกเลิกไม่ได้', info.error, 'error'); return; }
+            const spares = (info.spares || []).map(x => '<li>' + wsEsc(x.name || 'อะไหล่') + ' × ' + x.qty + '</li>').join('');
+            const r = await Swal.fire({
+                title: 'ยกเลิกผลบันทึก PM?',
+                html: '<div class="text-left text-sm space-y-2">'
+                    + '<div>เลขที่เอกสาร <b>' + wsEsc(info.doc_no) + '</b> · ทำเมื่อ ' + wsEsc(formatThaiDate(info.actual_date)) + '</div>'
+                    + '<ul class="list-disc pl-5 space-y-1 text-slate-600">'
+                    + '<li>ลบผลตรวจ รูป และลายเซ็นของใบงานนี้ แล้ว<b>ตั้งงานกลับเป็น "ยังไม่ทำ"</b> ในวันเดิม ให้ช่างตรวจและบันทึกใหม่</li>'
+                    + '<li>บันทึกใหม่จะใช้<b>เลขที่เอกสารเดิม</b> และระบุเป็นฉบับแก้ไขครั้งที่ ' + ((info.revision || 0) + 1) + '</li>'
+                    + (spares ? '<li>คืนสต็อกอะไหล่ที่ใบงานนี้ตัดไป:<ul class="list-[circle] pl-5">' + spares + '</ul></li>' : '')
+                    + (info.evaluated ? '<li class="text-red-600"><b>ใบงานนี้ประเมินแล้ว — ผลประเมินจะถูกลบด้วย</b> ต้องประเมินใหม่หลังบันทึกใหม่</li>' : '')
+                    + '</ul><label class="block font-medium text-slate-700 pt-1">เหตุผลที่ยกเลิก <span class="text-red-500">*</span></label></div>',
+                input: 'textarea', inputPlaceholder: 'เช่น เลือกผลปกติผิด หน้างานจริงพบไฟแสดงสถานะไม่ติด',
+                inputAttributes: { maxlength: 500 },
+                icon: 'warning', showCancelButton: true, confirmButtonText: 'ยกเลิกผลบันทึก', cancelButtonText: 'ปิด',
+                confirmButtonColor: '#dc2626', focusCancel: true, width: '34rem',
+                preConfirm: v => { if ((v || '').trim().length < 5) { Swal.showValidationMessage('กรุณาระบุเหตุผลอย่างน้อย 5 ตัวอักษร'); return false; } return v.trim(); }
+            });
+            if (!r.isConfirmed) return;
+            Swal.fire({ title: 'กำลังยกเลิก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            const fd = new FormData(); fd.append('event_id', planId); fd.append('reason', r.value);
+            let d;
+            try { d = (await axios.post('handle_pm_work_cancel.php?action=cancel', fd)).data; } catch (e) { d = { success: false, error: 'เชื่อมต่อไม่สำเร็จ' }; }
+            if (!d.success) { Swal.fire('ยกเลิกไม่สำเร็จ', d.error, 'error'); return; }
+            try { const host = WS_EMBED ? window.parent : window.opener; host && host.refreshCalendarEvents && host.refreshCalendarEvents(); } catch (e) {}
+            const go = await Swal.fire({ icon: 'success', title: 'ยกเลิกผลบันทึกแล้ว',
+                html: 'งานกลับเป็น "ยังไม่ทำ" แล้ว' + (d.spares_returned ? ' · คืนสต็อกอะไหล่ ' + d.spares_returned + ' รายการ' : '')
+                    + '<br>บันทึกใหม่จะใช้เลขที่เอกสาร <b>' + wsEsc(d.doc_no) + '</b> (แก้ไขครั้งที่ ' + d.revision + ')',
+                showCancelButton: true, confirmButtonText: 'เปิดใบงานเพื่อบันทึกใหม่', cancelButtonText: 'ปิด', confirmButtonColor: '#006b9f' });
+            if (go.isConfirmed) { const u = new URL(window.location.href); u.searchParams.delete('mode'); window.location.replace(u.toString()); }
+            else wsClose(true);
+        }
+
         async function fetchData() {
 			try {
 				const apiAction = isHistoryMode ? 'get_history' : 'get_data';
@@ -969,8 +1037,10 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 				if (data.success) {
 					if (isHistoryMode) {
 						renderHistoryMode(data);
+						wsRenderCancelInfo(data);
 					} else {
 						renderInfo(data.info);
+						wsRenderCancelInfo(data);
 						renderSpares(data.spares);
 		
 						worksheetItems = Array.isArray(data.items) ? data.items : [];

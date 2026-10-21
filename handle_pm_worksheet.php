@@ -6,6 +6,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 include 'config_ctrl/connect.php'; 
+require_once __DIR__ . '/config_ctrl/pm_work_cancel.php';   // ยกเลิกผลบันทึก: ใช้เลขที่เอกสารเดิม / ครั้งที่แก้ไข
 
 if (mysqli_connect_errno()) {
     http_response_code(500); 
@@ -326,7 +327,9 @@ function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users,
 		$base_doc_no_raw = isset($info['doc_no']) ? trim((string)$info['doc_no']) : '';
 		$checksheet_name_raw = isset($info['checksheet_name']) ? trim((string)$info['checksheet_name']) : '';
 		
-		$generated_doc_no = generatePmWorkDocNo(
+		// เคยถูกยกเลิกผลบันทึก => ใช้เลขที่เอกสารเดิม (ฉบับแก้ไข) ไม่ออกเลขใหม่
+		$generated_doc_no = pmwc_reuse_doc_no($connect, $event_id, (string)$info['ag_id']);
+		if (!$generated_doc_no) $generated_doc_no = generatePmWorkDocNo(
 			$connect,
 			$base_doc_no_raw,
 			(string)$info['ag_id']
@@ -991,7 +994,8 @@ if ($action === 'get_data') {
         'info' => $info,
         'spares' => $spares,
         'items' => $items,
-        'files' => $files
+        'files' => $files,
+        'cancel_logs' => pmwc_logs($connect, $event_id)   // เคยถูกยกเลิกผลบันทึก (แจ้งช่างก่อนบันทึกใหม่)
     ], JSON_UNESCAPED_UNICODE);
 
     exit;
@@ -1423,7 +1427,9 @@ if ($action === 'get_history') {
         'items' => $items,
         'actual_spares' => $actual_spares,
         'spares_snapshot' => $spares_snapshot,
-        'files_snapshot' => $files_snapshot
+        'files_snapshot' => $files_snapshot,
+        'cancel_logs' => pmwc_logs($connect, (int)$record['plan_event_id']),
+        'can_cancel' => in_array($_SESSION['sess_user_level_es'] ?? '', ['admin', 'super_admin'], true)
     ], JSON_UNESCAPED_UNICODE);
 
     exit;

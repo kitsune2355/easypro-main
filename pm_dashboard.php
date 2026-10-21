@@ -1061,11 +1061,11 @@ include "config_ctrl/checksession.php";
         });
         function onClick(popup, e) {
             const b = e.target.closest('[data-batch]');
-            if (b) { Swal.close(); openPmBatch(b.dataset.batch, dateStr, { fn: () => openPmDayPanel(dateStr, b.dataset.batch), label: 'กลับไปงานของวัน' }); return; }
+            if (b) { Swal.close(); openPmBatch(b.dataset.batch, dateStr, { fn: () => openPmDayPanel(dateStr, b.dataset.batch), label: 'กลับ' }); return; }
             const me = e.target.closest('[data-mev]');
-            if (me) { const ev = mres[+me.dataset.mev]; if (ev) { Swal.close(); window.openPmWorksheetDialog(ev.id, ev.status == 1, { back: { fn: () => openPmDayPanel(dateStr), label: 'กลับไปงานของวัน' } }); } return; }
+            if (me) { const ev = mres[+me.dataset.mev]; if (ev) { Swal.close(); window.openPmWorksheetDialog(ev.id, ev.status == 1, { back: { fn: () => openPmDayPanel(dateStr), label: 'กลับ' } }); } return; }
             const op = e.target.closest('[data-open]');
-            if (op) { Swal.close(); window.openPmWorksheetDialog(op.dataset.open, op.dataset.done === '1', { back: { fn: () => openPmDayPanel(dateStr), label: 'กลับไปงานของวัน' } }); return; }
+            if (op) { Swal.close(); window.openPmWorksheetDialog(op.dataset.open, op.dataset.done === '1', { back: { fn: () => openPmDayPanel(dateStr), label: 'กลับ' } }); return; }
             const tg = e.target.closest('[data-toggle]');
             if (tg) {
                 const box = popup.querySelector(`[data-list="${tg.dataset.toggle}"]`);

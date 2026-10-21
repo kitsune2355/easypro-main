@@ -355,6 +355,13 @@ if (!$pmCanEvaluate) {
                     <i data-lucide="file-bar-chart" class="w-4 h-4"></i> รายงาน PM
                 </button>
             </li>
+            <?php if (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin'): ?>
+            <li data-mode="manage">
+                <button onclick="switchTab('revisions')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
+                    <i data-lucide="history" class="w-4 h-4"></i> ประวัติการแก้ไข
+                </button>
+            </li>
+            <?php endif; ?>
             <?php endif; ?>
         </ul>
         <!-- มือถือ: เงาจางขอบขวา บอกว่ายังมีแท็บให้เลื่อนดู -->
@@ -373,6 +380,7 @@ if (!$pmCanEvaluate) {
             <?php include 'pm_import.php'; ?>
             <?php include 'pm_schedule.php'; ?>
             <?php if ($pmCanManage) include 'pm_report.php'; ?>
+            <?php if (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin') include 'pm_revisions.php'; ?>
         </main>
     </div>
 
@@ -482,7 +490,7 @@ if (!$pmCanEvaluate) {
         // ช่าง: เปิดแท็บของโหมดจัดการแผนไม่ได้ (แท็บที่จำไว้ / ลิงก์จากคู่มือ => ไปงานที่ต้องทำแทน)
         const PM_CAN_MANAGE = <?php echo $pmCanManage ? 'true' : 'false'; ?>;
         const PM_CAN_EVALUATE = <?php echo $pmCanEvaluate ? 'true' : 'false'; ?>;
-        const PM_MANAGE_TABS = ['schedule', 'plan', 'checksheet', 'import', 'postpone', 'holiday', 'report'];
+        const PM_MANAGE_TABS = ['schedule', 'plan', 'checksheet', 'import', 'postpone', 'holiday', 'report', 'revisions'];
         const pmModeOf = tabId => document.querySelector(`#pm-tabs li button[onclick*="'${tabId}'"]`)?.closest('li').dataset.mode || 'field';
         const pmLastTabs = () => { try { return JSON.parse(localStorage.getItem('pmModeTabs')) || {}; } catch (e) { return {}; } };
 

@@ -297,10 +297,8 @@ if ($action === 'delete') {
         }
         mysqli_commit($connect);
 
-        foreach (array_unique($files) as $f) {
-            $f = (string)$f;
-            if ($f !== '' && strpos($f, 'uploads/') === 0 && strpos($f, '..') === false && is_file(__DIR__ . '/' . $f)) @unlink(__DIR__ . '/' . $f);
-        }
+        require_once __DIR__ . '/config_ctrl/pm_work_cancel.php';
+        pmwc_unlink_unused($connect, $files, __DIR__);   // ลบเฉพาะไฟล์ที่ไม่มีใบงานอื่นใช้อยู่
         bd_out(['success' => true, 'summary' => bd_summary($p)]);
     } catch (Exception $e) {
         @mysqli_rollback($connect);
