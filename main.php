@@ -36,6 +36,15 @@ $rolePerms = array();
 <!DOCTYPE html>
 <html lang="th">
 <head>
+    <script>
+        // แถบเมนูด้านล่าง: มือถือ (<768px) และ iPad/แท็บเล็ตจอสัมผัส (≤1366px) — ตั้งก่อนแสดงผลกันหน้ากระพริบ
+        (function () {
+            var q = window.matchMedia('(max-width: 767px), (pointer: coarse) and (max-width: 1366px)');
+            var set = function () { document.documentElement.classList.toggle('bn-mode', q.matches); };
+            set();
+            if (q.addEventListener) q.addEventListener('change', set); else if (q.addListener) q.addListener(set);
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EasyPro</title>
@@ -187,20 +196,25 @@ $rolePerms = array();
         }
 
         /* ===== มือถือ: แถบเมนูด้านล่าง (bottom navigation) ===== */
+        /* ใช้กับ มือถือ (<768px) และ iPad/แท็บเล็ตจอสัมผัส (≤1366px) — html.bn-mode ตั้งโดยสคริปต์ใน <head> */
         #bottom-nav { display: none; }
-        @media (max-width: 767px) {
-            #mobile-toggle { display: none !important; }          /* ใช้แถบล่างแทนปุ่ม ☰ */
-            #app-footer { display: none !important; }
-            #bottom-nav {
-                display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
-                align-items: end; flex-shrink: 0; position: relative; z-index: 20;
-                background: rgba(255, 255, 255, .97); backdrop-filter: blur(12px);
-                border-top: 1px solid rgba(15, 23, 42, .08);
-                box-shadow: 0 -6px 20px rgba(15, 23, 42, .12);
-                padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
-            }
-            #bottom-nav.kb-open { display: none; }                  /* คีย์บอร์ดเปิด => ซ่อน ไม่บังช่องกรอก */
-            .content-wrap-m { padding-bottom: 8px !important; }
+        html.bn-mode #sidebar, html.bn-mode #sidebar-backdrop, html.bn-mode #toggle-btn { display: none !important; }
+        html.bn-mode #mobile-toggle { display: none !important; }    /* ใช้แถบล่างแทนปุ่ม ☰ */
+        html.bn-mode #app-footer { display: none !important; }
+        html.bn-mode #bottom-nav {
+            /* จอกว้าง (แท็บเล็ต) ช่องกว้างไม่เกิน 120px จัดกึ่งกลาง — มือถือช่องหดตามจอ */
+            display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 120px); justify-content: center;
+            align-items: end; flex-shrink: 0; position: relative; z-index: 20;
+            background: rgba(255, 255, 255, .97); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+            border-top: 1px solid rgba(15, 23, 42, .08);
+            box-shadow: 0 -6px 20px rgba(15, 23, 42, .12);
+            padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+        }
+        html.bn-mode #bottom-nav.kb-open { display: none; }          /* คีย์บอร์ดเปิด => ซ่อน ไม่บังช่องกรอก */
+        html.bn-mode .content-wrap-m { padding-bottom: 8px !important; }
+        @media (min-width: 768px) {
+            html.bn-mode .bn-item { font-size: 12px; }
+            html.bn-mode #more-sheet .ms-panel { max-width: 600px; margin: 0 auto; }
         }
         .bn-item {
             display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px;
@@ -664,7 +678,7 @@ document.getElementById('ms-change-password').addEventListener('click', function
     if (!vv) return;
     const base = { h: window.innerHeight };
     const check = function () {
-        if (window.innerWidth > 767) return;
+        if (!document.documentElement.classList.contains('bn-mode')) return;
         if (vv.height > base.h) base.h = vv.height;
         document.getElementById('bottom-nav').classList.toggle('kb-open', vv.height < base.h * 0.75);
     };
