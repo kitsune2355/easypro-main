@@ -692,7 +692,7 @@ if (!$pmCanEvaluate) {
                 document.body.style.overflow = 'hidden';
                 try { history.pushState({ pmBatch: 1 }, ''); } catch (e) {}
             };
-            window.openPmBatchDialog = url => window.openPmDialog(url, 'บันทึกพร้อมกันหลายเครื่อง');
+            window.openPmBatchDialog = (url, opts) => window.openPmDialog(url, 'บันทึกพร้อมกันหลายเครื่อง', opts);
             window.openPmWorksheetDialog = (planId, history, opts) => window.openPmDialog('pm_worksheet.php?plan_id=' + encodeURIComponent(planId) + (history ? '&mode=history' : ''), 'ใบงาน PM', opts);
             // force = ปิดโดยไม่ถาม (เช่น หลังบันทึกสำเร็จ)
             //  goBack = กลับไปหน้าก่อนหน้าหลังปิด (ปุ่ม "กลับ" ในใบงาน / บันทึกสำเร็จ)

@@ -124,30 +124,59 @@ include_once "config_ctrl/checksession.php";
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
             <div>
                 <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2"><i data-lucide="trash-2" class="w-5 h-5 text-red-500"></i> ลบแผน PM ที่นำเข้าผิด <span class="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">Super Admin</span></h3>
-                <p class="text-[12px] text-slate-500 mt-0.5">รายการจัดกลุ่มตาม <b>รอบที่สร้าง</b> (ผู้สร้าง + เวลา) ของหน่วยงาน <b id="bd-agency"></b> — เลือกรอบที่ผิดแล้วกด ตรวจสอบก่อนลบ</p>
+                <p class="text-[12px] text-slate-500 mt-0.5">หน่วยงาน <b id="bd-agency"></b> · การนำเข้า 1 ครั้งมักมี 2 แถว: <b class="text-violet-700">สร้างเช็คชีต</b> (ขั้นที่ 1) และ <b class="text-sky-700">บันทึกแผน PM</b> (ขั้นที่ 2) — ติ๊กแถวที่นำเข้าผิด แล้วกด ตรวจสอบก่อนลบ (ระบบสรุปให้ดูก่อน ยังไม่ลบ)</p>
             </div>
             <button id="bd-reload" type="button" class="border border-slate-300 text-slate-700 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> โหลดใหม่</button>
         </div>
         <div class="text-[12px] text-slate-600 bg-amber-50 border border-amber-100 rounded-lg p-3 mb-3 leading-relaxed">
-            <b>ลบเฉพาะกำหนดการที่ยังไม่ได้ทำ</b> — กำหนดการที่ทำแล้วหรือมีใบงานบันทึกไว้จะ<b>ไม่ถูกลบ</b> และแผนนั้นจะถูก<b>ปิดใช้งาน</b>แทน (เก็บประวัติไว้) ·
-            เช็คชีตจะถูกลบเมื่อไม่มีแผน กำหนดการ หรือใบงานอื่นใช้อยู่ · ลบแล้วกู้คืนไม่ได้
+            <div class="font-semibold text-slate-700 mb-1">เมื่อกดลบ ระบบจะ:</div>
+            <ul class="list-disc pl-5 space-y-0.5">
+                <li>ลบงาน PM ของแผนในแถวที่เลือก <b>ตามประเภทเครื่องจักรและแบบการลบที่เลือก</b> (ขั้นที่ 2 ด้านล่าง) — แผนที่ไม่เหลืองานเลยจะถูกลบ</li>
+                <li>ถ้าลบเฉพาะ <b class="text-red-600">งานที่ยังไม่ทำ</b> — งานที่ทำแล้วเก็บไว้ครบ และแผนนั้นจะถูกปิดใช้งาน</li>
+                <li>ถ้าลบ <b class="text-red-600">งานที่ทำแล้ว</b> — ลบใบงาน ผลตรวจ รูป ลายเซ็น ผลประเมินด้วย และ<b>คืนสต็อกอะไหล่</b>ที่ใบงานตัดไป</li>
+                <li><b class="text-amber-700">ไม่ลบเช็คชีต</b> — เช็คชีตที่ไม่มีแผนใช้แล้วจะถูกล้างประเภทเครื่องจักร (จุดตรวจยังอยู่ นำกลับมาใช้ได้ที่แท็บสร้างเช็คชีต)</li>
+            </ul>
+            <div class="mt-1 text-red-600 font-medium">ลบแล้วกู้คืนไม่ได้</div>
         </div>
         <div class="overflow-auto border border-slate-200 rounded-lg" style="max-height: 420px">
             <table class="w-full text-sm">
                 <thead class="bg-slate-50 text-slate-600 text-[12px] sticky top-0 z-10">
                     <tr>
                         <th class="p-2 w-10 text-center"><input type="checkbox" id="bd-all" class="w-4 h-4 accent-red-600" title="เลือกทั้งหมด"></th>
-                        <th class="p-2 text-left whitespace-nowrap">วันเวลาที่สร้าง</th>
+                        <th class="p-2 text-left whitespace-nowrap">วันเวลา / รอบนี้ทำอะไร</th>
                         <th class="p-2 text-left">ผู้สร้าง</th>
                         <th class="p-2 text-left">เช็คชีต (ตัวอย่าง)</th>
-                        <th class="p-2 text-right whitespace-nowrap">แผน</th>
-                        <th class="p-2 text-right whitespace-nowrap">ยังไม่ทำ</th>
-                        <th class="p-2 text-right whitespace-nowrap">ทำแล้ว</th>
+                        <th class="p-2 text-right whitespace-nowrap">แผน PM</th>
+                        <th class="p-2 text-right whitespace-nowrap">งานยังไม่ทำ</th>
+                        <th class="p-2 text-right whitespace-nowrap">งานทำแล้ว</th>
                         <th class="p-2 text-right whitespace-nowrap">เช็คชีตที่สร้าง</th>
                     </tr>
                 </thead>
                 <tbody id="bd-body"><tr><td colspan="8" class="p-6 text-center text-slate-400">กำลังโหลด...</td></tr></tbody>
             </table>
+        </div>
+        <div id="bd-step2" class="hidden mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+                <div class="flex items-center justify-between mb-1.5">
+                    <h4 class="text-sm font-semibold text-slate-700">ขั้นที่ 2 · ประเภทเครื่องจักร</h4>
+                    <label class="text-[12px] text-slate-500 flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="bd-type-all" class="w-4 h-4 accent-red-600" checked> ทุกประเภท</label>
+                </div>
+                <div id="bd-types" class="border border-slate-200 rounded-lg divide-y divide-slate-100 overflow-auto" style="max-height: 260px"></div>
+            </div>
+            <div>
+                <h4 class="text-sm font-semibold text-slate-700 mb-1.5">ลบงานแบบไหน</h4>
+                <div class="space-y-2" id="bd-modes">
+                    <label class="bd-mode flex gap-3 p-3 rounded-lg border-2 cursor-pointer"><input type="radio" name="bd-mode" value="pending" class="mt-0.5 accent-red-600" checked>
+                        <span><span class="block text-sm font-semibold text-slate-800">เฉพาะงานที่ยังไม่ทำ <span class="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">แนะนำ</span></span>
+                        <span class="block text-xs text-slate-500">งานที่ทำแล้วเก็บไว้ครบ แผนที่มีงานทำแล้วจะถูกปิดใช้งาน</span></span></label>
+                    <label class="bd-mode flex gap-3 p-3 rounded-lg border-2 cursor-pointer"><input type="radio" name="bd-mode" value="done" class="mt-0.5 accent-red-600">
+                        <span><span class="block text-sm font-semibold text-slate-800">เฉพาะงานที่ทำแล้ว</span>
+                        <span class="block text-xs text-slate-500">ลบใบงาน ผลตรวจ รูป ลายเซ็น ผลประเมิน และคืนสต็อกอะไหล่ — งานที่ยังไม่ทำคงไว้</span></span></label>
+                    <label class="bd-mode flex gap-3 p-3 rounded-lg border-2 cursor-pointer"><input type="radio" name="bd-mode" value="all" class="mt-0.5 accent-red-600">
+                        <span><span class="block text-sm font-semibold text-red-700">ทั้งหมด (ยังไม่ทำ + ทำแล้ว)</span>
+                        <span class="block text-xs text-slate-500">ลบแผนและงานทั้งหมดของประเภทที่เลือก รวมใบงานที่ทำแล้ว และคืนสต็อกอะไหล่</span></span></label>
+                </div>
+            </div>
         </div>
         <div class="flex flex-wrap items-center justify-between gap-2 mt-3">
             <span id="bd-selinfo" class="text-[12px] text-slate-500">ยังไม่ได้เลือก</span>
@@ -997,22 +1026,71 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
 </script>
 <?php if (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin') { ?>
 <script>
-// Super Admin: ลบแผน PM ที่นำเข้าผิด
+// Super Admin: ลบแผน PM ที่นำเข้าผิด — ขั้นที่ 1 เลือกรอบ · ขั้นที่ 2 เลือกประเภทเครื่องจักร + แบบการลบ
 pmLazy('import', function () {
     const $ = id => document.getElementById(id);
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const fmt = n => Number(n || 0).toLocaleString('th-TH');
     const thDT = s => { const d = new Date(String(s).replace(' ', 'T')); return isNaN(d) ? s : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'; };
-    let BATCHES = [];
+    const MODE_TEXT = { pending: 'เฉพาะงานที่ยังไม่ทำ', done: 'เฉพาะงานที่ทำแล้ว', all: 'ทั้งหมด (ยังไม่ทำ + ทำแล้ว)' };
+    let BATCHES = [], TYPES = [], typeSeq = 0;
 
     const selectedKeys = () => [...document.querySelectorAll('.bd-chk:checked')].map(c => c.value);
-    function updateSel() {
+    const selectedTypes = () => [...document.querySelectorAll('.bd-type:checked')].map(c => c.value);
+    const mode = () => (document.querySelector('input[name="bd-mode"]:checked') || {}).value || 'pending';
+
+    // สรุปตามที่เลือก (ประมาณจากจำนวนของประเภทที่เลือก)
+    function updateInfo() {
         const keys = selectedKeys();
-        const pick = BATCHES.filter(b => keys.includes(b.key));
-        const sum = f => pick.reduce((a, b) => a + (b[f] || 0), 0);
-        $('bd-selinfo').innerHTML = keys.length ? `เลือก <b>${keys.length}</b> รอบ · แผน ${fmt(sum('plans'))} · ยังไม่ทำ ${fmt(sum('pending'))} · เช็คชีตที่สร้าง ${fmt(sum('sheets_created'))}` : 'ยังไม่ได้เลือก';
-        $('bd-preview').disabled = !keys.length;
-        $('bd-all').checked = keys.length > 0 && keys.length === BATCHES.length;
+        if (!keys.length) { $('bd-selinfo').innerHTML = 'ยังไม่ได้เลือก — ติ๊กแถวที่นำเข้าผิด'; $('bd-preview').disabled = true; return; }
+        const tsel = selectedTypes();
+        const pick = TYPES.filter(t => tsel.includes(t.id));
+        const sum = f => pick.reduce((a, t) => a + (t[f] || 0), 0);
+        const m = mode();
+        const del = (m !== 'done' ? sum('pending') : 0) + (m !== 'pending' ? sum('done') : 0);
+        const keep = (m === 'done' ? sum('pending') : 0) + (m === 'pending' ? sum('done') : 0);
+        $('bd-selinfo').innerHTML = TYPES.length
+            ? `เลือก <b>${keys.length}</b> แถว · ${pick.length}/${TYPES.length} ประเภท · <b>${MODE_TEXT[m]}</b> → จะลบงาน <b class="text-red-600">${fmt(del)}</b> รายการ${keep ? ` · คงไว้ <b class="text-emerald-600">${fmt(keep)}</b>` : ''}`
+            : `เลือก <b>${keys.length}</b> แถว · กำลังโหลดประเภทเครื่องจักร...`;
+        $('bd-preview').disabled = !pick.length;
+        document.querySelectorAll('.bd-mode').forEach(l => {
+            const on = l.querySelector('input').checked, red = l.querySelector('input').value !== 'pending';
+            l.classList.toggle('border-red-400', on && red); l.classList.toggle('bg-red-50/50', on && red);
+            l.classList.toggle('border-sky-400', on && !red); l.classList.toggle('bg-sky-50/50', on && !red);
+            l.classList.toggle('border-slate-200', !on);
+        });
+    }
+
+    async function loadTypes() {
+        const keys = selectedKeys();
+        $('bd-step2').classList.toggle('hidden', !keys.length);
+        TYPES = [];
+        if (!keys.length) { updateInfo(); return; }
+        const seq = ++typeSeq;
+        $('bd-types').innerHTML = '<div class="p-4 text-center text-slate-400 text-sm">กำลังโหลด...</div>';
+        updateInfo();
+        const r = await post('types', {}, true).catch(() => ({ success: false, error: 'เชื่อมต่อไม่สำเร็จ' }));
+        if (seq !== typeSeq) return;
+        if (!r.success) { $('bd-types').innerHTML = `<div class="p-4 text-center text-red-500 text-sm">${esc(r.error)}</div>`; return; }
+        TYPES = r.types;
+        $('bd-types').innerHTML = TYPES.map(t => `
+            <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm">
+                <input type="checkbox" class="bd-type w-4 h-4 accent-red-600" value="${esc(t.id)}" checked>
+                <span class="flex-1 min-w-0 truncate ${t.id === 'none' ? 'text-slate-400 italic' : 'text-slate-700'}">${esc(t.name)}</span>
+                <span class="text-[11px] text-slate-500 whitespace-nowrap">${t.plans ? `แผน ${fmt(t.plans)} · ` : ''}<span class="text-red-600">ยังไม่ทำ ${fmt(t.pending)}</span> · <span class="text-emerald-600">ทำแล้ว ${fmt(t.done)}</span>${t.sheets ? ` · เช็คชีต ${fmt(t.sheets)}` : ''}</span>
+            </label>`).join('') || '<div class="p-4 text-center text-slate-400 text-sm">ไม่มีข้อมูลในแถวที่เลือก</div>';
+        document.querySelectorAll('.bd-type').forEach(c => c.addEventListener('change', () => {
+            const all = document.querySelectorAll('.bd-type'), on = document.querySelectorAll('.bd-type:checked');
+            $('bd-type-all').checked = all.length === on.length; $('bd-type-all').indeterminate = on.length > 0 && on.length < all.length;
+            updateInfo();
+        }));
+        $('bd-type-all').checked = true; $('bd-type-all').indeterminate = false;
+        updateInfo();
+    }
+
+    function onRowsChanged() {
+        $('bd-all').checked = selectedKeys().length > 0 && selectedKeys().length === BATCHES.length;
+        loadTypes();
     }
 
     async function load() {
@@ -1024,7 +1102,7 @@ pmLazy('import', function () {
             $('bd-body').innerHTML = BATCHES.length ? BATCHES.map(b => `
                 <tr class="border-t border-slate-100 hover:bg-red-50/40">
                     <td class="p-2 text-center"><input type="checkbox" class="bd-chk w-4 h-4 accent-red-600" value="${esc(b.key)}"></td>
-                    <td class="p-2 whitespace-nowrap">${esc(thDT(b.at))}</td>
+                    <td class="p-2 whitespace-nowrap">${esc(thDT(b.at))}<div class="flex gap-1 mt-0.5">${b.plans ? '<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-100">บันทึกแผน PM</span>' : ''}${b.sheets_created ? '<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-violet-50 text-violet-700 border border-violet-100">สร้างเช็คชีต</span>' : ''}</div></td>
                     <td class="p-2">${esc(b.by || '-')}</td>
                     <td class="p-2 text-[12px] text-slate-500 max-w-[320px]">${b.sample.map(esc).join(', ') || '-'}${(b.sheets_used || b.sheets_created) > b.sample.length ? ' …' : ''}</td>
                     <td class="p-2 text-right">${fmt(b.plans)}</td>
@@ -1032,39 +1110,53 @@ pmLazy('import', function () {
                     <td class="p-2 text-right ${b.done ? 'text-emerald-600 font-semibold' : 'text-slate-400'}">${fmt(b.done)}</td>
                     <td class="p-2 text-right">${fmt(b.sheets_created)}</td>
                 </tr>`).join('') : '<tr><td colspan="8" class="p-6 text-center text-slate-400">ไม่มีแผน PM หรือเช็คชีตในหน่วยงานนี้</td></tr>';
-            document.querySelectorAll('.bd-chk').forEach(c => c.addEventListener('change', updateSel));
-            updateSel();
+            document.querySelectorAll('.bd-chk').forEach(c => c.addEventListener('change', onRowsChanged));
+            onRowsChanged();
         } catch (e) {
             $('bd-body').innerHTML = `<tr><td colspan="8" class="p-6 text-center text-red-500">${esc(e.message || 'โหลดไม่สำเร็จ')}</td></tr>`;
         }
     }
 
-    const post = (action, extra) => {
+    // keysOnly = ส่งเฉพาะรอบ (โหลดประเภท)
+    function post(action, extra, keysOnly) {
         const fd = new FormData();
         selectedKeys().forEach(k => fd.append('keys[]', k));
+        if (!keysOnly) {
+            // เลือกครบทุกประเภท => ไม่ส่ง types (= ทุกประเภท รวมที่เพิ่มเข้ามาภายหลัง)
+            const all = document.querySelectorAll('.bd-type').length, sel = selectedTypes();
+            if (sel.length !== all) sel.forEach(t => fd.append('types[]', t));
+            fd.append('mode', mode());
+        }
         Object.entries(extra || {}).forEach(([k, v]) => fd.append(k, v));
         return fetch('handle_pm_bulk_delete.php?action=' + action, { method: 'POST', body: fd }).then(r => r.json());
-    };
+    }
 
-    $('bd-all').addEventListener('change', e => { document.querySelectorAll('.bd-chk').forEach(c => c.checked = e.target.checked); updateSel(); });
+    $('bd-all').addEventListener('change', e => { document.querySelectorAll('.bd-chk').forEach(c => c.checked = e.target.checked); onRowsChanged(); });
+    $('bd-type-all').addEventListener('change', e => { document.querySelectorAll('.bd-type').forEach(c => c.checked = e.target.checked); e.target.indeterminate = false; updateInfo(); });
+    document.querySelectorAll('input[name="bd-mode"]').forEach(r => r.addEventListener('change', updateInfo));
     $('bd-reload').addEventListener('click', load);
+
     $('bd-preview').addEventListener('click', async () => {
         Swal.fire({ title: 'กำลังตรวจสอบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         const r = await post('preview').catch(() => ({ success: false, error: 'เชื่อมต่อไม่สำเร็จ' }));
         if (!r.success) { Swal.fire('ข้อผิดพลาด', r.error, 'error'); return; }
         const s = r.summary;
-        const row = (icon, cls, text) => `<li class="flex gap-2 items-start"><span class="${cls}">${icon}</span><span>${text}</span></li>`;
-        const html = `<ul class="text-left text-[14px] space-y-2">
-            ${row('🗑️', '', `ลบกำหนดการที่ยังไม่ทำ <b class="text-red-600">${fmt(s.pending_events)}</b> รายการ`)}
-            ${row('🗑️', '', `ลบแผน PM <b class="text-red-600">${fmt(s.delete_plans)}</b> แผน`)}
-            ${row('🗑️', '', `ลบเช็คชีต <b class="text-red-600">${fmt(s.delete_sheets)}</b> ชุด (รวมจุดตรวจและไฟล์แนบ)`)}
-            ${s.keep_plans ? row('🛡️', '', `เก็บไว้ ${fmt(s.keep_plans)} แผน (มีงานทำแล้ว ${fmt(s.done_events)} รายการ) — จะ<b>ปิดใช้งาน</b>แผนเหล่านี้`) : ''}
-            ${s.keep_sheets ? row('🛡️', '', `เก็บเช็คชีตไว้ ${fmt(s.keep_sheets)} ชุด (ยังมีแผนหรือใบงานอื่นใช้อยู่)`) : ''}
+        if (!s.pending_del && !s.done_del && !s.delete_plans && !s.deactivate_plans && !s.clear_sheets) { Swal.fire('ไม่มีรายการที่ลบได้', 'ตามประเภทและแบบการลบที่เลือก ไม่มีงานที่ต้องลบ', 'info'); return; }
+        const row = (icon, text) => `<li class="flex gap-2 items-start"><span>${icon}</span><span>${text}</span></li>`;
+        const types = selectedTypes().length === document.querySelectorAll('.bd-type').length ? 'ทุกประเภท' : TYPES.filter(t => selectedTypes().includes(t.id)).map(t => esc(t.name)).join(', ');
+        const html = `<div class="text-left text-[13px] text-slate-500 mb-3">${MODE_TEXT[s.mode]} · ประเภท: ${types}</div>
+        <ul class="text-left text-[14px] space-y-2">
+            ${s.pending_del ? row('🗑️', `ลบงานที่ยังไม่ทำ <b class="text-red-600">${fmt(s.pending_del)}</b> รายการ`) : ''}
+            ${s.done_del ? row('🗑️', `ลบงานที่ทำแล้ว <b class="text-red-600">${fmt(s.done_del)}</b> รายการ — ใบงาน ${fmt(s.records_del)} ใบ (ผลตรวจ รูป ลายเซ็น ผลประเมิน)`) : ''}
+            ${s.spare_items ? row('📦', `คืนสต็อกอะไหล่ ${fmt(s.spare_items)} รายการ (รวม ${fmt(s.spare_qty)} หน่วย) ที่ใบงานเหล่านี้ตัดไป`) : ''}
+            ${s.delete_plans ? row('🗑️', `ลบแผน PM <b class="text-red-600">${fmt(s.delete_plans)}</b> แผน (ไม่เหลืองานแล้ว)`) : ''}
+            ${s.deactivate_plans ? row('⏸️', `ปิดใช้งาน ${fmt(s.deactivate_plans)} แผน (ยังมีงานที่ทำแล้ว ${fmt(s.done_keep)} รายการ เก็บไว้)`) : ''}
+            ${s.clear_sheets ? row('🏷️', `ล้างประเภทเครื่องจักรของเช็คชีต <b class="text-amber-600">${fmt(s.clear_sheets)}</b> ชุด (ไม่ลบเช็คชีต จุดตรวจยังอยู่)`) : ''}
         </ul>
+        ${s.done_del ? '<div class="mt-3 text-left text-[13px] text-red-700 bg-red-50 border border-red-100 rounded-lg p-2.5"><b>คำเตือน:</b> งานที่ทำแล้วจะหายจากประวัติและรายงาน PM ทั้งหมด</div>' : ''}
         <p class="text-[13px] text-slate-500 mt-4">ลบแล้วกู้คืนไม่ได้ — พิมพ์คำว่า <b class="text-red-600">ลบ</b> เพื่อยืนยัน</p>`;
-        if (!s.pending_events && !s.delete_plans && !s.delete_sheets && !s.keep_plans) { Swal.fire('ไม่มีรายการที่ลบได้', 'รอบที่เลือกไม่มีกำหนดการที่ยังไม่ทำ หรือเช็คชีตที่ลบได้', 'info'); return; }
         const c = await Swal.fire({
-            title: 'ยืนยันการลบแผน PM', html, icon: 'warning', input: 'text', inputPlaceholder: 'พิมพ์ ลบ',
+            title: 'ยืนยันการลบแผน PM', html, icon: 'warning', input: 'text', inputPlaceholder: 'พิมพ์ ลบ', width: '36rem',
             showCancelButton: true, confirmButtonText: 'ลบถาวร', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', focusCancel: true,
             preConfirm: v => { if ((v || '').trim() !== 'ลบ') { Swal.showValidationMessage('พิมพ์คำว่า ลบ ให้ถูกต้อง'); return false; } return true; }
         });
@@ -1073,7 +1165,14 @@ pmLazy('import', function () {
         const d = await post('delete', { confirm: 'ลบ' }).catch(() => ({ success: false, error: 'เชื่อมต่อไม่สำเร็จ' }));
         if (!d.success) { Swal.fire('ลบไม่สำเร็จ', d.error, 'error'); return; }
         const t = d.summary;
-        await Swal.fire({ icon: 'success', title: 'ลบเรียบร้อย', html: `ลบกำหนดการ ${fmt(t.pending_events)} รายการ · แผน ${fmt(t.delete_plans)} แผน · เช็คชีต ${fmt(t.delete_sheets)} ชุด${t.keep_plans ? `<br>ปิดใช้งาน ${fmt(t.keep_plans)} แผนที่มีงานทำแล้ว` : ''}` });
+        await Swal.fire({ icon: 'success', title: 'ลบเรียบร้อย', html: [
+            t.pending_del ? `ลบงานที่ยังไม่ทำ ${fmt(t.pending_del)} รายการ` : '',
+            t.done_del ? `ลบงานที่ทำแล้ว ${fmt(t.done_del)} รายการ` : '',
+            t.spare_items ? `คืนสต็อกอะไหล่ ${fmt(t.spare_items)} รายการ` : '',
+            t.delete_plans ? `ลบแผน ${fmt(t.delete_plans)} แผน` : '',
+            t.deactivate_plans ? `ปิดใช้งาน ${fmt(t.deactivate_plans)} แผน` : '',
+            t.clear_sheets ? `ล้างประเภทเครื่องจักรของเช็คชีต ${fmt(t.clear_sheets)} ชุด` : ''
+        ].filter(Boolean).join('<br>') });
         load();
     });
 

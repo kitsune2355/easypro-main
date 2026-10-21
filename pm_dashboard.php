@@ -174,6 +174,17 @@ include "config_ctrl/checksession.php";
                             </div>
                         </div>
                         <?php } ?>
+                        <div>
+                            <span class="block text-xs font-medium text-slate-500 mb-1">สถานะ</span>
+                            <input type="hidden" id="filter-status" value="">
+                            <div id="pmc-status-btns" class="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg" role="radiogroup" aria-label="สถานะ">
+                                <?php foreach (['' => ['ทั้งหมด', ''], 'overdue' => ['เลยกำหนด', 'bg-red-500'], 'pending' => ['รอทำ', 'bg-sky-500'], 'done' => ['ทำแล้ว', 'bg-emerald-500']] as $sv => [$sl, $sdot]) { ?>
+                                <button type="button" role="radio" data-status="<?= $sv ?>" class="pmc-st-btn flex items-center justify-center gap-1 py-1.5 rounded-md text-xs font-medium text-slate-600 hover:text-slate-800 transition-colors">
+                                    <?php if ($sdot) { ?><span class="w-1.5 h-1.5 rounded-full <?= $sdot ?>"></span><?php } ?><?= $sl ?>
+                                </button>
+                                <?php } ?>
+                            </div>
+                        </div>
                     </div>
                     <div class="pt-4 mt-4 border-t border-slate-100 grid grid-cols-2 gap-2">
                         <button type="button" onclick="resetFiltersDashboard()" class="border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium py-2.5 rounded-lg text-sm">ล้างค่า</button>
@@ -224,7 +235,21 @@ include "config_ctrl/checksession.php";
     // สถานะของกลุ่ม: ทำครบ / เลยกำหนด / รอทำ
     const pmcState = (d, t, n) => n >= t ? 'done' : (d < pmcToday() ? 'overdue' : 'pending');
     const PMC_ORD = { overdue: 1, pending: 2, done: 3 };
-    const PMC_FILTERS = { 'filter-machine': 'machine', 'filter-checksheet': 'checksheet', 'filter-type': 'type', 'filter-location': 'location' };
+    const PMC_FILTERS = { 'filter-machine': 'machine', 'filter-checksheet': 'checksheet', 'filter-type': 'type', 'filter-location': 'location', 'filter-status': 'status' };
+    const PMC_STATUS_TEXT = { overdue: 'เลยกำหนด', pending: 'รอทำ', done: 'ทำแล้ว' };
+    // ปุ่มเลือกสถานะ (เก็บค่าใน input#filter-status)
+    function pmcSyncStatusBtns() {
+        const v = document.getElementById('filter-status').value;
+        document.querySelectorAll('.pmc-st-btn').forEach(b => {
+            const on = b.dataset.status === v;
+            b.classList.toggle('bg-white', on); b.classList.toggle('shadow-sm', on); b.classList.toggle('text-slate-800', on);
+            b.setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+    }
+    document.querySelectorAll('.pmc-st-btn').forEach(b => b.addEventListener('click', () => {
+        document.getElementById('filter-status').value = b.dataset.status; pmcSyncStatusBtns();
+    }));
+    pmcSyncStatusBtns();
 
     function pmcFilterParams() {
         const o = {};
@@ -267,13 +292,14 @@ include "config_ctrl/checksession.php";
         const badge = document.getElementById('pmc-filter-count');
         badge.textContent = n;
         badge.classList.toggle('hidden', !n);
-        const labels = { machine: 'เครื่อง', checksheet: 'เช็คชีต', type: 'ประเภท', location: 'สถานที่' };
+        const labels = { machine: 'เครื่อง', checksheet: 'เช็คชีต', type: 'ประเภท', location: 'สถานที่', status: 'สถานะ' };
         const idOf = k => Object.keys(PMC_FILTERS).find(id => PMC_FILTERS[id] === k);
+        pmcSyncStatusBtns();
         document.getElementById('pmc-active-filters').innerHTML = Object.entries(f).map(([k, v]) => `
             <span class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                ${labels[k]}: <b class="font-medium text-slate-700 max-w-[10rem] truncate">${pmcEsc(v)}</b>
+                ${labels[k]}: <b class="font-medium text-slate-700 max-w-[10rem] truncate">${pmcEsc(k === 'status' ? (PMC_STATUS_TEXT[v] || v) : v)}</b>
                 <button type="button" class="w-4 h-4 inline-flex items-center justify-center rounded-full hover:bg-slate-200" title="ล้างตัวกรองนี้"
-                    onclick="document.getElementById('${idOf(k)}').value=''; document.getElementById('clear-${idOf(k)}').classList.add('hidden'); applyDashboardFilters()"><i class="fas fa-times text-[9px]"></i></button>
+                    onclick="document.getElementById('${idOf(k)}').value=''; document.getElementById('clear-${idOf(k)}')?.classList.add('hidden'); applyDashboardFilters()"><i class="fas fa-times text-[9px]"></i></button>
             </span>`).join('');
     }
 
@@ -879,8 +905,8 @@ include "config_ctrl/checksession.php";
         const g = PMC.groupIdx[dateStr + '|' + csId];
         return g ? g.t - g.n : 0;
     }
-    function openPmBatch(csId, dateStr) {
-        window.openPmBatchDialog('pm_worksheet_batch.php?checksheet_id=' + encodeURIComponent(csId) + '&date=' + encodeURIComponent(dateStr));
+    function openPmBatch(csId, dateStr, back) {
+        window.openPmBatchDialog('pm_worksheet_batch.php?checksheet_id=' + encodeURIComponent(csId) + '&date=' + encodeURIComponent(dateStr), back ? { back } : undefined);
     }
 
     // กดกลุ่มงานในปฏิทิน: กลุ่มมีงานเดียว => รายละเอียดงานนั้น, หลายงาน => ป๊อปอัปของวันโดยเปิดกลุ่มนี้ไว้
@@ -913,9 +939,16 @@ include "config_ctrl/checksession.php";
             <div class="text-left">
                 <div class="text-sm text-slate-500 mb-3">งาน PM ${total.toLocaleString()} งาน · ${late && pendingAll ? '<span class="text-red-600">เลยกำหนด</span>' : 'ยังไม่ทำ'} <b class="${late && pendingAll ? 'text-red-600' : 'text-[#006B9F]'}">${pendingAll.toLocaleString()}</b> · ทำแล้ว <b class="text-emerald-600">${(total - pendingAll).toLocaleString()}</b>${waitAll ? ` · <span class="text-amber-700">รอส่ง <b>${waitAll.toLocaleString()}</b></span>` : ''}${Object.keys(filters).length ? ' <span class="text-slate-400">(ตามตัวกรอง)</span>' : ''}</div>
                 ${holidays.length ? `<div class="mb-3 flex flex-wrap gap-1.5">${holidays.map(h => `<span class="pm-dt-chip bg-violet-50 text-violet-700 border-violet-200"><i class="fas fa-umbrella-beach"></i> ${esc(h.name)}</span>`).join('')}</div>` : ''}
+                ${arr.length ? `<div class="relative mb-3">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="search" data-q placeholder="ค้นหาเช็คชีต หรือ รหัส / ชื่อเครื่อง / สถานที่" autocomplete="off"
+                        class="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none">
+                </div>` : ''}
                 <div class="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1" data-scroll>
+                <div data-mres class="hidden"></div>
+                <div data-noresult class="hidden text-center text-slate-400 py-6 text-sm">ไม่พบเช็คชีตหรือเครื่องที่ตรงกับคำค้น</div>
                 ${arr.map((g, gi) => `
-                    <div class="border rounded-xl p-3 ${g.wait ? '' : 'border-slate-200'}" data-group="${gi}">
+                    <div class="border rounded-xl p-3 ${g.wait ? '' : 'border-slate-200'}" data-group="${gi}" data-name="${esc(String(g.name).toLowerCase())}">
                         <div class="flex items-center gap-2 flex-wrap">
                             <div class="flex-1 min-w-[10rem]">
                                 <div class="font-semibold text-slate-800 text-sm flex items-center gap-2"><span class="w-2 h-2 rounded-full flex-none ${g.pending ? (late ? 'bg-red-500' : 'bg-sky-600') : 'bg-emerald-500'}"></span>${esc(g.name)}</div>
@@ -955,6 +988,43 @@ include "config_ctrl/checksession.php";
             }
         }
 
+        // ค้นหา: กรองกลุ่มตามชื่อเช็คชีตทันที + ค้นเครื่อง (รหัส/ชื่อ/S/N/สถานที่) จากเซิร์ฟเวอร์
+        let mres = [], qSeq = 0, qTimer = null;
+        function bindSearch(popup) {
+            const inp = popup.querySelector('[data-q]');
+            if (!inp) return;
+            inp.addEventListener('input', () => {
+                const q = inp.value.trim(), ql = q.toLowerCase();
+                let shown = 0;
+                popup.querySelectorAll('[data-group]').forEach(el => {
+                    const on = !ql || el.dataset.name.includes(ql);
+                    el.classList.toggle('hidden', !on); if (on) shown++;
+                });
+                clearTimeout(qTimer);
+                const box = popup.querySelector('[data-mres]');
+                if (q.length < 2) { box.classList.add('hidden'); box.innerHTML = ''; mres = []; popup.querySelector('[data-noresult]').classList.toggle('hidden', !!shown || !ql); return; }
+                box.classList.remove('hidden');
+                box.innerHTML = '<div class="text-xs text-slate-400 py-1"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังค้นหาเครื่อง...</div>';
+                const seq = ++qSeq;
+                qTimer = setTimeout(async () => {
+                    try {
+                        const r = await pmcGet({ action: 'get_events', start: dateStr, end: pmcAddDays(dateStr, 1), q, limit: 50, ...filters });
+                        if (seq !== qSeq || !popup.isConnected) return;
+                        mres = r.data;
+                        box.innerHTML = mres.length ? `<div class="text-xs font-semibold text-slate-500 mb-1.5">เครื่องที่ตรงกับ "${esc(q)}" ${r.total.toLocaleString()} เครื่อง${r.total > mres.length ? ` (แสดง ${mres.length})` : ''}</div>
+                            <div class="grid gap-1.5 sm:grid-cols-2 mb-1">${mres.map((ev, i) => { const d = ev.status == 1; return `<button type="button" data-mev="${i}" class="text-left px-2.5 py-1.5 rounded-lg border ${d ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200'} hover:bg-sky-50 text-xs min-w-0">
+                                <span class="flex items-center gap-2 min-w-0"><span class="w-2 h-2 rounded-full flex-none ${d ? 'bg-emerald-500' : 'bg-[#006B9F]'}"></span><b class="truncate">${esc(ev.machine_code || '')}</b><span class="truncate">${esc(ev.machine || '-')}</span></span>
+                                <span class="block truncate text-slate-400 pl-4">${esc(ev.checksheet || '')}${ev.location ? ' · ' + esc(ev.location) : ''}</span></button>`; }).join('')}</div>`
+                            : '';
+                        if (!mres.length) box.classList.add('hidden');
+                        popup.querySelector('[data-noresult]').classList.toggle('hidden', !!shown || !!mres.length);
+                    } catch (e) {
+                        if (seq === qSeq) box.innerHTML = `<div class="text-xs text-red-600 py-1">ค้นหาเครื่องไม่สำเร็จ: ${esc(e.message)}</div>`;
+                    }
+                }, 300);
+            });
+        }
+
         Swal.fire({
             title: `<span class="text-lg font-bold text-slate-800">งาน PM วันที่ ${dTh}</span>`,
             html: '<div class="py-8 text-sm text-slate-400"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>',
@@ -979,6 +1049,7 @@ include "config_ctrl/checksession.php";
                 const hc = Swal.getHtmlContainer();
                 if (!hc || !popup.isConnected || openPmDayPanel.token !== token) return;
                 hc.innerHTML = body();
+                bindSearch(popup);
                 if (openCs !== undefined) {
                     const gi = arr.findIndex(g => String(g.id ?? 'none') === String(openCs));
                     if (gi >= 0 && arr[gi].t > 1) {
@@ -990,7 +1061,9 @@ include "config_ctrl/checksession.php";
         });
         function onClick(popup, e) {
             const b = e.target.closest('[data-batch]');
-            if (b) { Swal.close(); openPmBatch(b.dataset.batch, dateStr); return; }
+            if (b) { Swal.close(); openPmBatch(b.dataset.batch, dateStr, { fn: () => openPmDayPanel(dateStr, b.dataset.batch), label: 'กลับไปงานของวัน' }); return; }
+            const me = e.target.closest('[data-mev]');
+            if (me) { const ev = mres[+me.dataset.mev]; if (ev) { Swal.close(); window.openPmWorksheetDialog(ev.id, ev.status == 1, { back: { fn: () => openPmDayPanel(dateStr), label: 'กลับไปงานของวัน' } }); } return; }
             const op = e.target.closest('[data-open]');
             if (op) { Swal.close(); window.openPmWorksheetDialog(op.dataset.open, op.dataset.done === '1', { back: { fn: () => openPmDayPanel(dateStr), label: 'กลับไปงานของวัน' } }); return; }
             const tg = e.target.closest('[data-toggle]');

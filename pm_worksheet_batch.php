@@ -125,6 +125,7 @@ $date = isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'
 
     <header class="topbar">
         <div class="flex items-center gap-3">
+            <button type="button" id="btnBack" onclick="goBackHost()" class="hidden h-9 pl-2.5 pr-3 rounded-xl bg-white/15 hover:bg-white/25 items-center gap-1.5 flex-none text-sm font-semibold" title="กลับ"><i class="fa-solid fa-arrow-left"></i><span id="btnBackLabel" class="hidden sm:inline">กลับ</span></button>
             <div class="min-w-0 flex-1">
                 <h1 id="hdrTitle" class="text-base sm:text-lg font-semibold leading-tight truncate">บันทึกพร้อมกันหลายเครื่อง</h1>
                 <p id="hdrSub" class="text-xs opacity-90 truncate">กำลังโหลด...</p>
@@ -198,6 +199,16 @@ const $ = id => document.getElementById(id);
 // เปิดได้ 2 แบบ: dialog (iframe ใน pm.php) หรือหน้าต่างแยก
 const EMBED = window.parent !== window;
 function closeMe() { if (EMBED && window.parent.closePmBatchDialog) window.parent.closePmBatchDialog(); else window.close(); }
+// ปุ่มกลับ: เปิดมาจากป๊อปอัปงานของวัน => ปิดแล้วกลับไปหน้านั้น (ร่างที่กรอกไว้เก็บอัตโนมัติ)
+function goBackHost() { if (EMBED && window.parent.closePmBatchDialog) window.parent.closePmBatchDialog(false, true); }
+(function () {
+    let back = null;
+    try { back = EMBED && window.parent.pmDialogBack ? window.parent.pmDialogBack() : null; } catch (e) {}
+    if (!back) return;
+    const b = document.getElementById('btnBack');
+    b.classList.remove('hidden'); b.classList.add('inline-flex'); b.title = back.label;
+    document.getElementById('btnBackLabel').textContent = back.label;
+})();
 function notifyHost() {   // บันทึกแล้ว => ให้ปฏิทินของหน้าหลักโหลดใหม่
     const host = EMBED ? window.parent : window.opener;
     try { host && host.refreshCalendarEvents && host.refreshCalendarEvents(); } catch (e) {}
@@ -207,6 +218,7 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const icons = () => {};   // ไอคอน Font Awesome ไม่ต้องสร้างเอง
 const isMeas = it => { const v = String(it.expected_value ?? '').trim(); return v !== '' && v !== '-'; };
 const needPhotoAlways = it => +it.photo_required_id === 1;
+const canPhoto = it => +it.photo_required_id === 2;   // แนบรูปได้ (ถ้ามี) ไม่บังคับ
 const canNA = it => +it.check_type_id === 2;   // ข้อที่เช็คชีตอนุญาตให้เลือก "ไม่เกี่ยวข้อง"
 const thDate = d => { const x = new Date(d + 'T00:00:00'); return isNaN(x) ? d : x.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }); };
 const pe = id => { const p = (per[id] = per[id] || { values: {}, photos: {}, status: {}, ok: false }); p.parts = p.parts || []; return p; };
@@ -386,7 +398,7 @@ function openFocus(id) {
     if (!$('focus').classList.contains('open')) try { history.pushState({ pmFocus: 1 }, ''); } catch (e) {}
     cur = id; tried = false;
     const must = perMachineItems();
-    showItems = ITEMS.some(it => !must.includes(it) && pe(id).status[it.id]);   // จุดตรวจอื่นมีข้อที่ไม่ปกติ => เปิดรายการไว้
+    showItems = ITEMS.some(it => !must.includes(it) && (pe(id).status[it.id] || pe(id).photos[it.id]));   // จุดตรวจอื่นมีข้อที่ไม่ปกติ => เปิดรายการไว้
     renderFocus(); $('focus').classList.add('open');
     $('fBody').scrollTop = 0;
 }
@@ -444,7 +456,7 @@ function wsCard(it) {
         + sec('fa-solid fa-wrench', 'วิธีตรวจสอบ / เครื่องมือ', esc(it.method_text || ''))
         + sec('fa-solid fa-triangle-exclamation', 'เมื่อพบความผิดปกติ', esc(it.action_text || ''), 'bg-red-50 border-red-100 text-red-700', 'text-red-600');
     const choice = (st, label, icon, on) => `<button type="button" data-st="${st}" class="ws-choice ${v === st ? on : ''}"><i class="fa-solid ${icon}"></i>${label}</button>`;
-    const showPhoto = needPhotoAlways(it) || f || pe(cur).photos[it.id];
+    const showPhoto = needPhotoAlways(it) || f || pe(cur).photos[it.id] || canPhoto(it);
     return `<div class="wsc" data-state="${v}">
         <div class="wsc-head">
             <span class="wsc-no">${k + 1}</span>
@@ -467,6 +479,15 @@ function wsCard(it) {
         </div>
         ${f && it.action_text ? `<div class="px-2.5 pb-2 -mt-1 text-xs text-red-700"><b>เมื่อผิดปกติ:</b> ${esc(it.action_text)}</div>` : ''}
     </div>`;
+}
+// เปิดรายการจุดตรวจเพื่อแนบรูป (ถ้ามี) — ข้อที่ไม่เลือกผลยังนับเป็นปกติ
+function photoLink(rest) {
+    const n = rest.filter(it => pe(cur).photos[it.id]).length;
+    return `<button type="button" data-showitems class="blk w-full flex items-center gap-3 text-left hover:bg-sky-50 transition-colors">
+        <span class="w-9 h-9 rounded-lg bg-sky-50 text-[#006B9F] flex items-center justify-center shrink-0"><i class="fa-solid fa-camera"></i></span>
+        <span class="flex-1 min-w-0"><span class="block text-sm font-semibold text-slate-800">แนบรูปรายข้อ (ถ้ามี)</span>
+        <span class="block text-xs text-slate-500">${n ? `แนบแล้ว ${n} รูป · ` : ''}เปิดรายการจุดตรวจเพื่อถ่าย/เลือกรูป — ข้อที่ปกติไม่ต้องเลือกผล</span></span>
+        <i class="fa-solid fa-chevron-right text-slate-300"></i></button>`;
 }
 function renderFocus() {
     const e = evOf(cur), p = pe(cur), s = status(cur), nf = failCount(cur);
@@ -491,6 +512,7 @@ function renderFocus() {
         </div>
         ${must.length ? `<div><div class="ws-sec-title">กรอกทุกเครื่อง</div>${must.map(wsCard).join('')}</div>` : ''}
         ${showItems && rest.length ? `<div><div class="ws-sec-title">${must.length ? `จุดตรวจอื่น ${rest.length} ข้อ` : `จุดตรวจ ${ITEMS.length} ข้อ`} — แตะเฉพาะข้อที่ไม่ปกติ ข้ออื่นนับเป็นปกติ</div>${rest.map(wsCard).join('')}</div>` : ''}
+        ${!showItems && rest.some(canPhoto) ? photoLink(rest) : ''}
         ${partsBlock()}
         ${miss.length ? `<div class="text-sm text-red-600 px-1">ยังขาด: ${miss.map(esc).join(' · ')}</div>` : ''}`;
     const mustSet = must.some(it => p.status[it.id]);
@@ -504,7 +526,7 @@ function renderFocus() {
 // ปุ่ม "ปกติ" ใหญ่ = ตั้งจุดตรวจอื่นเป็นปกติ (ข้อในกล่อง "กรอกทุกเครื่อง" เลือกผลเองแล้ว ไม่แตะ)
 function clearRest() {
     const p = pe(cur), must = perMachineItems();
-    ITEMS.forEach(it => { if (must.includes(it)) return; delete p.status[it.id]; if (!needPhotoAlways(it)) delete p.photos[it.id]; });
+    ITEMS.forEach(it => { if (must.includes(it)) return; delete p.status[it.id]; if (+it.photo_required_id === 3) delete p.photos[it.id]; });
 }
 function finish() {
     tried = true;
@@ -542,6 +564,7 @@ $('fBody').addEventListener('click', e => {
     if (q) { const k = +q.closest('[data-pk]').dataset.pk; setQty(k, pe(cur).parts[k].rpd_qty + +q.dataset.q); renderFocus(); return; }
     const del = e.target.closest('[data-delpart]');
     if (del) { pe(cur).parts.splice(+del.dataset.delpart, 1); pe(cur).ok = false; saveDraft(); renderFocus(); return; }
+    if (e.target.closest('[data-showitems]')) { showItems = true; renderFocus(); return; }
     const info = e.target.closest('[data-info]');
     if (info) { info.closest('.wsc').querySelector('.item-info')?.classList.toggle('hidden'); return; }
     const b = e.target.closest('[data-st]'); if (!b) return;

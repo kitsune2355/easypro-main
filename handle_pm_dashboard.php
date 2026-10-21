@@ -244,6 +244,19 @@ function pmdWhere($ag_id, $needMachine) {
         $types .= 's';
         $params[] = "%$v%";
     }
+    // ค้นหาเครื่อง (ป๊อปอัปงานของวัน): รหัส / ชื่อเครื่อง / S/N / สถานที่
+    $q = trim($_GET['q'] ?? '');
+    if ($q !== '') {
+        $needMachine = true;
+        $where .= " AND (m.ass_code LIKE ? OR m.asset_name LIKE ? OR m.asset_sn LIKE ? OR a.area_name LIKE ?)";
+        $types .= 'ssss';
+        array_push($params, "%$q%", "%$q%", "%$q%", "%$q%");
+    }
+    // สถานะ: overdue เลยกำหนด / pending รอทำ (ยังไม่ถึงกำหนด) / done ทำแล้ว
+    $st = $_GET['status'] ?? '';
+    if ($st === 'done') $where .= " AND p.status = 1";
+    elseif ($st === 'overdue') { $where .= " AND p.status <> 1 AND p.event_date < ?"; $types .= 's'; $params[] = date('Y-m-d'); }
+    elseif ($st === 'pending') { $where .= " AND p.status <> 1 AND p.event_date >= ?"; $types .= 's'; $params[] = date('Y-m-d'); }
     // กลุ่มเช็คชีตเดียว (เปิดดูรายเครื่อง): cs = id หรือ 'none' = ไม่ระบุเช็คชีต
     if (isset($_GET['cs']) && $_GET['cs'] !== '') {
         if ($_GET['cs'] === 'none') $where .= " AND p.checksheet_id IS NULL";
@@ -311,7 +324,7 @@ if ($action === 'get_events') {
     $max = !empty($_GET['export']) ? 20000 : 500;
     $limit = max(1, min($max, (int)($_GET['limit'] ?? $max)));
     $rows = pmdRows($connect, "SELECT p.id, p.event_date AS start, p.status, p.completed_at,
-                m.asset_name AS machine, g.TGroupName AS type, a.area_name AS location,
+                m.ass_code AS machine_code, m.asset_name AS machine, g.TGroupName AS type, a.area_name AS location,
                 c.name AS checksheet, p.checksheet_id
             FROM pm_plan_events p $join $where
             ORDER BY p.event_date, p.status, m.asset_name, p.id LIMIT " . ($limit + 1), $types, $params);
