@@ -1501,10 +1501,13 @@ const uiColumns = [
       {
         headerName:"ผู้บันทึก",
         flex: 1,
+        minWidth: 150,   // กันคอลัมน์ถูกบีบจนหัวหาย
         field: "created_by", 
   filter: 'agSetColumnFilter',
   filterParams: getFilterParams('created_by'),
-  valueFormatter: (p) => createdByNameMap[p.value] || p.value,
+  tooltipValueGetter: (p) => p.data && p.data.created_by ? 'Username: ' + p.data.created_by : '',
+  // ชื่อ นามสกุล จาก API (ไม่มีชื่อในระบบ => แสดง Username)
+  valueFormatter: (p) => (p.data && p.data.created_by_name) || createdByNameMap[p.value] || p.value,
       },
       {
   headerName:"จัดการ",

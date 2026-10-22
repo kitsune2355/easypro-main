@@ -330,7 +330,7 @@ if ($action === 'get_one') {
   }
 
   // ชื่อคนสร้างให้อ่านง่าย
-  $row['created_by_name'] = $row['user_name'] ?: ($row['user_fname'] ?? $row['created_by']);
+  $row['created_by_name'] = trim(($row['user_name'] ?? '') . ' ' . ($row['user_fname'] ?? '')) ?: $row['created_by'];   // ชื่อ นามสกุล
 
   $uploadBaseUrl = build_base_url() . '/API_es/uploads/';
   $row['video_url'] = media_url($row['video_url'] ?? '');
@@ -579,9 +579,9 @@ if ($action === 'get_filter_values') {
 			r.created_by AS value,
 			TRIM(
 			  CONCAT(
-				COALESCE(u.user_fname, ''),
+				COALESCE(u.user_name, ''),
 				' ',
-				COALESCE(u.user_name, '')
+				COALESCE(u.user_fname, '')
 			  )
 			) AS label
 		  FROM repair_requests r
@@ -1020,6 +1020,7 @@ if ($action === 'get_all') {
 '
       ) AS responsible_names,
       r.created_by,
+      TRIM(CONCAT(COALESCE(u.user_name, ''), ' ', COALESCE(u.user_fname, ''))) AS created_by_name,   -- ผู้บันทึก: ชื่อ นามสกุล
       r.created_at,
       (SELECT CONCAT(h.reason, '|', h.started_at, '|', IFNULL(h.eta, ''), '|',
               (SELECT COUNT(*) FROM repair_hold_parts hp WHERE hp.hold_id = h.id AND hp.arrived_at IS NOT NULL), '/',
@@ -1083,7 +1084,7 @@ if ($action === 'get_all') {
   $rows = [];
   while ($row = $res->fetch_assoc()) {
 
-    $created_by_name = $row['user_name'] ?: ($row['user_fname'] ?? $row['created_by']);
+    $created_by_name = trim((string)($row['created_by_name'] ?? '')) ?: $row['created_by'];   // ชื่อ นามสกุล (จาก SQL) — ไม่มีในระบบ => Username
 
     $rows[] = [
       'id'              => (int)$row['id'],
