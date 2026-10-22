@@ -189,6 +189,20 @@ include "config_ctrl/checksession.php";
         border-radius: 0;
       }
 
+      /* กราฟฝั่งขวา: ปุ่มสลับเมื่อพื้นที่เตี้ย + legend ของโดนัท */
+      .wh-side-switch { display: flex; background: #f1f5f9; border-radius: 10px; padding: 3px; gap: 2px; flex: none; }
+      .wh-side-switch button { flex: 1; height: 30px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #64748b; white-space: nowrap; }
+      .wh-side-switch button.on { background: #fff; color: var(--color-primary); box-shadow: 0 1px 2px rgba(15, 23, 42, .08); }
+      #calSide.compact > #calSideSwitch { display: flex !important; }
+      #calSide.compact > [data-side-card]:not(.side-on) { display: none !important; }
+      #calSide.compact > [data-side-card] h2 { display: none; }   /* ชื่อกราฟอยู่บนปุ่มสลับแล้ว */
+      #perfLegend li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+      #perfLegend .dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+      #perfLegend .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #475569; }
+      #perfLegend .num { font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums; }
+      #perfLegend .pct { width: 34px; text-align: right; color: #94a3b8; font-size: 11px; font-variant-numeric: tabular-nums; }
+      #perfLegend li.zero { opacity: .45; }
+
       #techJobsCard.fullscreen-panel:fullscreen {
         display: flex;
         flex-direction: column;
@@ -565,7 +579,12 @@ include "config_ctrl/checksession.php";
                 </div>
 
                 <div id="calSide" class="space-y-3">
-                  <div id="perfCard" class="bg-white rounded-xl shadow-card border border-slate-100 p-3">
+                  <!-- พื้นที่เตี้ย: รวม 2 กราฟเป็นกล่องเดียว สลับด้วยปุ่มนี้ (updateSideMode) -->
+                  <div id="calSideSwitch" class="wh-side-switch hidden" role="tablist" aria-label="เลือกกราฟ">
+                    <button type="button" role="tab" data-side="perfCard" class="on">ประสิทธิภาพ</button>
+                    <button type="button" role="tab" data-side="techJobsCard">จำนวนงานรายช่าง</button>
+                  </div>
+                  <div id="perfCard" data-side-card class="side-on bg-white rounded-xl shadow-card border border-slate-100 p-3">
                     <div class="flex items-start justify-between gap-2">
                       <div>
                         <h2 class="text-base font-bold text-slate-950">ประสิทธิภาพ</h2>
@@ -573,17 +592,25 @@ include "config_ctrl/checksession.php";
                       </div>
                       <span id="scoreBadge" class="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold">0%</span>
                     </div>
-                    <div id="perfWrap" class="mt-3 h-40 relative"><canvas id="performanceChart"></canvas></div>
+                    <div id="perfWrap" class="mt-3 h-40 relative flex items-center gap-3">
+                      <div id="perfDonut" class="relative h-full aspect-square max-w-[52%] flex-none">
+                        <canvas id="performanceChart"></canvas>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                          <b id="perfTotal" class="text-xl font-bold text-slate-800 leading-none">0</b><span class="text-[10px] text-slate-500 mt-0.5">งาน</span>
+                        </div>
+                      </div>
+                      <ul id="perfLegend" class="flex-1 min-w-0 space-y-1.5 text-[12px]"></ul>
+                    </div>
                   </div>
 
-                  <div id="techJobsCard" class="fullscreen-panel bg-white rounded-xl shadow-card border border-slate-100 p-3 relative group/card flex flex-col">
+                  <div id="techJobsCard" data-side-card class="fullscreen-panel bg-white rounded-xl shadow-card border border-slate-100 p-3 relative group/card flex flex-col">
                     <div class="flex items-center justify-between gap-2 mb-3">
                       <h2 class="text-base font-bold text-slate-950">จำนวนงานรายช่าง</h2>
                       <button id="btnFullscreenTechJobs" type="button" class="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg" title="ขยายเต็มจอ">
                         <i data-lucide="maximize-2" class="w-4 h-4"></i>
                       </button>
                     </div>
-                    <div id="techJobsChartWrap" class="h-[200px]"><canvas id="techJobsChart"></canvas></div>
+                    <div id="techJobsChartWrap" class="h-[200px] overflow-y-auto overflow-x-hidden"><div id="techJobsInner" class="relative" style="height:100%"><canvas id="techJobsChart"></canvas></div></div>
                   </div>
                 </div>
               </div>
@@ -2150,6 +2177,15 @@ include "config_ctrl/checksession.php";
         </button>`;
       }
 
+      // จำนวนงานรายช่าง: แท่งแนวนอน (ชื่ออ่านง่าย ไม่ต้องเอียง) เรียงมาก→น้อย — ช่างเยอะ => เลื่อนในกล่อง
+      let techRows = 0;
+      function sizeTechInner() {
+        const wrap = byId("techJobsChartWrap"), inner = byId("techJobsInner");
+        if (!wrap || !inner) return;
+        const need = techRows * 24 + 28;   // ~24px ต่อช่าง + แกน
+        const h = wrap.clientHeight;
+        inner.style.height = h && need > h ? need + "px" : "100%";
+      }
       function renderTechJobsChart(jobs) {
         const ctx = byId("techJobsChart").getContext("2d");
         const techCounts = {};
@@ -2159,45 +2195,85 @@ include "config_ctrl/checksession.php";
           const tech = mockData.technicians.find((t) => t.id === job.technicianId);
           if (tech && techCounts[tech.name] !== undefined) techCounts[tech.name] += 1;
         });
+        const rows = Object.entries(techCounts).sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0], "th"));
+        techRows = rows.length;
+        sizeTechInner();
 
         if (techChart) techChart.destroy();
         techChart = new Chart(ctx, {
           type: "bar", plugins: [ChartDataLabels],
-          data: { labels: Object.keys(techCounts), datasets: [{ label: "จำนวนงาน", data: Object.values(techCounts), backgroundColor: "#006B9F", borderRadius: 4 }] },
+          data: { labels: rows.map((r) => r[0]), datasets: [{ label: "จำนวนงาน", data: rows.map((r) => r[1]), backgroundColor: "#006B9F", borderRadius: 4, barThickness: "flex", maxBarThickness: 18 }] },
           options: {
-            responsive: true, maintainAspectRatio: false, layout: { padding: { top: 18 } },
-            scales: { 
-              x: {
+            indexAxis: "y", responsive: true, maintainAspectRatio: false, layout: { padding: { right: 26 } },
+            scales: {
+              x: { beginAtZero: true, ticks: { precision: 0, font: { family: "Prompt", size: 10 } }, grid: { color: "#f1f5f9" } },
+              y: {
+                grid: { display: false },
                 ticks: {
-                  autoSkip: false,    // บังคับไม่ให้ Chart.js ซ่อนชื่อ
-                  maxRotation: 45,    // เอียงข้อความ 45 องศา
-                  minRotation: 45,    // บังคับให้เอียง 45 องศาเป็นค่าเริ่มต้นเลย
-                  font: {
-                    family: "Prompt",
-                    size: 8         // ปรับขนาดฟอนต์ให้เล็กลงเล็กน้อยเพื่อประหยัดพื้นที่
-                  }
+                  autoSkip: false, font: { family: "Prompt", size: 11 }, color: "#334155",
+                  callback(value) { const n = String(this.getLabelForValue(value)); return n.length > 16 ? n.slice(0, 15) + "…" : n; }
                 }
-              },
-              y: { beginAtZero: true, ticks: { precision: 0 } } 
+              }
             },
-            plugins: { legend: { display: false }, datalabels: { anchor: "end", align: "top", offset: 2, color: "#004a6f", font: { family: "Prompt", weight: "600", size: 11 }, formatter: (value) => (value > 0 ? value : "") } }
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: (c) => ` ${c.parsed.x} งาน` } },
+              datalabels: { anchor: "end", align: "end", offset: 4, clamp: true, color: "#004a6f", font: { family: "Prompt", weight: "600", size: 11 }, formatter: (value) => (value > 0 ? value : "") }
+            }
           }
         });
       }
 
+      // ประสิทธิภาพ: โดนัท + legend ข้างวง (จำนวน / %) ไม่กินความสูง
+      const PERF_STATUS = [
+        { key: "completed", label: "เสร็จสิ้น", color: "#10b981" },
+        { key: "in_progress", label: "กำลังดำเนินการ", color: "#0ea5e9" },
+        { key: "pending", label: "รอดำเนินการ", color: "#f59e0b" },
+        { key: "cencel", label: "ยกเลิก", color: "#f43f5e" }
+      ];
       function renderChart(jobs) {
         const grouped = jobs.reduce((acc, j) => { acc[j.status] = (acc[j.status] || 0) + 1; return acc; }, {});
+        const vals = PERF_STATUS.map((st) => grouped[st.key] || 0);
+        const total = vals.reduce((x, y) => x + y, 0);
+        byId("perfTotal").textContent = total.toLocaleString("th-TH");
+        byId("perfLegend").innerHTML = PERF_STATUS.map((st, i) => `
+          <li class="${vals[i] ? "" : "zero"}"><span class="dot" style="background:${st.color}"></span><span class="lbl">${st.label}</span>
+            <span class="num">${vals[i].toLocaleString("th-TH")}</span><span class="pct">${total ? Math.round(vals[i] * 100 / total) : 0}%</span></li>`).join("");
         const ctx = byId("performanceChart");
         if (chart) chart.destroy();
         chart = new Chart(ctx, {
-          type: "doughnut", plugins: [ChartDataLabels],
+          type: "doughnut",
           data: {
-            labels: ["เสร็จสิ้น", "กำลังดำเนินการ", "รอดำเนินการ", "ยกเลิก"],
-            datasets: [{ data: [grouped.completed || 0, grouped.in_progress || 0, grouped.pending || 0, grouped.cencel || 0], borderWidth: 0, hoverOffset: 8, backgroundColor: ["#10b981", "#0ea5e9", "#f59e0b", "#f43f5e"] }]
+            labels: PERF_STATUS.map((st) => st.label),
+            datasets: [{ data: total ? vals : [1], borderWidth: 0, hoverOffset: total ? 6 : 0, backgroundColor: total ? PERF_STATUS.map((st) => st.color) : ["#e2e8f0"] }]
           },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom", labels: { font: { family: "Prompt" }, usePointStyle: true, padding: 18 } }, datalabels: { color: "#fff", font: { family: "Prompt", weight: "600", size: 12 }, formatter: (value) => (value > 0 ? value : "") } }, cutout: "68%" }
+          options: { responsive: true, maintainAspectRatio: false, cutout: "70%", plugins: { legend: { display: false }, tooltip: { enabled: total > 0 } } }
         });
       }
+
+      // พื้นที่ฝั่งขวาเตี้ย (โหมดพอดีจอ) => รวม 2 กราฟเป็นกล่องเดียว สลับด้วยปุ่ม
+      function updateSideMode() {
+        const side = byId("calSide");
+        if (!side) return;
+        const compact = window.innerWidth >= 1024 && side.clientHeight > 0 && side.clientHeight < 440;
+        if (side.classList.contains("compact") !== compact) {
+          side.classList.toggle("compact", compact);
+          requestAnimationFrame(sizeTechInner);
+        }
+      }
+      (function () {
+        const sw = byId("calSideSwitch");
+        sw.addEventListener("click", (e) => {
+          const b = e.target.closest("[data-side]"); if (!b) return;
+          sw.querySelectorAll("[data-side]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-selected", on ? "true" : "false"); });
+          document.querySelectorAll("#calSide [data-side-card]").forEach((card) => card.classList.toggle("side-on", card.id === b.dataset.side));
+          requestAnimationFrame(sizeTechInner);
+        });
+        if (window.ResizeObserver) {
+          new ResizeObserver(updateSideMode).observe(byId("calSide"));
+          new ResizeObserver(sizeTechInner).observe(byId("techJobsChartWrap"));
+        } else window.addEventListener("resize", () => { updateSideMode(); sizeTechInner(); });
+      })();
 
       function updateLegends() {
         const all = getFilteredJobs(true);
