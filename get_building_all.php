@@ -49,10 +49,10 @@ LEFT JOIN tb_area_class c
 LEFT JOIN tb_area_room r
   ON r.ar_area_id = a.area_id
   AND r.ar_ac_id = c.ac_id
-  AND r.ar_status IN (0,1)
+  AND r.ar_status = 0          -- เฉพาะห้องที่เปิดใช้งาน (0 = Active, 1 = ปิดใช้งาน)
 WHERE a.ag_id = ?
-  AND a.area_status IN (0,1)
-  AND c.ac_status = 0
+  AND a.area_status = 0        -- เฉพาะอาคารที่เปิดใช้งาน
+  AND c.ac_status = 0          -- เฉพาะชั้นที่เปิดใช้งาน
 ORDER BY a.area_name ASC, c.ac_name ASC, r.ar_name ASC
 ";
 
