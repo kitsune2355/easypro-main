@@ -1,3 +1,7 @@
+<?php
+@session_start();
+$amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // แท็บ Monitor เฉพาะ Super Admin (API ตรวจซ้ำ)
+?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -16,6 +20,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <!-- 2. Tailwind Configuration -->
   <script>
@@ -69,6 +74,37 @@
     .input-clean:focus { border-color: #0284c7; background-color: #ffffff; box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1); }
     .input-clean::placeholder { color: #94a3b8; }
     .input-clean:disabled, .input-clean[readonly] { background-color: #f1f5f9; color: #64748b; cursor: not-allowed; }
+
+    /* ===== Monitor หน่วยงาน (รายการแถวกะทัดรัด) ===== */
+    .am-seg { display: inline-flex; background: #f1f5f9; border-radius: 9px; padding: 3px; gap: 2px; }
+    .am-seg button { height: 28px; padding: 0 12px; border-radius: 7px; font-size: 12px; font-weight: 600; color: #64748b; }
+    .am-seg button.on { background: #fff; color: #005e8e; box-shadow: 0 1px 2px rgba(15, 23, 42, .1); }
+    .am-filter { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #475569; }
+    .am-filter:hover { background: #f1f5f9; }
+    .am-filter.on { background: #0f172a; color: #fff; }
+    .am-filter b { font-weight: 700; }
+    .am-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; flex: none; }
+    .am-row { display: grid; grid-template-columns: minmax(0, 1.6fr) 120px 92px minmax(0, 1.9fr) 18px; align-items: center; gap: 18px; padding: 12px 18px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background .12s; }
+    .am-row:hover { background: #f8fbff; }
+    .am-row:last-child { border-bottom: 0; }
+    .am-chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; font-size: 12px; font-weight: 600; color: #334155; white-space: nowrap; transition: all .12s; }
+    .am-chip:hover { border-color: #005e8e; color: #005e8e; background: #f0f9ff; }
+    .am-chip svg { color: #94a3b8; }
+    .am-chip:hover svg { color: #005e8e; }
+    .am-chip.warn { border-color: #fecaca; color: #b91c1c; background: #fef2f2; }
+    @media (max-width: 900px) {
+      .am-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+      .am-row .am-c-spark, .am-row .am-c-arrow { display: none; }
+      .am-row .am-c-chips { grid-column: 1 / -1; }
+    }
+    .am-tab { height: 34px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: #64748b; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+    .am-tab:hover { background: #f1f5f9; color: #0f172a; }
+    .am-tab.on { background: #005e8e; color: #fff; }
+    .am-tab .n { font-size: 11px; padding: 0 6px; border-radius: 999px; background: rgba(15, 23, 42, .07); }
+    .am-tab.on .n { background: rgba(255, 255, 255, .2); }
+    .am-list td { padding: 9px 10px; border-bottom: 1px solid #f1f5f9; font-size: 12.5px; vertical-align: top; }
+    .am-list th { padding: 8px 10px; font-size: 11px; font-weight: 700; color: #64748b; text-align: left; background: #f8fafc; position: sticky; top: 0; z-index: 1; }
+    .am-st { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
 
     .admin-row-card { transition: all 0.2s ease; }
     .admin-row-card:hover { border-color: #bae6fd; background-color: #f0f9ff; }
@@ -169,13 +205,18 @@
     </a>
   </div>
 
-  <div class="flex gap-2 w-full max-w-md">
+  <div class="flex gap-2 w-full max-w-xl">
     <button onClick="switchTab('agency')" id="tab-agency-btn" class="tab-btn active flex-1 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
       <i data-lucide="building-2" class="w-3.5 h-3.5"></i> จัดการหน่วยงาน
     </button>
     <button onClick="switchTab('users')" id="tab-users-btn" class="tab-btn flex-1 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
       <i data-lucide="users" class="w-3.5 h-3.5"></i> ข้อมูลผู้ใช้
     </button>
+    <?php if ($amIsSuper) { ?>
+    <button onClick="switchTab('monitor')" id="tab-monitor-btn" class="tab-btn flex-1 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
+      <i data-lucide="activity" class="w-3.5 h-3.5"></i> Monitor
+    </button>
+    <?php } ?>
   </div>
 </div>
 
@@ -532,6 +573,39 @@
     </div>
 
   </div>
+
+  <?php if ($amIsSuper) { ?>
+  <!-- Tab 3: Monitor ความเคลื่อนไหวของแต่ละหน่วยงาน (Super Admin) — handle_agency_monitor.php -->
+  <div id="view-monitor" class="hidden flex-col gap-4 flex-1 lg:min-h-0 w-full opacity-0 transition-opacity duration-300">
+    <div class="app-card border border-slate-200 flex flex-col flex-1 lg:min-h-0 overflow-hidden">
+      <div class="px-5 py-3.5 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <div class="mr-auto">
+          <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i data-lucide="activity" class="w-4 h-4 text-easy-primary"></i> Monitor หน่วยงาน</h2>
+          <p class="text-[11px] text-slate-400 mt-0.5" id="am-updated">กำลังโหลด...</p>
+        </div>
+        <div class="relative w-full sm:w-auto">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+          <input id="am-q" type="search" placeholder="ค้นหาหน่วยงาน" class="input-clean !pl-9 !py-1.5 w-full sm:w-52">
+        </div>
+        <div class="am-seg" id="am-days"><button type="button" data-days="7">7 วัน</button><button type="button" data-days="30" class="on">30 วัน</button><button type="button" data-days="90">90 วัน</button></div>
+        <button type="button" id="am-export" class="h-8 px-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-100" title="ส่งออกสรุปทุกหน่วยงาน (ตามตัวกรอง)"><i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Export Excel</button>
+        <button type="button" id="am-reload" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 flex items-center justify-center hover:bg-slate-50 hover:text-easy-primary" title="โหลดใหม่"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i></button>
+      </div>
+      <div class="px-4 py-2 border-b border-slate-100 flex flex-wrap items-center gap-1 bg-slate-50/70">
+        <div id="am-filters" class="flex flex-wrap items-center gap-1"></div>
+        <select id="am-sort" class="ml-auto text-[12px] font-semibold text-slate-600 bg-transparent border-0 focus:ring-0 cursor-pointer">
+          <option value="last">เรียงตาม: เคลื่อนไหวล่าสุด</option>
+          <option value="total">เรียงตาม: เคลื่อนไหวมากสุด</option>
+          <option value="idle">เรียงตาม: เงียบนานสุด</option>
+          <option value="name">เรียงตาม: ชื่อหน่วยงาน</option>
+        </select>
+      </div>
+      <div class="flex-1 overflow-auto lg:min-h-0" style="min-height: 320px">
+        <div id="am-list"></div>
+      </div>
+    </div>
+  </div>
+  <?php } ?>
 </div>
 
 <!-- ========================================== -->
@@ -727,32 +801,22 @@ renderPermissions(json.data);
    * 3) Tab Switch
    * ========================================== */
   function switchTab(tabName) {
-    const agencyView = document.getElementById('view-agency');
-    const usersView = document.getElementById('view-users');
-    const agencyBtn = document.getElementById('tab-agency-btn');
-    const usersBtn = document.getElementById('tab-users-btn');
-
-    if (tabName === 'agency') {
-      usersView.classList.add('hidden', 'opacity-0');
-      usersView.classList.remove('flex');
-
-      agencyView.classList.remove('hidden');
-      agencyView.classList.add('flex');
-      setTimeout(() => agencyView.classList.remove('opacity-0'), 20);
-
-      agencyBtn.classList.add('active');
-      usersBtn.classList.remove('active');
-    } else {
-      agencyView.classList.add('hidden', 'opacity-0');
-      agencyView.classList.remove('flex');
-
-      usersView.classList.remove('hidden');
-      usersView.classList.add('flex');
-      setTimeout(() => usersView.classList.remove('opacity-0'), 20);
-
-      usersBtn.classList.add('active');
-      agencyBtn.classList.remove('active');
-    }
+    ['agency', 'users', 'monitor'].forEach(function (name) {
+      const view = document.getElementById('view-' + name);
+      const btn = document.getElementById('tab-' + name + '-btn');
+      if (!view) return;
+      if (name === tabName) {
+        view.classList.remove('hidden');
+        view.classList.add('flex');
+        setTimeout(() => view.classList.remove('opacity-0'), 20);
+        if (btn) btn.classList.add('active');
+      } else {
+        view.classList.add('hidden', 'opacity-0');
+        view.classList.remove('flex');
+        if (btn) btn.classList.remove('active');
+      }
+    });
+    if (tabName === 'monitor' && window.amOpen) window.amOpen();
   }
 
   /** ==========================================
@@ -1529,5 +1593,364 @@ document.querySelectorAll(".perm-check:checked")
   }
 </script>
 
+<?php if ($amIsSuper) { ?>
+<script>
+/** ==========================================
+ * Monitor ความเคลื่อนไหวของหน่วยงาน (Super Admin) — handle_agency_monitor.php
+ *  รายการแถวกะทัดรัด: สถานะ · แนวโน้ม · ยอดรวม · ตัวเลขหลัก (กดเพื่อดูข้อมูลจริง)
+ * ========================================== */
+(function () {
+  const $ = id => document.getElementById(id);
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const nf = n => Number(n || 0).toLocaleString('th-TH');
+  const ico = (name, cls) => `<i data-lucide="${name}" class="${cls || 'w-3.5 h-3.5'}"></i>`;
+  const thDT = s => { if (!s) return '-'; const d = new Date(String(s).replace(' ', 'T')); return isNaN(d) ? s : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }); };
+  const thD = s => { if (!s) return '-'; const d = new Date(String(s).slice(0, 10) + 'T00:00:00'); return isNaN(d) ? s : d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }); };
+  function ago(s) {
+    if (!s) return 'ไม่มีข้อมูล';
+    const ms = Date.now() - new Date(String(s).replace(' ', 'T')).getTime();
+    if (isNaN(ms)) return s;
+    const m = Math.max(0, Math.floor(ms / 60000));
+    if (m < 60) return m <= 1 ? 'เมื่อสักครู่' : m + ' นาทีก่อน';
+    const h = Math.floor(m / 60); if (h < 24) return h + ' ชม.ก่อน';
+    const d = Math.floor(h / 24); if (d < 60) return d + ' วันก่อน';
+    return Math.floor(d / 30) + ' เดือนก่อน';
+  }
+  const STATE = { active: ['ใช้งานปกติ', '#10b981'], quiet: ['เงียบ', '#f59e0b'], idle: ['ไม่เคลื่อนไหว', '#ef4444'], never: ['ไม่มีข้อมูล', '#cbd5e1'] };
+  // ตัวเลขหลักที่กดดูข้อมูลได้: key, ไอคอน, ป้าย, ค่า
+  const METRICS = [
+    ['login', 'log-in', 'เข้าใช้งาน', a => a.login.n],
+    ['repair', 'wrench', 'แจ้งซ่อม', a => a.repair.new],
+    ['pm', 'clipboard-check', 'PM', a => a.pm.done],
+    ['meter', 'gauge', 'มิเตอร์', a => a.meter.n],
+    ['stock', 'package', 'สต็อก', a => a.stock.n],
+    ['data', 'database', 'ข้อมูล/ตั้งค่า', a => a.machine.added + a.machine.updated + a.setting.n]
+  ];
+  let DATA = [], days = 30, filter = '', sortKey = 'last', loaded = false, loading = false;
+  const total = a => a.spark.reduce((x, y) => x + y, 0);
+
+  function spark(vals, color) {
+    const w = 120, h = 28, n = vals.length, max = Math.max(1, ...vals);
+    if (!vals.some(v => v)) return `<svg width="${w}" height="${h}"><line x1="0" y1="${h - 2}" x2="${w}" y2="${h - 2}" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="3 4"/></svg>`;
+    const pts = vals.map((v, i) => [(n === 1 ? w / 2 : i * w / (n - 1)), h - 2 - (v / max) * (h - 6)]);
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    return `<svg width="${w}" height="${h}" class="overflow-visible"><path d="${line} L${w} ${h} L0 ${h} Z" fill="${color}" fill-opacity=".1"/><path d="${line}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+  }
+
+  function renderFilters() {
+    const c = { '': DATA.length, active: 0, quiet: 0, idle: 0, expired: 0 };
+    DATA.forEach(a => { c[a.state === 'never' ? 'idle' : a.state]++; if (a.expired) c.expired++; });
+    const f = (k, label, color) => `<button type="button" class="am-filter ${filter === k ? 'on' : ''}" data-filter="${k}">${color ? `<span class="am-dot" style="background:${color}"></span>` : ''}${label} <b>${c[k]}</b></button>`;
+    $('am-filters').innerHTML = f('', 'ทั้งหมด') + f('active', 'ใช้งานปกติ', '#10b981') + f('quiet', 'เงียบ', '#f59e0b') + f('idle', 'ไม่เคลื่อนไหว', '#ef4444') + (c.expired ? f('expired', 'สัญญาหมด', '#64748b') : '');
+  }
+
+  function row(a) {
+    const st = STATE[a.state];
+    const chips = METRICS.filter(m => m[3](a) > 0).map(m => `<button type="button" class="am-chip" data-ag="${a.ag_id}" data-tab="${m[0]}" title="ดู${m[2]}">${ico(m[1], 'w-3.5 h-3.5')}${m[2]} <b>${nf(m[3](a))}</b></button>`);
+    if (a.pm.overdue) chips.push(`<button type="button" class="am-chip warn" data-ag="${a.ag_id}" data-tab="pm" title="PM เลยกำหนดสะสม">${ico('alert-circle', 'w-3.5 h-3.5')}PM เลยกำหนด <b>${nf(a.pm.overdue)}</b></button>`);
+    return `<div class="am-row" data-ag="${a.ag_id}" data-tab="overview">
+      <div class="min-w-0 flex items-center gap-3">
+        <span class="am-dot" style="background:${st[1]}" title="${st[0]}"></span>
+        <div class="min-w-0">
+          <div class="text-[13.5px] font-bold text-slate-800 truncate">${esc(a.name)}</div>
+          <div class="text-[11px] text-slate-400 truncate">${esc(a.code || '-')} · ผู้ใช้ ${nf(a.users)} คน${a.expired ? ' · <span class="text-slate-500 font-semibold">สัญญาหมด ' + esc(thD(a.end)) + '</span>' : ''}${a.enabled ? '' : ' · ปิดใช้งาน'}</div>
+        </div>
+      </div>
+      <div class="am-c-spark">${spark(a.spark, st[1])}</div>
+      <div class="text-right"><div class="text-[15px] font-bold text-slate-800 leading-tight">${nf(total(a))}</div><div class="text-[11px] whitespace-nowrap" style="color:${a.state === 'active' ? '#059669' : a.state === 'quiet' ? '#b45309' : '#dc2626'}" title="${esc(thDT(a.last))}">${esc(ago(a.last))}</div></div>
+      <div class="am-c-chips flex flex-wrap gap-1.5">${chips.join('') || '<span class="text-[12px] text-slate-300">ไม่มีความเคลื่อนไหวในช่วงนี้</span>'}</div>
+      <div class="am-c-arrow text-slate-300">${ico('chevron-right', 'w-4 h-4')}</div>
+    </div>`;
+  }
+
+  function currentRows() {
+    const q = $('am-q').value.trim().toLowerCase();
+    const rows = DATA.filter(a => (!filter || (filter === 'expired' ? a.expired : filter === 'idle' ? (a.state === 'idle' || a.state === 'never') : a.state === filter))
+      && (!q || (a.name || '').toLowerCase().includes(q) || (a.code || '').toLowerCase().includes(q)));
+    const by = {
+      last: (x, y) => (y.last || '').localeCompare(x.last || ''), total: (x, y) => total(y) - total(x),
+      idle: (x, y) => (x.last || '').localeCompare(y.last || ''), name: (x, y) => (x.name || '').localeCompare(y.name || '', 'th')
+    }[sortKey];
+    rows.sort((x, y) => by(x, y) || (x.name || '').localeCompare(y.name || '', 'th'));
+    return rows;
+  }
+
+  function render() {
+    renderFilters();
+    const rows = currentRows();
+    $('am-list').innerHTML = (rows.length ? `<div class="am-row !cursor-default !py-2 bg-white sticky top-0 z-[2] text-[11px] font-bold text-slate-400 hover:!bg-white max-[900px]:hidden">
+        <div>หน่วยงาน</div><div>แนวโน้ม ${days} วัน</div><div class="text-right">รวม / ล่าสุด</div><div>ความเคลื่อนไหว (กดเพื่อดูข้อมูล)</div><div></div></div>` + rows.map(row).join('')
+      : `<div class="py-16 text-center text-slate-400 text-sm">ไม่พบหน่วยงานตามเงื่อนไข</div>`);
+    if (window.lucide) lucide.createIcons();
+  }
+
+  async function load() {
+    if (loading) return;
+    loading = true;
+    $('am-list').innerHTML = Array.from({ length: 6 }, () => '<div class="am-row !cursor-default animate-pulse"><div class="h-8 bg-slate-100 rounded"></div><div class="h-6 bg-slate-100 rounded am-c-spark"></div><div class="h-8 bg-slate-100 rounded"></div><div class="h-6 bg-slate-100 rounded am-c-chips"></div><div></div></div>').join('');
+    try {
+      const r = await (await fetch('handle_agency_monitor.php?action=summary&days=' + days)).json();
+      if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
+      DATA = r.agencies; loaded = true;
+      $('am-updated').textContent = 'ความเคลื่อนไหว ' + days + ' วันล่าสุดของทุกหน่วยงาน · อัปเดต ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+      render();
+    } catch (e) {
+      $('am-list').innerHTML = `<div class="py-16 text-center text-red-500 text-sm">${esc(e.message)}</div>`;
+    } finally { loading = false; }
+  }
+  window.amOpen = () => { if (!loaded) load(); };
+
+  // ---------- รายละเอียดหน่วยงาน (แท็บ: ภาพรวม + ข้อมูลจริงแต่ละประเภท) ----------
+  const SERIES = [
+    ['login', 'เข้าใช้งาน', '#94a3b8'], ['repair_new', 'แจ้งซ่อมใหม่', '#f59e0b'], ['repair_closed', 'ปิดงานซ่อม', '#10b981'], ['pm_done', 'PM ทำแล้ว', '#0ea5e9'],
+    ['meter', 'จดมิเตอร์', '#8b5cf6'], ['stock', 'สต็อก', '#ec4899'], ['machine', 'เครื่องจักร', '#14b8a6'], ['setting', 'ตั้งค่า', '#cbd5e1']
+  ];
+  const FEED_ICON = { login: 'log-in', repair: 'wrench', repair_done: 'check-circle-2', pm: 'clipboard-check', meter: 'gauge', stock: 'package', machine: 'cpu', setting: 'settings' };
+  const ST_LABEL = {
+    pending: ['รอดำเนินการ', '#fffbeb', '#b45309'], inprogress: ['กำลังดำเนินการ', '#f0f9ff', '#0369a1'], completed: ['เสร็จสิ้น', '#ecfdf5', '#047857'],
+    feedback: ['ประเมินแล้ว', '#f5f3ff', '#6d28d9'], cancel: ['ยกเลิก', '#fef2f2', '#b91c1c'], cencel: ['ยกเลิก', '#fef2f2', '#b91c1c'],
+    done: ['ทำแล้ว', '#ecfdf5', '#047857'], evaluated: ['ประเมินแล้ว', '#f5f3ff', '#6d28d9'],
+    IN: ['รับเข้า', '#ecfdf5', '#047857'], OUT: ['เบิกจ่าย', '#fffbeb', '#b45309'], ADJUST: ['ปรับยอด', '#f1f5f9', '#475569'],
+    add: ['เพิ่ม', '#ecfdf5', '#047857'], edit: ['แก้ไข', '#f0f9ff', '#0369a1']
+  };
+  const stBadge = s => { const x = ST_LABEL[s]; return x ? `<span class="am-st" style="background:${x[1]};color:${x[2]}">${x[0]}</span>` : ''; };
+  let detailChart = null, cur = null, listCache = {};
+
+  function tabCounts(a) {
+    return { login: a.login.n, repair: a.repair.new, pm: a.pm.done, meter: a.meter.n, stock: a.stock.n, data: a.machine.added + a.machine.updated + a.setting.n };
+  }
+
+  // ประวัติเข้าสู่ระบบของผู้ใช้ (ช่วงที่เลือก) จัดกลุ่มตามวัน
+  async function toggleUserLog(btn) {
+    const box = btn.nextElementSibling, caret = btn.querySelector('.am-caret');
+    const open = box.classList.contains('hidden');
+    box.classList.toggle('hidden', !open);
+    caret.style.transform = open ? 'rotate(90deg)' : '';
+    if (!open || box.dataset.ready) return;
+    box.innerHTML = '<div class="text-[11px] text-slate-400 py-1">กำลังโหลด...</div>';
+    try {
+      const r = await (await fetch(`handle_agency_monitor.php?action=user_logins&ag=${cur.ag_id}&user=${encodeURIComponent(btn.dataset.user)}&days=${days}`)).json();
+      if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
+      box.dataset.ready = '1';
+      if (!r.days.length) { box.innerHTML = `<div class="text-[11.5px] text-slate-400 py-1">ไม่ได้เข้าสู่ระบบใน ${days} วันนี้${r.last_ever ? ' · เข้าล่าสุด ' + esc(thDT(r.last_ever)) : ' · ยังไม่เคยเข้าสู่ระบบ'}</div>`; return; }
+      box.innerHTML = `<div class="rounded-lg bg-slate-50 border border-slate-100 p-2 space-y-1.5 max-h-60 overflow-y-auto">${r.days.map(d => {
+          const dt = new Date(d.d + 'T00:00:00');
+          return `<div class="flex gap-2 items-start text-[11.5px]">
+            <div class="w-[92px] flex-none text-slate-600 font-semibold">${dt.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' })}</div>
+            <div class="flex flex-wrap gap-1">${d.times.slice().reverse().map(t => `<span class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700 tabular-nums">${t.slice(0, 5)} น.</span>`).join('')}</div>
+          </div>`; }).join('')}</div>
+        <div class="text-[10.5px] text-slate-400 mt-1">รวม ${nf(r.total)} ครั้ง ใน ${nf(r.days.length)} วัน${r.total >= 1000 ? ' (แสดง 1,000 ครั้งล่าสุด)' : ''}</div>`;
+    } catch (e) { box.innerHTML = `<div class="text-[11.5px] text-red-500 py-1">${esc(e.message)}</div>`; }
+  }
+
+  async function showTab(tab) {
+    const a = cur; if (!a) return;
+    document.querySelectorAll('#am-tabs .am-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    const body = $('am-tabbody');
+    if (detailChart) { detailChart.destroy(); detailChart = null; }
+    if (tab === 'overview') {
+      body.innerHTML = `<div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div class="lg:col-span-3 space-y-4">
+            <div><div class="text-[12.5px] font-bold text-slate-700 mb-2">ความเคลื่อนไหวรายวัน</div><div style="height: 210px"><canvas id="am-chart"></canvas></div></div>
+            <div><div class="text-[12.5px] font-bold text-slate-700 mb-2">ล่าสุด</div><div id="am-feed" class="space-y-2 overflow-y-auto pr-1" style="max-height: 260px"><div class="text-xs text-slate-400 py-4">กำลังโหลด...</div></div></div>
+          </div>
+          <div class="lg:col-span-2"><div class="text-[12.5px] font-bold text-slate-700 mb-2">ผู้ใช้งาน <span class="font-normal text-slate-400 text-[11px]">จำนวนครั้งที่เข้าใน ${days} วัน</span></div><div id="am-users" class="overflow-y-auto pr-1" style="max-height: 500px"></div></div>
+        </div>`;
+      try {
+        const r = listCache.overview || (listCache.overview = await (await fetch(`handle_agency_monitor.php?action=detail&ag=${a.ag_id}&days=${days}`)).json());
+        if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
+        if (cur !== a || !$('am-chart')) return;
+        const labels = r.days.map(d => new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }));
+        detailChart = new Chart($('am-chart'), {
+          type: 'bar',
+          data: { labels, datasets: SERIES.map(([k, label, color]) => ({ label, data: r.daily[k], backgroundColor: color, borderRadius: 2, stack: 's', maxBarThickness: 18, hidden: k === 'setting' || k === 'machine' })) },
+          options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            scales: { x: { stacked: true, grid: { display: false }, ticks: { font: { family: 'Prompt', size: 10 }, color: '#94a3b8', maxRotation: 0, autoSkip: true } },
+                      y: { stacked: true, beginAtZero: true, border: { display: false }, grid: { color: '#f1f5f9' }, ticks: { precision: 0, font: { family: 'Prompt', size: 10 }, color: '#94a3b8' } } },
+            plugins: { legend: { position: 'bottom', labels: { font: { family: 'Prompt', size: 11 }, boxWidth: 7, boxHeight: 7, usePointStyle: true, pointStyle: 'circle', padding: 12 } }, tooltip: { filter: i => i.raw > 0 } } }
+        });
+        $('am-feed').innerHTML = r.feed.length ? r.feed.slice(0, 30).map(f => `<div class="flex items-start gap-2.5">
+            <span class="w-6 h-6 rounded-md bg-slate-100 text-slate-500 flex items-center justify-center flex-none mt-0.5">${ico(FEED_ICON[f.type] || 'settings', 'w-3.5 h-3.5')}</span>
+            <div class="min-w-0 flex-1"><div class="text-[12.5px] text-slate-700 break-words">${esc(f.text)}${f.more ? ` <span class="text-[11px] text-slate-400">+${f.more} รายการ</span>` : ''}</div>
+            <div class="text-[11px] text-slate-400">${esc(thDT(f.t))}${f.user_name ? ' · ' + esc(f.user_name) : ''}</div></div></div>`).join('') : '<div class="text-xs text-slate-400 py-4">ยังไม่มีความเคลื่อนไหว</div>';
+        const maxN = Math.max(1, ...r.users.map(u => u.n));
+        $('am-users').innerHTML = r.users.length ? r.users.map(u => `<div class="border-b border-slate-100 last:border-0">
+            <button type="button" class="am-user w-full text-left py-2 px-1.5 -mx-1.5 rounded-lg hover:bg-slate-50" data-user="${esc(u.user_id)}" title="กดเพื่อดูวัน เวลาที่เข้าสู่ระบบ">
+              <div class="flex items-baseline justify-between gap-2"><span class="text-[12.5px] font-semibold text-slate-700 truncate flex items-center gap-1"><span class="am-caret text-slate-300 transition-transform">${ico('chevron-right', 'w-3.5 h-3.5')}</span>${esc(u.name || u.user_id)}</span><span class="text-[12.5px] font-bold ${u.n ? 'text-slate-800' : 'text-slate-300'}">${nf(u.n)}</span></div>
+              <div class="flex items-center gap-2 mt-1 pl-[18px]"><div class="flex-1 h-1 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full bg-sky-500" style="width:${Math.round(u.n * 100 / maxN)}%"></div></div><span class="text-[10.5px] text-slate-400 whitespace-nowrap">${u.last ? esc(ago(u.last)) : 'ไม่เคยเข้า'}</span></div>
+            </button>
+            <div class="am-user-log hidden pl-[18px] pb-2"></div>
+          </div>`).join('') : '<div class="text-xs text-slate-400 py-4">ไม่มีผู้ใช้ในหน่วยงานนี้</div>';
+        $('am-users').addEventListener('click', e => { const b = e.target.closest('.am-user'); if (b) toggleUserLog(b); });
+        if (window.lucide) lucide.createIcons();
+      } catch (e) { body.innerHTML = `<div class="py-10 text-center text-red-500 text-sm">${esc(e.message)}</div>`; }
+      return;
+    }
+    body.innerHTML = '<div class="py-10 text-center text-slate-400 text-sm">กำลังโหลด...</div>';
+    try {
+      const r = listCache[tab] || (listCache[tab] = await (await fetch(`handle_agency_monitor.php?action=list&type=${tab}&ag=${a.ag_id}&days=${days}`)).json());
+      if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
+      if (cur !== a) return;
+      const showSt = ['repair', 'pm', 'stock', 'data'].includes(tab);
+      body.innerHTML = r.rows.length ? `<div class="flex items-center justify-between mb-2"><div class="text-[12px] text-slate-500">${nf(r.rows.length)} รายการ${r.rows.length >= r.limit ? ' (แสดง ' + r.limit + ' รายการล่าสุด)' : ''} · ${days} วันล่าสุด</div>
+          <input type="search" id="am-lq" placeholder="ค้นหาในรายการ" class="input-clean !py-1 !text-[12px] w-48"></div>
+        <div class="border border-slate-200 rounded-lg overflow-auto" style="max-height: 470px"><table class="am-list w-full"><thead><tr><th class="w-[130px]">วันเวลา</th><th>รายการ</th>${showSt ? '<th class="w-[110px]">สถานะ</th>' : ''}<th class="w-[170px]">โดย</th></tr></thead><tbody>
+        ${r.rows.map(x => `<tr data-s="${esc((x.title + ' ' + x.sub + ' ' + x.user_name).toLowerCase())}"><td class="whitespace-nowrap text-slate-500">${esc(thDT(x.t))}</td>
+          <td><div class="text-slate-800 break-words">${esc(x.title)}</div>${x.sub ? `<div class="text-[11px] text-slate-400">${esc(x.sub)}</div>` : ''}${x.done_at ? `<div class="text-[11px] text-emerald-600">ปิดงาน ${esc(thDT(x.done_at))}</div>` : ''}</td>
+          ${showSt ? `<td>${stBadge(x.status)}</td>` : ''}<td class="text-slate-600">${esc(x.user_name || '-')}</td></tr>`).join('')}</tbody></table></div>`
+        : '<div class="py-12 text-center text-slate-400 text-sm">ไม่มีข้อมูลในช่วงนี้</div>';
+      const lq = $('am-lq');
+      if (lq) lq.addEventListener('input', () => { const q = lq.value.trim().toLowerCase(); body.querySelectorAll('tbody tr').forEach(tr => tr.classList.toggle('hidden', !!q && !tr.dataset.s.includes(q))); });
+    } catch (e) { body.innerHTML = `<div class="py-10 text-center text-red-500 text-sm">${esc(e.message)}</div>`; }
+  }
+
+  // ---------- Export Excel (ExcelJS โหลดเมื่อกดครั้งแรก) ----------
+  let excelReady = null;
+  function loadExcel() {
+    if (window.ExcelJS) return Promise.resolve();
+    return excelReady || (excelReady = new Promise((ok, fail) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+      sc.onload = ok; sc.onerror = () => { excelReady = null; fail(new Error('โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ')); };
+      document.head.appendChild(sc);
+    }));
+  }
+  // sheets: [{ name, title, columns: [[หัวคอลัมน์, กว้าง]], rows: [[...]] }]
+  async function saveXlsx(filename, sheets) {
+    await loadExcel();
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'EasyPro';
+    sheets.forEach(sh => {
+      const ws = wb.addWorksheet(sh.name.replace(/[\\/?*\[\]:]/g, '-').slice(0, 31));
+      let r0 = 1;
+      if (sh.title) {
+        ws.mergeCells(1, 1, 1, sh.columns.length);
+        Object.assign(ws.getCell(1, 1), { value: sh.title });
+        ws.getCell(1, 1).font = { bold: true, size: 13 };
+        r0 = 3;
+      }
+      const hr = ws.getRow(r0);
+      sh.columns.forEach((c, i) => {
+        const cell = hr.getCell(i + 1);
+        cell.value = c[0];
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF005E8E' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        ws.getColumn(i + 1).width = c[1] || 14;
+      });
+      hr.height = 22;
+      sh.rows.forEach(row => ws.addRow(row));
+      ws.views = [{ state: 'frozen', ySplit: r0 }];
+      if (sh.rows.length) ws.autoFilter = { from: { row: r0, column: 1 }, to: { row: r0 + sh.rows.length, column: sh.columns.length } };
+    });
+    const buf = await wb.xlsx.writeBuffer();
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    link.download = filename;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+  }
+  const ymd = () => new Date().toISOString().slice(0, 10);
+  const dtx = s => s ? String(s).slice(0, 16) : '';   // วันเวลาในไฟล์: YYYY-MM-DD HH:mm (เรียง/กรองใน Excel ได้)
+  const stName = st => (STATE[st] || ['-'])[0];
+
+  // สรุปทุกหน่วยงาน (ตามตัวกรอง/ค้นหา/เรียงที่แสดงอยู่)
+  async function exportSummary() {
+    const rows = currentRows();
+    if (!rows.length) { Swal.fire({ icon: 'info', title: 'ไม่มีข้อมูลให้ส่งออก', confirmButtonColor: '#005e8e' }); return; }
+    const btn = $('am-export'); btn.disabled = true;
+    try {
+      await saveXlsx(`monitor-agencies-${days}d-${ymd()}.xlsx`, [{
+        name: 'สรุปหน่วยงาน', title: `Monitor หน่วยงาน — ความเคลื่อนไหว ${days} วันล่าสุด (ข้อมูล ณ ${new Date().toLocaleString('th-TH')})`,
+        columns: [['หน่วยงาน', 36], ['รหัส', 16], ['สถานะ', 14], ['เคลื่อนไหวล่าสุด', 18], ['ความเคลื่อนไหวรวม', 12], ['เริ่มสัญญา', 12], ['สิ้นสุดสัญญา', 12], ['สัญญาหมด', 10],
+          ['ผู้ใช้ทั้งหมด', 10], ['เข้าใช้งาน (ครั้ง)', 12], ['ผู้ใช้ที่เข้า', 10], ['แจ้งซ่อมใหม่', 11], ['ปิดงานซ่อม', 11], ['งานซ่อมค้าง', 11],
+          ['PM ทำแล้ว', 10], ['PM ถึงกำหนด', 11], ['PM เลยกำหนดสะสม', 13], ['จดมิเตอร์', 10], ['สต็อก', 9], ['เครื่องจักร เพิ่ม', 12], ['เครื่องจักร แก้ไข', 12], ['เครื่องจักรทั้งหมด', 12], ['ตั้งค่า', 9]],
+        rows: rows.map(a => [a.name, a.code, stName(a.state), dtx(a.last), total(a), a.start || '', a.end || '', a.expired ? 'หมดแล้ว' : '',
+          a.users, a.login.n, a.login.users, a.repair.new, a.repair.closed, a.repair.backlog, a.pm.done, a.pm.due, a.pm.overdue,
+          a.meter.n, a.stock.n, a.machine.added, a.machine.updated, a.machine.total, a.setting.n])
+      }]);
+    } catch (e) { Swal.fire({ icon: 'error', title: 'ส่งออกไม่สำเร็จ', text: e.message, confirmButtonColor: '#005e8e' }); }
+    finally { btn.disabled = false; }
+  }
+
+  // ข้อมูลทั้งหมดของหน่วยงาน: สรุป + ทุกประเภท + ผู้ใช้งาน + ประวัติล็อกอิน
+  async function exportAgency(a) {
+    const btn = $('am-export-ag'); btn.disabled = true;
+    const label = btn.innerHTML; btn.innerHTML = 'กำลังเตรียมไฟล์...';
+    try {
+      const get = async q => { const r = await (await fetch('handle_agency_monitor.php?' + q)).json(); if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ'); return r; };
+      const base = `ag=${a.ag_id}&days=${days}`;
+      const [detail, login, repair, pm, meter, stock, data] = await Promise.all([
+        get('action=detail&' + base), get('action=list&type=login&export=1&' + base), get('action=list&type=repair&export=1&' + base), get('action=list&type=pm&export=1&' + base),
+        get('action=list&type=meter&export=1&' + base), get('action=list&type=stock&export=1&' + base), get('action=list&type=data&export=1&' + base)
+      ]);
+      const stTxt = s => (ST_LABEL[s] || [s || ''])[0];
+      const listSheet = (name, r, withStatus, extra) => ({
+        name, columns: [['วันเวลา', 18], ['รายการ', 60], ['รายละเอียด', 40]].concat(withStatus ? [['สถานะ', 14]] : []).concat(extra ? extra.cols : []).concat([['โดย', 26], ['Username', 18]]),
+        rows: r.rows.map(x => [dtx(x.t), x.title, x.sub || ''].concat(withStatus ? [stTxt(x.status)] : []).concat(extra ? extra.val(x) : []).concat([x.user_name || '', x.user || '']))
+      });
+      const lastLogin = {};
+      detail.users.forEach(u => { lastLogin[u.user_id] = u.last; });
+      await saveXlsx(`monitor-${(a.code || a.ag_id)}-${days}d-${ymd()}.xlsx`, [
+        { name: 'สรุป', title: `${a.name} (${a.code || '-'}) — ${days} วันล่าสุด`, columns: [['หัวข้อ', 30], ['ค่า', 26]], rows: [
+          ['สถานะ', stName(a.state)], ['เคลื่อนไหวล่าสุด', dtx(a.last)], ['สัญญา', (a.start || '-') + ' ถึง ' + (a.end || '-') + (a.expired ? ' (หมดแล้ว)' : '')],
+          ['ผู้ใช้ทั้งหมด (คน)', a.users], ['เข้าใช้งาน (ครั้ง)', a.login.n], ['ผู้ใช้ที่เข้าใช้งาน (คน)', a.login.users],
+          ['แจ้งซ่อมใหม่', a.repair.new], ['ปิดงานซ่อม', a.repair.closed], ['งานซ่อมค้าง', a.repair.backlog],
+          ['PM ทำแล้ว', a.pm.done], ['PM ถึงกำหนดในช่วงนี้', a.pm.due], ['PM เลยกำหนดสะสม', a.pm.overdue],
+          ['จดมิเตอร์', a.meter.n], ['สต็อก (รายการ)', a.stock.n], ['เครื่องจักร เพิ่ม / แก้ไข', a.machine.added + ' / ' + a.machine.updated], ['เครื่องจักรทั้งหมด', a.machine.total], ['ตั้งค่า (สร้าง/แก้ไข)', a.setting.n]] },
+        { name: 'รายวัน', columns: [['วันที่', 12]].concat(SERIES.map(sr => [sr[1], 12])), rows: detail.days.map((d, i) => [d].concat(SERIES.map(sr => detail.daily[sr[0]][i]))) },
+        { name: 'ผู้ใช้งาน', columns: [['ชื่อ', 30], ['Username', 20], ['ระดับ', 12], ['ตำแหน่ง', 18], ['เข้าใช้งานในช่วงนี้ (ครั้ง)', 14], ['เข้าล่าสุด', 18]],
+          rows: detail.users.map(u => [u.name || '', u.user_id, u.user_level || '', u.user_position || '', u.n, dtx(u.last)]) },
+        { name: 'ประวัติล็อกอิน', columns: [['วันที่', 12], ['เวลา', 10], ['ชื่อ', 30], ['Username', 20]],
+          rows: login.rows.map(x => [String(x.t).slice(0, 10), String(x.t).slice(11, 19), x.user_name || '', x.user || '']) },
+        listSheet('แจ้งซ่อม', repair, true, { cols: [['ปิดงานเมื่อ', 18]], val: x => [dtx(x.done_at)] }),
+        listSheet('PM', pm, true), listSheet('มิเตอร์', meter, false), listSheet('สต็อก', stock, true), listSheet('ข้อมูล-ตั้งค่า', data, true)
+      ]);
+    } catch (e) { alert('ส่งออกไม่สำเร็จ: ' + e.message); }   // ไม่ใช้ Swal เพราะจะปิดหน้ารายละเอียด
+    finally { btn.disabled = false; btn.innerHTML = label; if (window.lucide) lucide.createIcons(); }
+  }
+
+  function openDetail(agId, tab) {
+    const a = DATA.find(x => x.ag_id === agId); if (!a) return;
+    cur = a; listCache = {};
+    const st = STATE[a.state], cnt = tabCounts(a);
+    const tabs = [['overview', 'ภาพรวม', 'layout-dashboard', null]].concat(METRICS.map(m => [m[0], m[2], m[1], cnt[m[0]]]));
+    Swal.fire({
+      width: '66rem', showConfirmButton: false, showCloseButton: true, padding: 0, customClass: { popup: 'rounded-2xl overflow-hidden' },
+      html: `<div class="text-left">
+        <div class="px-6 pt-5 pb-3">
+          <div class="flex items-center gap-2 pr-8"><span class="am-dot" style="background:${st[1]}"></span><h3 class="text-[17px] font-bold text-slate-800 truncate">${esc(a.name)}</h3><span class="text-[12px] font-semibold" style="color:${st[1]}">${st[0]}</span>
+            <button type="button" id="am-export-ag" class="ml-auto h-8 px-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-100 flex-none" title="ส่งออกข้อมูลทั้งหมดของหน่วยงานนี้">${ico('file-spreadsheet', 'w-3.5 h-3.5')} Export Excel</button></div>
+          <div class="text-[12px] text-slate-500 mt-0.5 pl-4">${esc(a.code || '')} · สัญญา ${esc(thD(a.start))} – ${esc(thD(a.end))}${a.expired ? ' (หมดแล้ว)' : ''} · เคลื่อนไหวล่าสุด ${esc(thDT(a.last))}</div>
+          <div id="am-tabs" class="flex gap-1 mt-4 overflow-x-auto pb-1">${tabs.map(t => `<button type="button" class="am-tab" data-tab="${t[0]}">${ico(t[2], 'w-3.5 h-3.5')}${t[1]}${t[3] != null ? `<span class="n">${nf(t[3])}</span>` : ''}</button>`).join('')}</div>
+        </div>
+        <div id="am-tabbody" class="px-6 pb-6 pt-3 border-t border-slate-100" style="min-height: 420px"></div>
+      </div>`,
+      didOpen: () => {
+        if (window.lucide) lucide.createIcons();
+        $('am-tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
+        $('am-export-ag').addEventListener('click', () => exportAgency(a));
+        showTab(tab || 'overview');
+      },
+      willClose: () => { if (detailChart) { detailChart.destroy(); detailChart = null; } cur = null; }
+    });
+  }
+
+  $('am-days').addEventListener('click', e => {
+    const b = e.target.closest('[data-days]'); if (!b) return;
+    days = +b.dataset.days;
+    document.querySelectorAll('#am-days button').forEach(x => x.classList.toggle('on', x === b));
+    load();
+  });
+  $('am-filters').addEventListener('click', e => { const b = e.target.closest('[data-filter]'); if (b) { filter = b.dataset.filter; render(); } });
+  $('am-q').addEventListener('input', render);
+  $('am-sort').addEventListener('change', e => { sortKey = e.target.value; render(); });
+  $('am-reload').addEventListener('click', load);
+  $('am-export').addEventListener('click', exportSummary);
+  // กดตัวเลข => เปิดรายละเอียดที่แท็บข้อมูลนั้น · กดแถว => ภาพรวม
+  $('am-list').addEventListener('click', e => { const el = e.target.closest('[data-ag][data-tab]'); if (el) openDetail(+el.dataset.ag, el.dataset.tab); });
+})();
+</script>
+<?php } ?>
 </body>
 </html>
