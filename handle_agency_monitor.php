@@ -14,11 +14,22 @@ if (empty($_SESSION['sess_user_id_es'])) am_out(['success' => false, 'error' => 
 if (($_SESSION['sess_user_level_es'] ?? '') !== 'super_admin') am_out(['success' => false, 'error' => 'เฉพาะ Super Admin'], 403);
 
 $action = $_GET['action'] ?? 'summary';
+// ช่วงเวลา: days=7|30|90 (ถึงวันนี้) หรือกำหนดเอง from=YYYY-MM-DD&to=YYYY-MM-DD (ดูย้อนหลังได้ ไม่เกิน 1 ปี, to ไม่เกินวันนี้)
 $days = (int)($_GET['days'] ?? 30);
 if (!in_array($days, [7, 30, 90], true)) $days = 30;
 $today = date('Y-m-d');
 $from = date('Y-m-d', strtotime('-' . ($days - 1) . ' days'));
+$to = $today;
+$isYmd = function ($d) { return is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && checkdate((int)substr($d, 5, 2), (int)substr($d, 8, 2), (int)substr($d, 0, 4)); };
+if ($isYmd($_GET['from'] ?? '') && $isYmd($_GET['to'] ?? '')) {
+    $from = $_GET['from'];
+    $to = min($_GET['to'], $today);
+    if ($from > $to) am_out(['success' => false, 'error' => 'วันที่เริ่มต้องไม่เกินวันที่สิ้นสุด (และไม่เกินวันนี้)']);
+    if ((strtotime($to) - strtotime($from)) / 86400 > 365) am_out(['success' => false, 'error' => 'เลือกช่วงได้ไม่เกิน 1 ปี']);
+    $days = (int)round((strtotime($to) - strtotime($from)) / 86400) + 1;
+}
 $fromTs = $from . ' 00:00:00';
+$toTs = $to . ' 23:59:59';
 
 function am_rows($connect, $sql) {
     $o = [];
@@ -59,36 +70,36 @@ $SETTING_SRC = [
 if ($action === 'summary') {
     $agencies = am_rows($connect, "SELECT ag_id, ag_job, ag_contract, ag_status, ag_start_date, ag_end_date FROM tb_agency ORDER BY ag_contract");
     $users = am_by_ag($connect, "SELECT ag, COUNT(DISTINCT user_id) AS n FROM $USER_AG ua GROUP BY ag");
-    $login = am_by_ag($connect, "SELECT ua.ag, SUM(l.tl_time >= '$fromTs') AS n, COUNT(DISTINCT CASE WHEN l.tl_time >= '$fromTs' THEN l.tl_name END) AS users, MAX(l.tl_time) AS last
+    $login = am_by_ag($connect, "SELECT ua.ag, SUM(l.tl_time BETWEEN '$fromTs' AND '$toTs') AS n, COUNT(DISTINCT CASE WHEN l.tl_time BETWEEN '$fromTs' AND '$toTs' THEN l.tl_name END) AS users, MAX(l.tl_time) AS last
         FROM tb_time_login l JOIN $USER_AG ua ON ua.user_id = l.tl_name GROUP BY ua.ag");
-    $rep = am_by_ag($connect, "SELECT ag_id AS ag, SUM(created_at >= '$fromTs') AS new_n, SUM(completed_date >= '$from') AS closed_n,
+    $rep = am_by_ag($connect, "SELECT ag_id AS ag, SUM(created_at BETWEEN '$fromTs' AND '$toTs') AS new_n, SUM(completed_date BETWEEN '$from' AND '$to') AS closed_n,
             SUM(status IN ('pending', 'inprogress')) AS backlog, MAX(GREATEST(COALESCE(created_at, 0), COALESCE(updated_at, 0))) AS last
         FROM repair_requests GROUP BY ag_id");
-    $pm = am_by_ag($connect, "SELECT ag_id AS ag, SUM(completed_at >= '$fromTs') AS done_n, SUM(status = 0 AND event_date < '$today') AS overdue,
-            SUM(event_date BETWEEN '$from' AND '$today') AS due_n, MAX(completed_at) AS last
+    $pm = am_by_ag($connect, "SELECT ag_id AS ag, SUM(completed_at BETWEEN '$fromTs' AND '$toTs') AS done_n, SUM(status = 0 AND event_date < '$today') AS overdue,
+            SUM(event_date BETWEEN '$from' AND '$to') AS due_n, MAX(completed_at) AS last
         FROM pm_plan_events GROUP BY ag_id");
     $meterParts = [];
     foreach ($METER_SRC as $m) $meterParts[] = "SELECT $m[1] AS ag, $m[2] AS t FROM $m[0]";
-    $meter = am_by_ag($connect, "SELECT ag, SUM(t >= '$fromTs') AS n, MAX(t) AS last FROM (" . implode(' UNION ALL ', $meterParts) . ") x GROUP BY ag");
-    $stock = am_by_ag($connect, "SELECT ag_id AS ag, SUM(created_at >= '$fromTs') AS n, MAX(created_at) AS last FROM product_stock_transactions GROUP BY ag_id");
-    $mach = am_by_ag($connect, "SELECT ass_ag_id AS ag, COUNT(*) AS total, SUM(asset_ins >= '$fromTs') AS added,
-            SUM(updated_at >= '$fromTs' AND (asset_ins IS NULL OR asset_ins < '$fromTs')) AS updated, MAX(GREATEST(COALESCE(asset_ins, 0), COALESCE(updated_at, 0))) AS last
+    $meter = am_by_ag($connect, "SELECT ag, SUM(t BETWEEN '$fromTs' AND '$toTs') AS n, MAX(t) AS last FROM (" . implode(' UNION ALL ', $meterParts) . ") x GROUP BY ag");
+    $stock = am_by_ag($connect, "SELECT ag_id AS ag, SUM(created_at BETWEEN '$fromTs' AND '$toTs') AS n, MAX(created_at) AS last FROM product_stock_transactions GROUP BY ag_id");
+    $mach = am_by_ag($connect, "SELECT ass_ag_id AS ag, COUNT(*) AS total, SUM(asset_ins BETWEEN '$fromTs' AND '$toTs') AS added,
+            SUM(updated_at BETWEEN '$fromTs' AND '$toTs' AND (asset_ins IS NULL OR asset_ins < '$fromTs')) AS updated, MAX(GREATEST(COALESCE(asset_ins, 0), COALESCE(updated_at, 0))) AS last
         FROM tb_ass_list GROUP BY ass_ag_id");
     $setParts = [];
     foreach ($SETTING_SRC as $st) $setParts[] = "SELECT $st[1] AS ag, GREATEST(COALESCE($st[2], 0), COALESCE($st[3], 0)) AS t FROM $st[0] t $st[6]";
-    $set = am_by_ag($connect, "SELECT ag, SUM(t >= '$fromTs') AS n, MAX(t) AS last FROM (" . implode(' UNION ALL ', $setParts) . ") x GROUP BY ag");
+    $set = am_by_ag($connect, "SELECT ag, SUM(t BETWEEN '$fromTs' AND '$toTs') AS n, MAX(t) AS last FROM (" . implode(' UNION ALL ', $setParts) . ") x GROUP BY ag");
 
     // แนวโน้มรายวันของแต่ละหน่วยงาน (sparkline): เข้าใช้งาน + แจ้งซ่อม + ปิดงาน + PM + มิเตอร์ + สต็อก
     $sp = [];
     $spAdd = function ($rows) use (&$sp) { foreach ($rows as $r) { $k = (string)$r['ag']; if (!isset($sp[$k])) $sp[$k] = []; $sp[$k][$r['d']] = (isset($sp[$k][$r['d']]) ? $sp[$k][$r['d']] : 0) + (int)$r['n']; } };
-    $spAdd(am_rows($connect, "SELECT ua.ag, DATE(l.tl_time) AS d, COUNT(*) AS n FROM tb_time_login l JOIN $USER_AG ua ON ua.user_id = l.tl_name WHERE l.tl_time >= '$fromTs' GROUP BY ua.ag, d"));
-    $spAdd(am_rows($connect, "SELECT ag_id AS ag, DATE(created_at) AS d, COUNT(*) AS n FROM repair_requests WHERE created_at >= '$fromTs' GROUP BY ag_id, d"));
-    $spAdd(am_rows($connect, "SELECT ag_id AS ag, completed_date AS d, COUNT(*) AS n FROM repair_requests WHERE completed_date >= '$from' GROUP BY ag_id, d"));
-    $spAdd(am_rows($connect, "SELECT ag_id AS ag, DATE(completed_at) AS d, COUNT(*) AS n FROM pm_plan_events WHERE completed_at >= '$fromTs' GROUP BY ag_id, d"));
-    $spAdd(am_rows($connect, "SELECT ag, DATE(t) AS d, COUNT(*) AS n FROM (" . implode(' UNION ALL ', $meterParts) . ") x WHERE t >= '$fromTs' GROUP BY ag, d"));
-    $spAdd(am_rows($connect, "SELECT ag_id AS ag, DATE(created_at) AS d, COUNT(*) AS n FROM product_stock_transactions WHERE created_at >= '$fromTs' GROUP BY ag_id, d"));
+    $spAdd(am_rows($connect, "SELECT ua.ag, DATE(l.tl_time) AS d, COUNT(*) AS n FROM tb_time_login l JOIN $USER_AG ua ON ua.user_id = l.tl_name WHERE l.tl_time BETWEEN '$fromTs' AND '$toTs' GROUP BY ua.ag, d"));
+    $spAdd(am_rows($connect, "SELECT ag_id AS ag, DATE(created_at) AS d, COUNT(*) AS n FROM repair_requests WHERE created_at BETWEEN '$fromTs' AND '$toTs' GROUP BY ag_id, d"));
+    $spAdd(am_rows($connect, "SELECT ag_id AS ag, completed_date AS d, COUNT(*) AS n FROM repair_requests WHERE completed_date BETWEEN '$from' AND '$to' GROUP BY ag_id, d"));
+    $spAdd(am_rows($connect, "SELECT ag_id AS ag, DATE(completed_at) AS d, COUNT(*) AS n FROM pm_plan_events WHERE completed_at BETWEEN '$fromTs' AND '$toTs' GROUP BY ag_id, d"));
+    $spAdd(am_rows($connect, "SELECT ag, DATE(t) AS d, COUNT(*) AS n FROM (" . implode(' UNION ALL ', $meterParts) . ") x WHERE t BETWEEN '$fromTs' AND '$toTs' GROUP BY ag, d"));
+    $spAdd(am_rows($connect, "SELECT ag_id AS ag, DATE(created_at) AS d, COUNT(*) AS n FROM product_stock_transactions WHERE created_at BETWEEN '$fromTs' AND '$toTs' GROUP BY ag_id, d"));
     $dayList = [];
-    for ($t = strtotime($from); $t <= strtotime($today); $t += 86400) $dayList[] = date('Y-m-d', $t);
+    for ($t = strtotime($from); $t <= strtotime($to); $t += 86400) $dayList[] = date('Y-m-d', $t);
 
     $out = [];
     $now = time();
@@ -114,7 +125,7 @@ if ($action === 'summary') {
             'spark' => array_map(function ($d) use ($sp, $k) { return isset($sp[$k][$d]) ? $sp[$k][$d] : 0; }, $dayList),
         ];
     }
-    am_out(['success' => true, 'days' => $days, 'from' => $from, 'today' => $today, 'agencies' => $out]);
+    am_out(['success' => true, 'days' => $days, 'from' => $from, 'to' => $to, 'today' => $today, 'agencies' => $out]);
 }
 
 if ($action === 'detail') {
@@ -126,21 +137,21 @@ if ($action === 'detail') {
     // ---------- รายวัน ----------
     $series = ['login' => [], 'repair_new' => [], 'repair_closed' => [], 'pm_done' => [], 'meter' => [], 'stock' => [], 'machine' => [], 'setting' => []];
     $put = function ($key, $rows) use (&$series) { foreach ($rows as $r) $series[$key][$r['d']] = (int)$r['n']; };
-    $put('login', am_rows($connect, "SELECT DATE(l.tl_time) AS d, COUNT(*) AS n FROM tb_time_login l JOIN $USER_AG ua ON ua.user_id = l.tl_name AND ua.ag = $agS WHERE l.tl_time >= '$fromTs' GROUP BY d"));
-    $put('repair_new', am_rows($connect, "SELECT DATE(created_at) AS d, COUNT(*) AS n FROM repair_requests WHERE ag_id = $ag AND created_at >= '$fromTs' GROUP BY d"));
-    $put('repair_closed', am_rows($connect, "SELECT completed_date AS d, COUNT(*) AS n FROM repair_requests WHERE ag_id = $ag AND completed_date >= '$from' GROUP BY d"));
-    $put('pm_done', am_rows($connect, "SELECT DATE(completed_at) AS d, COUNT(*) AS n FROM pm_plan_events WHERE ag_id = $agS AND completed_at >= '$fromTs' GROUP BY d"));
+    $put('login', am_rows($connect, "SELECT DATE(l.tl_time) AS d, COUNT(*) AS n FROM tb_time_login l JOIN $USER_AG ua ON ua.user_id = l.tl_name AND ua.ag = $agS WHERE l.tl_time BETWEEN '$fromTs' AND '$toTs' GROUP BY d"));
+    $put('repair_new', am_rows($connect, "SELECT DATE(created_at) AS d, COUNT(*) AS n FROM repair_requests WHERE ag_id = $ag AND created_at BETWEEN '$fromTs' AND '$toTs' GROUP BY d"));
+    $put('repair_closed', am_rows($connect, "SELECT completed_date AS d, COUNT(*) AS n FROM repair_requests WHERE ag_id = $ag AND completed_date BETWEEN '$from' AND '$to' GROUP BY d"));
+    $put('pm_done', am_rows($connect, "SELECT DATE(completed_at) AS d, COUNT(*) AS n FROM pm_plan_events WHERE ag_id = $agS AND completed_at BETWEEN '$fromTs' AND '$toTs' GROUP BY d"));
     $mp = [];
-    foreach ($METER_SRC as $m) $mp[] = "SELECT $m[2] AS t FROM $m[0] WHERE $m[1] = $agS AND $m[2] >= '$fromTs'";
+    foreach ($METER_SRC as $m) $mp[] = "SELECT $m[2] AS t FROM $m[0] WHERE $m[1] = $agS AND $m[2] BETWEEN '$fromTs' AND '$toTs'";
     $put('meter', am_rows($connect, "SELECT DATE(t) AS d, COUNT(*) AS n FROM (" . implode(' UNION ALL ', $mp) . ") x GROUP BY d"));
-    $put('stock', am_rows($connect, "SELECT DATE(created_at) AS d, COUNT(*) AS n FROM product_stock_transactions WHERE ag_id = $agS AND created_at >= '$fromTs' GROUP BY d"));
+    $put('stock', am_rows($connect, "SELECT DATE(created_at) AS d, COUNT(*) AS n FROM product_stock_transactions WHERE ag_id = $agS AND created_at BETWEEN '$fromTs' AND '$toTs' GROUP BY d"));
     $put('machine', am_rows($connect, "SELECT DATE(GREATEST(COALESCE(asset_ins, 0), COALESCE(updated_at, 0))) AS d, COUNT(*) AS n FROM tb_ass_list
-        WHERE ass_ag_id = $agS AND GREATEST(COALESCE(asset_ins, 0), COALESCE(updated_at, 0)) >= '$fromTs' GROUP BY d"));
+        WHERE ass_ag_id = $agS AND GREATEST(COALESCE(asset_ins, 0), COALESCE(updated_at, 0)) BETWEEN '$fromTs' AND '$toTs' GROUP BY d"));
     $sp = [];
     foreach ($SETTING_SRC as $st) $sp[] = "SELECT GREATEST(COALESCE($st[2], 0), COALESCE($st[3], 0)) AS t FROM $st[0] t $st[6] WHERE $st[1] = $agS";
-    $put('setting', am_rows($connect, "SELECT DATE(t) AS d, COUNT(*) AS n FROM (" . implode(' UNION ALL ', $sp) . ") x WHERE t >= '$fromTs' GROUP BY d"));
+    $put('setting', am_rows($connect, "SELECT DATE(t) AS d, COUNT(*) AS n FROM (" . implode(' UNION ALL ', $sp) . ") x WHERE t BETWEEN '$fromTs' AND '$toTs' GROUP BY d"));
     $daysList = [];
-    for ($t = strtotime($from); $t <= strtotime($today); $t += 86400) $daysList[] = date('Y-m-d', $t);
+    for ($t = strtotime($from); $t <= strtotime($to); $t += 86400) $daysList[] = date('Y-m-d', $t);
     $daily = [];
     foreach ($series as $k => $m) { $daily[$k] = []; foreach ($daysList as $d) $daily[$k][] = isset($m[$d]) ? $m[$d] : 0; }
 
@@ -186,7 +197,7 @@ if ($action === 'detail') {
 
     // ---------- ผู้ใช้ของหน่วยงาน + การเข้าใช้งาน ----------
     $users = am_rows($connect, "SELECT u.user_id, TRIM(CONCAT(IFNULL(u.user_name, ''), ' ', IFNULL(u.user_fname, ''))) AS name, u.user_level, u.user_position,
-            SUM(l.tl_time >= '$fromTs') AS n, MAX(l.tl_time) AS last
+            SUM(l.tl_time BETWEEN '$fromTs' AND '$toTs') AS n, MAX(l.tl_time) AS last
         FROM (SELECT DISTINCT user_id FROM $USER_AG ua WHERE ua.ag = $agS) x
         JOIN tb_user u ON u.user_id = x.user_id
         LEFT JOIN tb_time_login l ON l.tl_name = u.user_id
@@ -207,7 +218,7 @@ if ($action === 'user_logins') {
     $uS = "'" . mysqli_real_escape_string($connect, $user) . "'";
     // ต้องเป็นผู้ใช้ของหน่วยงานนี้
     if (!am_rows($connect, "SELECT 1 FROM $USER_AG ua WHERE ua.user_id = $uS AND ua.ag = $agS LIMIT 1")) am_out(['success' => false, 'error' => 'ไม่พบผู้ใช้ในหน่วยงานนี้']);
-    $rows = am_rows($connect, "SELECT tl_time AS t FROM tb_time_login WHERE tl_name = $uS AND tl_time >= '$fromTs' ORDER BY tl_time DESC LIMIT 1000");
+    $rows = am_rows($connect, "SELECT tl_time AS t FROM tb_time_login WHERE tl_name = $uS AND tl_time BETWEEN '$fromTs' AND '$toTs' ORDER BY tl_time DESC LIMIT 1000");
     $byDay = [];
     foreach ($rows as $r) { $d = substr($r['t'], 0, 10); $byDay[$d][] = substr($r['t'], 11, 8); }
     $out = [];
@@ -226,36 +237,36 @@ if ($action === 'list') {
     $rows = [];
     if ($type === 'login') {
         $rows = am_rows($connect, "SELECT l.tl_time AS t, l.tl_name AS user, 'เข้าสู่ระบบ' AS title, '' AS sub, '' AS status
-            FROM tb_time_login l JOIN $USER_AG ua ON ua.user_id = l.tl_name AND ua.ag = $agS WHERE l.tl_time >= '$fromTs' ORDER BY l.tl_time DESC LIMIT $LIM");
+            FROM tb_time_login l JOIN $USER_AG ua ON ua.user_id = l.tl_name AND ua.ag = $agS WHERE l.tl_time BETWEEN '$fromTs' AND '$toTs' ORDER BY l.tl_time DESC LIMIT $LIM");
     } elseif ($type === 'repair') {   // แจ้งในช่วงนี้ หรือปิดงานในช่วงนี้
         $rows = am_rows($connect, "SELECT r.created_at AS t, r.created_by AS user, CONCAT(IFNULL(r.rp_format, ''), ' — ', IFNULL(r.problem_detail, '')) AS title,
                 TRIM(CONCAT(IFNULL(a.area_name, ''), ' ', IFNULL(c.ac_name, ''), ' ', IFNULL(rm.ar_name, ''))) AS sub, r.status,
                 IF(r.completed_date IS NOT NULL, CONCAT(r.completed_date, ' ', IFNULL(r.completed_time, '')), NULL) AS done_at
             FROM repair_requests r
             LEFT JOIN tb_area a ON a.area_id = r.building LEFT JOIN tb_area_class c ON c.ac_id = r.floor LEFT JOIN tb_area_room rm ON rm.ar_id = r.room
-            WHERE r.ag_id = $ag AND (r.created_at >= '$fromTs' OR r.completed_date >= '$from') ORDER BY r.created_at DESC LIMIT $LIM");
+            WHERE r.ag_id = $ag AND (r.created_at BETWEEN '$fromTs' AND '$toTs' OR r.completed_date BETWEEN '$from' AND '$to') ORDER BY r.created_at DESC LIMIT $LIM");
     } elseif ($type === 'pm') {
         $rows = am_rows($connect, "SELECT wr.created_at AS t, wr.created_by AS user, CONCAT(IFNULL(wr.doc_no, ''), ' — ', IFNULL(wr.machine_code, ''), ' ', IFNULL(wr.machine_name, '')) AS title,
                 CONCAT(IFNULL(wr.checksheet_name, ''), ' · กำหนด ', IFNULL(wr.plan_date, '-')) AS sub, IF(e.evaluation_status = 1, 'evaluated', 'done') AS status
             FROM pm_work_records wr LEFT JOIN pm_plan_events e ON e.id = wr.plan_event_id
-            WHERE wr.ag_id = $agS AND wr.created_at >= '$fromTs' ORDER BY wr.created_at DESC LIMIT $LIM");
+            WHERE wr.ag_id = $agS AND wr.created_at BETWEEN '$fromTs' AND '$toTs' ORDER BY wr.created_at DESC LIMIT $LIM");
     } elseif ($type === 'meter') {
         $parts = [];
         foreach ($METER_SRC as $m) $parts[] = "(SELECT d.$m[2] AS t, " . am_t("d.$m[3]") . " AS user, " . am_t("CONCAT('$m[5] · ', IFNULL(mt.mt_name, '-'))") . " AS title, '' AS sub, '' AS status
-            FROM $m[0] d LEFT JOIN tb_meter mt ON mt.mt_id = d.$m[4] WHERE d.$m[1] = $agS AND d.$m[2] >= '$fromTs')";
+            FROM $m[0] d LEFT JOIN tb_meter mt ON mt.mt_id = d.$m[4] WHERE d.$m[1] = $agS AND d.$m[2] BETWEEN '$fromTs' AND '$toTs')";
         $rows = am_rows($connect, "SELECT * FROM (" . implode(' UNION ALL ', $parts) . ") x ORDER BY t DESC LIMIT $LIM");
     } elseif ($type === 'stock') {
         $rows = am_rows($connect, "SELECT created_at AS t, user_id AS user, CONCAT(IFNULL(snap_pd_name, ''), ' ', ABS(qty_change), ' ', IFNULL(snap_unit, '')) AS title,
                 CONCAT(IFNULL(doc_no, ''), IF(snap_wh_name IS NULL, '', CONCAT(' · ', snap_wh_name))) AS sub, trans_type AS status
-            FROM product_stock_transactions WHERE ag_id = $agS AND created_at >= '$fromTs' ORDER BY created_at DESC LIMIT $LIM");
+            FROM product_stock_transactions WHERE ag_id = $agS AND created_at BETWEEN '$fromTs' AND '$toTs' ORDER BY created_at DESC LIMIT $LIM");
     } elseif ($type === 'data') {   // เครื่องจักร + ข้อมูลตั้งค่า ที่เพิ่ม/แก้ไขในช่วงนี้
         $parts = ["(SELECT GREATEST(COALESCE(asset_ins, 0), COALESCE(updated_at, 0)) AS t, " . am_t("COALESCE(updated_by, created_by)") . " AS user,
                 " . am_t("CONCAT(IFNULL(ass_code, ''), ' ', IFNULL(asset_name, ''))") . " AS title, " . am_t("'เครื่องจักร'") . " AS sub,
                 " . am_t("IF(updated_at IS NOT NULL AND updated_at > asset_ins, 'edit', 'add')") . " AS status
-            FROM tb_ass_list WHERE ass_ag_id = $agS AND GREATEST(COALESCE(asset_ins, 0), COALESCE(updated_at, 0)) >= '$fromTs')"];
+            FROM tb_ass_list WHERE ass_ag_id = $agS AND GREATEST(COALESCE(asset_ins, 0), COALESCE(updated_at, 0)) BETWEEN '$fromTs' AND '$toTs')"];
         foreach ($SETTING_SRC as $st) $parts[] = "(SELECT GREATEST(COALESCE($st[2], 0), COALESCE($st[3], 0)) AS t, " . am_t($st[7]) . " AS user, " . am_t("IFNULL($st[4], '')") . " AS title, " . am_t("'$st[5]'") . " AS sub,
                 " . am_t("IF($st[3] IS NOT NULL AND $st[3] > $st[2], 'edit', 'add')") . " AS status
-            FROM $st[0] t $st[6] WHERE $st[1] = $agS AND GREATEST(COALESCE($st[2], 0), COALESCE($st[3], 0)) >= '$fromTs')";
+            FROM $st[0] t $st[6] WHERE $st[1] = $agS AND GREATEST(COALESCE($st[2], 0), COALESCE($st[3], 0)) BETWEEN '$fromTs' AND '$toTs')";
         $rows = am_rows($connect, "SELECT * FROM (" . implode(' UNION ALL ', $parts) . ") x ORDER BY t DESC LIMIT $LIM");
     } else {
         am_out(['success' => false, 'error' => 'ไม่รู้จักประเภทข้อมูล']);

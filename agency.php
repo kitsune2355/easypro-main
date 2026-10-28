@@ -642,7 +642,7 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
           <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
           <input id="am-q" type="search" placeholder="ค้นหาหน่วยงาน" class="input-clean !pl-9 !py-1.5 w-full sm:w-52">
         </div>
-        <div class="am-seg" id="am-days"><button type="button" data-days="7">7 วัน</button><button type="button" data-days="30" class="on">30 วัน</button><button type="button" data-days="90">90 วัน</button></div>
+        <div class="am-seg" id="am-days"><button type="button" data-days="7">7 วัน</button><button type="button" data-days="30" class="on">30 วัน</button><button type="button" data-days="90">90 วัน</button><button type="button" data-range title="เลือกช่วงวันที่ (ดูย้อนหลังได้)"><i data-lucide="calendar-range" class="w-3.5 h-3.5 inline -mt-0.5 mr-1"></i><span id="am-range-txt">กำหนดเอง</span></button></div>
         <button type="button" id="am-export" class="h-8 px-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-100" title="ส่งออกสรุปทุกหน่วยงาน (ตามตัวกรอง)"><i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Export Excel</button>
         <button type="button" id="am-reload" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 flex items-center justify-center hover:bg-slate-50 hover:text-easy-primary" title="โหลดใหม่"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i></button>
       </div>
@@ -1685,6 +1685,11 @@ document.querySelectorAll(".perm-check:checked")
     ['data', 'database', 'ข้อมูล/ตั้งค่า', a => a.machine.added + a.machine.updated + a.setting.n]
   ];
   let DATA = [], days = 30, filter = '', sortKey = 'last', loaded = false, loading = false;
+  // ช่วงเวลา: 7/30/90 วันล่าสุด หรือกำหนดเอง (range = { from, to } — ดูข้อมูลย้อนหลัง)
+  let range = null;
+  const qp = () => range ? `from=${range.from}&to=${range.to}` : `days=${days}`;
+  const periodTxt = () => range ? `${thD(range.from)} – ${thD(range.to)}` : `${days} วันล่าสุด`;
+  const periodTag = () => range ? `${range.from}_${range.to}` : `${days}d`;
   const total = a => a.spark.reduce((x, y) => x + y, 0);
 
   function spark(vals, color) {
@@ -1734,7 +1739,7 @@ document.querySelectorAll(".perm-check:checked")
 
   function headHtml() {
     const h = (key, label, num, cls) => `<div class="h ${num ? 'num' : ''} ${sortKey === key ? 'on' : ''} ${cls || ''}" data-sort="${key}">${label}${sortKey === key ? '<span class="ar">▼</span>' : ''}</div>`;
-    return `<div class="am-grid am-head">${h('name', 'หน่วยงาน')}${h('state', 'สถานะ')}${h('last', 'ล่าสุด')}<div class="h am-col-spark" style="cursor:default">แนวโน้ม ${days} วัน</div>
+    return `<div class="am-grid am-head">${h('name', 'หน่วยงาน')}${h('state', 'สถานะ')}${h('last', 'ล่าสุด')}<div class="h am-col-spark" style="cursor:default">แนวโน้ม ${range ? 'ช่วงที่เลือก' : days + ' วัน'}</div>
       ${h('login', 'เข้าใช้งาน', 1)}${h('repair', 'แจ้งซ่อม', 1)}${h('pm', 'PM', 1)}${h('meter', 'มิเตอร์', 1)}${h('stock', 'สต็อก', 1)}${h('data', 'ข้อมูล', 1)}<div></div></div>`;
   }
 
@@ -1767,10 +1772,10 @@ document.querySelectorAll(".perm-check:checked")
     loading = true;
     $('am-list').innerHTML = Array.from({ length: 6 }, () => '<div class="am-r flex items-center gap-4 !cursor-default animate-pulse"><div class="h-4 bg-slate-100 rounded w-56"></div><div class="h-4 bg-slate-100 rounded w-20"></div><div class="h-4 bg-slate-100 rounded flex-1"></div></div>').join('');
     try {
-      const r = await (await fetch('handle_agency_monitor.php?action=summary&days=' + days)).json();
+      const r = await (await fetch('handle_agency_monitor.php?action=summary&' + qp())).json();
       if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
       DATA = r.agencies; loaded = true;
-      $('am-updated').textContent = 'ความเคลื่อนไหว ' + days + ' วันล่าสุดของทุกหน่วยงาน · อัปเดต ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+      $('am-updated').textContent = 'ความเคลื่อนไหว ' + periodTxt() + ' ของทุกหน่วยงาน · อัปเดต ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
       render();
     } catch (e) {
       $('am-list').innerHTML = `<div class="py-16 text-center text-red-500 text-sm">${esc(e.message)}</div>`;
@@ -1864,7 +1869,7 @@ document.querySelectorAll(".perm-check:checked")
     const name = btn.querySelector('.am-uname').textContent;
     pn.innerHTML = `<div class="px-5 pt-4 pb-3 border-b border-slate-100 flex-none">
         <button type="button" data-x class="am-up-x" title="ปิด" aria-label="ปิด">×</button>
-        <div class="min-w-0 pr-10"><div class="text-[11px] text-slate-400">ประวัติเข้าสู่ระบบ · ${days} วันล่าสุด</div><div class="text-[15px] font-bold text-slate-800 truncate">${esc(name)}</div></div>
+        <div class="min-w-0 pr-10"><div class="text-[11px] text-slate-400">ประวัติเข้าสู่ระบบ · ${esc(periodTxt())}</div><div class="text-[15px] font-bold text-slate-800 truncate">${esc(name)}</div></div>
         <div data-sum class="text-[12px] text-slate-500 mt-0.5"></div></div>
       <div data-body class="am-scroll flex-1 min-h-0 overflow-y-auto px-4 py-3"><div class="text-xs text-slate-400 py-6 text-center">กำลังโหลด...</div></div>`;
     pn.onclick = e => { if (e.target.closest('[data-x]')) closeUserPanel(); };
@@ -1873,7 +1878,7 @@ document.querySelectorAll(".perm-check:checked")
     requestAnimationFrame(() => pn.classList.add('show'));
     const body = pn.querySelector('[data-body]');
     try {
-      const r = await (await fetch(`handle_agency_monitor.php?action=user_logins&ag=${cur.ag_id}&user=${encodeURIComponent(user)}&days=${days}`)).json();
+      const r = await (await fetch(`handle_agency_monitor.php?action=user_logins&ag=${cur.ag_id}&user=${encodeURIComponent(user)}&${qp()}`)).json();
       if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
       if (upUser !== user) return;   // ระหว่างโหลดผู้ใช้กดคนอื่นแล้ว
       pn.querySelector('[data-sum]').textContent = r.days.length
@@ -1884,8 +1889,8 @@ document.querySelectorAll(".perm-check:checked")
       r.days.forEach(d => { byDay[d.d] = d.times.map(t => t.slice(0, 5)).sort(); });   // เช้า → เย็น
       const pad = n => String(n).padStart(2, '0');
       const ymdOf = dt => dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const from = new Date(today); from.setDate(from.getDate() - (days - 1));
+      const today = range ? new Date(range.to + 'T00:00:00') : new Date(); today.setHours(0, 0, 0, 0);   // วันสุดท้ายของช่วง
+      const from = range ? new Date(range.from + 'T00:00:00') : new Date(today); if (!range) from.setDate(from.getDate() - (days - 1));
       const months = [];   // เก่า → ใหม่
       for (let m = new Date(from.getFullYear(), from.getMonth(), 1); m <= today; m.setMonth(m.getMonth() + 1)) months.push(new Date(m));
       const latest = r.days[0].d;
@@ -1945,7 +1950,7 @@ document.querySelectorAll(".perm-check:checked")
           </div>
         </div>`;
       try {
-        const r = listCache.overview || (listCache.overview = await (await fetch(`handle_agency_monitor.php?action=detail&ag=${a.ag_id}&days=${days}`)).json());
+        const r = listCache.overview || (listCache.overview = await (await fetch(`handle_agency_monitor.php?action=detail&ag=${a.ag_id}&${qp()}`)).json());
         if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
         if (cur !== a || !$('am-chart')) return;
         const labels = r.days.map(d => new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }));
@@ -1982,11 +1987,11 @@ document.querySelectorAll(".perm-check:checked")
     }
     body.innerHTML = '<div class="py-10 text-center text-slate-400 text-sm">กำลังโหลด...</div>';
     try {
-      const r = listCache[tab] || (listCache[tab] = await (await fetch(`handle_agency_monitor.php?action=list&type=${tab}&ag=${a.ag_id}&days=${days}`)).json());
+      const r = listCache[tab] || (listCache[tab] = await (await fetch(`handle_agency_monitor.php?action=list&type=${tab}&ag=${a.ag_id}&${qp()}`)).json());
       if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
       if (cur !== a) return;
       const showSt = ['repair', 'pm', 'stock', 'data'].includes(tab);
-      body.innerHTML = r.rows.length ? `<div class="flex flex-col h-full min-h-0"><div class="flex items-center justify-between mb-2 flex-none"><div class="text-[12px] text-slate-500">${nf(r.rows.length)} รายการ${r.rows.length >= r.limit ? ' (แสดง ' + r.limit + ' รายการล่าสุด)' : ''} · ${days} วันล่าสุด</div>
+      body.innerHTML = r.rows.length ? `<div class="flex flex-col h-full min-h-0"><div class="flex items-center justify-between mb-2 flex-none"><div class="text-[12px] text-slate-500">${nf(r.rows.length)} รายการ${r.rows.length >= r.limit ? ' (แสดง ' + r.limit + ' รายการล่าสุด)' : ''} · ${esc(periodTxt())}</div>
           <input type="search" id="am-lq" placeholder="ค้นหาในรายการ" class="input-clean !py-1 !text-[12px] w-48"></div>
         <div class="am-scroll border border-slate-200 rounded-lg overflow-auto flex-1 min-h-0"><table class="am-list w-full"><thead><tr><th class="w-[130px]">วันเวลา</th><th>รายการ</th>${showSt ? '<th class="w-[110px]">สถานะ</th>' : ''}<th class="w-[170px]">โดย</th></tr></thead><tbody>
         ${r.rows.map(x => `<tr data-s="${esc((x.title + ' ' + x.sub + ' ' + x.user_name).toLowerCase())}"><td class="whitespace-nowrap text-slate-500">${esc(thDT(x.t))}</td>
@@ -2054,8 +2059,8 @@ document.querySelectorAll(".perm-check:checked")
     if (!rows.length) { Swal.fire({ icon: 'info', title: 'ไม่มีข้อมูลให้ส่งออก', confirmButtonColor: '#005e8e' }); return; }
     const btn = $('am-export'); btn.disabled = true;
     try {
-      await saveXlsx(`monitor-agencies-${days}d-${ymd()}.xlsx`, [{
-        name: 'สรุปหน่วยงาน', title: `Monitor หน่วยงาน — ความเคลื่อนไหว ${days} วันล่าสุด (ข้อมูล ณ ${new Date().toLocaleString('th-TH')})`,
+      await saveXlsx(`monitor-agencies-${periodTag()}-${ymd()}.xlsx`, [{
+        name: 'สรุปหน่วยงาน', title: `Monitor หน่วยงาน — ความเคลื่อนไหว ${periodTxt()} (ข้อมูล ณ ${new Date().toLocaleString('th-TH')})`,
         columns: [['หน่วยงาน', 36], ['รหัส', 16], ['สถานะ', 14], ['เคลื่อนไหวล่าสุด', 18], ['ความเคลื่อนไหวรวม', 12], ['เริ่มสัญญา', 12], ['สิ้นสุดสัญญา', 12], ['สัญญาหมด', 10],
           ['ผู้ใช้ทั้งหมด', 10], ['เข้าใช้งาน (ครั้ง)', 12], ['ผู้ใช้ที่เข้า', 10], ['แจ้งซ่อมใหม่', 11], ['ปิดงานซ่อม', 11], ['งานซ่อมค้าง', 11],
           ['PM ทำแล้ว', 10], ['PM ถึงกำหนด', 11], ['PM เลยกำหนดสะสม', 13], ['จดมิเตอร์', 10], ['สต็อก', 9], ['เครื่องจักร เพิ่ม', 12], ['เครื่องจักร แก้ไข', 12], ['เครื่องจักรทั้งหมด', 12], ['ตั้งค่า', 9]],
@@ -2073,7 +2078,7 @@ document.querySelectorAll(".perm-check:checked")
     const label = btn.innerHTML; btn.innerHTML = 'กำลังเตรียมไฟล์...';
     try {
       const get = async q => { const r = await (await fetch('handle_agency_monitor.php?' + q)).json(); if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ'); return r; };
-      const base = `ag=${a.ag_id}&days=${days}`;
+      const base = `ag=${a.ag_id}&${qp()}`;
       const [detail, login, repair, pm, meter, stock, data] = await Promise.all([
         get('action=detail&' + base), get('action=list&type=login&export=1&' + base), get('action=list&type=repair&export=1&' + base), get('action=list&type=pm&export=1&' + base),
         get('action=list&type=meter&export=1&' + base), get('action=list&type=stock&export=1&' + base), get('action=list&type=data&export=1&' + base)
@@ -2085,8 +2090,8 @@ document.querySelectorAll(".perm-check:checked")
       });
       const lastLogin = {};
       detail.users.forEach(u => { lastLogin[u.user_id] = u.last; });
-      await saveXlsx(`monitor-${(a.code || a.ag_id)}-${days}d-${ymd()}.xlsx`, [
-        { name: 'สรุป', title: `${a.name} (${a.code || '-'}) — ${days} วันล่าสุด`, columns: [['หัวข้อ', 30], ['ค่า', 26]], rows: [
+      await saveXlsx(`monitor-${(a.code || a.ag_id)}-${periodTag()}-${ymd()}.xlsx`, [
+        { name: 'สรุป', title: `${a.name} (${a.code || '-'}) — ${periodTxt()}`, columns: [['หัวข้อ', 30], ['ค่า', 26]], rows: [
           ['สถานะ', stName(a.state)], ['เคลื่อนไหวล่าสุด', dtx(a.last)], ['สัญญา', (a.start || '-') + ' ถึง ' + (a.end || '-') + (a.expired ? ' (หมดแล้ว)' : '')],
           ['ผู้ใช้ทั้งหมด (คน)', a.users], ['เข้าใช้งาน (ครั้ง)', a.login.n], ['ผู้ใช้ที่เข้าใช้งาน (คน)', a.login.users],
           ['แจ้งซ่อมใหม่', a.repair.new], ['ปิดงานซ่อม', a.repair.closed], ['งานซ่อมค้าง', a.repair.backlog],
@@ -2132,9 +2137,44 @@ document.querySelectorAll(".perm-check:checked")
     });
   }
 
+  // เลือกช่วงวันที่เอง (ดูย้อนหลัง) — ไม่เกิน 1 ปี และไม่เกินวันนี้
+  async function pickRange() {
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const now = new Date(), t = iso(now), f0 = new Date(now); f0.setDate(f0.getDate() - (days - 1));
+    const cur0 = range || { from: iso(f0), to: t };
+    const q = (y, m) => iso(new Date(y, m, 1));
+    const y = now.getFullYear(), m = now.getMonth();
+    const presets = [['เดือนนี้', q(y, m), t], ['เดือนที่แล้ว', q(y, m - 1), iso(new Date(y, m, 0))], ['3 เดือนที่แล้ว', q(y, m - 3), iso(new Date(y, m, 0))], ['ปีนี้', q(y, 0), t]];
+    const r = await Swal.fire({
+      title: 'เลือกช่วงวันที่', width: '28rem', showCancelButton: true, confirmButtonText: 'ดูข้อมูล', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#005e8e',
+      html: `<div class="text-left">
+        <div class="flex flex-wrap gap-1.5 mb-3">${presets.map(p => `<button type="button" class="am-rp h-7 px-2.5 rounded-lg border border-slate-200 text-[12px] font-semibold text-slate-600 hover:bg-slate-50" data-f="${p[1]}" data-t="${p[2]}">${p[0]}</button>`).join('')}</div>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="text-[12px] font-semibold text-slate-500">ตั้งแต่<input type="date" id="am-rf" max="${t}" value="${cur0.from}" class="input-clean w-full mt-1"></label>
+          <label class="text-[12px] font-semibold text-slate-500">ถึง<input type="date" id="am-rt" max="${t}" value="${cur0.to}" class="input-clean w-full mt-1"></label>
+        </div><div class="text-[11.5px] text-slate-400 mt-2">ดูย้อนหลังได้ ช่วงละไม่เกิน 1 ปี</div></div>`,
+      didOpen: () => document.querySelectorAll('.am-rp').forEach(b => b.onclick = () => { $('am-rf').value = b.dataset.f; $('am-rt').value = b.dataset.t; }),
+      preConfirm: () => {
+        const f = $('am-rf').value, to = $('am-rt').value;
+        if (!f || !to) return Swal.showValidationMessage('กรุณาเลือกวันที่ให้ครบ');
+        if (f > to) return Swal.showValidationMessage('วันที่เริ่มต้องไม่เกินวันที่สิ้นสุด');
+        if (to > t) return Swal.showValidationMessage('วันที่สิ้นสุดต้องไม่เกินวันนี้');
+        if ((new Date(to) - new Date(f)) / 86400000 > 365) return Swal.showValidationMessage('เลือกช่วงได้ไม่เกิน 1 ปี');
+        return { from: f, to };
+      }
+    });
+    if (!r.isConfirmed) return;
+    range = r.value;
+    days = Math.round((new Date(range.to) - new Date(range.from)) / 86400000) + 1;
+    $('am-range-txt').textContent = periodTxt();
+    document.querySelectorAll('#am-days button').forEach(x => x.classList.toggle('on', x.hasAttribute('data-range')));
+    load();
+  }
   $('am-days').addEventListener('click', e => {
+    if (e.target.closest('[data-range]')) { pickRange(); return; }
     const b = e.target.closest('[data-days]'); if (!b) return;
-    days = +b.dataset.days;
+    days = +b.dataset.days; range = null;
+    $('am-range-txt').textContent = 'กำหนดเอง';
     document.querySelectorAll('#am-days button').forEach(x => x.classList.toggle('on', x === b));
     load();
   });
