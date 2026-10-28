@@ -135,9 +135,12 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
     .am-user.on .am-caret { color: #0284c7; }
     #am-up { position: fixed; z-index: 2; background: #fff; border-radius: 16px; box-shadow: 0 12px 40px rgba(15, 23, 42, .2); display: flex; flex-direction: column; overflow: hidden; text-align: left; opacity: 0; transform: translateX(-8px); transition: opacity .18s, transform .18s; }
     #am-up.show { opacity: 1; transform: none; }
+<<<<<<< HEAD
     /* ปุ่มปิดแผง: แบบเดียวกับปุ่มปิดของ SweetAlert2 */
     .am-up-x { position: absolute; top: 0; right: 0; z-index: 2; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; padding: 0; border: none; border-radius: 5px; background: transparent; color: #ccc; font-family: monospace; font-size: 40px; line-height: 1; cursor: pointer; transition: color .1s; }
     .am-up-x:hover { color: #f27474; }
+=======
+>>>>>>> 50333a3abac16661c1be685b2248b4ad0342428c
     .am-upc { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
     .am-upc .w { font-size: 10.5px; color: #94a3b8; text-align: center; padding-bottom: 2px; }
     .am-ud { min-height: 62px; border-radius: 8px; padding: 4px 6px; border: 1px solid #f1f5f9; font-variant-numeric: tabular-nums; text-align: left; display: flex; flex-direction: column; }
@@ -1863,8 +1866,13 @@ document.querySelectorAll(".perm-check:checked")
     }
     const name = btn.querySelector('.am-uname').textContent;
     pn.innerHTML = `<div class="px-5 pt-4 pb-3 border-b border-slate-100 flex-none">
+<<<<<<< HEAD
         <button type="button" data-x class="am-up-x" title="ปิด" aria-label="ปิด">×</button>
         <div class="min-w-0 pr-10"><div class="text-[11px] text-slate-400">ประวัติเข้าสู่ระบบ · ${days} วันล่าสุด</div><div class="text-[15px] font-bold text-slate-800 truncate">${esc(name)}</div></div>
+=======
+        <div class="flex items-start gap-2"><div class="min-w-0 flex-1"><div class="text-[11px] text-slate-400">ประวัติเข้าสู่ระบบ · ${days} วันล่าสุด</div><div class="text-[15px] font-bold text-slate-800 truncate">${esc(name)}</div></div>
+          <button type="button" data-x class="w-8 h-8 -mr-2 rounded-lg hover:bg-slate-100 text-slate-400 flex items-center justify-center flex-none" title="ปิด">${ico('x', 'w-4 h-4')}</button></div>
+>>>>>>> 50333a3abac16661c1be685b2248b4ad0342428c
         <div data-sum class="text-[12px] text-slate-500 mt-0.5"></div></div>
       <div data-body class="am-scroll flex-1 min-h-0 overflow-y-auto px-4 py-3"><div class="text-xs text-slate-400 py-6 text-center">กำลังโหลด...</div></div>`;
     pn.onclick = e => { if (e.target.closest('[data-x]')) closeUserPanel(); };
