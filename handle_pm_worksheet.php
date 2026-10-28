@@ -316,7 +316,7 @@ function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users,
             throw new Exception('ไม่สามารถบันทึกลายเซ็นผู้ตรวจสอบได้');
         }
     } elseif ($record_setting['sign_required']) {
-        throw new Exception('กรุณาลงลายมือชื่อผู้ตรวจสอบ');
+        throw new Exception('กรุณาลงลายมือชื่อผู้ปฏิบัติงาน');
     }
 
     // 4. insert pm_work_records
@@ -1045,7 +1045,7 @@ if ($action === 'save') {
     }
 
     if ($inspector_name === '') {
-        echo json_encode(['success' => false, 'error' => 'กรุณาเลือกชื่อผู้ตรวจสอบ'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success' => false, 'error' => 'กรุณาเลือกชื่อผู้ปฏิบัติงาน'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -1223,7 +1223,7 @@ if ($action === 'save_batch') {
     if ($checksheet_id <= 0) $fail('ไม่พบรหัสเช็คชีต');
     if (!is_array($event_ids) || !count($event_ids)) $fail('ไม่ได้เลือกเครื่อง');
     if (count($event_ids) > 100) $fail('ส่งได้ครั้งละไม่เกิน 100 เครื่อง');
-    if ($inspector_name === '') $fail('กรุณาเลือกชื่อผู้ตรวจสอบ');
+    if ($inspector_name === '') $fail('กรุณาเลือกชื่อผู้ปฏิบัติงาน');
     if (!is_array($inspector_users) || !count($inspector_users)) $fail('ไม่พบข้อมูล user_id ของผู้ตรวจสอบ');
     if (!is_array($common_items) || !count($common_items)) $fail('ไม่พบข้อมูลผลการตรวจสอบ');
     if (!is_array($per_event)) $per_event = [];
@@ -1243,7 +1243,7 @@ if ($action === 'save_batch') {
         if (!$signature_path) $fail('ไม่สามารถบันทึกลายเซ็นผู้ตรวจสอบได้');
     } else {
         $rs = pmrs_get($connect, $ag_id);
-        if ($rs['sign_required']) $fail('กรุณาลงลายมือชื่อผู้ตรวจสอบ');   // ไม่บังคับ => บันทึกโดยไม่มีลายเซ็น
+        if ($rs['sign_required']) $fail('กรุณาลงลายมือชื่อผู้ปฏิบัติงาน');   // ไม่บังคับ => บันทึกโดยไม่มีลายเซ็น
     }
     $actual_date_in = trim($_POST['actual_date'] ?? '');
 

@@ -757,7 +757,7 @@ $('btnSend').addEventListener('click', () => {
             <div class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-700">${esc(longTh(REC.today || ymdLocal()))} (วันที่บันทึก)</div>`}
         <label class="block text-xs font-semibold text-slate-500 mt-3 mb-1">หมายเหตุ (ใส่ให้ทุกเครื่องในชุดนี้)</label>
         <textarea id="rmk" rows="2" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" placeholder="ถ้ามี">${esc(remarks)}</textarea>
-        <div class="flex items-center justify-between mt-3 mb-1"><span class="text-xs font-semibold text-slate-500">ลายมือชื่อผู้ตรวจสอบ${+REC.sign_required ? ' <span class=\"text-red-500\">*</span>' : ' <span class="font-normal text-slate-400">(ไม่บังคับ)</span>'}</span>
+        <div class="flex items-center justify-between mt-3 mb-1"><span class="text-xs font-semibold text-slate-500">ลายมือชื่อผู้ปฏิบัติงาน${+REC.sign_required ? ' <span class=\"text-red-500\">*</span>' : ' <span class="font-normal text-slate-400">(ไม่บังคับ)</span>'}</span>
             ${sigPath ? '<button type="button" id="sigNew" class="text-xs text-[#006B9F] font-semibold">เซ็นใหม่</button>' : '<button type="button" id="sigClear" class="text-xs text-slate-500">ล้าง</button>'}</div>
         <div id="sigBox">${sigPath ? '<div class="p-3 rounded-xl bg-emerald-50 text-emerald-700 text-sm">ใช้ลายเซ็นที่เซ็นไว้แล้ววันนี้</div>' : '<div class="border-2 border-dashed border-slate-200 rounded-xl bg-slate-50"><canvas id="sig" class="w-full h-36 block"></canvas></div>'}</div>
         <div id="sendProg" class="hidden mt-3"><div class="text-sm text-slate-500 mb-1"><span id="pgTxt">0 / ${ids.length}</span></div><div class="h-2.5 bg-slate-100 rounded-full overflow-hidden"><div id="pgBar" class="h-full bg-emerald-500 transition-all" style="width:0%"></div></div></div>
@@ -791,8 +791,8 @@ async function sendBatch(ids) {
     remarks = $('rmk').value.trim();
     const errs = [];
     const hasSig = !!sigPath || (sigPad && !sigPad.isEmpty());
-    if (!us.length) errs.push('เลือกชื่อผู้ตรวจสอบ');
-    if (+REC.sign_required && !hasSig) errs.push('ลงลายมือชื่อผู้ตรวจสอบ');
+    if (!us.length) errs.push('เลือกชื่อผู้ปฏิบัติงาน');
+    if (+REC.sign_required && !hasSig) errs.push('ลงลายมือชื่อผู้ปฏิบัติงาน');
     if ($('aDate')) {
         pickDate = $('aDate').value;
         const w = REC.window;

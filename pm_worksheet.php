@@ -409,13 +409,13 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                 </div>
                 <div id="ws-summary" class="bg-white rounded-xl border border-slate-200 mb-3"></div>
             <div class="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 mb-3">
-                <h3 class="text-base font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100"><i class="fa-solid fa-user-gear text-primary mr-2"></i>ส่วนของผู้ปฏิบัติงาน / ผู้ตรวจสอบ</h3>
+                <h3 class="text-base font-bold text-slate-800 mb-4 pb-2 border-b border-slate-100"><i class="fa-solid fa-user-gear text-primary mr-2"></i>ส่วนของผู้ปฏิบัติงาน</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div class="space-y-6">
                         <div class="mb-4">
                             <label class="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-1.5">
                                 <i class="fa-solid fa-user-check text-slate-500"></i>
-                                <span>ชื่อผู้ตรวจสอบ <span class="text-red-500">*</span></span>
+                                <span>ชื่อผู้ปฏิบัติงาน <span class="text-red-500">*</span></span>
                             </label>
                             <div class="relative custom-select-container">
                                 <div id="inspector_display" class="w-full border border-slate-300 rounded-lg px-3 py-2 pr-8 bg-white cursor-pointer flex flex-wrap gap-1 min-h-[42px] items-center shadow-sm" onClick="toggleDropdown('inspector_dropdown')">
@@ -454,7 +454,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-1.5">
                             <i class="fa-solid fa-signature text-slate-500"></i>
-                            <span>ลายมือชื่อผู้ตรวจสอบ <span id="ws-sign-req" class="text-red-500">*</span><span id="ws-sign-opt" class="hidden text-xs font-normal text-slate-400">(ไม่บังคับ)</span></span>
+                            <span>ลายมือชื่อผู้ปฏิบัติงาน <span id="ws-sign-req" class="text-red-500">*</span><span id="ws-sign-opt" class="hidden text-xs font-normal text-slate-400">(ไม่บังคับ)</span></span>
                         </label>
                         <div class="border border-slate-300 rounded-lg overflow-hidden bg-white shadow-sm relative group">
                             <canvas id="inspector-signature-pad" class="signature-canvas touch-none"></canvas>
@@ -2418,7 +2418,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 				errors.push({
 					type: 'header',
 					fieldKey: 'inspector_name',
-					message: 'ยังไม่ได้เลือกชื่อผู้ตรวจสอบ',
+					message: 'ยังไม่ได้เลือกชื่อผู้ปฏิบัติงาน',
 					element: inspectorDisplay
 				});
 			}
@@ -2457,7 +2457,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 				errors.push({
 					type: 'header',
 					fieldKey: 'inspector_signature',
-					message: 'ยังไม่ได้ลงลายมือชื่อผู้ตรวจสอบ',
+					message: 'ยังไม่ได้ลงลายมือชื่อผู้ปฏิบัติงาน',
 					element: signCanvasWrap
 				});
 			}

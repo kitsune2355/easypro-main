@@ -1,6 +1,6 @@
 <?php
 @session_start();
-// ตั้งค่าการบันทึกผล PM — ลายมือชื่อผู้ตรวจสอบ (บังคับ/ไม่บังคับ), วันที่ทำ PM (วันนี้ / เลือกวันที่ภายในช่วงสัญญา/แผน)
+// ตั้งค่าการบันทึกผล PM — ลายมือชื่อผู้ปฏิบัติงาน (บังคับ/ไม่บังคับ), วันที่ทำ PM (วันนี้ / เลือกวันที่ภายในช่วงสัญญา/แผน)
 //  และขั้นตรวจรับโดยหัวหน้าช่าง (เปิด/ปิด — ผู้ตรวจรับกำหนดที่ settings_pm_approvers.php)
 //  รูปแบบหน้าเดียวกับ settings_job_other.php
 include "config_ctrl/checksession.php";
@@ -104,7 +104,7 @@ include "config_ctrl/checksession.php";
       <p id="no-perm" class="hidden mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-2.5 flex items-center gap-1.5"><i data-lucide="lock" class="w-3.5 h-3.5"></i> เปลี่ยนการตั้งค่าได้เฉพาะผู้ดูแลระบบ</p>
 
       <div class="grid grid-cols-1 gap-4">
-        <!-- ลายมือชื่อผู้ตรวจสอบ -->
+        <!-- ลายมือชื่อผู้ปฏิบัติงาน -->
         <div class="bg-white border border-slate-200 rounded-xl p-4 md:p-5 shadow-sm">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div class="flex gap-4 items-start sm:items-center">
@@ -113,14 +113,14 @@ include "config_ctrl/checksession.php";
               </div>
               <div>
                 <div class="flex items-center gap-2 mb-0.5">
-                  <h3 class="text-[15px] font-semibold text-slate-800">บังคับลายมือชื่อผู้ตรวจสอบ</h3>
+                  <h3 class="text-[15px] font-semibold text-slate-800">บังคับลายมือชื่อผู้ปฏิบัติงาน</h3>
                   <span id="badge-sign" class="text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0"></span>
                 </div>
-                <p class="text-xs text-slate-500 leading-relaxed">เปิดเพื่อบังคับให้เซ็นชื่อผู้ตรวจสอบก่อนบันทึกผลทุกครั้ง<br>หากปิด บันทึกผลได้โดยไม่ต้องเซ็น (ถ้าเซ็นไว้ ลายเซ็นยังแสดงในใบงานตามปกติ)</p>
+                <p class="text-xs text-slate-500 leading-relaxed">เปิดเพื่อบังคับให้เซ็นชื่อผู้ปฏิบัติงานก่อนบันทึกผลทุกครั้ง<br>หากปิด บันทึกผลได้โดยไม่ต้องเซ็น (ถ้าเซ็นไว้ ลายเซ็นยังแสดงในใบงานตามปกติ)</p>
               </div>
             </div>
             <div class="flex justify-end sm:block mt-2 sm:mt-0 shrink-0">
-              <button type="button" id="toggle-sign" class="switch-track" aria-label="บังคับลายมือชื่อผู้ตรวจสอบ"><div class="switch-dot"></div></button>
+              <button type="button" id="toggle-sign" class="switch-track" aria-label="บังคับลายมือชื่อผู้ปฏิบัติงาน"><div class="switch-dot"></div></button>
             </div>
           </div>
         </div>
