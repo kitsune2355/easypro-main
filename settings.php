@@ -235,6 +235,7 @@
                     { label: "การบันทึกผล PM", href: "settings_pm_record.php", id: "pm_record" },
                     { label: "รายการหัวข้อประเมิน", href: "settings_pm_feedback.php", id: "pm_feedback" },
                     { label: "ผู้ประเมิน PM", href: "settings_pm_evaluators.php", id: "pm_evaluators" },
+                    { label: "ผู้ตรวจรับ PM", href: "settings_pm_approvers.php", id: "pm_approvers" },
                 ]
             }
         ];

@@ -2,6 +2,7 @@
 // ตั้งค่าการบันทึกผล PM (ต่อหน่วยงาน) — ตั้งค่าที่ ตั้งค่าข้อมูล → แผน PM → การบันทึกผล PM (settings_pm_record.php)
 //  sign_required : 1 = บังคับลายมือชื่อผู้ตรวจสอบ (ค่าเดิม) / 0 = ไม่บังคับ
 //  date_mode     : 'today' = วันที่ทำ PM คือวันที่บันทึก (ค่าเดิม) / 'pick' = เลือกวันที่ได้ภายในช่วงสัญญา/แผนของหน่วยงาน
+//  approve_required : 1 = ช่างบันทึกผลแล้วต้องรอหัวหน้าช่างตรวจรับก่อนนับว่าเสร็จ (config_ctrl/pm_approve.php) / 0 = ไม่ต้อง (ค่าเดิม)
 
 if (!function_exists('pmrs_ensure')) {
 
@@ -13,28 +14,32 @@ if (!function_exists('pmrs_ensure')) {
             ag_id INT NOT NULL PRIMARY KEY,
             sign_required TINYINT(1) NOT NULL DEFAULT 1,
             date_mode VARCHAR(10) NOT NULL DEFAULT 'today',
+            approve_required TINYINT(1) NOT NULL DEFAULT 0,
             created_at DATETIME NULL,
             created_by VARCHAR(50) NULL,
             updated_at DATETIME NULL,
             updated_by VARCHAR(50) NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        // ตารางเดิม (ก่อนมีขั้นตรวจรับ) => เพิ่มคอลัมน์ · ไม่มีสิทธิ์ ALTER = ไม่มีขั้นตรวจรับ
+        try {
+            $r = mysqli_query($connect, "SHOW COLUMNS FROM tb_pm_record_setting LIKE 'approve_required'");
+            if ($r && !mysqli_num_rows($r)) @mysqli_query($connect, "ALTER TABLE tb_pm_record_setting ADD COLUMN approve_required TINYINT(1) NOT NULL DEFAULT 0 AFTER date_mode");
+        } catch (Exception $e) {}
     }
 
     function pmrs_get($connect, $ag) {
         static $cache = [];
         $ag = (int)$ag;
-        $def = ['sign_required' => 1, 'date_mode' => 'today'];
+        $def = ['sign_required' => 1, 'date_mode' => 'today', 'approve_required' => 0];
         if ($ag <= 0) return $def;
         if (isset($cache[$ag])) return $cache[$ag];
         pmrs_ensure($connect);
-        $st = mysqli_prepare($connect, "SELECT sign_required, date_mode FROM tb_pm_record_setting WHERE ag_id = ? LIMIT 1");
-        if ($st) {
-            mysqli_stmt_bind_param($st, 'i', $ag);
-            mysqli_stmt_execute($st);
-            mysqli_stmt_bind_result($st, $sr, $dm);
-            if (mysqli_stmt_fetch($st)) $def = ['sign_required' => (int)$sr ? 1 : 0, 'date_mode' => $dm === 'pick' ? 'pick' : 'today'];
-            mysqli_stmt_close($st);
-        }
+        try {
+            $r = mysqli_query($connect, "SELECT * FROM tb_pm_record_setting WHERE ag_id = $ag LIMIT 1");
+            $row = $r ? mysqli_fetch_assoc($r) : null;
+            if ($row) $def = ['sign_required' => (int)$row['sign_required'] ? 1 : 0, 'date_mode' => $row['date_mode'] === 'pick' ? 'pick' : 'today',
+                              'approve_required' => !empty($row['approve_required']) ? 1 : 0];
+        } catch (Exception $e) {}
         return $cache[$ag] = $def;
     }
 

@@ -7,6 +7,7 @@ date_default_timezone_set('Asia/Bangkok');
 header('Content-Type: application/json; charset=utf-8');
 include 'config_ctrl/connect.php';
 mysqli_set_charset($connect, 'utf8mb4');
+require_once __DIR__ . '/config_ctrl/pm_approve.php';
 
 function out($a, $code = 200) { http_response_code($code); echo json_encode($a, JSON_UNESCAPED_UNICODE); exit; }
 
@@ -25,10 +26,12 @@ $params = [$ag, $from, $to];
 if ($area !== '') { $where .= " AND a.asset_rp_area_id = ? "; $types .= 's'; $params[] = $area; }
 $JOIN = " FROM pm_plan_events e LEFT JOIN tb_ass_list a ON a.ass_id = e.machine_id ";
 
-// สถานะของรอบแผน: ทำตามแผน / ทำล่าช้า / ค้าง (เลยกำหนด) / ยังไม่ถึงกำหนด
+// สถานะของรอบแผน: ทำตามแผน / ทำล่าช้า / รอหัวหน้าช่างตรวจรับ / ค้าง (เลยกำหนด) / ยังไม่ถึงกำหนด
+$DONE = pmap_done_sql($connect, 'e');
 $STATES = "COUNT(*) AS planned,
-    SUM(e.status = 1 AND COALESCE(DATE(e.completed_at), e.event_date) <= e.event_date) AS ontime,
-    SUM(e.status = 1 AND COALESCE(DATE(e.completed_at), e.event_date) > e.event_date) AS late,
+    SUM($DONE AND COALESCE(DATE(e.completed_at), e.event_date) <= e.event_date) AS ontime,
+    SUM($DONE AND COALESCE(DATE(e.completed_at), e.event_date) > e.event_date) AS late,
+    SUM(" . pmap_wait_sql($connect, 'e') . ") AS waiting,
     SUM(e.status <> 1 AND e.event_date < CURDATE()) AS overdue,
     SUM(e.status <> 1 AND e.event_date >= CURDATE()) AS upcoming";
 
@@ -41,13 +44,13 @@ function q($connect, $sql, $types, $params) {
     $st->close();
     return $r;
 }
-$int = function ($r) { foreach (['planned', 'ontime', 'late', 'overdue', 'upcoming', 'machines', 'n'] as $k) if (isset($r[$k])) $r[$k] = (int)$r[$k]; return $r; };
+$int = function ($r) { foreach (['planned', 'ontime', 'late', 'waiting', 'overdue', 'upcoming', 'machines', 'n'] as $k) if (isset($r[$k])) $r[$k] = (int)$r[$k]; return $r; };
 
 try {
     $rows = array_map($int, q($connect, "SELECT $STATES $JOIN $where", $types, $params));
 
     // รวม
-    $k = ['planned' => 0, 'ontime' => 0, 'late' => 0, 'overdue' => 0, 'upcoming' => 0];
+    $k = ['planned' => 0, 'ontime' => 0, 'late' => 0, 'waiting' => 0, 'overdue' => 0, 'upcoming' => 0];
     foreach ($rows as $r) foreach ($k as $key => $_) $k[$key] += (int)$r[$key];
     $k['done'] = $k['ontime'] + $k['late'];
     $k['rate'] = $k['planned'] ? round($k['done'] * 100 / $k['planned'], 1) : 0;

@@ -8,6 +8,7 @@ error_reporting(E_ALL);
 include 'config_ctrl/connect.php'; 
 require_once __DIR__ . '/config_ctrl/pm_work_cancel.php';   // ยกเลิกผลบันทึก: ใช้เลขที่เอกสารเดิม / ครั้งที่แก้ไข
 require_once __DIR__ . '/config_ctrl/pm_record_setting.php'; // ตั้งค่าการบันทึกผล: บังคับลายเซ็น / วันที่ทำ PM
+require_once __DIR__ . '/config_ctrl/pm_approve.php';        // ขั้นตรวจรับโดยหัวหน้าช่าง (เปิดต่อหน่วยงาน)
 
 if (mysqli_connect_errno()) {
     http_response_code(500); 
@@ -893,11 +894,14 @@ function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users,
         }
     }
 
-    // 10. update pm_plan_events
+    // 10. update pm_plan_events — หน่วยงานเปิดขั้นตรวจรับ => รอหัวหน้าช่างตรวจรับ (approval_status = 0)
+    $approval_set = '';
+    if (pmap_has_col($connect)) $approval_set = $record_setting['approve_required'] ? 'approval_status = 0, approval_id = NULL, approved_at = NULL,' : 'approval_status = NULL, approval_id = NULL, approved_at = NULL,';
     $sql_update_event = "
         UPDATE pm_plan_events
         SET 
             status = 1,
+            $approval_set
             status_feedback = 1,
             work_record_id = $work_record_id,
             completed_at = NOW(),
@@ -1017,6 +1021,11 @@ if ($action === 'get_data') {
 // =========================================
 // ACTION: บันทึกข้อมูลผลการปฏิบัติงาน (ส่วนผู้ตรวจสอบ)
 // =========================================
+if ($action === 'save' || $action === 'save_batch') {
+    pmrs_ensure($connect);
+    pmap_ensure($connect);
+}
+
 if ($action === 'save') {
     $event_id = isset($_POST['plan_id']) ? intval($_POST['plan_id']) : 0;
 

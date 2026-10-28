@@ -37,6 +37,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+    <script src="js/pm_approve_sign.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="js/img-carousel.js"></script>
     
@@ -281,6 +282,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		.pm-validation-scroll::-webkit-scrollbar-thumb:hover {
 			background: #94a3b8;
 		}
+        /* สถานะ รอตรวจรับ: เขียวอ่อน ขอบเส้นปะ (ทำแล้ว = เขียว ขอบทึบ) */
+        .pm-review { background: #f0fdf4; color: #047857; border: 1px dashed #059669; }
     </style>
 </head>
 <body class="text-slate-700 pb-28">
@@ -1853,7 +1856,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 			// แสดงลายเซ็นแทน canvas
 			renderHistorySignature(record.inspector_signature_path);
 
-			// ผลการประเมิน (หรือปุ่มประเมินสำหรับผู้ประเมิน)
+			// สถานะตรวจรับโดยหัวหน้าช่าง (หน่วยงานที่เปิดขั้นตรวจรับ) แล้วต่อด้วยผลการประเมิน
+			renderApprovalBox();
 			renderEvaluationResult();
 		
 			// ซ่อนปุ่มและส่วนประเมิน
@@ -1869,6 +1873,67 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 			lockHistoryInputs();
 		}
 		
+		// ===== ตรวจรับโดยหัวหน้าช่าง (โหมดประวัติ) — handle_pm_approve.php =====
+		//  รอตรวจรับ: ผู้ตรวจรับกด ตรวจรับ / ส่งกลับแก้ไข ได้ในใบงาน · ตรวจรับแล้ว: ผู้ตรวจรับ เวลา หมายเหตุ · หน่วยงานไม่ได้เปิด: ไม่แสดง
+		async function renderApprovalBox() {
+			const anchor = document.getElementById('evaluation_section');
+			if (!anchor || document.getElementById('ws-approve-box')) return;
+			const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+			let r;
+			try { r = await (await fetch('handle_pm_approve.php?action=get_one&event_id=' + encodeURIComponent(planId))).json(); } catch (e) { r = { success: false }; }
+			if (!r.success || r.approval_status === null || r.approval_status === undefined) return;
+			const box = document.createElement('div');
+			box.id = 'ws-approve-box';
+			const ev = document.getElementById('ws-eval-result');
+			(ev || anchor).insertAdjacentElement('beforebegin', box);
+			const head = '<h2 class="text-base font-semibold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-user-check text-emerald-600"></i> การตรวจรับงาน</h2>';
+			const last = (r.history || []).find(h => h.action === 'approve');
+			if (r.approval_status === 1) {
+				box.className = 'mt-3 bg-white rounded-xl shadow-sm border border-emerald-200 p-4 sm:p-5';
+				box.innerHTML = `<div class="flex flex-wrap items-center justify-between gap-3">${head}<span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold"><i class="fa-solid fa-check mr-1"></i>ตรวจรับแล้ว</span></div>
+					<div class="mt-2 flex flex-wrap items-end justify-between gap-3 text-sm">
+						<div><div class="text-slate-500">ผู้ตรวจรับ</div><div class="font-semibold text-slate-800">${esc(last ? last.approver_name : '-')}</div><div class="text-xs text-slate-500">ตรวจรับเมื่อ ${esc(wsThDateTime(r.approved_at))}</div></div>
+						${last && last.signature_path ? `<img src="${esc(last.signature_path)}" alt="ลายมือชื่อผู้ตรวจรับ" class="h-16 max-w-[220px] object-contain border border-slate-200 rounded-lg bg-white p-1">` : ''}
+					</div>
+					${last && last.comment ? `<div class="mt-2 text-sm bg-slate-50 rounded-lg px-3 py-2"><span class="text-slate-500">หมายเหตุ:</span> ${esc(last.comment)}</div>` : ''}`;
+				return;
+			}
+			box.className = 'mt-3 bg-emerald-50/40 rounded-xl shadow-sm border border-dashed border-emerald-500 p-4 sm:p-5';
+			box.innerHTML = `<div class="flex flex-wrap items-center justify-between gap-3">${head}
+					<span class="px-2.5 py-1 rounded-full pm-review text-xs font-semibold"><i class="fa-solid fa-hourglass-half mr-1"></i>รอหัวหน้าช่างตรวจรับ</span></div>
+				<div class="mt-1.5 text-xs text-emerald-800">งานนี้บันทึกผลแล้ว จะนับว่าเสร็จเมื่อผู้ตรวจรับกดตรวจรับ</div>
+				${r.can_approve ? `<div class="mt-3 flex flex-wrap gap-2 justify-end">
+					<button type="button" data-ws-ap="return" class="px-4 py-2 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 text-sm font-semibold inline-flex items-center gap-1.5"><i class="fa-solid fa-rotate-left"></i> ส่งกลับแก้ไข</button>
+					<button type="button" data-ws-ap="approve" class="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold inline-flex items-center gap-1.5"><i class="fa-solid fa-check"></i> ตรวจรับ</button></div>` : ''}`;
+			box.addEventListener('click', async e => {
+				const b = e.target.closest('[data-ws-ap]');
+				if (!b) return;
+				const isReturn = b.dataset.wsAp === 'return';
+				let isConfirmed = true, value;
+				if (!isReturn) { value = await window.pmApproveSign({ title: 'ตรวจรับใบงานนี้' }); isConfirmed = !!value; }
+				else ({ isConfirmed, value } = await Swal.fire({
+					title: 'ส่งกลับแก้ไข', icon: 'warning',
+					html: '<div class="text-xs text-left text-slate-500">ผลบันทึกเดิม (ผลตรวจ รูป ลายเซ็น) จะถูกยกเลิก อะไหล่คืนเข้าสต็อก · ช่างเห็นเหตุผลและบันทึกใหม่ด้วยเลขที่เอกสารเดิม</div>',
+					input: 'textarea', inputPlaceholder: 'สิ่งที่ต้องแก้ไข (อย่างน้อย 5 ตัวอักษร)',
+					inputValidator: v => (v || '').trim().length < 5 ? 'กรุณาระบุสิ่งที่ต้องแก้ไขอย่างน้อย 5 ตัวอักษร' : undefined,
+					showCancelButton: true, confirmButtonText: 'ส่งกลับ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true,
+				}));
+				if (!isConfirmed) return;
+				Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+				const body = isReturn ? { event_id: +planId, reason: value.trim() } : { event_ids: [+planId], comment: value.comment, signature: value.signature };
+				let res;
+				try { res = await (await fetch('handle_pm_approve.php?action=' + (isReturn ? 'return' : 'approve'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json(); }
+				catch (er) { res = { success: false, error: er.message }; }
+				const err = !res.success ? res.error : (!isReturn && res.results && res.results[0] && !res.results[0].success ? res.results[0].error : '');
+				if (err) { Swal.fire(isReturn ? 'ส่งกลับไม่สำเร็จ' : 'ตรวจรับไม่สำเร็จ', err, 'error'); return; }
+				if (!isReturn) { Swal.fire({ icon: 'success', title: 'ตรวจรับแล้ว', timer: 1200, showConfirmButton: false }); box.remove(); renderApprovalBox(); return; }
+				// ส่งกลับ => ใบงานนี้ถูกยกเลิกแล้ว
+				Swal.fire({ icon: 'success', title: 'ส่งกลับให้ช่างแก้ไขแล้ว', text: (res.doc_no || '') + ' (แก้ไขครั้งที่ ' + res.revision + ')' });
+				box.className = 'mt-3 bg-red-50 rounded-xl border border-red-200 p-4 sm:p-5 text-sm text-red-700';
+				box.innerHTML = '<i class="fa-solid fa-rotate-left mr-1"></i> ส่งกลับแก้ไขแล้ว — ผลบันทึกนี้ถูกยกเลิก ปิดหน้าต่างนี้ได้';
+			});
+		}
+
 		// ===== ผลการประเมินผลงาน PM (โหมดประวัติ) =====
 		async function renderEvaluationResult() {
 			const anchor = document.getElementById('evaluation_section');

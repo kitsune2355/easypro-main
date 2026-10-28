@@ -151,10 +151,11 @@
     }
     window.addEventListener('resize', fitSplit);
 
-    // สถานะของงาน: done = ทำแล้ว, overdue = เลยกำหนดยังไม่ทำ, pending = รอดำเนินการ
-    const stateOf = r => r.status === 1 ? 'done' : (r.event_date < today ? 'overdue' : 'pending');
+    // สถานะของงาน: done = ทำแล้ว, waiting = บันทึกแล้ว รอหัวหน้าช่างตรวจรับ, overdue = เลยกำหนดยังไม่ทำ, pending = รอดำเนินการ
+    const stateOf = r => r.status === 1 ? (r.waiting ? 'waiting' : 'done') : (r.event_date < today ? 'overdue' : 'pending');
     const STATE = {
         done:    { label: 'ทำแล้ว',     cls: 'bg-emerald-50 text-emerald-700', icon: 'check-circle-2' },
+        waiting: { label: 'รอตรวจรับ',   cls: 'pm-review',   icon: 'hourglass' },
         pending: { label: 'รอดำเนินการ', cls: 'bg-sky-50 text-sky-700',         icon: 'clock' },
         overdue: { label: 'เลยกำหนด',    cls: 'bg-red-50 text-red-700',         icon: 'alert-triangle' },
     };
@@ -240,6 +241,7 @@
         const chip = (key, label, cls) => `<button type="button" data-f="${key}" class="pmd-chip ${cls} ${filter === key ? 'is-on' : ''}">${label} <b>${fmt(c[key])}</b></button>`;
         $('pmd-chips').innerHTML = chip('todo', 'ต้องทำ', 'bg-amber-50 text-amber-700')
             + (c.overdue || filter === 'overdue' ? chip('overdue', 'เลยกำหนด', STATE.overdue.cls) : '')
+            + (c.waiting || filter === 'waiting' ? chip('waiting', 'รอตรวจรับ', STATE.waiting.cls) : '')
             + chip('done', 'ทำแล้ว', STATE.done.cls)
             + chip('all', 'ทั้งหมด', 'bg-slate-100 text-slate-700');
 
@@ -367,7 +369,7 @@
         const st = stateOf(r), s = STATE[st];
         let btn;
         // ปุ่มแบบขอบ (ไม่ทึบ) ให้รายการยาว ๆ ดูไม่ลายตา
-        if (st !== 'done') {
+        if (st !== 'done' && st !== 'waiting') {
             btn = `<button type="button" data-open="${r.id}" class="px-3 py-2 rounded-lg border border-sky-200 text-sky-700 hover:bg-sky-600 hover:text-white hover:border-sky-600 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> เปิดใบงาน</button>`;
         } else if (r.has_record) {
             btn = `<button type="button" data-history="${r.id}" class="px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"><i data-lucide="search" class="w-3.5 h-3.5"></i> ดูประวัติ</button>`;
@@ -386,7 +388,7 @@
         const showDate = days > 1 && g !== 'event_date';
         let badge = '';
         if (st === 'overdue') badge = `<span class="pmd-badge ${s.cls}"><i data-lucide="${s.icon}" class="w-3 h-3"></i>เลยกำหนด · ${thShort(r.event_date)}</span>`;
-        else if (st === 'done') badge = `<span class="pmd-badge ${s.cls}"><i data-lucide="${s.icon}" class="w-3 h-3"></i>ทำแล้ว${r.inspector ? ' · ' + esc(r.inspector) : ''}</span>`;
+        else if (st === 'done' || st === 'waiting') badge = `<span class="pmd-badge ${s.cls}"><i data-lucide="${s.icon}" class="w-3 h-3"></i>${s.label}${r.inspector ? ' · ' + esc(r.inspector) : ''}</span>`;
         else if (showDate) badge = `<span class="pmd-badge bg-slate-100 text-slate-600">${thShort(r.event_date)}</span>`;
         return `<div class="pmd-row ${st === 'done' ? 'is-done' : ''}">
             <div class="min-w-0">

@@ -11,6 +11,7 @@ $sess_user = $_SESSION['sess_user_id_es'] ?? '';
 session_write_close();
 
 include 'config_ctrl/connect.php';
+require_once __DIR__ . '/config_ctrl/pm_approve.php';   // w = บันทึกแล้วแต่รอหัวหน้าช่างตรวจรับ
 
 if (mysqli_connect_errno()) {
     http_response_code(500); 
@@ -252,9 +253,14 @@ function pmdWhere($ag_id, $needMachine) {
         $types .= 'ssss';
         array_push($params, "%$q%", "%$q%", "%$q%", "%$q%");
     }
-    // สถานะ: overdue เลยกำหนด / pending รอทำ (ยังไม่ถึงกำหนด) / done ทำแล้ว
+    // สถานะ: overdue เลยกำหนด / pending รอทำ (ยังไม่ถึงกำหนด) / review รอหัวหน้าช่างตรวจรับ / done ทำแล้ว (ไม่รวมรอตรวจรับ)
     $st = $_GET['status'] ?? '';
-    if ($st === 'done') $where .= " AND p.status = 1";
+    if ($st === 'done') $where .= " AND " . pmap_done_sql($GLOBALS['connect'], 'p');
+    elseif ($st === 'review') $where .= " AND " . pmap_wait_sql($GLOBALS['connect'], 'p');
+    elseif ($st === 'draft') {   // รอส่ง: id ร่างบันทึกพร้อมกันในเบราว์เซอร์ (หน้าเว็บส่งมา) ที่ยังไม่ได้บันทึก
+        $ids = array_values(array_filter(array_map('intval', explode(',', (string)($_GET['ids'] ?? '')))));
+        $where .= $ids ? " AND p.status = 0 AND p.id IN (" . implode(',', array_slice($ids, 0, 5000)) . ")" : " AND 1 = 0";
+    }
     elseif ($st === 'overdue') { $where .= " AND p.status <> 1 AND p.event_date < ?"; $types .= 's'; $params[] = date('Y-m-d'); }
     elseif ($st === 'pending') { $where .= " AND p.status <> 1 AND p.event_date >= ?"; $types .= 's'; $params[] = date('Y-m-d'); }
     // กลุ่มเช็คชีตเดียว (เปิดดูรายเครื่อง): cs = id หรือ 'none' = ไม่ระบุเช็คชีต
@@ -296,19 +302,20 @@ if ($action === 'get_summary') {
     $rows = null;
     if ($group === 'cs') {
         $rows = pmdRows($connect, "SELECT p.event_date AS d, p.checksheet_id AS cs_id, MAX(c.name) AS cs,
-                    COUNT(*) AS t, SUM(p.status = 1) AS n, MIN(p.id) AS id1
+                    COUNT(*) AS t, SUM(p.status = 1) AS n, SUM(" . pmap_wait_sql($connect, 'p') . ") AS w, MIN(p.id) AS id1
                 FROM pm_plan_events p $join $where
                 GROUP BY p.event_date, p.checksheet_id ORDER BY p.event_date LIMIT 601", $types, $params);
         if ($rows !== false && count($rows) > 600 && empty($_GET['force'])) { $group = 'day'; $rows = null; }
     }
     if ($group === 'day') {
-        $rows = pmdRows($connect, "SELECT p.event_date AS d, COUNT(*) AS t, SUM(p.status = 1) AS n
+        $rows = pmdRows($connect, "SELECT p.event_date AS d, COUNT(*) AS t, SUM(p.status = 1) AS n, SUM(" . pmap_wait_sql($connect, 'p') . ") AS w
                 FROM pm_plan_events p $join $where GROUP BY p.event_date ORDER BY p.event_date", $types, $params);
     }
     if ($rows === false) { echo json_encode(['success' => false, 'error' => $connect->error], JSON_UNESCAPED_UNICODE); exit; }
     foreach ($rows as &$r) {
         $r['t'] = (int)$r['t'];
         $r['n'] = (int)$r['n'];
+        $r['w'] = (int)$r['w'];
         if (isset($r['id1'])) $r['id1'] = (int)$r['id1'];
     }
     unset($r);
@@ -323,7 +330,7 @@ if ($action === 'get_events') {
     [$join, $where, $types, $params] = $w;
     $max = !empty($_GET['export']) ? 20000 : 500;
     $limit = max(1, min($max, (int)($_GET['limit'] ?? $max)));
-    $rows = pmdRows($connect, "SELECT p.id, p.event_date AS start, p.status, p.completed_at,
+    $rows = pmdRows($connect, "SELECT p.id, p.event_date AS start, p.status, " . pmap_col_sql($connect, 'p') . " AS ap, p.completed_at,
                 m.ass_code AS machine_code, m.asset_name AS machine, g.TGroupName AS type, a.area_name AS location,
                 c.name AS checksheet, p.checksheet_id
             FROM pm_plan_events p $join $where
@@ -334,7 +341,7 @@ if ($action === 'get_events') {
         array_pop($rows);
         $total = (int)pmdRows($connect, "SELECT COUNT(*) AS c FROM pm_plan_events p $join $where", $types, $params)[0]['c'];
     }
-    foreach ($rows as &$r) { $r['id'] = (int)$r['id']; $r['status'] = (int)$r['status']; }
+    foreach ($rows as &$r) { $r['id'] = (int)$r['id']; $r['status'] = (int)$r['status']; $r['review'] = $r['status'] === 1 && $r['ap'] !== null && (int)$r['ap'] === 0; unset($r['ap']); }
     unset($r);
     echo json_encode(['success' => true, 'total' => $total, 'today' => date('Y-m-d'), 'data' => $rows], JSON_UNESCAPED_UNICODE);
     exit;

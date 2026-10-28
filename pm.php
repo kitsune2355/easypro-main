@@ -36,6 +36,17 @@ if (!$pmCanEvaluate) {
         $stEv->close();
     } catch (Throwable $e) { $pmCanEvaluate = false; }   // ยังไม่มีตาราง = ยังไม่ได้ตั้งผู้ประเมิน
 }
+// แท็บ "ตรวจรับ PM": หน่วยงานเปิดขั้นตรวจรับ (หรือยังมีงานรอตรวจรับค้างอยู่) + super_admin / ผู้ตรวจรับ PM ของหน่วยงาน
+require_once __DIR__ . '/config_ctrl/pm_record_setting.php';
+require_once __DIR__ . '/config_ctrl/pm_approve.php';
+require_once __DIR__ . '/config_ctrl/pm_tab_badges.php';   // ตัวเลขบนแท็บ
+$pmApAg = (int)($_SESSION['sess_user_agency'] ?? 0);
+$pmBadges = pmtb_counts($connect, $pmApAg);
+$pmApPending = $pmBadges['approve'];
+// หน่วยงานใช้ขั้นตรวจรับ (เปิดอยู่ หรือยังมีงานรอตรวจรับ) => ปฏิทินแสดงสถานะ/ตัวกรอง "รอตรวจรับ"
+$pmApproveOn = pmrs_get($connect, $pmApAg)['approve_required'] || $pmApPending > 0;
+$pmCanApprove = $pmApproveOn
+    && pmap_is_approver($connect, $pmApAg, (string)($_SESSION['sess_user_id_es'] ?? ''));
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -155,6 +166,11 @@ if (!$pmCanEvaluate) {
             height: calc(100vh - 180px) !important;
             min-height: 400px;
         }
+        /* ตัวเลขบนแท็บ (config_ctrl/pm_tab_badges.php) */
+        .pm-tab-badge { margin-left: 2px; min-width: 1.25rem; height: 1.25rem; padding: 0 .375rem; border-radius: 999px; color: #fff; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+        .pm-tab-badge.hidden { display: none; }
+        /* สถานะ รอตรวจรับ: เขียวอ่อน ขอบเส้นปะ (ทำแล้ว = เขียว ขอบทึบ) */
+        .pm-review { background: #f0fdf4; color: #047857; border: 1px dashed #059669; }
     </style>
     <style>
         /* ===== มือถือ: การ์ดแทนตาราง AG Grid (ดู PmGridCards) ===== */
@@ -304,7 +320,7 @@ if (!$pmCanEvaluate) {
         <ul id="pm-tabs" class="flex gap-5 sm:gap-8 px-2 sm:px-0 overflow-x-auto hide-scrollbar">
             <li data-mode="field">
                 <button onclick="switchTab('daily')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
-                    <i data-lucide="list-checks" class="w-4 h-4"></i> งานที่ต้องทำ
+                    <i data-lucide="list-checks" class="w-4 h-4"></i> งานที่ต้องทำ<?php echo pmtb_badge('todo', $pmBadges['todo'], 'bg-red-500'); ?>
                 </button>
             </li>
             <li data-mode="field">
@@ -312,10 +328,17 @@ if (!$pmCanEvaluate) {
                     <i data-lucide="calendar" class="w-4 h-4"></i> ปฏิทิน
                 </button>
             </li>
+            <?php if ($pmCanApprove): ?>
+            <li data-mode="field">
+                <button onclick="switchTab('approve')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
+                    <i data-lucide="badge-check" class="w-4 h-4"></i> ตรวจรับ PM<?php echo pmtb_badge('approve', $pmBadges['approve'], 'bg-emerald-600'); ?>
+                </button>
+            </li>
+            <?php endif; ?>
             <?php if ($pmCanEvaluate): ?>
             <li data-mode="field">
                 <button onclick="switchTab('evaluate')" class="nav-item flex items-center gap-2 py-3.5 text-sm whitespace-nowrap outline-none">
-                    <i data-lucide="star" class="w-4 h-4"></i> ประเมิน PM
+                    <i data-lucide="star" class="w-4 h-4"></i> ประเมิน PM<?php echo pmtb_badge('evaluate', $pmBadges['evaluate'], 'bg-amber-500'); ?>
                 </button>
             </li>
             <?php endif; ?>
@@ -371,6 +394,7 @@ if (!$pmCanEvaluate) {
     <div class="flex-1 flex flex-col overflow-hidden bg-[var(--color-bg-light)]">
         <main class="flex-1 overflow-y-auto px-2 sm:px-4 pt-3 sm:pt-4 pb-4 relative">
             <?php include 'pm_dashboard.php'; ?>
+            <?php if ($pmCanApprove) include 'pm_approve.php'; ?>
             <?php if ($pmCanEvaluate) include 'pm_evaluate.php'; ?>
             <?php include 'pm_daily.php'; ?>
             <?php include 'pm_postpone.php'; ?>
@@ -490,6 +514,18 @@ if (!$pmCanEvaluate) {
         // ช่าง: เปิดแท็บของโหมดจัดการแผนไม่ได้ (แท็บที่จำไว้ / ลิงก์จากคู่มือ => ไปงานที่ต้องทำแทน)
         const PM_CAN_MANAGE = <?php echo $pmCanManage ? 'true' : 'false'; ?>;
         const PM_CAN_EVALUATE = <?php echo $pmCanEvaluate ? 'true' : 'false'; ?>;
+        const PM_CAN_APPROVE = <?php echo $pmCanApprove ? 'true' : 'false'; ?>;
+        // ตัวเลขบนแท็บ (handle_pm_badges.php) — เรียกหลังปิดใบงาน/หน้าต่างบันทึก ตรวจรับ ประเมิน
+        window.pmRefreshBadges = async function () {
+            let r;
+            try { r = await (await fetch('handle_pm_badges.php', { cache: 'no-store' })).json(); } catch (e) { return; }
+            if (!r || !r.success) return;
+            document.querySelectorAll('[data-badge]').forEach(b => {
+                const n = +r[b.dataset.badge] || 0;
+                b.textContent = n > 99 ? '99+' : n;
+                b.classList.toggle('hidden', !n);
+            });
+        };
         const PM_MANAGE_TABS = ['schedule', 'plan', 'checksheet', 'import', 'postpone', 'holiday', 'report', 'revisions'];
         const pmModeOf = tabId => document.querySelector(`#pm-tabs li button[onclick*="'${tabId}'"]`)?.closest('li').dataset.mode || 'field';
         const pmLastTabs = () => { try { return JSON.parse(localStorage.getItem('pmModeTabs')) || {}; } catch (e) { return {}; } };
@@ -518,6 +554,7 @@ if (!$pmCanEvaluate) {
             if (!document.getElementById('tab-' + tabId)) tabId = PM_MODE_DEFAULT.field;
             if (!PM_CAN_MANAGE && PM_MANAGE_TABS.includes(tabId)) tabId = PM_MODE_DEFAULT.field;
             if (!PM_CAN_EVALUATE && tabId === 'evaluate') tabId = PM_MODE_DEFAULT.field;   // ไม่ใช่ผู้ประเมิน => งานที่ต้องทำ
+            if (!PM_CAN_APPROVE && tabId === 'approve') tabId = PM_MODE_DEFAULT.field;     // ไม่ใช่ผู้ตรวจรับ / หน่วยงานไม่ได้เปิด
             const mode = pmModeOf(tabId);
             applyPmMode(mode);
             const lastTabs = pmLastTabs();
@@ -565,6 +602,8 @@ if (!$pmCanEvaluate) {
                 }
             } else if (tabId === 'evaluate') {
                 if (typeof window.reloadEvaluateTab === 'function') window.reloadEvaluateTab();
+            } else if (tabId === 'approve') {
+                if (typeof window.reloadApproveTab === 'function') window.reloadApproveTab();
             } else if (tabId === 'daily') {
                 if (typeof window.initDailyTab === 'function') {
                     window.initDailyTab(opts);
@@ -683,6 +722,7 @@ if (!$pmCanEvaluate) {
                 // ข้อมูลอาจเปลี่ยน => โหลดปฏิทิน / งานที่ต้องทำใหม่
                 if (window.calendar && typeof window.refreshCalendarEvents === 'function') window.refreshCalendarEvents();
                 window.dispatchEvent(new CustomEvent('pm:batch-closed'));
+                window.pmRefreshBadges();
                 if (goBack && back && typeof back.fn === 'function') setTimeout(back.fn, 0);
             }
             // opts.back = { fn, label } หน้าที่จะกลับไป (กดปุ่มกลับในใบงาน / บันทึกสำเร็จ)

@@ -1378,8 +1378,8 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
     // ===== PM Monitoring =====
     const pmEnc = (t) => echarts.format.encodeHTML(String(t ?? ''));
     // สีเดียวกับชุดสีของกราฟอื่น (chartColors) และการ์ดแจ้งซ่อม: เสร็จ = เขียว · ล่าช้า = เหลือง · ค้าง = แดง · ยังไม่ถึงกำหนด = ฟ้า
-    const PM_COLORS = { ontime: '#10b981', late: '#f59e0b', overdue: '#f43f5e', upcoming: '#0ea5e9' };
-    const PM_LABELS = { ontime: 'ทำแล้วตามแผน', late: 'ทำแล้วล่าช้า', overdue: 'ค้าง / เกินกำหนด', upcoming: 'ยังไม่ถึงกำหนด' };
+    const PM_COLORS = { ontime: '#10b981', late: '#f59e0b', waiting: '#6ee7b7', overdue: '#f43f5e', upcoming: '#0ea5e9' };
+    const PM_LABELS = { ontime: 'ทำแล้วตามแผน', late: 'ทำแล้วล่าช้า', waiting: 'รอหัวหน้าช่างตรวจรับ', overdue: 'ค้าง / เกินกำหนด', upcoming: 'ยังไม่ถึงกำหนด' };
     const pmEmpty = (text) => ({ title: { text, left: 'center', top: 'middle', textStyle: { color: '#94a3b8', fontSize: 14, fontWeight: 'normal' } }, series: [], xAxis: { show: false }, yAxis: { show: false } });
     function renderPmKpis(k) {
         // การ์ดแบบเดียวกับการ์ดแจ้งซ่อมด้านบน (kpi-card)
@@ -1394,7 +1394,7 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
             </div></div>`;
         $('#pmKpis').html(
             card('แผน PM', formatNum(k.planned), 'รอบตามแผนในช่วงนี้', 'text-slate-800', 'calendar-check', 'blue') +
-            card('ดำเนินการแล้ว', formatNum(k.done), k.rate + '% ของแผน', 'text-emerald-500', 'check-circle-2', 'emerald') +
+            card('ดำเนินการแล้ว', formatNum(k.done), k.rate + '% ของแผน' + (k.waiting ? ' · รอตรวจรับ ' + formatNum(k.waiting) : ''), 'text-emerald-500', 'check-circle-2', 'emerald') +
             card('ค้าง / เกินกำหนด', formatNum(k.overdue), 'ยังไม่ได้ทำ เลยวันตามแผน', 'text-rose-500', 'alarm-clock', 'rose') +
             card('ทำตรงตามแผน', k.ontime_rate + '%', formatNum(k.ontime) + ' จาก ' + formatNum(k.done) + ' รอบที่ทำแล้ว', 'text-sky-500', 'timer', 'sky')
         );
@@ -1412,7 +1412,7 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
             if (!r || !r.success) { $('#pmKpis').html('<div class="col-span-full text-sm text-rose-600">' + ((r && r.error) || 'โหลดข้อมูล PM ไม่สำเร็จ') + '</div>'); return; }
             const k = r.kpi;
             renderPmKpis(k);
-            const states = ['ontime', 'late', 'overdue', 'upcoming'];
+            const states = ['ontime', 'late', 'waiting', 'overdue', 'upcoming'];
 
             // สถานะรวม
             if (!k.planned) charts.pmStatus.setOption(pmEmpty('ไม่มีแผน PM ในช่วงนี้'), true);
@@ -1441,6 +1441,7 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
                 yAxis: { type: 'category', data: types.map(t => t.name), axisTick: { show: false }, axisLine: { show: false }, axisLabel: { width: 150, overflow: 'truncate' } },
                 series: [
                     { name: 'ทำแล้ว', type: 'bar', stack: 't', barMaxWidth: 26, itemStyle: { color: PM_COLORS.ontime }, data: types.map(t => t.ontime + t.late) },
+                    ...(k.waiting ? [{ name: PM_LABELS.waiting, type: 'bar', stack: 't', itemStyle: { color: PM_COLORS.waiting }, data: types.map(t => t.waiting || 0) }] : []),
                     { name: PM_LABELS.overdue, type: 'bar', stack: 't', itemStyle: { color: PM_COLORS.overdue }, data: types.map(t => t.overdue) },
                     { name: PM_LABELS.upcoming, type: 'bar', stack: 't', itemStyle: { color: PM_COLORS.upcoming, borderRadius: [0, 4, 4, 0] }, data: types.map(t => t.upcoming),
                       label: { show: true, position: 'right', color: '#475569', fontSize: 11, formatter: p => { const t = types[p.dataIndex]; return t.planned ? Math.round((t.ontime + t.late) * 100 / t.planned) + '%' : ''; } } }

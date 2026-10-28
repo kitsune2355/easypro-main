@@ -4,6 +4,7 @@
 //  เพื่อไม่ให้หน่วยงานที่มีงานหลายหมื่นรายการต้องโหลดข้อมูลทั้งหมดในครั้งเดียว
 @session_start();
 include 'config_ctrl/connect.php';
+require_once __DIR__ . '/config_ctrl/pm_approve.php';   // งานรอหัวหน้าช่างตรวจรับ (ยังไม่นับว่าทำแล้ว)
 
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('Asia/Bangkok');
@@ -106,7 +107,8 @@ function pmdFilters($ag_id, $withSearch = true) {
     $filters = [
         'todo'    => "e.status = 0",
         'overdue' => "e.status = 0 AND e.event_date < '$today'",
-        'done'    => "e.status = 1",
+        'done'    => pmap_done_sql($GLOBALS['connect'], 'e'),
+        'waiting' => pmap_wait_sql($GLOBALS['connect'], 'e'),
         'all'     => "1=1",
     ];
     $filter = $_GET['filter'] ?? 'todo';
@@ -126,14 +128,15 @@ if ($action === 'summary') {
     $today = $f['today'];
     $from = PMD_FROM;
 
-    $c = pmdQuery($connect, "SELECT COUNT(*) AS total, SUM(e.status = 1) AS done,
+    $DONE = pmap_done_sql($connect, 'e');
+    $c = pmdQuery($connect, "SELECT COUNT(*) AS total, SUM($DONE) AS done, SUM(" . pmap_wait_sql($connect, 'e') . ") AS waiting,
                 SUM(e.status = 0 AND e.event_date < '$today') AS overdue, SUM(e.status = 0 AND e.event_date >= '$today') AS pending
             $from WHERE {$f['where']}", $f['types'], $f['params'])[0];
-    $counts = ['all' => (int)$c['total'], 'done' => (int)$c['done'], 'overdue' => (int)$c['overdue'], 'pending' => (int)$c['pending']];
+    $counts = ['all' => (int)$c['total'], 'done' => (int)$c['done'], 'waiting' => (int)$c['waiting'], 'overdue' => (int)$c['overdue'], 'pending' => (int)$c['pending']];
     $counts['todo'] = $counts['overdue'] + $counts['pending'];
 
     // n = จำนวนตามชิปสถานะที่เลือก, total/done = ความคืบหน้าของทั้งกลุ่ม; กลุ่มที่มีงานค้างขึ้นก่อน
-    $groups = pmdQuery($connect, "SELECT {$f['key']} AS k, {$f['label']} AS label, COUNT(*) AS total, SUM(e.status = 1) AS done,
+    $groups = pmdQuery($connect, "SELECT {$f['key']} AS k, {$f['label']} AS label, COUNT(*) AS total, SUM($DONE) AS done,
                 SUM(e.status = 0 AND e.event_date < '$today') AS overdue, SUM({$f['filter_sql']}) AS n
             $from WHERE {$f['where']}
             GROUP BY k HAVING n > 0
@@ -173,7 +176,7 @@ if ($action === 'items') {
     $offset = max(0, intval($_GET['offset'] ?? 0));
     $limit = min(100, max(1, intval($_GET['limit'] ?? 30)));
     $from = PMD_FROM;
-    $rows = pmdQuery($connect, "SELECT e.id, e.event_date, e.status, e.work_record_id, e.checksheet_id,
+    $rows = pmdQuery($connect, "SELECT e.id, e.event_date, e.status, " . pmap_col_sql($connect, 'e') . " AS approval_status, e.work_record_id, e.checksheet_id,
                 c.name AS checksheet_name, a.ass_code AS machine_code, a.asset_name AS machine_name, g.TGroupName AS machine_type,
                 CONCAT_WS(' / ', NULLIF(ar.area_name, ''), NULLIF(ac.ac_name, ''), NULLIF(rm.ar_name, '')) AS location,
                 r.inspector_name
@@ -186,6 +189,7 @@ if ($action === 'items') {
     jsonOut(['success' => true, 'data' => array_map(function ($r) {
         return [
             'id' => (int)$r['id'], 'event_date' => $r['event_date'], 'status' => (int)$r['status'],
+            'waiting' => (int)$r['status'] === 1 && $r['approval_status'] !== null && (int)$r['approval_status'] === 0,
             'has_record' => (int)$r['work_record_id'] > 0, 'inspector' => $r['inspector_name'],
             'checksheet_id' => (int)$r['checksheet_id'], 'checksheet' => $r['checksheet_name'] ?? '',
             'machine_code' => $r['machine_code'] ?? '', 'machine_name' => $r['machine_name'] ?? '',

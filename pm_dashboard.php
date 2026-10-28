@@ -68,11 +68,16 @@ include "config_ctrl/checksession.php";
     .pmc-done .pmc-pill { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
     .pmc-done .pmc-dot { background: #10b981; }
     .pmc-done .pmc-cnt { color: #059669; }
+    /* บันทึกครบแล้ว แต่รอหัวหน้าช่างตรวจรับ */
+    .pmc-review .pmc-pill { background: #f0fdf4; border: 1px dashed #059669; color: #065f46; }
+    .pmc-review .pmc-dot { background: #10b981; }
+    .pmc-review .pmc-cnt { color: #059669; }
     /* รายปี: ช่องเล็ก แสดงแค่จำนวนงาน */
     .pmc-mini { display: block; text-align: center; font-size: 10.5px; font-weight: 600; border-radius: 4px; padding: 0 2px; line-height: 1.5; }
     .pmc-overdue .pmc-mini { background: #fee2e2; color: #b91c1c; }
     .pmc-pending .pmc-mini { background: #e0f2fe; color: #075985; }
     .pmc-done .pmc-mini { background: #d1fae5; color: #047857; }
+    .pmc-review .pmc-mini { background: #f0fdf4; color: #047857; outline: 1px dashed #059669; outline-offset: -1px; }
     /* รอส่ง: ตรวจครบในหน้าบันทึกพร้อมกันแล้วแต่ยังไม่ส่ง (ร่างในเครื่องนี้) — พื้นเหลือง จุดสีคงตามสถานะเดิม */
     .pmc-wait .pmc-pill { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
     .pmc-wait .pmc-mini { background: #fef3c7; color: #92400e; box-shadow: inset 0 0 0 1px #fcd34d; }
@@ -177,10 +182,17 @@ include "config_ctrl/checksession.php";
                         <div>
                             <span class="block text-xs font-medium text-slate-500 mb-1">สถานะ</span>
                             <input type="hidden" id="filter-status" value="">
-                            <div id="pmc-status-btns" class="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg" role="radiogroup" aria-label="สถานะ">
-                                <?php foreach (['' => ['ทั้งหมด', ''], 'overdue' => ['เลยกำหนด', 'bg-red-500'], 'pending' => ['รอทำ', 'bg-sky-500'], 'done' => ['ทำแล้ว', 'bg-emerald-500']] as $sv => [$sl, $sdot]) { ?>
+                            <?php
+                            // หน่วยงานที่ใช้ขั้นตรวจรับ => เพิ่ม "รอตรวจรับ" (บันทึกแล้ว รอหัวหน้าช่างตรวจรับ — ไม่นับใน "ทำแล้ว")
+                            $pmcStatuses = ['' => ['ทั้งหมด', ''], 'overdue' => ['เลยกำหนด', 'bg-red-500'], 'pending' => ['รอทำ', 'bg-sky-500']];
+                            if (!empty($pmApproveOn)) $pmcStatuses['review'] = ['รอตรวจรับ', 'bg-emerald-100 border border-dashed border-emerald-600'];
+                            $pmcStatuses['done'] = ['ทำแล้ว', 'bg-emerald-500'];
+                            $pmcStatuses['draft'] = ['รอส่ง', 'rounded-sm bg-amber-100 border border-amber-300'];   // ร่างบันทึกพร้อมกันในเครื่องนี้
+                            ?>
+                            <div id="pmc-status-btns" class="grid <?= count($pmcStatuses) > 4 ? 'grid-cols-3' : 'grid-cols-4' ?> gap-1 p-1 bg-slate-100 rounded-lg" role="radiogroup" aria-label="สถานะ">
+                                <?php foreach ($pmcStatuses as $sv => [$sl, $sdot]) { ?>
                                 <button type="button" role="radio" data-status="<?= $sv ?>" class="pmc-st-btn flex items-center justify-center gap-1 py-1.5 rounded-md text-xs font-medium text-slate-600 hover:text-slate-800 transition-colors">
-                                    <?php if ($sdot) { ?><span class="w-1.5 h-1.5 rounded-full <?= $sdot ?>"></span><?php } ?><?= $sl ?>
+                                    <?php if ($sdot) { ?><span class="<?= strpos($sdot, 'rounded-sm') !== false ? 'w-2 h-2' : 'w-1.5 h-1.5 rounded-full' ?> <?= $sdot ?>"></span><?php } ?><?= $sl ?>
                                 </button>
                                 <?php } ?>
                             </div>
@@ -199,6 +211,7 @@ include "config_ctrl/checksession.php";
             <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500"></span> เลยกำหนด</span>
             <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-sky-600"></span> รอทำ</span>
             <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> ทำครบแล้ว</span>
+            <?php if (!empty($pmApproveOn)): ?><span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-100 border border-dashed border-emerald-600"></span> รอตรวจรับ</span><?php endif; ?>
             <span class="inline-flex items-center gap-1.5" title="ตรวจครบในหน้าบันทึกพร้อมกันแล้ว แต่ยังไม่กดส่ง (นับจากร่างในเครื่องนี้)"><span class="w-2.5 h-2.5 rounded-sm bg-amber-100 border border-amber-300"></span> รอส่ง</span>
             <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-violet-100 border border-violet-300"></span> วันหยุด</span>
             <span class="text-slate-400">ตัวเลข = ทำแล้ว / ทั้งหมด</span>
@@ -232,11 +245,11 @@ include "config_ctrl/checksession.php";
     const pmcAddDays = (s, n) => { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return pmcYmd(d); };
     const pmcEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const pmcToday = () => PMC.today || pmcYmd(new Date());
-    // สถานะของกลุ่ม: ทำครบ / เลยกำหนด / รอทำ
-    const pmcState = (d, t, n) => n >= t ? 'done' : (d < pmcToday() ? 'overdue' : 'pending');
-    const PMC_ORD = { overdue: 1, pending: 2, done: 3 };
+    // สถานะของกลุ่ม: ทำครบ / บันทึกครบแต่รอตรวจรับ (w) / เลยกำหนด / รอทำ
+    const pmcState = (d, t, n, w) => n >= t ? (w > 0 ? 'review' : 'done') : (d < pmcToday() ? 'overdue' : 'pending');
+    const PMC_ORD = { overdue: 1, pending: 2, review: 3, done: 4 };
     const PMC_FILTERS = { 'filter-machine': 'machine', 'filter-checksheet': 'checksheet', 'filter-type': 'type', 'filter-location': 'location', 'filter-status': 'status' };
-    const PMC_STATUS_TEXT = { overdue: 'เลยกำหนด', pending: 'รอทำ', done: 'ทำแล้ว' };
+    const PMC_STATUS_TEXT = { overdue: 'เลยกำหนด', pending: 'รอทำ', review: 'รอตรวจรับ', done: 'ทำแล้ว', draft: 'รอส่ง' };
     // ปุ่มเลือกสถานะ (เก็บค่าใน input#filter-status)
     function pmcSyncStatusBtns() {
         const v = document.getElementById('filter-status').value;
@@ -254,6 +267,8 @@ include "config_ctrl/checksession.php";
     function pmcFilterParams() {
         const o = {};
         Object.entries(PMC_FILTERS).forEach(([id, key]) => { const v = document.getElementById(id).value.trim(); if (v) o[key] = v; });
+        // รอส่ง = ร่างในเบราว์เซอร์นี้ (PMC.drafts) — ส่งรายการ id ไปให้ server กรอง
+        if (o.status === 'draft') o.ids = [...new Set(Object.values(PMC.drafts || {}).flat())].join(',') || '0';
         return o;
     }
     async function pmcGet(params) {
@@ -288,7 +303,8 @@ include "config_ctrl/checksession.php";
     });
 
     function pmcRenderFilterBadge() {
-        const f = pmcFilterParams(), n = Object.keys(f).length;
+        const f = pmcFilterParams(), n = Object.keys(f).length - ('ids' in f ? 1 : 0);
+        delete f.ids;   // id ร่างรอส่ง (ส่งให้ server) ไม่ใช่ตัวกรองที่แสดง
         const badge = document.getElementById('pmc-filter-count');
         badge.textContent = n;
         badge.classList.toggle('hidden', !n);
@@ -592,6 +608,7 @@ include "config_ctrl/checksession.php";
         loader.classList.remove('hidden'); loader.classList.add('flex');
         pmcRenderFilterBadge();
 
+        if (document.getElementById('filter-status').value === 'draft') await pmcLoadDrafts();   // ต้องรู้ id ร่างก่อนขอข้อมูล
         const range = { start: pmcYmd(activeStart), end: pmcYmd(activeEnd), ...pmcFilterParams() };
         try {
             const holP = Promise.all([pmcLoadHolidays(), pmcLoadDrafts()]);
@@ -609,22 +626,22 @@ include "config_ctrl/checksession.php";
             if (seq !== PMC.seq) return;   // มี request ใหม่กว่าแล้ว
 
             const events = [], idx = {};
-            let total = 0, done = 0, overdue = 0;
+            let total = 0, done = 0, overdue = 0, review = 0;
             rows.forEach(r => {
                 if (kind === 'event') {
                     const k = r.start + '|' + r.checksheet_id;
                     const g = idx[k] = idx[k] || { t: 0, n: 0 };
                     g.t++; if (r.status == 1) g.n++;
-                    const st = r.status == 1 ? 'done' : (r.start < pmcToday() ? 'overdue' : 'pending');
-                    total++; if (st === 'done') done++; if (st === 'overdue') overdue++;
-                    const wait = st !== 'done' && ((PMC.drafts || {})[r.start + '|' + r.checksheet_id] || []).includes(+r.id);
+                    const st = r.status == 1 ? (r.review ? 'review' : 'done') : (r.start < pmcToday() ? 'overdue' : 'pending');
+                    total++; if (r.status == 1) done++; if (r.review) review++; if (st === 'overdue') overdue++;
+                    const wait = r.status != 1 && ((PMC.drafts || {})[r.start + '|' + r.checksheet_id] || []).includes(+r.id);
                     events.push({ id: 'pm_' + r.id, title: [r.checksheet, r.machine, r.location].filter(Boolean).join(' '), start: r.start, allDay: true,
                         classNames: ['pmc-ev', 'pmc-' + st].concat(wait ? ['pmc-wait'] : []), ord: PMC_ORD[st], extendedProps: { kind: 'event', wait: wait ? 1 : 0, ...r } });
                     return;
                 }
-                const st = pmcState(r.d, r.t, r.n);
+                const st = pmcState(r.d, r.t, r.n, r.w);
                 const w = kind === 'group' ? pmcWait(r.d, r.cs_id, r.t - r.n) : pmcWaitDay(r.d, r.t - r.n);
-                total += r.t; done += r.n; if (st === 'overdue') overdue += r.t - r.n;
+                total += r.t; done += r.n; review += r.w || 0; if (st === 'overdue') overdue += r.t - r.n;
                 if (kind === 'group') idx[r.d + '|' + r.cs_id] = { t: r.t, n: r.n };
                 events.push({
                     id: kind === 'group' ? `g_${r.d}_${r.cs_id ?? 'none'}` : 'd_' + r.d,
@@ -643,7 +660,7 @@ include "config_ctrl/checksession.php";
             errBox.classList.add('hidden');
             const nf = n => n.toLocaleString('th-TH');
             document.getElementById('pmc-stats').innerHTML = total
-                ? `ช่วงที่แสดง: งาน ${nf(total)} · <span class="${overdue ? 'text-red-600 font-medium' : ''}">เลยกำหนด ${nf(overdue)}</span> · รอทำ ${nf(total - done - overdue)} · <span class="text-emerald-600">ทำแล้ว ${nf(done)}</span>`
+                ? `ช่วงที่แสดง: งาน ${nf(total)} · <span class="${overdue ? 'text-red-600 font-medium' : ''}">เลยกำหนด ${nf(overdue)}</span> · รอทำ ${nf(total - done - overdue)} · <span class="text-emerald-600">ทำแล้ว ${nf(done - review)}</span>${review ? ` · <span class="text-emerald-700 font-semibold">รอตรวจรับ ${nf(review)}</span>` : ''}`
                 : 'ไม่มีงาน PM ในช่วงที่แสดง' + (Object.keys(pmcFilterParams()).length ? ' (ตามตัวกรอง)' : '');
         } catch (error) {
             if (seq !== PMC.seq) return;
@@ -667,7 +684,7 @@ include "config_ctrl/checksession.php";
         }
         if (p.kind === 'event') {
             const sub = [p.checksheet, p.location].filter(Boolean).map(pmcEsc).join(' · ');
-            return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name"><b class="font-medium">${pmcEsc(p.machine || '-')}</b>${sub ? ` <span class="pmc-sub">· ${sub}</span>` : ''}</span>${p.status == 1 ? '<i class="fas fa-check text-[10px] text-emerald-600"></i>' : p.wait ? '<span class="pmc-wb">รอส่ง</span>' : ''}</div>` };
+            return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name"><b class="font-medium">${pmcEsc(p.machine || '-')}</b>${sub ? ` <span class="pmc-sub">· ${sub}</span>` : ''}</span>${p.review ? '<i class="fas fa-hourglass-half text-[10px] text-emerald-600" title="รอตรวจรับ"></i>' : p.status == 1 ? '<i class="fas fa-check text-[10px] text-emerald-600"></i>' : p.wait ? '<span class="pmc-wb">รอส่ง</span>' : ''}</div>` };
         }
         return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name">${pmcEsc(arg.event.title)}</span>${p.wait ? `<span class="pmc-wb">รอส่ง ${p.wait}</span>` : ''}<span class="pmc-cnt">${p.n}/${p.t}</span></div>` };
     }
@@ -675,7 +692,7 @@ include "config_ctrl/checksession.php";
         const p = info.event.extendedProps;
         if (p.kind === 'group' || p.kind === 'day') {
             const left = p.t - p.n;
-            info.el.title = `${p.kind === 'group' ? (p.cs || 'ไม่ระบุเช็คชีต') : 'งาน PM'} · ทำแล้ว ${p.n} จาก ${p.t}` + (left ? ` · ${p.state === 'overdue' ? 'เลยกำหนด' : 'รอทำ'} ${left}` : '') + (p.wait ? ` · รอส่ง ${p.wait}` : '');
+            info.el.title = `${p.kind === 'group' ? (p.cs || 'ไม่ระบุเช็คชีต') : 'งาน PM'} · ทำแล้ว ${p.n} จาก ${p.t}` + (p.w ? ` (รอตรวจรับ ${p.w})` : '') + (left ? ` · ${p.state === 'overdue' ? 'เลยกำหนด' : 'รอทำ'} ${left}` : '') + (p.wait ? ` · รอส่ง ${p.wait}` : '');
         } else if (p.kind === 'hol') info.el.title = 'วันหยุด: ' + info.event.title;
         else if (p.kind === 'event') info.el.title = info.event.title;
     }
@@ -707,7 +724,7 @@ include "config_ctrl/checksession.php";
         // รายการ: งาน PM + วันหยุดในช่วงที่แสดง  { date, title, isHoliday, status, completed_at, location }
         const events = res.data.map(r => ({
             date: r.start, title: [r.checksheet, r.machine, r.location].filter(Boolean).join(' '),
-            isHoliday: false, status: r.status, completed_at: r.completed_at, location: r.location
+            isHoliday: false, status: r.status, review: r.review, completed_at: r.completed_at, location: r.location
         }));
         for (let d = pmcYmd(activeStart), end = pmcYmd(activeEnd); d < end; d = pmcAddDays(d, 1)) {
             pmcHolidaysOn(d).forEach(h => events.push({ date: d, title: h.name, isHoliday: true }));
@@ -861,8 +878,8 @@ include "config_ctrl/checksession.php";
 
             if (!e.isHoliday) {
                 if (e.status == 1) {
-                    statusLabel = 'ทำแล้ว';
-                    statusColor = 'FF00B050';
+                    statusLabel = e.review ? 'รอตรวจรับ' : 'ทำแล้ว';
+                    statusColor = e.review ? 'FF1E293B' : 'FF00B050';
                     if (e.completed_at) completedDateLabel = moment(e.completed_at).format('DD/MM/YYYY HH:mm');
                 } else {
                     statusLabel = 'ยังไม่ทำ';

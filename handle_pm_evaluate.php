@@ -4,6 +4,7 @@
 //  - ประเมินทีละใบหรือรวมหลายใบได้ (คะแนน/ความเห็น/ลายเซ็นชุดเดียว) — เก็บผลแยกทุกใบงานใน pm_work_evaluations
 @session_start();
 include 'config_ctrl/connect.php';
+require_once __DIR__ . '/config_ctrl/pm_approve.php';   // ใบงานที่รอหัวหน้าช่างตรวจรับ ยังประเมินไม่ได้
 
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('Asia/Bangkok');
@@ -127,7 +128,7 @@ if ($action === 'groups') {
     $sql = "SELECT e.event_date AS d, e.checksheet_id AS cs_id, MAX(c.name) AS cs, COUNT(*) AS t, SUM(e.evaluation_status = 1) AS ev
             FROM pm_plan_events e
             LEFT JOIN pm_checksheets c ON c.id = e.checksheet_id
-            WHERE e.ag_id = ? AND e.status = 1 AND e.work_record_id IS NOT NULL AND e.event_date BETWEEN ? AND ?";
+            WHERE e.ag_id = ? AND " . pmap_done_sql($connect, 'e') . " AND e.work_record_id IS NOT NULL AND e.event_date BETWEEN ? AND ?";
     $types = 'sss'; $params = [(string)$AG, $from, $to];
     if ($cs !== '') { $sql .= " AND e.checksheet_id = ?"; $types .= 's'; $params[] = $cs; }
     $sql .= " GROUP BY e.event_date, e.checksheet_id";
@@ -143,7 +144,7 @@ if ($action === 'groups') {
     $st->close();
     // เช็คชีตสำหรับตัวกรอง
     $cs_list = [];
-    $q = $connect->query("SELECT DISTINCT c.id, c.name FROM pm_plan_events e JOIN pm_checksheets c ON c.id = e.checksheet_id WHERE e.ag_id = '$AG' AND e.status = 1 ORDER BY c.name");
+    $q = $connect->query("SELECT DISTINCT c.id, c.name FROM pm_plan_events e JOIN pm_checksheets c ON c.id = e.checksheet_id WHERE e.ag_id = '$AG' AND " . pmap_done_sql($connect, 'e') . " ORDER BY c.name");
     while ($q && ($r = $q->fetch_assoc())) $cs_list[] = $r;
     out(['success' => true, 'data' => $data, 'checksheets' => $cs_list, 'from' => $from, 'to' => $to]);
 }
@@ -157,7 +158,7 @@ if ($action === 'items') {
             FROM pm_plan_events e
             JOIN pm_work_records wr ON wr.id = e.work_record_id
             LEFT JOIN pm_work_evaluations ev ON ev.id = e.evaluation_id
-            WHERE e.ag_id = ? AND e.status = 1";
+            WHERE e.ag_id = ? AND " . pmap_done_sql($connect, 'e');
     $types = 's'; $params = [(string)$AG];
     if ($ids) {
         $sql .= " AND e.id IN (" . implode(',', array_fill(0, count($ids), '?')) . ")";
@@ -182,7 +183,7 @@ if ($action === 'items') {
 // ผลประเมินของใบงาน (แสดงในใบงานโหมดประวัติ)
 if ($action === 'get_one') {
     $id = (int)($_GET['event_id'] ?? 0);
-    $st = $connect->prepare("SELECT ev.*, e.evaluation_status FROM pm_plan_events e LEFT JOIN pm_work_evaluations ev ON ev.id = e.evaluation_id WHERE e.id = ? AND e.ag_id = ?");
+    $st = $connect->prepare("SELECT ev.*, e.evaluation_status, " . pmap_col_sql($connect, 'e') . " AS approval_status FROM pm_plan_events e LEFT JOIN pm_work_evaluations ev ON ev.id = e.evaluation_id WHERE e.id = ? AND e.ag_id = ?");
     $ags = (string)$AG;
     $st->bind_param('is', $id, $ags);
     $st->execute();
@@ -190,7 +191,8 @@ if ($action === 'get_one') {
     if (!$r) fail('ไม่พบใบงาน');
     $r['topics'] = json_decode($r['topics_json'] ?? '[]', true) ?: [];
     unset($r['topics_json']);
-    out(['success' => true, 'data' => $r, 'can_evaluate' => is_evaluator($connect, $AG, $ME)]);
+    // รอตรวจรับ => ยังประเมินไม่ได้
+    out(['success' => true, 'data' => $r, 'can_evaluate' => is_evaluator($connect, $AG, $ME) && !($r['approval_status'] !== null && (int)$r['approval_status'] === 0)]);
 }
 
 // =========================================
@@ -234,7 +236,7 @@ if ($action === 'save') {
 
     $topics_json = json_encode($topics, JSON_UNESCAPED_UNICODE);
     $today = date('Y-m-d');
-    $chk = $connect->prepare("SELECT work_record_id, evaluation_status FROM pm_plan_events WHERE id = ? AND ag_id = ? AND status = 1 FOR UPDATE");
+    $chk = $connect->prepare("SELECT work_record_id, evaluation_status FROM pm_plan_events WHERE id = ? AND ag_id = ? AND " . pmap_done_sql($connect, '') . " FOR UPDATE");
     $ins = $connect->prepare("INSERT INTO pm_work_evaluations (work_record_id, plan_event_id, evaluator_name, evaluator_signature_path, eval_date, eval_comments, average_score, topics_json, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
     $upd = $connect->prepare("UPDATE pm_plan_events SET evaluation_status = 1, evaluation_id = ?, evaluated_at = NOW(), updated_at = NOW() WHERE id = ?");
     $ags = (string)$AG;
@@ -244,7 +246,7 @@ if ($action === 'save') {
         try {
             $chk->bind_param('is', $eid, $ags); $chk->execute();
             $row = $chk->get_result()->fetch_assoc();
-            if (!$row || !$row['work_record_id']) throw new Exception('ใบงานยังไม่ได้บันทึกผล หรือไม่อยู่ในหน่วยงานนี้');
+            if (!$row || !$row['work_record_id']) throw new Exception('ใบงานยังไม่ได้บันทึกผล ยังรอหัวหน้าช่างตรวจรับ หรือไม่อยู่ในหน่วยงานนี้');
             if ((int)$row['evaluation_status'] === 1) throw new Exception('ใบงานนี้ประเมินแล้ว');
             $wr = (int)$row['work_record_id'];
             $ins->bind_param('iissssdss', $wr, $eid, $name, $sig, $today, $comments, $avg, $topics_json, $ME);

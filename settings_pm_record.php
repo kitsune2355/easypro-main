@@ -1,6 +1,7 @@
 <?php
 @session_start();
-// ตั้งค่าการบันทึกผล PM — ลายมือชื่อผู้ตรวจสอบ (บังคับ/ไม่บังคับ) และวันที่ทำ PM (วันนี้ / เลือกวันที่ภายในช่วงสัญญา/แผน)
+// ตั้งค่าการบันทึกผล PM — ลายมือชื่อผู้ตรวจสอบ (บังคับ/ไม่บังคับ), วันที่ทำ PM (วันนี้ / เลือกวันที่ภายในช่วงสัญญา/แผน)
+//  และขั้นตรวจรับโดยหัวหน้าช่าง (เปิด/ปิด — ผู้ตรวจรับกำหนดที่ settings_pm_approvers.php)
 //  รูปแบบหน้าเดียวกับ settings_job_other.php
 include "config_ctrl/checksession.php";
 ?>
@@ -91,7 +92,7 @@ include "config_ctrl/checksession.php";
       <div class="mb-6 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div>
           <h2 class="text-lg md:text-xl font-semibold text-slate-800">การบันทึกผล PM (PM Worksheet)</h2>
-          <p class="text-xs md:text-sm text-slate-500 mt-1">กำหนดการลงชื่อและวันที่ทำ PM ตอนบันทึกผลใบงาน ทั้งทีละเครื่อง และบันทึกพร้อมกันหลายเครื่อง</p>
+          <p class="text-xs md:text-sm text-slate-500 mt-1">กำหนดการลงชื่อ วันที่ทำ PM และการตรวจรับงาน ตอนบันทึกผลใบงาน ทั้งทีละเครื่อง และบันทึกพร้อมกันหลายเครื่อง</p>
         </div>
         <button type="button" id="btn-save"
           class="w-full md:w-auto h-10 px-5 rounded-lg bg-primary text-white text-sm font-medium shadow-sm hover:bg-primaryDark transition-colors flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -120,6 +121,28 @@ include "config_ctrl/checksession.php";
             </div>
             <div class="flex justify-end sm:block mt-2 sm:mt-0 shrink-0">
               <button type="button" id="toggle-sign" class="switch-track" aria-label="บังคับลายมือชื่อผู้ตรวจสอบ"><div class="switch-dot"></div></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ตรวจรับโดยหัวหน้าช่าง -->
+        <div class="bg-white border border-slate-200 rounded-xl p-4 md:p-5 shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex gap-4 items-start sm:items-center">
+              <div class="w-10 h-10 rounded-full bg-softBlue border border-blue-100 flex items-center justify-center shrink-0 text-primary">
+                <i data-lucide="badge-check" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2 mb-0.5">
+                  <h3 class="text-[15px] font-semibold text-slate-800">ต้องให้หัวหน้าช่างตรวจรับงาน</h3>
+                  <span id="badge-approve" class="text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0"></span>
+                </div>
+                <p class="text-xs text-slate-500 leading-relaxed">เปิดเพื่อให้งานที่ช่างบันทึกผลแล้ว อยู่ในสถานะ <b class="text-emerald-700 font-medium">รอตรวจรับ</b> จนกว่าผู้ตรวจรับจะกดตรวจรับ จึงนับว่าทำเสร็จ<br>ผู้ตรวจรับ<b class="text-slate-700 font-medium">ส่งกลับแก้ไข</b>ได้ (ผลบันทึกเดิมถูกยกเลิก ช่างบันทึกใหม่ด้วยเลขที่เอกสารเดิม) · ตรวจรับได้ที่ หน้า PM → แท็บ <b class="text-slate-700 font-medium">ตรวจรับ PM</b></p>
+                <p id="approve-info" class="text-xs mt-1.5"></p>
+              </div>
+            </div>
+            <div class="flex justify-end sm:block mt-2 sm:mt-0 shrink-0">
+              <button type="button" id="toggle-approve" class="switch-track" aria-label="ต้องให้หัวหน้าช่างตรวจรับงาน"><div class="switch-dot"></div></button>
             </div>
           </div>
         </div>
@@ -174,7 +197,8 @@ include "config_ctrl/checksession.php";
       { id: 'pm-record', navIcon: 'clipboard-check', navLabel: 'การบันทึกผล PM' }
     ];
 
-    let state = { sign_required: 1, date_mode: 'today' };
+    let state = { sign_required: 1, date_mode: 'today', approve_required: 0 };
+    let extra = { pending_approval: 0, approver_count: 0 };
     let canEdit = false;
     const $ = (id) => document.getElementById(id);
 
@@ -204,6 +228,16 @@ include "config_ctrl/checksession.php";
       badge($('badge-sign'), sign, 'เปิดใช้งาน', 'ปิดใช้งาน');
       document.querySelectorAll('.mode-opt').forEach(b => b.classList.toggle('on', b.dataset.mode === state.date_mode));
       badge($('badge-date'), state.date_mode === 'pick', 'เลือกวันที่เอง', 'วันที่ปัจจุบัน');
+      const ap = !!+state.approve_required;
+      $('toggle-approve').classList.toggle('on', ap);
+      badge($('badge-approve'), ap, 'เปิดใช้งาน', 'ปิดใช้งาน');
+      const parts = [];
+      if (ap) parts.push(extra.approver_count
+        ? `<span class="text-slate-600">ผู้ตรวจรับ ${extra.approver_count} คน</span>`
+        : '<span class="text-amber-700">ยังไม่ได้กำหนดผู้ตรวจรับ (ตอนนี้ตรวจรับได้เฉพาะ Super Admin)</span>');
+      if (extra.pending_approval) parts.push(`<span class="text-emerald-700 font-medium">รอตรวจรับอยู่ ${extra.pending_approval} ใบ${ap ? '' : ' (ปิดแล้ว ใบที่รออยู่ยังต้องตรวจรับ)'}</span>`);
+      if (ap || extra.approver_count) parts.push('<a href="settings_pm_approvers.php" class="text-primary font-medium hover:underline">กำหนดผู้ตรวจรับ →</a>');
+      $('approve-info').innerHTML = parts.join(' · ');
     }
 
     async function loadSettings() {
@@ -211,8 +245,10 @@ include "config_ctrl/checksession.php";
         const r = await (await fetch('handle_pm_record_setting.php?action=get', { cache: 'no-store' })).json();
         if (!r.success) throw new Error(r.error || 'โหลดข้อมูลไม่สำเร็จ');
         state = r.setting;
+        extra = { pending_approval: r.pending_approval || 0, approver_count: r.approver_count || 0 };
         canEdit = !!r.can_edit;
         $('toggle-sign').disabled = !canEdit;
+        $('toggle-approve').disabled = !canEdit;
         $('btn-save').disabled = !canEdit;
         document.querySelectorAll('.mode-opt').forEach(b => b.disabled = !canEdit);
         $('no-perm').classList.toggle('hidden', canEdit);
@@ -229,6 +265,7 @@ include "config_ctrl/checksession.php";
         const fd = new FormData();
         fd.append('sign_required', +state.sign_required ? '1' : '0');
         fd.append('date_mode', state.date_mode);
+        fd.append('approve_required', +state.approve_required ? '1' : '0');
         const r = await (await fetch('handle_pm_record_setting.php?action=save', { method: 'POST', body: fd })).json();
         Swal.close();
         if (!r.success) { Swal.fire('เกิดข้อผิดพลาด', r.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
@@ -241,6 +278,7 @@ include "config_ctrl/checksession.php";
     }
 
     $('toggle-sign').addEventListener('click', () => { state.sign_required = +state.sign_required ? 0 : 1; render(); });
+    $('toggle-approve').addEventListener('click', () => { state.approve_required = +state.approve_required ? 0 : 1; render(); });
     document.querySelectorAll('.mode-opt').forEach(b => b.addEventListener('click', () => { state.date_mode = b.dataset.mode; render(); }));
     $('btn-save').addEventListener('click', saveSettings);
 

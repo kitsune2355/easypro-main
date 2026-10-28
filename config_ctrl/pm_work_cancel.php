@@ -89,4 +89,86 @@ if (!function_exists('pmwc_ensure')) {
         if ($dup && mysqli_num_rows($dup) > 0) return null;
         return $row['doc_no'];
     }
+
+    // ยกเลิกผลบันทึกของกำหนดการ แล้วตั้งกลับเป็น "ยังไม่ทำ" — ใช้ทั้งผู้ดูแล (handle_pm_work_cancel.php) และหัวหน้าช่างส่งกลับแก้ไข (handle_pm_approve.php)
+    //  ลบใบงานเดิม (ผลตรวจ รูป ลายเซ็น ผลประเมิน) คืนสต็อกอะไหล่ เก็บ log + สรุปผลเดิม · ไม่ตรวจสิทธิ์ (ผู้เรียกตรวจเอง) · อย่าเรียกระหว่าง transaction
+    //  คืนค่า ['success' => true, 'doc_no', 'revision', 'spares_returned'] หรือ ['success' => false, 'error']
+    function pmwc_cancel($connect, $event_id, $ag, $me, $reason) {
+        $event_id = (int)$event_id;
+        $agEsc = mysqli_real_escape_string($connect, (string)$ag);
+        $r = mysqli_query($connect, "SELECT e.id, e.plan_id, e.evaluation_status FROM pm_plan_events e WHERE e.id = $event_id AND e.ag_id = '$agEsc'");
+        $ev = $r ? mysqli_fetch_assoc($r) : null;
+        if (!$ev) return ['success' => false, 'error' => 'ไม่พบงาน PM นี้ในหน่วยงานที่เลือก'];
+        $r = mysqli_query($connect, "SELECT * FROM pm_work_records WHERE plan_event_id = $event_id LIMIT 1");
+        $wr = $r ? mysqli_fetch_assoc($r) : null;
+        if (!$wr) return ['success' => false, 'error' => 'งานนี้ยังไม่มีผลบันทึก'];
+        $wrId = (int)$wr['id'];
+        $spares = [];
+        $r = mysqli_query($connect, "SELECT rpd_product_id AS pd, wh_id AS wh, SUM(rpd_qty) AS qty, MAX(rpd_details) AS name
+            FROM pm_work_record_actual_spares WHERE work_record_id = $wrId AND rpd_product_id > 0 AND wh_id > 0 GROUP BY rpd_product_id, wh_id");
+        if ($r) while ($row = mysqli_fetch_assoc($r)) $spares[] = $row;
+        $r = mysqli_query($connect, "SELECT 1 FROM pm_work_evaluations WHERE work_record_id = $wrId LIMIT 1");
+        $evaluated = (int)$ev['evaluation_status'] === 1 || ($r && mysqli_num_rows($r) > 0);
+        // มีขั้นตรวจรับ => ล้างสถานะตรวจรับด้วย (บันทึกใหม่แล้วค่อยรอตรวจรับใหม่)
+        $apSet = function_exists('pmap_has_col') && pmap_has_col($connect) ? ', approval_status = NULL, approval_id = NULL, approved_at = NULL' : '';
+
+        // สรุปผลเดิมเก็บไว้ใน log (ดูย้อนหลังได้ว่าเดิมบันทึกอะไรไว้)
+        $items = [];
+        $r = mysqli_query($connect, "SELECT check_point, result_status, actual_value, unit FROM pm_work_record_items WHERE work_record_id = $wrId ORDER BY sort_order, id");
+        if ($r) while ($row = mysqli_fetch_assoc($r)) $items[] = $row;
+        $insp = [];
+        $r = mysqli_query($connect, "SELECT inspector_name_snapshot FROM pm_work_record_inspectors WHERE work_record_id = $wrId");
+        if ($r) while ($row = mysqli_fetch_assoc($r)) $insp[] = $row['inspector_name_snapshot'];
+        $snapshot = json_encode([
+            'actual_date' => $wr['actual_date'], 'inspectors' => $insp ?: [$wr['inspector_name']], 'remarks' => $wr['remarks'],
+            'created_by' => $wr['created_by'], 'created_at' => $wr['created_at'], 'items' => $items,
+            'spares' => $spares, 'evaluated' => (bool)$evaluated,
+        ], JSON_UNESCAPED_UNICODE);
+
+        // ไฟล์ของใบงานเดิม (ลบหลัง commit)
+        $files = [];
+        $q = function ($sql) use ($connect, &$files) { $r = mysqli_query($connect, $sql); if ($r) while ($row = mysqli_fetch_row($r)) if ($row[0] !== null && $row[0] !== '') $files[] = $row[0]; };
+        $q("SELECT result_photo_path FROM pm_work_record_items WHERE work_record_id = $wrId");
+        $q("SELECT inspector_signature_path FROM pm_work_records WHERE id = $wrId");
+        $q("SELECT evaluator_signature_path FROM pm_work_evaluations WHERE work_record_id = $wrId");
+        $q("SELECT s.file_path FROM pm_work_record_files_snapshot s WHERE s.work_record_id = $wrId
+            AND NOT EXISTS (SELECT 1 FROM pm_checksheet_files cf WHERE cf.file_path = s.file_path)
+            AND NOT EXISTS (SELECT 1 FROM pm_work_record_files_snapshot o WHERE o.file_path = s.file_path AND o.work_record_id <> $wrId)");
+
+        pmwc_ensure($connect);   // ก่อนเริ่ม transaction
+        $revision = pmwc_revision($connect, $event_id) + 1;
+        $now = date('Y-m-d H:i:s');
+        mysqli_begin_transaction($connect);
+        try {
+            // คืนสต็อกอะไหล่ที่ใบงานเดิมตัดไป
+            if ($spares) {
+                $st = mysqli_prepare($connect, "UPDATE product_stocks SET qty = qty + ?, updated_at = NOW() WHERE pd_id = ? AND wh_id = ?");
+                foreach ($spares as $s) {
+                    $qty = (float)$s['qty']; $pd = (int)$s['pd']; $wh = (int)$s['wh'];
+                    mysqli_stmt_bind_param($st, 'dii', $qty, $pd, $wh);
+                    if (!mysqli_stmt_execute($st)) throw new Exception(mysqli_error($connect));
+                }
+                mysqli_stmt_close($st);
+            }
+            $st = mysqli_prepare($connect, "INSERT INTO pm_work_record_cancel_log (ag_id, plan_event_id, plan_id, work_record_id, doc_no, revision, reason, snapshot_json, created_at, created_by, updated_at, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $planId = (int)$ev['plan_id']; $doc = (string)$wr['doc_no'];
+            mysqli_stmt_bind_param($st, 'siiisissssss', $ag, $event_id, $planId, $wrId, $doc, $revision, $reason, $snapshot, $now, $me, $now, $me);
+            if (!mysqli_stmt_execute($st)) throw new Exception(mysqli_error($connect));
+            mysqli_stmt_close($st);
+            // ลบใบงานเดิม — ผลตรวจ ผู้ตรวจ อะไหล่ ไฟล์ snapshot ผลประเมิน ลบตาม (ON DELETE CASCADE)
+            if (!mysqli_query($connect, "DELETE FROM pm_work_records WHERE id = $wrId")) throw new Exception(mysqli_error($connect));
+            // กำหนดการกลับเป็น "ยังไม่ทำ" วันเดิม
+            if (!mysqli_query($connect, "UPDATE pm_plan_events SET status = 0, status_feedback = 0, work_record_id = NULL, completed_at = NULL,
+                    evaluation_status = 0, evaluation_id = NULL, evaluated_at = NULL" . $apSet . ", updated_at = NOW() WHERE id = $event_id")) throw new Exception(mysqli_error($connect));
+            mysqli_commit($connect);
+        } catch (Exception $e) {
+            mysqli_rollback($connect);
+            return ['success' => false, 'error' => 'ยกเลิกไม่สำเร็จ: ' . $e->getMessage()];
+        }
+
+
+        pmwc_unlink_unused($connect, $files, dirname(__DIR__));
+        return ['success' => true, 'doc_no' => $wr['doc_no'], 'revision' => $revision, 'spares_returned' => count($spares)];
+    }
 }
