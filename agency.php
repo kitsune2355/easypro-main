@@ -84,19 +84,41 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
     .am-filter.on { background: #0f172a; color: #fff; }
     .am-filter b { font-weight: 700; }
     .am-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; flex: none; }
-    .am-row { display: grid; grid-template-columns: minmax(0, 1.6fr) 120px 92px minmax(0, 1.9fr) 18px; align-items: center; gap: 18px; padding: 12px 18px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background .12s; }
-    .am-row:hover { background: #f8fbff; }
-    .am-row:last-child { border-bottom: 0; }
-    .am-chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; font-size: 12px; font-weight: 600; color: #334155; white-space: nowrap; transition: all .12s; }
-    .am-chip:hover { border-color: #005e8e; color: #005e8e; background: #f0f9ff; }
-    .am-chip svg { color: #94a3b8; }
-    .am-chip:hover svg { color: #005e8e; }
-    .am-chip.warn { border-color: #fecaca; color: #b91c1c; background: #fef2f2; }
-    @media (max-width: 900px) {
-      .am-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
-      .am-row .am-c-spark, .am-row .am-c-arrow { display: none; }
-      .am-row .am-c-chips { grid-column: 1 / -1; }
+    /* ตาราง: หน่วยงาน | สถานะ | ล่าสุด | แนวโน้ม | ตัวชี้วัด 6 คอลัมน์ | › */
+    .am-grid { display: grid; grid-template-columns: minmax(220px, 1fr) 118px 96px 104px repeat(6, 78px) 20px; align-items: center; column-gap: 8px; }
+    .am-head { position: sticky; top: 0; z-index: 2; background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 9px 18px; font-size: 11px; font-weight: 600; color: #64748b; }
+    .am-head .h { display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; white-space: nowrap; }
+    .am-head .h.num { justify-content: center; }
+    .am-head .h:hover { color: #0f172a; }
+    .am-head .h.on { color: #005e8e; }
+    .am-head .h .ar { font-size: 9px; opacity: .8; }
+    .am-r { padding: 0 18px; min-height: 58px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background .12s; }
+    .am-r:hover { background: #f8fafc; }
+    .am-r:last-child { border-bottom: 0; }
+    .am-name { font-size: 13.5px; font-weight: 600; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .am-meta { font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+    .am-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: #475569; white-space: nowrap; }
+    .am-ago { font-size: 12px; color: #475569; white-space: nowrap; }
+    .am-ago.old { color: #94a3b8; }
+    .am-n { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 40px; border-radius: 8px; font-variant-numeric: tabular-nums; }
+    .am-n b { font-size: 14px; font-weight: 600; color: #1e293b; line-height: 1.2; }
+    .am-n .x { font-size: 10px; color: #94a3b8; line-height: 1.2; white-space: nowrap; }
+    .am-n .x.red { color: #dc2626; font-weight: 600; }
+    .am-n.link:hover { background: #e0f2fe; }
+    .am-n.link:hover b { color: #005e8e; }
+    .am-n.zero b { color: #cbd5e1; font-weight: 500; }
+    @media (max-width: 1180px) { .am-grid { grid-template-columns: minmax(200px, 1fr) 110px 88px repeat(6, 70px) 16px; } .am-col-spark { display: none !important; } }
+    /* มือถือ / จอแคบ: การ์ด 2 ส่วน (ชื่อ+สถานะ / ตัวชี้วัด 3×2) */
+    @media (max-width: 860px) {
+      .am-head { display: none; }
+      .am-grid.am-r { grid-template-columns: minmax(0, 1fr) auto; row-gap: 10px; padding: 12px 16px; }
+      .am-r .am-col-ago, .am-r .am-col-arrow { display: none; }
+      .am-r .am-col-metrics { grid-column: 1 / -1; display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+      .am-r .am-col-metrics .am-n { background: #f8fafc; height: 46px; }
+      .am-r .am-col-metrics .am-n .lbl { display: block !important; }
     }
+    .am-col-metrics { display: contents; }
+
     .am-tab { height: 34px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: #64748b; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
     .am-tab:hover { background: #f1f5f9; color: #0f172a; }
     .am-tab.on { background: #005e8e; color: #fff; }
@@ -104,6 +126,36 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
     .am-tab.on .n { background: rgba(255, 255, 255, .2); }
     .am-list td { padding: 9px 10px; border-bottom: 1px solid #f1f5f9; font-size: 12.5px; vertical-align: top; }
     .am-list th { padding: 8px 10px; font-size: 11px; font-weight: 700; color: #64748b; text-align: left; background: #f8fafc; position: sticky; top: 0; z-index: 1; }
+    /* หน้ารายละเอียด: หัวข้อส่วน / ความเคลื่อนไหวล่าสุด / ประวัติล็อกอิน / scrollbar บาง */
+    .am-sec { font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 8px; flex: none; }
+    .am-day { position: sticky; top: 0; z-index: 1; background: #fff; padding: 6px 0 4px; margin-top: 4px; font-size: 11px; font-weight: 700; color: #64748b; border-bottom: 1px solid #f1f5f9; }
+    .am-fi { width: 24px; height: 24px; border-radius: 7px; background: #f1f5f9; color: #64748b; display: flex; align-items: center; justify-content: center; flex: none; }
+    /* แผงประวัติเข้าสู่ระบบ: หน้าต่างแยกทางขวาของหน้าต่างรายละเอียด (ปฏิทินรายเดือน มีเวลาในช่องวัน) */
+    .am-user.on { background: #f0f9ff; }
+    .am-user.on .am-caret { color: #0284c7; }
+    #am-up { position: fixed; z-index: 2; background: #fff; border-radius: 16px; box-shadow: 0 12px 40px rgba(15, 23, 42, .2); display: flex; flex-direction: column; overflow: hidden; text-align: left; opacity: 0; transform: translateX(-8px); transition: opacity .18s, transform .18s; }
+    #am-up.show { opacity: 1; transform: none; }
+    .am-upc { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+    .am-upc .w { font-size: 10.5px; color: #94a3b8; text-align: center; padding-bottom: 2px; }
+    .am-ud { min-height: 62px; border-radius: 8px; padding: 4px 6px; border: 1px solid #f1f5f9; font-variant-numeric: tabular-nums; text-align: left; display: flex; flex-direction: column; }
+    .am-ud .hd { display: flex; align-items: center; justify-content: space-between; gap: 2px; }
+    .am-ud .n { font-size: 11px; font-weight: 600; color: #cbd5e1; line-height: 18px; }
+    .am-ud .c { font-size: 10px; font-weight: 700; color: #0369a1; background: #e0f2fe; border-radius: 999px; min-width: 18px; height: 16px; padding: 0 4px; display: inline-flex; align-items: center; justify-content: center; }
+    .am-ud .f { margin-top: 5px; font-size: 12px; font-weight: 700; color: #0f172a; line-height: 1.2; }
+    .am-ud .l { font-size: 10px; color: #94a3b8; line-height: 1.3; white-space: nowrap; }
+    .am-tc { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 6px; background: #fff; border: 1px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #0f172a; font-variant-numeric: tabular-nums; }
+    .am-tc i { font-style: normal; font-size: 10.5px; font-weight: 600; color: #0369a1; }
+    .am-ud.has { border-color: #e0f2fe; background: #f8fcff; cursor: pointer; }
+    .am-ud.has .n { color: #0369a1; }
+    .am-ud.has:hover { border-color: #7dd3fc; }
+    .am-ud.sel { border-color: #0284c7; box-shadow: inset 0 0 0 1px #0284c7; }
+    .am-ud.out { border-color: transparent; }
+    .am-ud.out .n { color: #e2e8f0; }
+    .am-ud.today .n { color: #fff; background: #334155; border-radius: 999px; padding: 0 5px; }
+    .am-scroll { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+    .am-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .am-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+    .am-scroll::-webkit-scrollbar-track { background: transparent; }
     .am-st { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
 
     .admin-row-card { transition: all 0.2s ease; }
@@ -598,6 +650,9 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
           <option value="total">เรียงตาม: เคลื่อนไหวมากสุด</option>
           <option value="idle">เรียงตาม: เงียบนานสุด</option>
           <option value="name">เรียงตาม: ชื่อหน่วยงาน</option>
+          <option value="login">เรียงตาม: เข้าใช้งานมากสุด</option>
+          <option value="repair">เรียงตาม: แจ้งซ่อมมากสุด</option>
+          <option value="pm">เรียงตาม: PM มากสุด</option>
         </select>
       </div>
       <div class="flex-1 overflow-auto lg:min-h-0" style="min-height: 320px">
@@ -1616,7 +1671,7 @@ document.querySelectorAll(".perm-check:checked")
     const d = Math.floor(h / 24); if (d < 60) return d + ' วันก่อน';
     return Math.floor(d / 30) + ' เดือนก่อน';
   }
-  const STATE = { active: ['ใช้งานปกติ', '#10b981'], quiet: ['เงียบ', '#f59e0b'], idle: ['ไม่เคลื่อนไหว', '#ef4444'], never: ['ไม่มีข้อมูล', '#cbd5e1'] };
+  const STATE = { active: ['ใช้งานปกติ', '#22c55e'], quiet: ['เงียบ', '#f59e0b'], idle: ['ไม่เคลื่อนไหว', '#ef4444'], never: ['ไม่มีข้อมูล', '#cbd5e1'] };
   // ตัวเลขหลักที่กดดูข้อมูลได้: key, ไอคอน, ป้าย, ค่า
   const METRICS = [
     ['login', 'log-in', 'เข้าใช้งาน', a => a.login.n],
@@ -1644,33 +1699,54 @@ document.querySelectorAll(".perm-check:checked")
     $('am-filters').innerHTML = f('', 'ทั้งหมด') + f('active', 'ใช้งานปกติ', '#10b981') + f('quiet', 'เงียบ', '#f59e0b') + f('idle', 'ไม่เคลื่อนไหว', '#ef4444') + (c.expired ? f('expired', 'สัญญาหมด', '#64748b') : '');
   }
 
+  // ตัวเลข 1 ช่อง (กดเพื่อดูข้อมูลจริง) — 0 = สีจาง ไม่ต้องกด
+  function cell(a, key, val, sub, subRed) {
+    const lbl = (METRICS.find(m => m[0] === key) || [])[2] || '';
+    if (!val && !subRed) return `<div class="am-n zero" title="${lbl}: 0"><span class="lbl hidden text-[10px] text-slate-400">${lbl}</span><b>0</b></div>`;
+    return `<div class="am-n link" data-ag="${a.ag_id}" data-tab="${key}" title="ดู${lbl}"><span class="lbl hidden text-[10px] text-slate-400">${lbl}</span><b>${nf(val)}</b>${sub ? `<span class="x ${subRed ? 'red' : ''}">${sub}</span>` : ''}</div>`;
+  }
+
   function row(a) {
     const st = STATE[a.state];
-    const chips = METRICS.filter(m => m[3](a) > 0).map(m => `<button type="button" class="am-chip" data-ag="${a.ag_id}" data-tab="${m[0]}" title="ดู${m[2]}">${ico(m[1], 'w-3.5 h-3.5')}${m[2]} <b>${nf(m[3](a))}</b></button>`);
-    if (a.pm.overdue) chips.push(`<button type="button" class="am-chip warn" data-ag="${a.ag_id}" data-tab="pm" title="PM เลยกำหนดสะสม">${ico('alert-circle', 'w-3.5 h-3.5')}PM เลยกำหนด <b>${nf(a.pm.overdue)}</b></button>`);
-    return `<div class="am-row" data-ag="${a.ag_id}" data-tab="overview">
-      <div class="min-w-0 flex items-center gap-3">
-        <span class="am-dot" style="background:${st[1]}" title="${st[0]}"></span>
-        <div class="min-w-0">
-          <div class="text-[13.5px] font-bold text-slate-800 truncate">${esc(a.name)}</div>
-          <div class="text-[11px] text-slate-400 truncate">${esc(a.code || '-')} · ผู้ใช้ ${nf(a.users)} คน${a.expired ? ' · <span class="text-slate-500 font-semibold">สัญญาหมด ' + esc(thD(a.end)) + '</span>' : ''}${a.enabled ? '' : ' · ปิดใช้งาน'}</div>
-        </div>
+    const idleDays = a.last ? (Date.now() - new Date(String(a.last).replace(' ', 'T'))) / 86400000 : 999;
+    return `<div class="am-grid am-r" data-ag="${a.ag_id}" data-tab="overview">
+      <div class="min-w-0">
+        <div class="am-name" title="${esc(a.name)}">${esc(a.name)}</div>
+        <div class="am-meta">${esc(a.code || '-')} · ผู้ใช้ ${nf(a.users)} คน${a.expired ? ' · สัญญาหมด ' + esc(thD(a.end)) : ''}${a.enabled ? '' : ' · ปิดใช้งาน'}</div>
       </div>
-      <div class="am-c-spark">${spark(a.spark, st[1])}</div>
-      <div class="text-right"><div class="text-[15px] font-bold text-slate-800 leading-tight">${nf(total(a))}</div><div class="text-[11px] whitespace-nowrap" style="color:${a.state === 'active' ? '#059669' : a.state === 'quiet' ? '#b45309' : '#dc2626'}" title="${esc(thDT(a.last))}">${esc(ago(a.last))}</div></div>
-      <div class="am-c-chips flex flex-wrap gap-1.5">${chips.join('') || '<span class="text-[12px] text-slate-300">ไม่มีความเคลื่อนไหวในช่วงนี้</span>'}</div>
-      <div class="am-c-arrow text-slate-300">${ico('chevron-right', 'w-4 h-4')}</div>
+      <div><span class="am-state"><span class="am-dot" style="background:${st[1]}"></span>${st[0]}</span></div>
+      <div class="am-col-ago"><div class="am-ago ${idleDays > 14 ? 'old' : ''}" title="${esc(thDT(a.last))}">${esc(ago(a.last))}</div></div>
+      <div class="am-col-spark">${spark(a.spark, '#38bdf8')}</div>
+      <div class="am-col-metrics">
+        ${cell(a, 'login', a.login.n, a.login.n ? nf(a.login.users) + '/' + nf(a.users) + ' คน' : '')}
+        ${cell(a, 'repair', a.repair.new, a.repair.backlog ? 'ค้าง ' + nf(a.repair.backlog) : '')}
+        ${cell(a, 'pm', a.pm.done, a.pm.overdue ? 'เลย ' + nf(a.pm.overdue) : '', !!a.pm.overdue)}
+        ${cell(a, 'meter', a.meter.n)}
+        ${cell(a, 'stock', a.stock.n)}
+        ${cell(a, 'data', a.machine.added + a.machine.updated + a.setting.n)}
+      </div>
+      <div class="am-col-arrow text-slate-300">${ico('chevron-right', 'w-4 h-4')}</div>
     </div>`;
+  }
+
+  function headHtml() {
+    const h = (key, label, num, cls) => `<div class="h ${num ? 'num' : ''} ${sortKey === key ? 'on' : ''} ${cls || ''}" data-sort="${key}">${label}${sortKey === key ? '<span class="ar">▼</span>' : ''}</div>`;
+    return `<div class="am-grid am-head">${h('name', 'หน่วยงาน')}${h('state', 'สถานะ')}${h('last', 'ล่าสุด')}<div class="h am-col-spark" style="cursor:default">แนวโน้ม ${days} วัน</div>
+      ${h('login', 'เข้าใช้งาน', 1)}${h('repair', 'แจ้งซ่อม', 1)}${h('pm', 'PM', 1)}${h('meter', 'มิเตอร์', 1)}${h('stock', 'สต็อก', 1)}${h('data', 'ข้อมูล', 1)}<div></div></div>`;
   }
 
   function currentRows() {
     const q = $('am-q').value.trim().toLowerCase();
     const rows = DATA.filter(a => (!filter || (filter === 'expired' ? a.expired : filter === 'idle' ? (a.state === 'idle' || a.state === 'never') : a.state === filter))
       && (!q || (a.name || '').toLowerCase().includes(q) || (a.code || '').toLowerCase().includes(q)));
+    const num = f => (x, y) => f(y) - f(x);
+    const ORD = { active: 0, quiet: 1, idle: 2, never: 3 };
     const by = {
-      last: (x, y) => (y.last || '').localeCompare(x.last || ''), total: (x, y) => total(y) - total(x),
-      idle: (x, y) => (x.last || '').localeCompare(y.last || ''), name: (x, y) => (x.name || '').localeCompare(y.name || '', 'th')
-    }[sortKey];
+      last: (x, y) => (y.last || '').localeCompare(x.last || ''), total: num(total),
+      idle: (x, y) => (x.last || '').localeCompare(y.last || ''), name: (x, y) => (x.name || '').localeCompare(y.name || '', 'th'),
+      state: (x, y) => ORD[x.state] - ORD[y.state], login: num(a => a.login.n), repair: num(a => a.repair.new), pm: num(a => a.pm.done),
+      meter: num(a => a.meter.n), stock: num(a => a.stock.n), data: num(a => a.machine.added + a.machine.updated + a.setting.n)
+    }[sortKey] || ((x, y) => (y.last || '').localeCompare(x.last || ''));
     rows.sort((x, y) => by(x, y) || (x.name || '').localeCompare(y.name || '', 'th'));
     return rows;
   }
@@ -1678,8 +1754,7 @@ document.querySelectorAll(".perm-check:checked")
   function render() {
     renderFilters();
     const rows = currentRows();
-    $('am-list').innerHTML = (rows.length ? `<div class="am-row !cursor-default !py-2 bg-white sticky top-0 z-[2] text-[11px] font-bold text-slate-400 hover:!bg-white max-[900px]:hidden">
-        <div>หน่วยงาน</div><div>แนวโน้ม ${days} วัน</div><div class="text-right">รวม / ล่าสุด</div><div>ความเคลื่อนไหว (กดเพื่อดูข้อมูล)</div><div></div></div>` + rows.map(row).join('')
+    $('am-list').innerHTML = (rows.length ? headHtml() + rows.map(row).join('')
       : `<div class="py-16 text-center text-slate-400 text-sm">ไม่พบหน่วยงานตามเงื่อนไข</div>`);
     if (window.lucide) lucide.createIcons();
   }
@@ -1687,7 +1762,7 @@ document.querySelectorAll(".perm-check:checked")
   async function load() {
     if (loading) return;
     loading = true;
-    $('am-list').innerHTML = Array.from({ length: 6 }, () => '<div class="am-row !cursor-default animate-pulse"><div class="h-8 bg-slate-100 rounded"></div><div class="h-6 bg-slate-100 rounded am-c-spark"></div><div class="h-8 bg-slate-100 rounded"></div><div class="h-6 bg-slate-100 rounded am-c-chips"></div><div></div></div>').join('');
+    $('am-list').innerHTML = Array.from({ length: 6 }, () => '<div class="am-r flex items-center gap-4 !cursor-default animate-pulse"><div class="h-4 bg-slate-100 rounded w-56"></div><div class="h-4 bg-slate-100 rounded w-20"></div><div class="h-4 bg-slate-100 rounded flex-1"></div></div>').join('');
     try {
       const r = await (await fetch('handle_agency_monitor.php?action=summary&days=' + days)).json();
       if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
@@ -1721,40 +1796,150 @@ document.querySelectorAll(".perm-check:checked")
   }
 
   // ประวัติเข้าสู่ระบบของผู้ใช้ (ช่วงที่เลือก) จัดกลุ่มตามวัน
+  // ป้ายวัน: วันนี้ / เมื่อวาน / "พ. 21 ต.ค. 69"
+  function dayLabel(ymdStr) {
+    const d = new Date(ymdStr + 'T00:00:00'), t = new Date(); t.setHours(0, 0, 0, 0);
+    const diff = Math.round((t - d) / 86400000);
+    if (diff === 0) return 'วันนี้';
+    if (diff === 1) return 'เมื่อวาน';
+    return d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' });
+  }
+
+  // แผงประวัติเข้าสู่ระบบ: หน้าต่างแยกทางขวาของหน้าต่างรายละเอียด (ไม่ทับกัน) · ปฏิทินทีละเดือน เวลาเข้าแสดงในช่องวัน
+  const UP_W = 460, UP_GAP = 12;
+  let upUser = null;
+
+  // ความกว้างหน้าต่างรายละเอียด: ใช้ขนาดเดียวกับตอนเปิดแผงไว้ตั้งแต่แรก จะได้ไม่ย่อขยายตอนเปิด/ปิดแผง
+  function detailWidth() {
+    const vw = document.documentElement.clientWidth, side = 16;
+    const split = Math.min(1056, vw - side * 2 - Math.min(UP_W, vw - side * 2) - UP_GAP);
+    return split >= 640 ? split : Math.min(1056, vw - side * 2);
+  }
+  function fitDetail() {
+    const pop = Swal.getPopup(); if (!pop) return;
+    if (upUser) { placeUserPanel(); return; }
+    pop.style.width = detailWidth() + 'px'; pop.style.transform = '';
+  }
+
+  function placeUserPanel() {
+    const pn = $('am-up'), pop = Swal.getPopup(); if (!pn || !pop) return;
+    const vw = document.documentElement.clientWidth, vh = window.innerHeight, side = 16;
+    const w = Math.min(UP_W, vw - side * 2);
+    const popW = Math.min(1056, vw - side * 2 - w - UP_GAP);
+    pn.style.width = w + 'px';
+    if (popW >= 640) {
+      // จอกว้างพอ: เลื่อนหน้าต่างรายละเอียดไปซ้าย วางแผงชิดขวา
+      pop.style.width = popW + 'px';
+      pop.style.transform = `translateX(${-(w + UP_GAP) / 2}px)`;
+      const r = pop.getBoundingClientRect();
+      pn.style.left = ((vw - (popW + UP_GAP + w)) / 2 + popW + UP_GAP) + 'px';
+      pn.style.top = r.top + 'px'; pn.style.height = r.height + 'px';
+    } else {
+      // จอแคบ: แผงซ้อนด้านขวาเต็มความสูง
+      pop.style.width = detailWidth() + 'px'; pop.style.transform = '';
+      pn.style.left = (vw - w - 8) + 'px'; pn.style.top = '8px'; pn.style.height = (vh - 16) + 'px';
+    }
+  }
+
+  function closeUserPanel() {
+    upUser = null;
+    const pn = $('am-up'); if (pn) pn.remove();
+    fitDetail();
+    document.querySelectorAll('#am-users .am-user.on').forEach(x => x.classList.remove('on'));
+  }
+
   async function toggleUserLog(btn) {
-    const box = btn.nextElementSibling, caret = btn.querySelector('.am-caret');
-    const open = box.classList.contains('hidden');
-    box.classList.toggle('hidden', !open);
-    caret.style.transform = open ? 'rotate(90deg)' : '';
-    if (!open || box.dataset.ready) return;
-    box.innerHTML = '<div class="text-[11px] text-slate-400 py-1">กำลังโหลด...</div>';
+    const user = btn.dataset.user;
+    if (upUser === user) { closeUserPanel(); return; }
+    document.querySelectorAll('#am-users .am-user.on').forEach(x => x.classList.remove('on'));
+    btn.classList.add('on'); upUser = user;
+    let pn = $('am-up');
+    if (!pn) {
+      pn = document.createElement('div'); pn.id = 'am-up';
+      Swal.getContainer().appendChild(pn);
+    }
+    const name = btn.querySelector('.am-uname').textContent;
+    pn.innerHTML = `<div class="px-5 pt-4 pb-3 border-b border-slate-100 flex-none">
+        <div class="flex items-start gap-2"><div class="min-w-0 flex-1"><div class="text-[11px] text-slate-400">ประวัติเข้าสู่ระบบ · ${days} วันล่าสุด</div><div class="text-[15px] font-bold text-slate-800 truncate">${esc(name)}</div></div>
+          <button type="button" data-x class="w-8 h-8 -mr-2 rounded-lg hover:bg-slate-100 text-slate-400 flex items-center justify-center flex-none" title="ปิด">${ico('x', 'w-4 h-4')}</button></div>
+        <div data-sum class="text-[12px] text-slate-500 mt-0.5"></div></div>
+      <div data-body class="am-scroll flex-1 min-h-0 overflow-y-auto px-4 py-3"><div class="text-xs text-slate-400 py-6 text-center">กำลังโหลด...</div></div>`;
+    pn.onclick = e => { if (e.target.closest('[data-x]')) closeUserPanel(); };
+    if (window.lucide) lucide.createIcons();
+    placeUserPanel();
+    requestAnimationFrame(() => pn.classList.add('show'));
+    const body = pn.querySelector('[data-body]');
     try {
-      const r = await (await fetch(`handle_agency_monitor.php?action=user_logins&ag=${cur.ag_id}&user=${encodeURIComponent(btn.dataset.user)}&days=${days}`)).json();
+      const r = await (await fetch(`handle_agency_monitor.php?action=user_logins&ag=${cur.ag_id}&user=${encodeURIComponent(user)}&days=${days}`)).json();
       if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
-      box.dataset.ready = '1';
-      if (!r.days.length) { box.innerHTML = `<div class="text-[11.5px] text-slate-400 py-1">ไม่ได้เข้าสู่ระบบใน ${days} วันนี้${r.last_ever ? ' · เข้าล่าสุด ' + esc(thDT(r.last_ever)) : ' · ยังไม่เคยเข้าสู่ระบบ'}</div>`; return; }
-      box.innerHTML = `<div class="rounded-lg bg-slate-50 border border-slate-100 p-2 space-y-1.5 max-h-60 overflow-y-auto">${r.days.map(d => {
-          const dt = new Date(d.d + 'T00:00:00');
-          return `<div class="flex gap-2 items-start text-[11.5px]">
-            <div class="w-[92px] flex-none text-slate-600 font-semibold">${dt.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', year: '2-digit' })}</div>
-            <div class="flex flex-wrap gap-1">${d.times.slice().reverse().map(t => `<span class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700 tabular-nums">${t.slice(0, 5)} น.</span>`).join('')}</div>
-          </div>`; }).join('')}</div>
-        <div class="text-[10.5px] text-slate-400 mt-1">รวม ${nf(r.total)} ครั้ง ใน ${nf(r.days.length)} วัน${r.total >= 1000 ? ' (แสดง 1,000 ครั้งล่าสุด)' : ''}</div>`;
-    } catch (e) { box.innerHTML = `<div class="text-[11.5px] text-red-500 py-1">${esc(e.message)}</div>`; }
+      if (upUser !== user) return;   // ระหว่างโหลดผู้ใช้กดคนอื่นแล้ว
+      pn.querySelector('[data-sum]').textContent = r.days.length
+        ? `รวม ${nf(r.total)} ครั้ง ใน ${nf(r.days.length)} วัน${r.total >= 1000 ? ' (แสดง 1,000 ครั้งล่าสุด)' : ''}`
+        : `ไม่ได้เข้าสู่ระบบในช่วงนี้${r.last_ever ? ' · เข้าล่าสุด ' + thDT(r.last_ever) : ' · ยังไม่เคยเข้าสู่ระบบ'}`;
+      if (!r.days.length) { body.innerHTML = '<div class="text-xs text-slate-400 py-6 text-center">ไม่มีข้อมูลการเข้าสู่ระบบ</div>'; return; }
+      const byDay = {};
+      r.days.forEach(d => { byDay[d.d] = d.times.map(t => t.slice(0, 5)).sort(); });   // เช้า → เย็น
+      const pad = n => String(n).padStart(2, '0');
+      const ymdOf = dt => dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const from = new Date(today); from.setDate(from.getDate() - (days - 1));
+      const months = [];   // เก่า → ใหม่
+      for (let m = new Date(from.getFullYear(), from.getMonth(), 1); m <= today; m.setMonth(m.getMonth() + 1)) months.push(new Date(m));
+      const latest = r.days[0].d;
+      let mi = months.findIndex(m => ymdOf(m).slice(0, 7) === latest.slice(0, 7)); if (mi < 0) mi = months.length - 1;
+      let sel = latest;
+      // เวลาซ้ำนาทีเดียวกันรวมเป็น ×N
+      const grouped = t => { const o = []; t.forEach(x => { const g = o[o.length - 1]; if (g && g.t === x) g.n++; else o.push({ t: x, n: 1 }); }); return o; };
+      const render = () => {
+        const m = months[mi], y = m.getFullYear(), mo = m.getMonth(), last = new Date(y, mo + 1, 0).getDate();
+        let cells = '', cnt = 0;
+        for (let i = 0; i < new Date(y, mo, 1).getDay(); i++) cells += '<span></span>';
+        for (let d = 1; d <= last; d++) {
+          const dt = new Date(y, mo, d), key = ymdOf(dt), t = byDay[key] || [], inRange = dt >= from && dt <= today;
+          cnt += t.length;
+          const cls = 'am-ud' + (t.length ? ' has' : '') + (!inRange ? ' out' : '') + (key === sel ? ' sel' : '') + (key === ymdOf(today) ? ' today' : '');
+          // ช่องวัน: เวลาเข้าครั้งแรก (ตัวหนา) + "ถึง" เวลาล่าสุด · จำนวนครั้งมุมขวาบน
+          const times = t.length ? `<span class="f">${t[0]}</span>${t[t.length - 1] !== t[0] ? `<span class="l">ถึง ${t[t.length - 1]}</span>` : ''}` : '';
+          cells += `<div class="${cls}" ${t.length ? `data-d="${key}" title="${esc(dayLabel(key) + ' · ' + t.length + ' ครั้ง: ' + t.join(', '))}"` : ''}><div class="hd"><span class="n">${d}</span>${t.length ? `<span class="c">${t.length}</span>` : ''}</div>${times}</div>`;
+        }
+        const st = byDay[sel] || [];
+        body.innerHTML = `<div class="flex items-center justify-between mb-2">
+            <button type="button" data-mv="-1" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent" ${mi === 0 ? 'disabled' : ''} title="เดือนก่อน">${ico('chevron-left', 'w-4 h-4')}</button>
+            <div class="text-[13px] font-bold text-slate-700">${m.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' })} <span class="font-normal text-slate-400 text-[11.5px]">· ${cnt ? nf(cnt) + ' ครั้ง' : 'ไม่ได้เข้า'}</span></div>
+            <button type="button" data-mv="1" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent" ${mi === months.length - 1 ? 'disabled' : ''} title="เดือนถัดไป">${ico('chevron-right', 'w-4 h-4')}</button></div>
+          <div class="am-upc">${['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map(w => `<span class="w">${w}</span>`).join('')}${cells}</div>
+          ${st.length ? `<div class="mt-3 rounded-lg bg-slate-50 px-3 py-2.5">
+              <div class="flex items-baseline justify-between gap-2 text-[12px]"><b class="text-slate-700">${esc(dayLabel(sel))}</b><span class="text-slate-400">${st.length} ครั้ง${st.length > 1 ? ` · ${st[0]} – ${st[st.length - 1]}` : ''}</span></div>
+              <div class="flex flex-wrap gap-1.5 mt-2">${grouped(st).map(g => `<span class="am-tc">${g.t}${g.n > 1 ? `<i>×${g.n}</i>` : ''}</span>`).join('')}</div></div>` : ''}`;
+        if (window.lucide) lucide.createIcons();
+      };
+      body.onclick = e => {
+        const mv = e.target.closest('[data-mv]:not([disabled])');
+        if (mv) { mi += +mv.dataset.mv; render(); return; }
+        const c = e.target.closest('.am-ud[data-d]');
+        if (c) { sel = c.dataset.d; render(); }
+      };
+      render();
+    } catch (e) { if (upUser === user) body.innerHTML = `<div class="text-xs text-red-500 py-6 text-center">${esc(e.message)}</div>`; }
   }
 
   async function showTab(tab) {
     const a = cur; if (!a) return;
+    closeUserPanel();
     document.querySelectorAll('#am-tabs .am-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
     const body = $('am-tabbody');
     if (detailChart) { detailChart.destroy(); detailChart = null; }
     if (tab === 'overview') {
-      body.innerHTML = `<div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          <div class="lg:col-span-3 space-y-4">
-            <div><div class="text-[12.5px] font-bold text-slate-700 mb-2">ความเคลื่อนไหวรายวัน</div><div style="height: 210px"><canvas id="am-chart"></canvas></div></div>
-            <div><div class="text-[12.5px] font-bold text-slate-700 mb-2">ล่าสุด</div><div id="am-feed" class="space-y-2 overflow-y-auto pr-1" style="max-height: 260px"><div class="text-xs text-slate-400 py-4">กำลังโหลด...</div></div></div>
+      // ความสูงคงที่: กราฟสูงตายตัว ส่วน "ล่าสุด" และ "ผู้ใช้งาน" ยืดเต็มที่เหลือแล้วเลื่อนในกล่องของตัวเอง
+      body.innerHTML = `<div class="grid grid-cols-1 lg:grid-cols-5 gap-5 lg:h-full lg:min-h-0">
+          <div class="lg:col-span-3 flex flex-col gap-4 lg:min-h-0">
+            <div class="flex-none"><div class="am-sec">ความเคลื่อนไหวรายวัน</div><div style="height: 190px"><canvas id="am-chart"></canvas></div></div>
+            <div class="flex flex-col lg:flex-1 lg:min-h-0"><div class="am-sec">ความเคลื่อนไหวล่าสุด</div><div id="am-feed" class="am-scroll lg:flex-1 lg:min-h-0 overflow-y-auto pr-2" style="max-height: 420px"><div class="text-xs text-slate-400 py-4">กำลังโหลด...</div></div></div>
           </div>
-          <div class="lg:col-span-2"><div class="text-[12.5px] font-bold text-slate-700 mb-2">ผู้ใช้งาน <span class="font-normal text-slate-400 text-[11px]">จำนวนครั้งที่เข้าใน ${days} วัน</span></div><div id="am-users" class="overflow-y-auto pr-1" style="max-height: 500px"></div></div>
+          <div class="lg:col-span-2 flex flex-col lg:min-h-0 lg:border-l lg:border-slate-100 lg:pl-5">
+            <div class="am-sec">ผู้ใช้งาน <span class="font-normal text-slate-400 text-[11px]">· กดชื่อเพื่อเปิดปฏิทินเข้าสู่ระบบ</span></div>
+            <div id="am-users" class="am-scroll lg:flex-1 lg:min-h-0 overflow-y-auto pr-2" style="max-height: 520px"></div>
+          </div>
         </div>`;
       try {
         const r = listCache.overview || (listCache.overview = await (await fetch(`handle_agency_monitor.php?action=detail&ag=${a.ag_id}&days=${days}`)).json());
@@ -1769,17 +1954,23 @@ document.querySelectorAll(".perm-check:checked")
                       y: { stacked: true, beginAtZero: true, border: { display: false }, grid: { color: '#f1f5f9' }, ticks: { precision: 0, font: { family: 'Prompt', size: 10 }, color: '#94a3b8' } } },
             plugins: { legend: { position: 'bottom', labels: { font: { family: 'Prompt', size: 11 }, boxWidth: 7, boxHeight: 7, usePointStyle: true, pointStyle: 'circle', padding: 12 } }, tooltip: { filter: i => i.raw > 0 } } }
         });
-        $('am-feed').innerHTML = r.feed.length ? r.feed.slice(0, 30).map(f => `<div class="flex items-start gap-2.5">
-            <span class="w-6 h-6 rounded-md bg-slate-100 text-slate-500 flex items-center justify-center flex-none mt-0.5">${ico(FEED_ICON[f.type] || 'settings', 'w-3.5 h-3.5')}</span>
-            <div class="min-w-0 flex-1"><div class="text-[12.5px] text-slate-700 break-words">${esc(f.text)}${f.more ? ` <span class="text-[11px] text-slate-400">+${f.more} รายการ</span>` : ''}</div>
-            <div class="text-[11px] text-slate-400">${esc(thDT(f.t))}${f.user_name ? ' · ' + esc(f.user_name) : ''}</div></div></div>`).join('') : '<div class="text-xs text-slate-400 py-4">ยังไม่มีความเคลื่อนไหว</div>';
+        // จัดกลุ่มตามวัน (หัววันติดด้านบนขณะเลื่อน) · เวลาอยู่คอลัมน์ซ้าย ไม่ต้องอ่านวันที่ซ้ำทุกบรรทัด
+        let lastDay = '';
+        $('am-feed').innerHTML = r.feed.length ? r.feed.slice(0, 40).map(f => {
+          const d = String(f.t).slice(0, 10), head = d !== lastDay ? `<div class="am-day">${esc(dayLabel(d))}</div>` : '';
+          lastDay = d;
+          return head + `<div class="flex items-start gap-3 py-1.5">
+            <span class="w-10 flex-none text-[11.5px] text-slate-400 tabular-nums pt-[3px]">${esc(String(f.t).slice(11, 16))}</span>
+            <span class="am-fi">${ico(FEED_ICON[f.type] || 'settings', 'w-3.5 h-3.5')}</span>
+            <div class="min-w-0 flex-1"><div class="text-[12.5px] text-slate-700 leading-snug break-words">${esc(f.text)}${f.more ? ` <span class="text-[11px] text-slate-400">และอีก ${f.more} รายการ</span>` : ''}</div>
+            ${f.user_name ? `<div class="text-[11px] text-slate-400 mt-0.5">${esc(f.user_name)}</div>` : ''}</div></div>`;
+        }).join('') : '<div class="text-xs text-slate-400 py-4">ยังไม่มีความเคลื่อนไหว</div>';
         const maxN = Math.max(1, ...r.users.map(u => u.n));
         $('am-users').innerHTML = r.users.length ? r.users.map(u => `<div class="border-b border-slate-100 last:border-0">
             <button type="button" class="am-user w-full text-left py-2 px-1.5 -mx-1.5 rounded-lg hover:bg-slate-50" data-user="${esc(u.user_id)}" title="กดเพื่อดูวัน เวลาที่เข้าสู่ระบบ">
-              <div class="flex items-baseline justify-between gap-2"><span class="text-[12.5px] font-semibold text-slate-700 truncate flex items-center gap-1"><span class="am-caret text-slate-300 transition-transform">${ico('chevron-right', 'w-3.5 h-3.5')}</span>${esc(u.name || u.user_id)}</span><span class="text-[12.5px] font-bold ${u.n ? 'text-slate-800' : 'text-slate-300'}">${nf(u.n)}</span></div>
+              <div class="flex items-baseline justify-between gap-2"><span class="text-[12.5px] font-semibold text-slate-700 truncate flex items-center gap-1"><span class="am-caret text-slate-300 transition-transform">${ico('chevron-right', 'w-3.5 h-3.5')}</span><span class="am-uname truncate">${esc(u.name || u.user_id)}</span></span><span class="text-[12.5px] font-bold ${u.n ? 'text-slate-800' : 'text-slate-300'}">${nf(u.n)}</span></div>
               <div class="flex items-center gap-2 mt-1 pl-[18px]"><div class="flex-1 h-1 rounded-full bg-slate-100 overflow-hidden"><div class="h-full rounded-full bg-sky-500" style="width:${Math.round(u.n * 100 / maxN)}%"></div></div><span class="text-[10.5px] text-slate-400 whitespace-nowrap">${u.last ? esc(ago(u.last)) : 'ไม่เคยเข้า'}</span></div>
             </button>
-            <div class="am-user-log hidden pl-[18px] pb-2"></div>
           </div>`).join('') : '<div class="text-xs text-slate-400 py-4">ไม่มีผู้ใช้ในหน่วยงานนี้</div>';
         $('am-users').addEventListener('click', e => { const b = e.target.closest('.am-user'); if (b) toggleUserLog(b); });
         if (window.lucide) lucide.createIcons();
@@ -1792,12 +1983,12 @@ document.querySelectorAll(".perm-check:checked")
       if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
       if (cur !== a) return;
       const showSt = ['repair', 'pm', 'stock', 'data'].includes(tab);
-      body.innerHTML = r.rows.length ? `<div class="flex items-center justify-between mb-2"><div class="text-[12px] text-slate-500">${nf(r.rows.length)} รายการ${r.rows.length >= r.limit ? ' (แสดง ' + r.limit + ' รายการล่าสุด)' : ''} · ${days} วันล่าสุด</div>
+      body.innerHTML = r.rows.length ? `<div class="flex flex-col h-full min-h-0"><div class="flex items-center justify-between mb-2 flex-none"><div class="text-[12px] text-slate-500">${nf(r.rows.length)} รายการ${r.rows.length >= r.limit ? ' (แสดง ' + r.limit + ' รายการล่าสุด)' : ''} · ${days} วันล่าสุด</div>
           <input type="search" id="am-lq" placeholder="ค้นหาในรายการ" class="input-clean !py-1 !text-[12px] w-48"></div>
-        <div class="border border-slate-200 rounded-lg overflow-auto" style="max-height: 470px"><table class="am-list w-full"><thead><tr><th class="w-[130px]">วันเวลา</th><th>รายการ</th>${showSt ? '<th class="w-[110px]">สถานะ</th>' : ''}<th class="w-[170px]">โดย</th></tr></thead><tbody>
+        <div class="am-scroll border border-slate-200 rounded-lg overflow-auto flex-1 min-h-0"><table class="am-list w-full"><thead><tr><th class="w-[130px]">วันเวลา</th><th>รายการ</th>${showSt ? '<th class="w-[110px]">สถานะ</th>' : ''}<th class="w-[170px]">โดย</th></tr></thead><tbody>
         ${r.rows.map(x => `<tr data-s="${esc((x.title + ' ' + x.sub + ' ' + x.user_name).toLowerCase())}"><td class="whitespace-nowrap text-slate-500">${esc(thDT(x.t))}</td>
           <td><div class="text-slate-800 break-words">${esc(x.title)}</div>${x.sub ? `<div class="text-[11px] text-slate-400">${esc(x.sub)}</div>` : ''}${x.done_at ? `<div class="text-[11px] text-emerald-600">ปิดงาน ${esc(thDT(x.done_at))}</div>` : ''}</td>
-          ${showSt ? `<td>${stBadge(x.status)}</td>` : ''}<td class="text-slate-600">${esc(x.user_name || '-')}</td></tr>`).join('')}</tbody></table></div>`
+          ${showSt ? `<td>${stBadge(x.status)}</td>` : ''}<td class="text-slate-600">${esc(x.user_name || '-')}</td></tr>`).join('')}</tbody></table></div></div>`
         : '<div class="py-12 text-center text-slate-400 text-sm">ไม่มีข้อมูลในช่วงนี้</div>';
       const lq = $('am-lq');
       if (lq) lq.addEventListener('input', () => { const q = lq.value.trim().toLowerCase(); body.querySelectorAll('tbody tr').forEach(tr => tr.classList.toggle('hidden', !!q && !tr.dataset.s.includes(q))); });
@@ -1924,15 +2115,17 @@ document.querySelectorAll(".perm-check:checked")
           <div class="text-[12px] text-slate-500 mt-0.5 pl-4">${esc(a.code || '')} · สัญญา ${esc(thD(a.start))} – ${esc(thD(a.end))}${a.expired ? ' (หมดแล้ว)' : ''} · เคลื่อนไหวล่าสุด ${esc(thDT(a.last))}</div>
           <div id="am-tabs" class="flex gap-1 mt-4 overflow-x-auto pb-1">${tabs.map(t => `<button type="button" class="am-tab" data-tab="${t[0]}">${ico(t[2], 'w-3.5 h-3.5')}${t[1]}${t[3] != null ? `<span class="n">${nf(t[3])}</span>` : ''}</button>`).join('')}</div>
         </div>
-        <div id="am-tabbody" class="px-6 pb-6 pt-3 border-t border-slate-100" style="min-height: 420px"></div>
+        <div id="am-tabbody" class="px-6 pb-5 pt-4 border-t border-slate-100 overflow-y-auto lg:overflow-hidden" style="height: min(580px, calc(100vh - 230px))"></div>
       </div>`,
       didOpen: () => {
+        fitDetail();
+        window.addEventListener('resize', fitDetail);
         if (window.lucide) lucide.createIcons();
         $('am-tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
         $('am-export-ag').addEventListener('click', () => exportAgency(a));
         showTab(tab || 'overview');
       },
-      willClose: () => { if (detailChart) { detailChart.destroy(); detailChart = null; } cur = null; }
+      willClose: () => { window.removeEventListener('resize', fitDetail); closeUserPanel(); if (detailChart) { detailChart.destroy(); detailChart = null; } cur = null; }
     });
   }
 
@@ -1948,7 +2141,11 @@ document.querySelectorAll(".perm-check:checked")
   $('am-reload').addEventListener('click', load);
   $('am-export').addEventListener('click', exportSummary);
   // กดตัวเลข => เปิดรายละเอียดที่แท็บข้อมูลนั้น · กดแถว => ภาพรวม
-  $('am-list').addEventListener('click', e => { const el = e.target.closest('[data-ag][data-tab]'); if (el) openDetail(+el.dataset.ag, el.dataset.tab); });
+  $('am-list').addEventListener('click', e => {
+    const h = e.target.closest('.am-head [data-sort]');
+    if (h) { sortKey = h.dataset.sort; const sel = $('am-sort'); if ([...sel.options].some(o => o.value === sortKey)) sel.value = sortKey; render(); return; }
+    const el = e.target.closest('[data-ag][data-tab]'); if (el) openDetail(+el.dataset.ag, el.dataset.tab);
+  });
 })();
 </script>
 <?php } ?>
