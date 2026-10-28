@@ -171,6 +171,15 @@
                 </div>
             </section>
 
+            <!-- งาน PM ของเครื่องนี้ (เฉพาะช่าง / super admin ที่ล็อกอินหน่วยงานเดียวกัน — handle_machine_pm.php) -->
+            <section id="pm-section" class="hidden bg-white rounded-3xl border border-emerald-200 shadow-sm p-5">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2 mb-3">
+                    <i data-lucide="clipboard-check" class="w-4.5 h-4.5 text-emerald-600"></i>
+                    งาน PM ตามรอบแผน
+                </h3>
+                <div id="pm-list" class="space-y-2"></div>
+            </section>
+
             <!-- Repair History -->
             <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
                 <div class="flex items-center justify-between mb-4">
@@ -203,9 +212,14 @@
     </main>
 
     <!-- Sticky Bottom Repair Bar (มือถือ) -->
-    <div id="repair-bar" class="hidden fixed bottom-0 left-0 right-0 z-40 p-3 bg-gradient-to-t from-white via-white/95 to-white/0 pt-6 sm:hidden">
+    <div id="repair-bar" class="hidden fixed bottom-0 left-0 right-0 z-40 p-3 bg-gradient-to-t from-white via-white/95 to-white/0 pt-6 sm:hidden flex gap-2">
+        <!-- ทำ PM (มีรอบถึงกำหนด + สิทธิ์ช่าง/super admin) -->
+        <a id="btn-pm-bottom" href="#" class="hidden flex-1 items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white bg-emerald-600 shadow-2xl shadow-emerald-200 active:scale-95 transition-all">
+            <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+            <span>ทำ PM</span>
+        </a>
         <a id="btn-repair-bottom" href="#" onclick="return false;"
-           class="btn-gradient w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold shadow-2xl shadow-sky-200 active:scale-95 transition-all">
+           class="btn-gradient flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold shadow-2xl shadow-sky-200 active:scale-95 transition-all">
             <i data-lucide="wrench" class="w-5 h-5"></i>
             <span>แจ้งซ่อมเครื่องจักรนี้</span>
         </a>
@@ -287,6 +301,43 @@ function setupRepairButtons(machine) {
     bottom.onclick = null;
     bottomWrap.classList.remove('hidden');
     document.body.classList.add('pb-28');
+}
+
+// ===== ทำ PM ตามรอบแผน (ช่าง / super admin) =====
+//  แสดงรอบที่ถึงกำหนด (วันนี้ + เลยกำหนด) => เปิดใบงานบันทึกผล PM · ไม่มีรอบ = บอกรอบถัดไป · คนทั่วไป/ไม่ได้ล็อกอิน = ไม่แสดง
+async function loadPm() {
+    let r;
+    try {
+        const url = new URL('handle_machine_pm.php', window.location.href);
+        url.searchParams.set('asset_code', assetId);
+        if (agId) url.searchParams.set('ag_id', agId);
+        r = await (await fetch(url.toString(), { credentials: 'same-origin' })).json();
+    } catch (e) { return; }
+    const box = document.getElementById('pm-section'), list = document.getElementById('pm-list');
+    if (!r || !r.success) return;
+    if (!r.can) {
+        if (r.reason !== 'agency') return;
+        list.innerHTML = '<p class="text-sm text-slate-500">เครื่องนี้อยู่หน่วยงาน <b>' + esc(r.agency_name || '-') + '</b> — เข้าสู่ระบบหน่วยงานนี้ก่อนจึงจะทำ PM ได้</p>';
+        box.classList.remove('hidden');
+        return;
+    }
+    const th = d => new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+    const wsUrl = id => 'pm_worksheet.php?plan_id=' + encodeURIComponent(id);
+    if (!r.due.length) {
+        list.innerHTML = '<p class="text-sm text-slate-500 flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>ไม่มีรอบ PM ที่ต้องทำตอนนี้</p>'
+            + (r.next ? '<p class="text-xs text-slate-400 mt-1">รอบถัดไป ' + th(r.next.event_date) + ' · ' + esc(r.next.checksheet) + '</p>' : '');
+    } else {
+        list.innerHTML = r.due.map(d => '<a href="' + wsUrl(d.event_id) + '" class="flex items-center gap-3 p-3 rounded-2xl border ' + (d.overdue ? 'border-rose-200 bg-rose-50/50' : 'border-emerald-200 bg-emerald-50/50') + ' active:scale-[.99] transition-all">'
+            + '<div class="min-w-0 flex-1"><p class="font-semibold text-slate-800 text-sm truncate">' + esc(d.checksheet || 'ใบงาน PM') + '</p>'
+            + '<p class="text-xs mt-0.5 ' + (d.overdue ? 'text-rose-600 font-semibold' : 'text-slate-500') + '">กำหนด ' + th(d.event_date) + (d.overdue ? ' · เลยกำหนด' : ' · วันนี้') + '</p></div>'
+            + '<span class="flex-shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold"><i data-lucide="clipboard-check" class="w-4 h-4"></i>ทำ PM</span></a>').join('');
+        // แถบล่าง (มือถือ): ทำ PM รอบที่ค้างนานสุดก่อน
+        const b = document.getElementById('btn-pm-bottom');
+        b.href = wsUrl(r.due[0].event_id);
+        b.classList.remove('hidden'); b.classList.add('flex');
+    }
+    box.classList.remove('hidden');
+    lucide.createIcons();
 }
 
 function esc(str) {
@@ -480,6 +531,7 @@ async function loadData() {
 
         if (json.success) {
             renderMachine(json.data.machine);
+            loadPm();
             renderHistory(json.data.history || [], json.data.history_meta, false);
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('content').classList.remove('hidden');

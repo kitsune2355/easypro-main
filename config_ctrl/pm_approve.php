@@ -118,6 +118,22 @@ if (!function_exists('pmap_ensure')) {
         } catch (Exception $e) { return 0; }
     }
 
+    // ผู้ตรวจรับล่าสุดของกลุ่มกำหนดการ (รายงาน PM รายเดือน) => ['approver_name', 'signature_path', 'created_at', 'date_th'] หรือ null
+    function pmap_latest_approval($connect, $eventIds) {
+        $ids = array_values(array_filter(array_map('intval', (array)$eventIds)));
+        if (!$ids || !pmap_has_col($connect)) return null;
+        try {
+            $r = mysqli_query($connect, "SELECT a.approver_name, a.signature_path, a.created_at FROM pm_plan_events e
+                JOIN pm_work_approvals a ON a.id = e.approval_id
+                WHERE e.id IN (" . implode(',', $ids) . ") AND e.approval_status = 1 ORDER BY a.created_at DESC, a.id DESC LIMIT 1");
+            $row = $r ? mysqli_fetch_assoc($r) : null;
+        } catch (Exception $e) { return null; }
+        if (!$row) return null;
+        $t = strtotime($row['created_at']);
+        $row['date_th'] = $t ? date('d/m/', $t) . (date('Y', $t) + 543) : '';
+        return $row;
+    }
+
     // จำนวนงานที่รอตรวจรับของหน่วยงาน
     function pmap_pending_count($connect, $ag) {
         if (!pmap_has_col($connect)) return 0;

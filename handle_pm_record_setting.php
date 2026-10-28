@@ -42,7 +42,14 @@ if ($action === 'save') {
     $ok = mysqli_stmt_execute($st);
     mysqli_stmt_close($st);
     if (!$ok) pmrs_out(['success' => false, 'error' => 'บันทึกไม่สำเร็จ'], 500);
-    pmrs_out(['success' => true, 'setting' => ['sign_required' => $sign, 'date_mode' => $mode, 'approve_required' => $approve]]);
+    // ปิดขั้นตรวจรับ => ไม่มีงานรอตรวจรับอีก: ใบที่รออยู่นับเป็น "ทำแล้ว" ทันที (ใบที่ตรวจรับแล้วคงประวัติไว้)
+    $released = 0;
+    if (!$approve && pmap_has_col($connect)) {
+        $agEsc = mysqli_real_escape_string($connect, (string)$ag);
+        mysqli_query($connect, "UPDATE pm_plan_events SET approval_status = NULL, updated_at = NOW() WHERE ag_id = '$agEsc' AND status = 1 AND approval_status = 0");
+        $released = max(0, mysqli_affected_rows($connect));
+    }
+    pmrs_out(['success' => true, 'setting' => ['sign_required' => $sign, 'date_mode' => $mode, 'approve_required' => $approve], 'released' => $released]);
 }
 
 pmrs_out(['success' => false, 'error' => 'unknown action'], 400);

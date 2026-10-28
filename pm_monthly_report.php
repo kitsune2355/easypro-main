@@ -2,6 +2,7 @@
 @session_start();
 include "config_ctrl/checksession.php";
 include "config_ctrl/connect.php";
+require_once __DIR__ . '/config_ctrl/pm_approve.php';   // ผู้ตรวจรับ (หัวหน้างาน / ผู้ตรวจสอบ)
 
 // pm_monthly_report_v2.php
 // รายงาน PM รายเดือนแบบตาราง 1-31 วัน
@@ -455,6 +456,9 @@ if ($latest_record) {
     $report_remarks = !empty($latest_record['remarks']) ? $latest_record['remarks'] : '';
 }
 
+// หัวหน้างาน / ผู้ตรวจสอบ = ผู้ตรวจรับล่าสุดของรอบในรายงานนี้ (หน่วยงานที่ใช้ขั้นตรวจรับ)
+$approval = pmap_latest_approval($connect, array_column($events, 'event_id'));
+
 $total_rows_target = 14;
 $empty_rows = max(0, $total_rows_target - count($row_defs));
 ?>
@@ -866,9 +870,20 @@ $empty_rows = max(0, $total_rows_target - count($row_defs));
                     <div><?php echo h($inspector_name); ?></div>
                 </td>
                 <td style="width:33.33%;">
+                    <?php if ($approval): ?>
+                        <?php if (!empty($approval['signature_path'])): ?>
+                            <img src="<?php echo h($approval['signature_path']); ?>" class="signature-img">
+                        <?php else: ?>
+                            <div class="sign-line"></div>
+                        <?php endif; ?>
+                        <div>หัวหน้างาน / ผู้ตรวจสอบ</div>
+                        <div><?php echo h($approval['approver_name']); ?></div>
+                        <div>วันที่ <?php echo h($approval['date_th']); ?></div>
+                    <?php else: ?>
                     <div class="sign-line"></div>
                     <div>หัวหน้างาน / ผู้ตรวจสอบ</div>
                     <div>วันที่ ........../........../..........</div>
+                    <?php endif; ?>
                 </td>
                 <td style="width:33.33%;">
                     <div class="sign-line"></div>

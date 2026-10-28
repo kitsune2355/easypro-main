@@ -125,6 +125,16 @@ $plan_date = thaiDate($record['plan_date'] ?? '');
 $actual_date = thaiDate($record['actual_date'] ?? '');
 $remarks = $record['remarks'] ?? '-';
 $signature_path = $record['inspector_signature_path'] ?? '';
+// ผู้ตรวจรับ (หัวหน้าช่าง — config_ctrl/pm_approve.php): ตรวจรับแล้ว => ลายเซ็น ชื่อ วันที่ ในช่อง Checked By
+$approval = null;
+if (!function_exists('pmap_has_col')) require_once __DIR__ . '/config_ctrl/pm_approve.php';
+if (!empty($record['plan_event_id']) && pmap_has_col($connect)) {
+    try {
+        $apRes = mysqli_query($connect, "SELECT a.approver_name, a.signature_path, a.created_at FROM pm_plan_events e
+            JOIN pm_work_approvals a ON a.id = e.approval_id WHERE e.id = " . (int)$record['plan_event_id'] . " AND e.approval_status = 1 LIMIT 1");
+        $approval = $apRes ? mysqli_fetch_assoc($apRes) : null;
+    } catch (Exception $e) { $approval = null; }
+}
 ?>
     <div class="w-[210mm] min-h-[297mm] bg-white mx-auto p-[5mm] border border-black print:w-full print:min-h-0 print:m-0 print:border-0 print:p-0 print:break-after-always">
 
@@ -333,8 +343,18 @@ $signature_path = $record['inspector_signature_path'] ?? '';
                 <td class="h-[92px] align-top text-center text-[8px] w-1/3">
                     <div class="font-bold text-[10px] mb-1">Checked By / ตรวจสอบโดย</div>
                     <div class="text-[7px] mb-1">Signature/ลงนาม (Engineer / Supervisor)</div>
+                    <?php if ($approval): ?>
+                        <?php if (!empty($approval['signature_path'])): ?>
+                            <img src="<?php echo h($approval['signature_path']); ?>" class="block max-w-[120px] max-h-[36px] object-contain mx-auto my-[2px]">
+                        <?php else: ?>
+                            <div class="border-b border-dotted border-black h-[14px] mx-[18px] my-[2px]"></div>
+                        <?php endif; ?>
+                        <div><?php echo h($approval['approver_name']); ?></div>
+                        <div class="mt-1">Date/วันที่ <?php echo h(thaiDate($approval['created_at'])); ?></div>
+                    <?php else: ?>
                     <div class="border-b border-dotted border-black h-[14px] mx-[18px] my-[2px]"></div>
                     <div class="mt-[18px]">Date/วันที่ ______________________</div>
+                    <?php endif; ?>
                 </td>
 
                 <td class="h-[92px] align-top text-center text-[8px] w-1/3">

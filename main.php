@@ -236,6 +236,11 @@ $rolePerms = array();
         .bn-main .bn-ico svg { width: 24px; height: 24px; }
         .bn-main.active .bn-ico { background: linear-gradient(135deg, #0284c7, #004a6f); }
         /* แผ่นเมนูเพิ่มเติม (bottom sheet) */
+        /* สแกน QR เครื่องจักร (ปุ่มในแถบล่าง) */
+        #qr-scan { position: fixed; inset: 0; z-index: 80; background: #0f172a; display: none; flex-direction: column; }
+        #qr-scan.open { display: flex; }
+        #qr-reader { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        #qr-reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
         #more-sheet { position: fixed; inset: 0; z-index: 70; visibility: hidden; }
         #more-sheet.open { visibility: visible; }
         #more-sheet .ms-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .45); opacity: 0; transition: opacity .25s; }
@@ -473,6 +478,16 @@ if (isset($_SESSION['sess_user_level_es']) && ($_SESSION['sess_user_level_es'] =
 </main>
 
 <!-- มือถือ: เมนูทั้งหมด (เปิดจากปุ่ม "เมนู" ในแถบล่าง) -->
+<!-- สแกน QR เครื่องจักรของระบบ (ป้าย QR จาก machine_info_print.php) => หน้าประวัติเครื่อง แจ้งซ่อม / ทำ PM -->
+<div id="qr-scan" role="dialog" aria-label="สแกน QR เครื่องจักร">
+    <div class="flex items-center gap-3 px-4 pt-[calc(12px+env(safe-area-inset-top))] pb-3 text-white">
+        <button type="button" id="qr-close" class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center" aria-label="ปิด"><i data-lucide="x" class="w-5 h-5"></i></button>
+        <div class="min-w-0"><div class="font-semibold">สแกน QR เครื่องจักร</div><div class="text-xs text-white/60">ส่องกล้องไปที่ป้าย QR บนเครื่องจักร</div></div>
+    </div>
+    <div id="qr-reader"></div>
+    <div id="qr-msg" class="px-4 pt-3 pb-[calc(16px+env(safe-area-inset-bottom))] text-center text-sm text-white/80 min-h-[56px]"></div>
+</div>
+
 <div id="more-sheet" aria-hidden="true">
     <div class="ms-backdrop" data-close-sheet></div>
     <div class="ms-panel" role="dialog" aria-label="เมนูทั้งหมด">
@@ -615,7 +630,7 @@ function renderMenu(activeHref) {
 }
 
 // ===== มือถือ: แถบเมนูด้านล่าง =====
-// ช่องหลัก 3 ช่อง (เลือกตามลำดับความสำคัญจากเมนูที่มีสิทธิ์) + ปุ่มแจ้งซ่อมตรงกลาง + "เมนู" (ที่เหลือทั้งหมด)
+// ช่องหลัก 2 ช่อง (เลือกตามลำดับความสำคัญจากเมนูที่มีสิทธิ์) + ปุ่มแจ้งซ่อมตรงกลาง + สแกน QR + "เมนู" (ที่เหลือทั้งหมด) — 5 ช่องสมมาตร
 const BN_MAIN = 'maintenance_request.php';
 const BN_PRIORITY = ['dashboard.php', 'maintenance_info.php', 'pm.php', 'work_history.php', 'meter_info.php', 'machine_info.php', 'stock.php'];
 const BN_SHORT = { 'maintenance_info.php': 'งานซ่อม', 'pm.php': 'PM', 'work_history.php': 'งานช่าง', 'meter_info.php': 'มิเตอร์', 'machine_info.php': 'เครื่องจักร', 'stock.php': 'สต็อก' };
@@ -625,7 +640,7 @@ function bnEsc(s) { return String(s).replace(/[&<>"']/g, function (c) { return {
 function bottomNavSlots() {
     const allowed = function (href) { return menuItems.some(function (m) { return m.href === href; }); };
     const item = function (href) { return menuItems.find(function (m) { return m.href === href; }); };
-    const side = BN_PRIORITY.filter(allowed).slice(0, 3).map(item);
+    const side = BN_PRIORITY.filter(allowed).slice(0, 2).map(item);
     const main = allowed(BN_MAIN) ? item(BN_MAIN) : null;
     const inBar = side.map(function (m) { return m.href; }).concat(main ? [main.href] : []);
     const rest = menuItems.filter(function (m) { return inBar.indexOf(m.href) === -1; });
@@ -643,17 +658,77 @@ function renderBottomNav(activeHref) {
     const cells = s.side.map(function (m) { return btn(m); });
     // ปุ่มแจ้งซ่อมไว้ตรงกลาง (หลังช่องที่ 2)
     if (s.main) cells.splice(Math.min(2, cells.length), 0, btn(s.main, 'bn-main'));
+    // ทางลัดสแกน QR เครื่องจักร (ทุกคน) — ก่อนปุ่ม "เมนู"
+    cells.push('<button type="button" id="bn-scan" class="bn-item"><span class="bn-ico"><i data-lucide="scan-line"></i></span><span class="bn-label">สแกน</span></button>');
     const restActive = s.rest.some(function (m) { return m.href === activeHref; });
     cells.push('<button type="button" id="bn-more" class="bn-item' + (restActive ? ' active' : '') + '" aria-haspopup="dialog">' +
         '<span class="bn-ico"><i data-lucide="layout-grid"></i></span><span class="bn-label">เมนู</span></button>');
     nav.innerHTML = cells.join('');
     document.getElementById('bn-more').addEventListener('click', openMoreSheet);
+    document.getElementById('bn-scan').addEventListener('click', openQrScan);
 
     document.getElementById('more-grid').innerHTML = s.rest.map(function (m) {
         return '<a href="#' + m.href + '" onclick="closeMoreSheet(); navigate(\'' + m.href + '\'); return false;" class="ms-tile' + (m.href === activeHref ? ' active' : '') + '">' +
             '<span class="ms-ico"><i data-lucide="' + m.icon + '"></i></span><span>' + bnEsc(m.label) + '</span></a>';
     }).join('');
 }
+
+// ===== สแกน QR เครื่องจักร =====
+//  ป้าย QR ของระบบ = .../machine_history_view.php?asset_id=รหัสเครื่อง&ag_id=หน่วยงาน => เปิดหน้านั้นบนเว็บนี้ (ไม่ตามโดเมนใน QR)
+//  กล้องใช้ได้เฉพาะ https (หรือ localhost) · โหลดไลบรารีเมื่อกดครั้งแรก
+let qrScanner = null;
+function qrMsg(html) { document.getElementById('qr-msg').innerHTML = html; }
+function loadQrLib() {
+    if (window.Html5Qrcode) return Promise.resolve();
+    return new Promise(function (res, rej) {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+    });
+}
+function machineUrlFromQr(text) {
+    let u;
+    try { u = new URL(String(text).trim(), window.location.href); } catch (e) { return null; }
+    if (!/machine_history_view\.php$/i.test(u.pathname)) return null;
+    const code = u.searchParams.get('asset_id') || u.searchParams.get('id');
+    if (!code) return null;
+    const p = new URLSearchParams({ asset_id: code });
+    if (u.searchParams.get('ag_id')) p.set('ag_id', u.searchParams.get('ag_id'));
+    return 'machine_history_view.php?' + p.toString();
+}
+async function openQrScan() {
+    const box = document.getElementById('qr-scan');
+    box.classList.add('open');
+    if (window.lucide) lucide.createIcons();
+    qrMsg('กำลังเปิดกล้อง...');
+    if (!window.isSecureContext) { qrMsg('เปิดกล้องไม่ได้ — ต้องเข้าเว็บผ่าน https'); return; }
+    try { await loadQrLib(); } catch (e) { qrMsg('โหลดตัวสแกนไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่'); return; }
+    let done = false;
+    qrScanner = new Html5Qrcode('qr-reader');
+    try {
+        await qrScanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: function (w, h) { const s = Math.floor(Math.min(w, h) * 0.7); return { width: s, height: s }; } },
+            function (text) {
+                if (done) return;
+                const url = machineUrlFromQr(text);
+                if (!url) { qrMsg('<span class="text-amber-300">QR นี้ไม่ใช่ป้ายเครื่องจักรของระบบ</span>'); return; }
+                done = true;
+                qrMsg('<span class="text-emerald-400">✓</span> พบเครื่องจักร กำลังเปิด...');
+                closeQrScan().then(function () { window.location.href = url; });
+            });
+        qrMsg('ส่องกล้องไปที่ป้าย QR บนเครื่องจักร');
+    } catch (e) {
+        qrMsg('เปิดกล้องไม่ได้ — อนุญาตให้เว็บใช้กล้องในการตั้งค่าเบราว์เซอร์แล้วลองใหม่');
+    }
+}
+async function closeQrScan() {
+    document.getElementById('qr-scan').classList.remove('open');
+    if (qrScanner) {
+        try { if (qrScanner.isScanning) await qrScanner.stop(); qrScanner.clear(); } catch (e) {}
+        qrScanner = null;
+    }
+}
+document.getElementById('qr-close').addEventListener('click', closeQrScan);
 
 function openMoreSheet() {
     const sh = document.getElementById('more-sheet');
@@ -665,7 +740,7 @@ function closeMoreSheet() {
 }
 window.closeMoreSheet = closeMoreSheet;
 document.querySelectorAll('[data-close-sheet]').forEach(function (el) { el.addEventListener('click', closeMoreSheet); });
-document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMoreSheet(); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeMoreSheet(); closeQrScan(); } });
 document.getElementById('ms-change-password').addEventListener('click', function () {
     closeMoreSheet();
     const b = document.getElementById('menu-change-password');

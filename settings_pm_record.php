@@ -235,7 +235,7 @@ include "config_ctrl/checksession.php";
       if (ap) parts.push(extra.approver_count
         ? `<span class="text-slate-600">ผู้ตรวจรับ ${extra.approver_count} คน</span>`
         : '<span class="text-amber-700">ยังไม่ได้กำหนดผู้ตรวจรับ (ตอนนี้ตรวจรับได้เฉพาะ Super Admin)</span>');
-      if (extra.pending_approval) parts.push(`<span class="text-emerald-700 font-medium">รอตรวจรับอยู่ ${extra.pending_approval} ใบ${ap ? '' : ' (ปิดแล้ว ใบที่รออยู่ยังต้องตรวจรับ)'}</span>`);
+      if (extra.pending_approval) parts.push(`<span class="text-emerald-700 font-medium">รอตรวจรับอยู่ ${extra.pending_approval} ใบ${ap ? '' : ' — บันทึกแล้วจะนับเป็น "ทำแล้ว" ทันที'}</span>`);
       if (ap || extra.approver_count) parts.push('<a href="settings_pm_approvers.php" class="text-primary font-medium hover:underline">กำหนดผู้ตรวจรับ →</a>');
       $('approve-info').innerHTML = parts.join(' · ');
     }
@@ -260,6 +260,13 @@ include "config_ctrl/checksession.php";
 
     async function saveSettings() {
       if (!canEdit) return;
+      // ปิดขั้นตรวจรับขณะยังมีงานรอตรวจรับ => ถามก่อน (ใบที่รอจะนับเป็นทำแล้ว)
+      if (!+state.approve_required && extra.pending_approval) {
+        const c = await Swal.fire({ icon: 'warning', title: 'ปิดการตรวจรับงาน?',
+          html: `ยังมีงานรอตรวจรับ <b>${extra.pending_approval}</b> ใบ<br>ถ้าปิด งานเหล่านี้จะนับเป็น <b>ทำแล้ว</b> ทันทีโดยไม่ต้องตรวจรับ`,
+          showCancelButton: true, confirmButtonText: 'ปิดการตรวจรับ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true });
+        if (!c.isConfirmed) return;
+      }
       try {
         Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         const fd = new FormData();
@@ -269,7 +276,9 @@ include "config_ctrl/checksession.php";
         const r = await (await fetch('handle_pm_record_setting.php?action=save', { method: 'POST', body: fd })).json();
         Swal.close();
         if (!r.success) { Swal.fire('เกิดข้อผิดพลาด', r.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
-        state = r.setting; render();
+        state = r.setting;
+        if (r.released) extra.pending_approval = 0;
+        render();
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'อัปเดตการตั้งค่าเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false, customClass: { popup: 'rounded-2xl' } });
       } catch (e) {
         Swal.close();

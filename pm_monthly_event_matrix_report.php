@@ -2,6 +2,7 @@
 @session_start();
 include "config_ctrl/checksession.php";
 include "config_ctrl/connect.php";
+require_once __DIR__ . '/config_ctrl/pm_approve.php';   // ผู้ตรวจรับ (หัวหน้างาน / ผู้ทวนสอบ)
 
 date_default_timezone_set('Asia/Bangkok');
 
@@ -403,6 +404,9 @@ usort($planned_days, function($a, $b) {
 });
 
 $day_chunks = array_chunk($planned_days, $cols_per_page);
+
+// หัวหน้างาน = ผู้ตรวจรับล่าสุดของรอบในรายงานนี้ (แสดงหน้าสุดท้ายเหมือนลายเซ็นผู้ดำเนินการ)
+$approval = pmap_latest_approval($connect, array_column($events, 'id'));
 
 /* =========================================================
    4) ข้อมูล Header จาก Record ถ้ามี ไม่งั้นดึง master จาก event
@@ -995,9 +999,20 @@ $page_counter = 0;
                         <div><?php echo h($inspector_text); ?></div>
                     </td>
                     <td style="width:33.33%;">
+                        <?php if ($page_counter === $total_pages && $approval): ?>
+                            <?php if (!empty($approval['signature_path'])): ?>
+                                <img src="<?php echo h($approval['signature_path']); ?>" class="signature-img">
+                            <?php else: ?>
+                                <div class="sign-line"></div>
+                            <?php endif; ?>
+                            <div>หัวหน้างาน / ผู้ทวนสอบ</div>
+                            <div><?php echo h($approval['approver_name']); ?></div>
+                            <div>วันที่ <?php echo h($approval['date_th']); ?></div>
+                        <?php else: ?>
                         <div class="sign-line"></div>
                         <div>หัวหน้างาน / ผู้ทวนสอบ</div>
                         <div>วันที่ ........../........../..........</div>
+                        <?php endif; ?>
                     </td>
                     <td style="width:33.33%;">
                         <div class="sign-line"></div>

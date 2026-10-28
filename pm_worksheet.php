@@ -598,7 +598,12 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 		// force = ปิดโดยไม่ถาม (หลังบันทึกสำเร็จ)
 		function wsClose(force, goBack) {
 			if (WS_EMBED && window.parent.closePmDialog) window.parent.closePmDialog(force === true, goBack === true);
-			else window.close();
+			else {
+				// เปิดเป็นหน้าเต็ม (เช่น สแกน QR เครื่องจักร) — ปิดแท็บไม่ได้ => กลับหน้าก่อนหน้า
+				if (force !== true && window.pmDirty && window.pmDirty() && !confirm('ข้อมูลที่กรอกไว้ยังไม่ได้บันทึก ถ้าออกจะหายไป ต้องการออกหรือไม่?')) return;
+				window.close();
+				setTimeout(() => { if (!window.closed) { if (history.length > 1) history.back(); else location.href = 'main.php#pm.php'; } }, 300);
+			}
 		}
 		// กลับไปหน้าก่อนหน้า (ถามก่อนถ้ามีข้อมูลที่ยังไม่บันทึก — ถามที่หน้าวางแผน PM)
 		function wsBack() { wsClose(false, true); }
