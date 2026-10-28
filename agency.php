@@ -76,6 +76,24 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
     .input-clean:disabled, .input-clean[readonly] { background-color: #f1f5f9; color: #64748b; cursor: not-allowed; }
 
     /* ===== Monitor หน่วยงาน (รายการแถวกะทัดรัด) ===== */
+    /* ตารางหน่วยงาน / ผู้ใช้: พื้นที่แคบ => แต่ละแถวเป็นการ์ด (ไม่ต้องเลื่อนแนวนอนหาปุ่มแก้ไข/ลบ) */
+    .rt-wrap { container-type: inline-size; }
+    @container (max-width: 760px) {
+      .rt { min-width: 0 !important; }
+      .rt thead { display: none; }
+      .rt, .rt tbody { display: block; }
+      .rt tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; row-gap: 6px; padding: 12px 14px; }
+      .rt td { display: block; padding: 0 !important; text-align: left !important; min-width: 0; }
+      .rt td.rt-top { grid-column: 1; grid-row: 1; }
+      .rt td.rt-main { grid-column: 1; grid-row: 2; }
+      .rt td.rt-act { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+      .rt td.rt-act.rt-r1 { grid-row: 1; }   /* ผู้ใช้: ไม่มีแถวที่ 2 */
+      .rt td.rt-full { grid-column: 1 / -1; }
+      .rt td.rt-hide { display: none; }
+      .rt td[data-l]::before { content: attr(data-l); display: inline-block; min-width: 76px; font-size: 10px; font-weight: 700; color: #94a3b8; vertical-align: top; padding-top: 2px; }
+      .rt td[data-l] > div { display: inline-flex; vertical-align: top; max-width: calc(100% - 80px); }
+      .rt .rt-addr { max-width: none !important; }
+    }
     .am-seg { display: inline-flex; background: #f1f5f9; border-radius: 9px; padding: 3px; gap: 2px; }
     .am-seg button { height: 28px; padding: 0 12px; border-radius: 7px; font-size: 12px; font-weight: 600; color: #64748b; }
     .am-seg button.on { background: #fff; color: #005e8e; box-shadow: 0 1px 2px rgba(15, 23, 42, .1); }
@@ -125,6 +143,17 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
     .am-tab .n { font-size: 11px; padding: 0 6px; border-radius: 999px; background: rgba(15, 23, 42, .07); }
     .am-tab.on .n { background: rgba(255, 255, 255, .2); }
     .am-list td { padding: 9px 10px; border-bottom: 1px solid #f1f5f9; font-size: 12.5px; vertical-align: top; }
+    /* มือถือ: ตารางรายการในหน้ารายละเอียด => การ์ดเรียงลง (วันเวลา + สถานะ / รายการ / โดย) */
+    @media (max-width: 639px) {
+      .am-list thead { display: none; }
+      .am-list, .am-list tbody { display: block; }
+      .am-list tr:not(.hidden) { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; row-gap: 2px; padding: 9px 12px; border-bottom: 1px solid #f1f5f9; }
+      .am-list td { display: block; padding: 0; border: 0; }
+      .am-list td.c-t { font-size: 11px; }
+      .am-list td.c-s { grid-column: 2; grid-row: 1; justify-self: end; }
+      .am-list td.c-x, .am-list td.c-u { grid-column: 1 / -1; }
+      .am-list td.c-u { font-size: 11.5px; color: #94a3b8; }
+    }
     .am-list th { padding: 8px 10px; font-size: 11px; font-weight: 700; color: #64748b; text-align: left; background: #f8fafc; position: sticky; top: 0; z-index: 1; }
     /* หน้ารายละเอียด: หัวข้อส่วน / ความเคลื่อนไหวล่าสุด / ประวัติล็อกอิน / scrollbar บาง */
     .am-sec { font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 8px; flex: none; }
@@ -150,6 +179,15 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
     .am-tc.qr { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
     .am-tc svg { width: 12px; height: 12px; color: #4f46e5; }
     .am-ud .c svg { width: 10px; height: 10px; margin-right: 2px; }
+    .am-ud .c.q { background: #e0e7ff; color: #4338ca; }   /* วันที่มีเข้าด้วย QR */
+    /* แผงแคบ (มือถือ): ช่องวันกะทัดรัด — ซ่อน "ถึง ..." และไอคอน QR (ป้ายสีม่วงแทน) */
+    #am-up { container-type: inline-size; }
+    @container (max-width: 420px) {
+      .am-ud { min-height: 48px; padding: 3px 4px; }
+      .am-ud .l, .am-ud .c svg { display: none; }
+      .am-ud .f { font-size: 11.5px; }
+      .am-upc { gap: 3px; }
+    }
     .am-tc i { font-style: normal; font-size: 10.5px; font-weight: 600; color: #0369a1; }
     .am-ud.has { border-color: #e0f2fe; background: #f8fcff; cursor: pointer; }
     .am-ud.has .n { color: #0369a1; }
@@ -168,6 +206,15 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
     .admin-row-card:hover { border-color: #bae6fd; background-color: #f0f9ff; }
 
     .tab-btn { transition: all 0.2s ease; position: relative; }
+    /* จอแคบ (< lg): รายการ / ฟอร์ม เป็นแท็บย่อย แสดงทีละหน้า · จอกว้างแสดงคู่กันเหมือนเดิม */
+    .sub-tabs { display: none; }
+    @media (max-width: 1023px) {
+      .sub-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .12); }
+      .sub-btn { flex: 1; height: 34px; border-radius: 9px; font-size: 12px; font-weight: 700; color: #cbd5e1; display: flex; align-items: center; justify-content: center; gap: 6px; }
+      .sub-btn.on { background: #fff; color: #0f172a; box-shadow: 0 1px 3px rgba(15, 23, 42, .15); }
+      [data-sub="list"] > .sub-form, [data-sub="form"] > .sub-list { display: none !important; }
+      .sub-list { height: calc(100dvh - 215px) !important; min-height: 420px; }
+    }
     .tab-btn.active { background: #005e8e; color: white; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); border-color: transparent; }
     .tab-btn:not(.active) { color: #cbd5e1; background: transparent; border: 1px solid rgba(255,255,255,0.1); }
     .tab-btn:not(.active):hover { color: white; background: rgba(255, 255, 255, 0.05); }
@@ -265,14 +312,14 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
 
   <div class="flex gap-2 w-full max-w-xl">
     <button onClick="switchTab('agency')" id="tab-agency-btn" class="tab-btn active flex-1 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
-      <i data-lucide="building-2" class="w-3.5 h-3.5"></i> จัดการหน่วยงาน
+      <i data-lucide="building-2" class="w-3.5 h-3.5 hidden sm:block"></i> <span class="whitespace-nowrap">จัดการหน่วยงาน</span>
     </button>
     <button onClick="switchTab('users')" id="tab-users-btn" class="tab-btn flex-1 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
-      <i data-lucide="users" class="w-3.5 h-3.5"></i> ข้อมูลผู้ใช้
+      <i data-lucide="users" class="w-3.5 h-3.5 hidden sm:block"></i> <span class="whitespace-nowrap">ข้อมูลผู้ใช้</span>
     </button>
     <?php if ($amIsSuper) { ?>
     <button onClick="switchTab('monitor')" id="tab-monitor-btn" class="tab-btn flex-1 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
-      <i data-lucide="activity" class="w-3.5 h-3.5"></i> Monitor
+      <i data-lucide="activity" class="w-3.5 h-3.5 hidden sm:block"></i> <span class="whitespace-nowrap">Monitor</span>
     </button>
     <?php } ?>
   </div>
@@ -284,10 +331,14 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
 <div class="flex-1 flex flex-col relative w-full lg:min-h-0">
 
   <!-- Tab 1: Agency Management -->
-  <div id="view-agency" class="flex flex-col lg:flex-row gap-4 flex-1 lg:min-h-0 w-full transition-opacity duration-300">
+  <div id="view-agency" data-sub="list" class="flex flex-col lg:flex-row gap-4 flex-1 lg:min-h-0 w-full transition-opacity duration-300">
+    <div class="sub-tabs" data-view="agency">
+      <button type="button" class="sub-btn on" data-sub="list"><i data-lucide="list" class="w-3.5 h-3.5"></i>รายการหน่วยงาน</button>
+      <button type="button" class="sub-btn" data-sub="form"><i data-lucide="square-pen" class="w-3.5 h-3.5"></i><span data-sub-lbl>เพิ่มหน่วยงาน</span></button>
+    </div>
 
     <!-- Left: Agency Table -->
-    <div class="w-full lg:w-8/12 xl:w-9/12 flex flex-col h-[500px] lg:h-full">
+    <div class="sub-list w-full lg:w-8/12 xl:w-9/12 flex flex-col h-[500px] lg:h-full">
       <div class="app-card overflow-hidden flex flex-col h-full border border-slate-200">
 
         <div class="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
@@ -300,15 +351,15 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
               <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
               <input type="text" id="agency-search" oninput="renderAgencyTable()" placeholder="ค้นหารหัส, format, ชื่อ, ที่อยู่..." class="input-clean pl-9">
             </div>
-            <button onClick="resetForm(); document.getElementById('agency-code').focus()"
+            <button onClick="resetForm(); subTab('agency', 'form'); document.getElementById('agency-code').focus()"
                     class="bg-slate-800 text-white px-4 py-2 sm:py-1.5 rounded-lg text-[11px] font-bold hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 shrink-0">
               <i data-lucide="plus-square" class="w-3.5 h-3.5"></i> <span>เพิ่มหน่วยงาน</span>
             </button>
           </div>
         </div>
 
-        <div class="flex-1 overflow-auto custom-scrollbar bg-white">
-          <table class="w-full text-left border-collapse min-w-[820px]">
+        <div class="rt-wrap flex-1 overflow-auto custom-scrollbar bg-white">
+          <table class="rt w-full text-left border-collapse min-w-[820px]">
             <thead class="bg-slate-50 sticky top-0 z-20 border-b border-slate-200">
              <tr class="text-slate-500 text-[10px] uppercase tracking-wider font-bold">
 			  <th class="px-5 py-3 w-28">รหัส</th>
@@ -327,7 +378,7 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
     </div>
 
     <!-- Right: Agency Form -->
-    <div class="w-full lg:w-4/12 xl:w-3/12 flex flex-col shrink-0">
+    <div class="sub-form w-full lg:w-4/12 xl:w-3/12 flex flex-col shrink-0">
       <div class="app-card p-5 flex flex-col lg:h-full border-t-4 border-easy-primary">
 
         <div class="mb-4 pb-3 border-b border-slate-100 shrink-0">
@@ -496,9 +547,13 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
   </div>
 
   <!-- Tab 2: User Management -->
-  <div id="view-users" class="hidden flex-col lg:flex-row gap-4 flex-1 lg:min-h-0 w-full opacity-0 transition-opacity duration-300">
+  <div id="view-users" data-sub="list" class="hidden flex-col lg:flex-row gap-4 flex-1 lg:min-h-0 w-full opacity-0 transition-opacity duration-300">
+    <div class="sub-tabs" data-view="users">
+      <button type="button" class="sub-btn on" data-sub="list"><i data-lucide="list" class="w-3.5 h-3.5"></i>รายชื่อผู้ใช้</button>
+      <button type="button" class="sub-btn" data-sub="form"><i data-lucide="square-pen" class="w-3.5 h-3.5"></i><span data-sub-lbl>เพิ่มผู้ใช้</span></button>
+    </div>
 
-    <div class="w-full lg:w-8/12 xl:w-9/12 flex flex-col h-[500px] lg:h-full">
+    <div class="sub-list w-full lg:w-8/12 xl:w-9/12 flex flex-col h-[500px] lg:h-full">
       <div class="app-card overflow-hidden flex flex-col h-full border border-slate-200">
 
         <div class="px-5 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
@@ -511,15 +566,15 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
               <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
               <input type="text" id="user-search" oninput="renderUserTable()" placeholder="ค้นหาชื่อ, Username..." class="input-clean pl-9">
             </div>
-            <button onClick="resetUserForm(); document.getElementById('user-username').focus()"
+            <button onClick="resetUserForm(); subTab('users', 'form'); document.getElementById('user-username').focus()"
                     class="bg-slate-800 text-white px-4 py-2 sm:py-1.5 rounded-lg text-[11px] font-bold hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 shrink-0">
               <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> <span>เพิ่มผู้ใช้</span>
             </button>
           </div>
         </div>
 
-        <div class="flex-1 overflow-auto custom-scrollbar bg-white">
-          <table class="w-full text-left border-collapse min-w-[1020px]">
+        <div class="rt-wrap flex-1 overflow-auto custom-scrollbar bg-white">
+          <table class="rt w-full text-left border-collapse min-w-[1020px]">
             <thead class="bg-slate-50 sticky top-0 z-20 border-b border-slate-200">
               <tr class="text-slate-500 text-[10px] uppercase tracking-wider font-bold">
 			  <th class="px-5 py-3">ผู้ใช้งาน (Name)</th>
@@ -538,7 +593,7 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
       </div>
     </div>
 
-    <div class="w-full lg:w-4/12 xl:w-3/12 flex flex-col shrink-0">
+    <div class="sub-form w-full lg:w-4/12 xl:w-3/12 flex flex-col shrink-0">
       <div class="app-card p-5 flex flex-col lg:h-full border-t-4 border-slate-800">
         <div class="mb-4 pb-3 border-b border-slate-100 shrink-0">
           <h2 id="user-form-title" class="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -861,6 +916,22 @@ renderPermissions(json.data);
   /** ==========================================
    * 3) Tab Switch
    * ========================================== */
+  // แท็บย่อย รายการ / ฟอร์ม (จอแคบ < lg) — label: ชื่อแท็บฟอร์ม (เพิ่ม… / แก้ไข…)
+  function subTab(view, which, label) {
+    const v = document.getElementById('view-' + view); if (!v) return;
+    v.dataset.sub = which;
+    v.querySelectorAll('.sub-btn').forEach(b => b.classList.toggle('on', b.dataset.sub === which));
+    const lbl = v.querySelector('[data-sub-lbl]');
+    if (lbl) lbl.textContent = label || (view === 'agency' ? 'เพิ่มหน่วยงาน' : 'เพิ่มผู้ใช้');
+    if (window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  document.querySelectorAll('.sub-tabs').forEach(t => t.addEventListener('click', e => {
+    const b = e.target.closest('.sub-btn'); if (!b) return;
+    // กดแท็บฟอร์มเองโดยยังไม่ได้เลือกแก้ไข => ฟอร์มเพิ่มใหม่ (คงค่าที่กรอกค้างไว้)
+    const editing = t.dataset.view === 'agency' ? document.getElementById('edit-id').value : document.getElementById('edit-user-id').value;
+    subTab(t.dataset.view, b.dataset.sub, editing ? (t.dataset.view === 'agency' ? 'แก้ไขหน่วยงาน' : 'แก้ไขผู้ใช้') : '');
+  }));
+
   function switchTab(tabName) {
     ['agency', 'users', 'monitor'].forEach(function (name) {
       const view = document.getElementById('view-' + name);
@@ -1166,8 +1237,8 @@ renderPermissions(json.data);
 			
       return `
         <tr class="hover:bg-slate-50 transition-colors">
-          <td class="px-5 py-3 font-mono text-slate-500 text-[11px]">${escapeHtml(item.code)}</td>
-          <td class="px-5 py-3">
+          <td class="rt-top px-5 py-3 font-mono text-slate-500 text-[11px]">${escapeHtml(item.code)}</td>
+          <td class="rt-main px-5 py-3">
 			  <div class="font-bold text-slate-800 flex items-center gap-2">
 				<span>${escapeHtml(item.name)}</span>
 				${badge}
@@ -1189,20 +1260,20 @@ renderPermissions(json.data);
 				  </div>` : ''}
 			
 			  ${item.address ? `
-				<div class="text-[11px] text-slate-500 mt-1 flex items-start gap-1 max-w-[320px]">
+				<div class="rt-addr text-[11px] text-slate-500 mt-1 flex items-start gap-1 max-w-[320px]">
 				  <i data-lucide="map-pin" class="w-3.5 h-3.5 shrink-0 mt-0.5"></i>
 				  <span class="line-clamp-2" title="${escapeHtml(item.address)}">${escapeHtml(item.address)}</span>
 				</div>` : ''}
 			</td>
-			<td class="px-5 py-3">
+			<td class="rt-full px-5 py-3" data-l="สิทธิ์ระบบ">
 			  <div class="flex flex-wrap gap-1.5 max-w-[260px]">
 				${permBadges}
 			  </div>
 			</td>
-          <td class="px-5 py-3 text-center">
+          <td class="rt-hide px-5 py-3 text-center">
             <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">${empsNorm.length}</span>
           </td>
-          <td class="px-5 py-3">
+          <td class="rt-full px-5 py-3" data-l="ผู้ดูแล (${empsNorm.length})">
             <div class="flex -space-x-1.5">
               ${empsNorm.length > 0 ? empsNorm.slice(0, 4).map(adm => `
                 <div class="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold shadow-sm text-white"
@@ -1214,7 +1285,7 @@ renderPermissions(json.data);
               ${empsNorm.length > 4 ? `<div class="w-7 h-7 rounded-full border-2 border-white bg-slate-100 text-slate-500 flex items-center justify-center text-[9px] font-bold shadow-sm">+${empsNorm.length - 4}</div>` : ''}
             </div>
           </td>
-          <td class="px-5 py-3 text-center">
+          <td class="rt-act px-5 py-3 text-center">
             <div class="flex items-center justify-center gap-1.5">
               <button onclick="editAgency('${item.id}')" class="p-1.5 text-slate-400 hover:text-easy-primary hover:bg-blue-50 rounded transition-colors" title="Edit">
                 <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
@@ -1328,6 +1399,7 @@ renderPermissions(json.data);
     await fetchAgencies();
     renderAgencyTable();
     resetForm();
+    subTab('agency', 'list');
   } catch (err) {
     Swal.fire({
       icon:'error',
@@ -1386,9 +1458,7 @@ document.querySelectorAll(".perm-check:checked")
 		  else addAdminRow('', true);
 		
 		  refreshIcons();
-		  if (window.innerWidth < 1024) {
-			document.getElementById('agencyForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
-		  }
+		  subTab('agency', 'form', 'แก้ไขหน่วยงาน');
 		}
 
   function deleteAgency(id) {
@@ -1464,7 +1534,7 @@ document.querySelectorAll(".perm-check:checked")
 
     return `
       <tr class="hover:bg-slate-50 transition-colors">
-        <td class="px-5 py-3">
+        <td class="rt-top px-5 py-3">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-[10px] shrink-0 border border-slate-300">${escapeHtml(user.avatar)}</div>
             <div>
@@ -1473,23 +1543,23 @@ document.querySelectorAll(".perm-check:checked")
             </div>
           </div>
         </td>
-        <td class="px-5 py-3 font-mono text-slate-500 text-[11px]">${escapeHtml(user.username)}</td>
-        <td class="px-5 py-3 text-slate-500 text-xs">${escapeHtml(user.email || '-')}</td>
-        <td class="px-5 py-3">
+        <td class="rt-full px-5 py-3 font-mono text-slate-500 text-[11px]" data-l="Username">${escapeHtml(user.username)}</td>
+        <td class="rt-full px-5 py-3 text-slate-500 text-xs break-all" data-l="Email">${escapeHtml(user.email || '-')}</td>
+        <td class="rt-full px-5 py-3" data-l="Role">
           <span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold border ${getRoleBadgeClass(user.role)}">${escapeHtml(user.role || '-')}</span>
         </td>
-        <td class="px-5 py-3">
+        <td class="rt-full px-5 py-3" data-l="หน่วยงาน">
           <div class="flex flex-wrap gap-1.5 max-w-[220px]">
             ${agenciesHtml}
           </div>
         </td>
-        <td class="px-5 py-3">
+        <td class="rt-full px-5 py-3" data-l="Status">
           <div class="flex items-center gap-1.5">
             <span class="w-1.5 h-1.5 rounded-full ${user.status_login == 1 ? 'bg-emerald-500' : 'bg-slate-300'}"></span>
             <span class="text-[10px] ${user.status_login == 1 ? 'text-emerald-600' : 'text-slate-500'} font-medium">${escapeHtml(user.status)}</span>
           </div>
         </td>
-        <td class="px-5 py-3 text-center">
+        <td class="rt-act rt-r1 px-5 py-3 text-center">
           <div class="flex items-center justify-center gap-1.5">
             <button onclick="editUser(${user.id})" class="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded transition-colors" title="Edit"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
             <button onclick="deleteUser(${user.id})" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" title="Delete"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>
@@ -1560,6 +1630,7 @@ document.querySelectorAll(".perm-check:checked")
       await fetchSuperAdmins(); // เผื่อ user ใหม่เป็น super_admin จะไปโผล่ในผู้ดูแลหน่วยงาน
       renderUserTable();
       resetUserForm();
+      subTab('users', 'list');
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', text: err.message || 'เกิดข้อผิดพลาด', confirmButtonColor: '#005e8e' });
     }
@@ -1588,7 +1659,7 @@ document.querySelectorAll(".perm-check:checked")
   passInput.placeholder = 'ปล่อยว่างหากไม่เปลี่ยนรหัส';
 
   refreshIcons();
-  if(window.innerWidth < 1024) document.getElementById('userForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  subTab('users', 'form', 'แก้ไขผู้ใช้');
 }
 
  function resetUserForm() {
@@ -1847,9 +1918,11 @@ document.querySelectorAll(".perm-check:checked")
       pn.style.left = ((vw - (popW + UP_GAP + w)) / 2 + popW + UP_GAP) + 'px';
       pn.style.top = r.top + 'px'; pn.style.height = r.height + 'px';
     } else {
-      // จอแคบ: แผงซ้อนด้านขวาเต็มความสูง
+      // จอแคบ (มือถือ/แท็บเล็ตแนวตั้ง): แผงซ้อนทับหน้าต่างรายละเอียดพอดีทั้งบาน — กด × เพื่อกลับ
       pop.style.width = detailWidth() + 'px'; pop.style.transform = '';
-      pn.style.left = (vw - w - 8) + 'px'; pn.style.top = '8px'; pn.style.height = (vh - 16) + 'px';
+      const r = pop.getBoundingClientRect();
+      pn.style.left = r.left + 'px'; pn.style.top = r.top + 'px';
+      pn.style.width = r.width + 'px'; pn.style.height = r.height + 'px';
     }
   }
 
@@ -1918,7 +1991,7 @@ document.querySelectorAll(".perm-check:checked")
           // ช่องวัน: เวลาเข้าครั้งแรก (ตัวหนา) + "ถึง" เวลาล่าสุด · จำนวนครั้งมุมขวาบน
           const times = t.length ? `<span class="f">${t[0]}</span>${t[t.length - 1] !== t[0] ? `<span class="l">ถึง ${t[t.length - 1]}</span>` : ''}` : '';
           const qn = qrN(key);   // มีเข้าด้วย QR => ไอคอน QR ในป้ายจำนวน
-          cells += `<div class="${cls}" ${t.length ? `data-d="${key}" title="${esc(dayLabel(key) + ' · ' + t.length + ' ครั้ง' + (qn ? ` (QR ${qn})` : '') + ': ' + t.join(', '))}"` : ''}><div class="hd"><span class="n">${d}</span>${t.length ? `<span class="c">${qn ? ico('qr-code') : ''}${t.length}</span>` : ''}</div>${times}</div>`;
+          cells += `<div class="${cls}" ${t.length ? `data-d="${key}" title="${esc(dayLabel(key) + ' · ' + t.length + ' ครั้ง' + (qn ? ` (QR ${qn})` : '') + ': ' + t.join(', '))}"` : ''}><div class="hd"><span class="n">${d}</span>${t.length ? `<span class="c${qn ? ' q' : ''}">${qn ? ico('qr-code') : ''}${t.length}</span>` : ''}</div>${times}</div>`;
         }
         const st = byDay[sel] || [];
         body.innerHTML = `<div class="flex items-center justify-between mb-2">
@@ -2002,12 +2075,12 @@ document.querySelectorAll(".perm-check:checked")
       if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
       if (cur !== a) return;
       const showSt = ['login', 'repair', 'pm', 'stock', 'data'].includes(tab);
-      body.innerHTML = r.rows.length ? `<div class="flex flex-col h-full min-h-0"><div class="flex items-center justify-between mb-2 flex-none"><div class="text-[12px] text-slate-500">${nf(r.rows.length)} รายการ${r.rows.length >= r.limit ? ' (แสดง ' + r.limit + ' รายการล่าสุด)' : ''} · ${esc(periodTxt())}</div>
-          <input type="search" id="am-lq" placeholder="ค้นหาในรายการ" class="input-clean !py-1 !text-[12px] w-48"></div>
+      body.innerHTML = r.rows.length ? `<div class="flex flex-col h-full min-h-0"><div class="flex flex-wrap items-center justify-between gap-2 mb-2 flex-none"><div class="text-[12px] text-slate-500">${nf(r.rows.length)} รายการ${r.rows.length >= r.limit ? ' (แสดง ' + r.limit + ' รายการล่าสุด)' : ''} · ${esc(periodTxt())}</div>
+          <input type="search" id="am-lq" placeholder="ค้นหาในรายการ" class="input-clean !py-1 !text-[12px] w-full sm:w-48"></div>
         <div class="am-scroll border border-slate-200 rounded-lg overflow-auto flex-1 min-h-0"><table class="am-list w-full"><thead><tr><th class="w-[130px]">วันเวลา</th><th>รายการ</th>${showSt ? `<th class="w-[110px]">${tab === 'login' ? 'วิธีเข้า' : 'สถานะ'}</th>` : ''}<th class="w-[170px]">โดย</th></tr></thead><tbody>
-        ${r.rows.map(x => `<tr data-s="${esc((x.title + ' ' + x.sub + ' ' + x.user_name).toLowerCase())}"><td class="whitespace-nowrap text-slate-500">${esc(thDT(x.t))}</td>
-          <td><div class="text-slate-800 break-words">${esc(x.title)}</div>${x.sub ? `<div class="text-[11px] text-slate-400">${esc(x.sub)}</div>` : ''}${x.done_at ? `<div class="text-[11px] text-emerald-600">ปิดงาน ${esc(thDT(x.done_at))}</div>` : ''}</td>
-          ${showSt ? `<td>${stBadge(x.status)}</td>` : ''}<td class="text-slate-600">${esc(x.user_name || '-')}</td></tr>`).join('')}</tbody></table></div></div>`
+        ${r.rows.map(x => `<tr data-s="${esc((x.title + ' ' + x.sub + ' ' + x.user_name).toLowerCase())}"><td class="c-t whitespace-nowrap text-slate-500">${esc(thDT(x.t))}</td>
+          <td class="c-x"><div class="text-slate-800 break-words">${esc(x.title)}</div>${x.sub ? `<div class="text-[11px] text-slate-400">${esc(x.sub)}</div>` : ''}${x.done_at ? `<div class="text-[11px] text-emerald-600">ปิดงาน ${esc(thDT(x.done_at))}</div>` : ''}</td>
+          ${showSt ? `<td class="c-s">${stBadge(x.status)}</td>` : ''}<td class="c-u text-slate-600">${esc(x.user_name || '-')}</td></tr>`).join('')}</tbody></table></div></div>`
         : '<div class="py-12 text-center text-slate-400 text-sm">ไม่มีข้อมูลในช่วงนี้</div>';
       const lq = $('am-lq');
       if (lq) lq.addEventListener('input', () => { const q = lq.value.trim().toLowerCase(); body.querySelectorAll('tbody tr').forEach(tr => tr.classList.toggle('hidden', !!q && !tr.dataset.s.includes(q))); });
@@ -2128,13 +2201,15 @@ document.querySelectorAll(".perm-check:checked")
     Swal.fire({
       width: '66rem', showConfirmButton: false, showCloseButton: true, padding: 0, customClass: { popup: 'rounded-2xl overflow-hidden' },
       html: `<div class="text-left">
-        <div class="px-6 pt-5 pb-3">
-          <div class="flex items-center gap-2 pr-8"><span class="am-dot" style="background:${st[1]}"></span><h3 class="text-[17px] font-bold text-slate-800 truncate">${esc(a.name)}</h3><span class="text-[12px] font-semibold" style="color:${st[1]}">${st[0]}</span>
-            <button type="button" id="am-export-ag" class="ml-auto h-8 px-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-100 flex-none" title="ส่งออกข้อมูลทั้งหมดของหน่วยงานนี้">${ico('file-spreadsheet', 'w-3.5 h-3.5')} Export Excel</button></div>
+        <div class="px-4 sm:px-6 pt-5 pb-3">
+          <!-- จอเล็ก: ชื่อหน่วยงานขึ้นบรรทัดใหม่ได้ (ไม่ตัด) · ปุ่ม Export เหลือแต่ไอคอน -->
+          <div class="flex items-start gap-2 pr-8"><span class="am-dot flex-none mt-[9px]" style="background:${st[1]}"></span>
+            <h3 class="min-w-0 flex-1 text-[16px] sm:text-[17px] font-bold text-slate-800 leading-snug [overflow-wrap:anywhere]">${esc(a.name)} <span class="text-[12px] font-semibold whitespace-nowrap align-middle" style="color:${st[1]}">${st[0]}</span></h3>
+            <button type="button" id="am-export-ag" class="h-8 px-2.5 sm:px-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-100 flex-none" title="ส่งออกข้อมูลทั้งหมดของหน่วยงานนี้" aria-label="Export Excel">${ico('file-spreadsheet', 'w-3.5 h-3.5')}<span class="hidden sm:inline">Export Excel</span></button></div>
           <div class="text-[12px] text-slate-500 mt-0.5 pl-4">${esc(a.code || '')} · สัญญา ${esc(thD(a.start))} – ${esc(thD(a.end))}${a.expired ? ' (หมดแล้ว)' : ''} · เคลื่อนไหวล่าสุด ${esc(thDT(a.last))}</div>
           <div id="am-tabs" class="flex gap-1 mt-4 overflow-x-auto pb-1">${tabs.map(t => `<button type="button" class="am-tab" data-tab="${t[0]}">${ico(t[2], 'w-3.5 h-3.5')}${t[1]}${t[3] != null ? `<span class="n">${nf(t[3])}</span>` : ''}</button>`).join('')}</div>
         </div>
-        <div id="am-tabbody" class="px-6 pb-5 pt-4 border-t border-slate-100 overflow-y-auto lg:overflow-hidden" style="height: min(580px, calc(100vh - 230px))"></div>
+        <div id="am-tabbody" class="px-4 sm:px-6 pb-5 pt-4 border-t border-slate-100 overflow-y-auto lg:overflow-hidden" style="height: min(580px, calc(100vh - 230px))"></div>
       </div>`,
       didOpen: () => {
         fitDetail();
