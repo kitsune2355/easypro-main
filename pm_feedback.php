@@ -235,7 +235,8 @@ include "config_ctrl/checksession.php";
     // ฟังก์ชันดึงข้อมูลประเภทเครื่องจักร
     async function loadFeedbackMachineTypes() {
         try {
-            const response = await fetch('get_all_ass_type.php');
+            const agIdParam = typeof AG_ID !== 'undefined' ? AG_ID : '';
+            const response = await fetch(`get_all_ass_type.php?ag_id=${encodeURIComponent(agIdParam)}`);
             const data = await response.json();
 
             let items = [{ text: 'ทั้งหมด', value: '' }];

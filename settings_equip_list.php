@@ -207,7 +207,7 @@ include "config_ctrl/checksession.php";
         // --- API Calls ---
         async function fetchAssetTypes() {
             try {
-                const response = await axios.get('get_all_ass_type.php');
+                const response = await axios.get(`get_all_ass_type.php?ag_id=${encodeURIComponent(AG_ID)}`);   // API กรองตามหน่วยงาน — ไม่ส่ง ag_id จะได้รายการว่าง
                 if (response.data) {
                     assetTypeData = response.data; 
                     assetTypes = response.data.map(item => item.name);
