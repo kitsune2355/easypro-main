@@ -59,13 +59,9 @@ if ($num_rows >= 1) {
     $_SESSION['sess_SERVER_HOST']        = $SERVER_HOST;
     $_SESSION['session_time']            = time(); 
 
-    // บันทึก Log การเข้าใช้งาน
-    $sql_log = "
-        INSERT INTO tb_time_login 
-        SET `tl_name` = '".$result["user_id"]."', 
-            `tl_time` = NOW()
-    ";
-    mysqli_query($connect, $sql_log);
+    // บันทึก Log การเข้าใช้งาน (วิธีเข้า = QR)
+    require_once __DIR__ . '/login_log.php';
+    tl_log($connect, $result["user_id"], 'qr');
 
     // ดึงข้อมูล Agency พื้นฐาน (ตาม Logic ปกติ)
     $ag_id = (int)$result["user_agency"];

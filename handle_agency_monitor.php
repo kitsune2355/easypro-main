@@ -9,6 +9,10 @@ header('Content-Type: application/json; charset=utf-8');
 include 'config_ctrl/connect.php';
 mysqli_set_charset($connect, 'utf8mb4');
 
+// วิธีเข้าสู่ระบบ (tl_type: password | qr) — คอลัมน์เพิ่มโดย config_ctrl/login_log.php ตอนล็อกอินครั้งแรก · หน้านี้อ่านอย่างเดียว ไม่เพิ่มคอลัมน์เอง
+$tlq = @mysqli_query($connect, "SHOW COLUMNS FROM tb_time_login LIKE 'tl_type'");
+$TLT = ($tlq && mysqli_num_rows($tlq) > 0) ? 'tl_type' : 'NULL';
+
 function am_out($a, $code = 200) { http_response_code($code); echo json_encode($a, JSON_UNESCAPED_UNICODE); exit; }
 if (empty($_SESSION['sess_user_id_es'])) am_out(['success' => false, 'error' => 'กรุณาเข้าสู่ระบบใหม่'], 401);
 if (($_SESSION['sess_user_level_es'] ?? '') !== 'super_admin') am_out(['success' => false, 'error' => 'เฉพาะ Super Admin'], 403);
@@ -159,7 +163,7 @@ if ($action === 'detail') {
     $L = 12;
     $feed = [];
     $add = function ($type, $rows) use (&$feed) { foreach ($rows as $r) { $r['type'] = $type; $feed[] = $r; } };
-    $add('login', am_rows($connect, "SELECT l.tl_time AS t, l.tl_name AS user, 'เข้าสู่ระบบ' AS text FROM tb_time_login l JOIN $USER_AG ua ON ua.user_id = l.tl_name AND ua.ag = $agS ORDER BY l.tl_time DESC LIMIT $L"));
+    $add('login', am_rows($connect, "SELECT l.tl_time AS t, l.tl_name AS user, IF(" . ($TLT === 'NULL' ? 'NULL' : 'l.tl_type') . " = 'qr', 'เข้าสู่ระบบด้วย QR', 'เข้าสู่ระบบ') AS text FROM tb_time_login l JOIN $USER_AG ua ON ua.user_id = l.tl_name AND ua.ag = $agS ORDER BY l.tl_time DESC LIMIT $L"));
     $add('repair', am_rows($connect, "SELECT created_at AS t, created_by AS user, CONCAT('แจ้งซ่อม ', IFNULL(rp_format, ''), ' — ', LEFT(IFNULL(problem_detail, ''), 80)) AS text FROM repair_requests WHERE ag_id = $ag ORDER BY created_at DESC LIMIT $L"));
     $add('repair_done', am_rows($connect, "SELECT CONCAT(completed_date, ' ', IFNULL(completed_time, '00:00:00')) AS t, completed_by AS user, CONCAT('ปิดงานซ่อม ', IFNULL(rp_format, '')) AS text FROM repair_requests WHERE ag_id = $ag AND completed_date IS NOT NULL ORDER BY completed_date DESC, completed_time DESC LIMIT $L"));
     $add('pm', am_rows($connect, "SELECT wr.created_at AS t, wr.created_by AS user, CONCAT('บันทึก PM ', IFNULL(wr.doc_no, ''), ' — ', IFNULL(wr.machine_name, '')) AS text FROM pm_work_records wr WHERE wr.ag_id = $agS ORDER BY wr.created_at DESC LIMIT $L"));
@@ -218,13 +222,17 @@ if ($action === 'user_logins') {
     $uS = "'" . mysqli_real_escape_string($connect, $user) . "'";
     // ต้องเป็นผู้ใช้ของหน่วยงานนี้
     if (!am_rows($connect, "SELECT 1 FROM $USER_AG ua WHERE ua.user_id = $uS AND ua.ag = $agS LIMIT 1")) am_out(['success' => false, 'error' => 'ไม่พบผู้ใช้ในหน่วยงานนี้']);
-    $rows = am_rows($connect, "SELECT tl_time AS t FROM tb_time_login WHERE tl_name = $uS AND tl_time BETWEEN '$fromTs' AND '$toTs' ORDER BY tl_time DESC LIMIT 1000");
+    $rows = am_rows($connect, "SELECT tl_time AS t, $TLT AS k FROM tb_time_login WHERE tl_name = $uS AND tl_time BETWEEN '$fromTs' AND '$toTs' ORDER BY tl_time DESC LIMIT 1000");
     $byDay = [];
-    foreach ($rows as $r) { $d = substr($r['t'], 0, 10); $byDay[$d][] = substr($r['t'], 11, 8); }
+    $byType = []; $cnt = ['qr' => 0, 'password' => 0];
+    foreach ($rows as $r) {
+        $d = substr($r['t'], 0, 10); $byDay[$d][] = substr($r['t'], 11, 8); $byType[$d][] = (string)$r['k'];
+        if (isset($cnt[$r['k']])) $cnt[$r['k']]++;
+    }
     $out = [];
-    foreach ($byDay as $d => $times) $out[] = ['d' => $d, 'times' => $times];
+    foreach ($byDay as $d => $times) $out[] = ['d' => $d, 'times' => $times, 'types' => $byType[$d]];   // types: qr | password | '' (ก่อนเริ่มบันทึกวิธีเข้า)
     $last = am_rows($connect, "SELECT MAX(tl_time) AS t FROM tb_time_login WHERE tl_name = $uS");
-    am_out(['success' => true, 'days' => $out, 'total' => count($rows), 'last_ever' => $last ? $last[0]['t'] : null]);
+    am_out(['success' => true, 'days' => $out, 'total' => count($rows), 'by_type' => $cnt, 'last_ever' => $last ? $last[0]['t'] : null]);
 }
 
 // ---------- รายการข้อมูลจริงของแต่ละประเภท (กดตัวเลขเพื่อดู) ----------
@@ -236,7 +244,7 @@ if ($action === 'list') {
     $LIM = !empty($_GET['export']) ? 20000 : 300;   // ส่งออก Excel => ทั้งหมด (สูงสุด 20,000)
     $rows = [];
     if ($type === 'login') {
-        $rows = am_rows($connect, "SELECT l.tl_time AS t, l.tl_name AS user, 'เข้าสู่ระบบ' AS title, '' AS sub, '' AS status
+        $rows = am_rows($connect, "SELECT l.tl_time AS t, l.tl_name AS user, 'เข้าสู่ระบบ' AS title, '' AS sub, " . ($TLT === 'NULL' ? "''" : "CASE l.tl_type WHEN 'qr' THEN 'QR' WHEN 'password' THEN 'รหัสผ่าน' ELSE '' END") . " AS status
             FROM tb_time_login l JOIN $USER_AG ua ON ua.user_id = l.tl_name AND ua.ag = $agS WHERE l.tl_time BETWEEN '$fromTs' AND '$toTs' ORDER BY l.tl_time DESC LIMIT $LIM");
     } elseif ($type === 'repair') {   // แจ้งในช่วงนี้ หรือปิดงานในช่วงนี้
         $rows = am_rows($connect, "SELECT r.created_at AS t, r.created_by AS user, CONCAT(IFNULL(r.rp_format, ''), ' — ', IFNULL(r.problem_detail, '')) AS title,

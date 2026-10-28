@@ -65,13 +65,9 @@ if ($num_rows >= 1) {
 
     $ag_id = $result["user_agency"];
 
-    // log เวลาเข้าใช้งาน
-    $sql_log = "
-        INSERT INTO tb_time_login 
-        SET `tl_name` = '".$result["user_id"]."', 
-            `tl_time` = NOW()
-    ";
-    $res_m = mysqli_query($connect, $sql_log) or die(mysqli_error($connect));
+    // log เวลาเข้าใช้งาน (วิธีเข้า = รหัสผ่าน)
+    require_once __DIR__ . '/login_log.php';
+    $res_m = tl_log($connect, $result["user_id"], 'password') or die(mysqli_error($connect));
 
     // ดึงสิทธิ์ agency employer (โค้ดเดิม ไม่ได้ใช้ $Tem_Ag ต่อ แต่ผมคงไว้ให้)
     $Tem_Ag = '';

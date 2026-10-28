@@ -147,6 +147,9 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
     .am-ud .f { margin-top: 5px; font-size: 12px; font-weight: 700; color: #0f172a; line-height: 1.2; }
     .am-ud .l { font-size: 10px; color: #94a3b8; line-height: 1.3; white-space: nowrap; }
     .am-tc { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 6px; background: #fff; border: 1px solid #e2e8f0; font-size: 12px; font-weight: 600; color: #0f172a; font-variant-numeric: tabular-nums; }
+    .am-tc.qr { background: #eef2ff; border-color: #c7d2fe; color: #3730a3; }
+    .am-tc svg { width: 12px; height: 12px; color: #4f46e5; }
+    .am-ud .c svg { width: 10px; height: 10px; margin-right: 2px; }
     .am-tc i { font-style: normal; font-size: 10.5px; font-weight: 600; color: #0369a1; }
     .am-ud.has { border-color: #e0f2fe; background: #f8fcff; cursor: pointer; }
     .am-ud.has .n { color: #0369a1; }
@@ -1794,7 +1797,8 @@ document.querySelectorAll(".perm-check:checked")
     feedback: ['ประเมินแล้ว', '#f5f3ff', '#6d28d9'], cancel: ['ยกเลิก', '#fef2f2', '#b91c1c'], cencel: ['ยกเลิก', '#fef2f2', '#b91c1c'],
     done: ['ทำแล้ว', '#ecfdf5', '#047857'], evaluated: ['ประเมินแล้ว', '#f5f3ff', '#6d28d9'],
     IN: ['รับเข้า', '#ecfdf5', '#047857'], OUT: ['เบิกจ่าย', '#fffbeb', '#b45309'], ADJUST: ['ปรับยอด', '#f1f5f9', '#475569'],
-    add: ['เพิ่ม', '#ecfdf5', '#047857'], edit: ['แก้ไข', '#f0f9ff', '#0369a1']
+    add: ['เพิ่ม', '#ecfdf5', '#047857'], edit: ['แก้ไข', '#f0f9ff', '#0369a1'],
+    QR: ['QR', '#eef2ff', '#4338ca'], 'รหัสผ่าน': ['รหัสผ่าน', '#f1f5f9', '#475569']
   };
   const stBadge = s => { const x = ST_LABEL[s]; return x ? `<span class="am-st" style="background:${x[1]};color:${x[2]}">${x[0]}</span>` : ''; };
   let detailChart = null, cur = null, listCache = {};
@@ -1882,11 +1886,15 @@ document.querySelectorAll(".perm-check:checked")
       if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
       if (upUser !== user) return;   // ระหว่างโหลดผู้ใช้กดคนอื่นแล้ว
       pn.querySelector('[data-sum]').textContent = r.days.length
-        ? `รวม ${nf(r.total)} ครั้ง ใน ${nf(r.days.length)} วัน${r.total >= 1000 ? ' (แสดง 1,000 ครั้งล่าสุด)' : ''}`
+        ? `รวม ${nf(r.total)} ครั้ง ใน ${nf(r.days.length)} วัน${r.by_type && (r.by_type.qr || r.by_type.password) ? ` (QR ${nf(r.by_type.qr)} · รหัสผ่าน ${nf(r.by_type.password)}${r.total - r.by_type.qr - r.by_type.password > 0 ? ` · ไม่ระบุ ${nf(r.total - r.by_type.qr - r.by_type.password)}` : ""})` : ''}${r.total >= 1000 ? ' (แสดง 1,000 ครั้งล่าสุด)' : ''}`
         : `ไม่ได้เข้าสู่ระบบในช่วงนี้${r.last_ever ? ' · เข้าล่าสุด ' + thDT(r.last_ever) : ' · ยังไม่เคยเข้าสู่ระบบ'}`;
       if (!r.days.length) { body.innerHTML = '<div class="text-xs text-slate-400 py-6 text-center">ไม่มีข้อมูลการเข้าสู่ระบบ</div>'; return; }
       const byDay = {};
-      r.days.forEach(d => { byDay[d.d] = d.times.map(t => t.slice(0, 5)).sort(); });   // เช้า → เย็น
+      const kindDay = {};   // วิธีเข้าเรียงตรงกับ byDay
+      r.days.forEach(d => {
+        const p = d.times.map((t, i) => ({ t: t.slice(0, 5), k: (d.types || [])[i] || '' })).sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);   // เช้า → เย็น
+        byDay[d.d] = p.map(x => x.t); kindDay[d.d] = p.map(x => x.k);
+      });
       const pad = n => String(n).padStart(2, '0');
       const ymdOf = dt => dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
       const today = range ? new Date(range.to + 'T00:00:00') : new Date(); today.setHours(0, 0, 0, 0);   // วันสุดท้ายของช่วง
@@ -1897,7 +1905,8 @@ document.querySelectorAll(".perm-check:checked")
       let mi = months.findIndex(m => ymdOf(m).slice(0, 7) === latest.slice(0, 7)); if (mi < 0) mi = months.length - 1;
       let sel = latest;
       // เวลาซ้ำนาทีเดียวกันรวมเป็น ×N
-      const grouped = t => { const o = []; t.forEach(x => { const g = o[o.length - 1]; if (g && g.t === x) g.n++; else o.push({ t: x, n: 1 }); }); return o; };
+      const grouped = (t, k) => { const o = []; t.forEach((x, i) => { const g = o[o.length - 1], q = (k || [])[i] === 'qr'; if (g && g.t === x && g.q === q) g.n++; else o.push({ t: x, n: 1, q }); }); return o; };
+      const qrN = key => (kindDay[key] || []).filter(k => k === 'qr').length;
       const render = () => {
         const m = months[mi], y = m.getFullYear(), mo = m.getMonth(), last = new Date(y, mo + 1, 0).getDate();
         let cells = '', cnt = 0;
@@ -1908,7 +1917,8 @@ document.querySelectorAll(".perm-check:checked")
           const cls = 'am-ud' + (t.length ? ' has' : '') + (!inRange ? ' out' : '') + (key === sel ? ' sel' : '') + (key === ymdOf(today) ? ' today' : '');
           // ช่องวัน: เวลาเข้าครั้งแรก (ตัวหนา) + "ถึง" เวลาล่าสุด · จำนวนครั้งมุมขวาบน
           const times = t.length ? `<span class="f">${t[0]}</span>${t[t.length - 1] !== t[0] ? `<span class="l">ถึง ${t[t.length - 1]}</span>` : ''}` : '';
-          cells += `<div class="${cls}" ${t.length ? `data-d="${key}" title="${esc(dayLabel(key) + ' · ' + t.length + ' ครั้ง: ' + t.join(', '))}"` : ''}><div class="hd"><span class="n">${d}</span>${t.length ? `<span class="c">${t.length}</span>` : ''}</div>${times}</div>`;
+          const qn = qrN(key);   // มีเข้าด้วย QR => ไอคอน QR ในป้ายจำนวน
+          cells += `<div class="${cls}" ${t.length ? `data-d="${key}" title="${esc(dayLabel(key) + ' · ' + t.length + ' ครั้ง' + (qn ? ` (QR ${qn})` : '') + ': ' + t.join(', '))}"` : ''}><div class="hd"><span class="n">${d}</span>${t.length ? `<span class="c">${qn ? ico('qr-code') : ''}${t.length}</span>` : ''}</div>${times}</div>`;
         }
         const st = byDay[sel] || [];
         body.innerHTML = `<div class="flex items-center justify-between mb-2">
@@ -1917,8 +1927,9 @@ document.querySelectorAll(".perm-check:checked")
             <button type="button" data-mv="1" class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent" ${mi === months.length - 1 ? 'disabled' : ''} title="เดือนถัดไป">${ico('chevron-right', 'w-4 h-4')}</button></div>
           <div class="am-upc">${['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'].map(w => `<span class="w">${w}</span>`).join('')}${cells}</div>
           ${st.length ? `<div class="mt-3 rounded-lg bg-slate-50 px-3 py-2.5">
-              <div class="flex items-baseline justify-between gap-2 text-[12px]"><b class="text-slate-700">${esc(dayLabel(sel))}</b><span class="text-slate-400">${st.length} ครั้ง${st.length > 1 ? ` · ${st[0]} – ${st[st.length - 1]}` : ''}</span></div>
-              <div class="flex flex-wrap gap-1.5 mt-2">${grouped(st).map(g => `<span class="am-tc">${g.t}${g.n > 1 ? `<i>×${g.n}</i>` : ''}</span>`).join('')}</div></div>` : ''}`;
+              <div class="flex items-baseline justify-between gap-2 text-[12px]"><b class="text-slate-700">${esc(dayLabel(sel))}</b><span class="text-slate-400">${st.length} ครั้ง${qrN(sel) ? ` · QR ${qrN(sel)}` : ''}${st[0] !== st[st.length - 1] ? ` · ${st[0]} – ${st[st.length - 1]}` : ''}</span></div>
+              <div class="flex flex-wrap gap-1.5 mt-2">${grouped(st, kindDay[sel]).map(g => `<span class="am-tc${g.q ? ' qr' : ''}" title="${g.q ? 'เข้าด้วย QR' : ''}">${g.q ? ico('qr-code') : ''}${g.t}${g.n > 1 ? `<i>×${g.n}</i>` : ''}</span>`).join('')}</div>
+              ${qrN(sel) ? `<div class="text-[10.5px] text-slate-400 mt-2 flex items-center gap-1">${ico('qr-code', 'w-3 h-3')} = เข้าด้วย QR</div>` : ''}</div>` : ''}`;
         if (window.lucide) lucide.createIcons();
       };
       body.onclick = e => {
@@ -1990,10 +2001,10 @@ document.querySelectorAll(".perm-check:checked")
       const r = listCache[tab] || (listCache[tab] = await (await fetch(`handle_agency_monitor.php?action=list&type=${tab}&ag=${a.ag_id}&${qp()}`)).json());
       if (!r.success) throw new Error(r.error || 'โหลดไม่สำเร็จ');
       if (cur !== a) return;
-      const showSt = ['repair', 'pm', 'stock', 'data'].includes(tab);
+      const showSt = ['login', 'repair', 'pm', 'stock', 'data'].includes(tab);
       body.innerHTML = r.rows.length ? `<div class="flex flex-col h-full min-h-0"><div class="flex items-center justify-between mb-2 flex-none"><div class="text-[12px] text-slate-500">${nf(r.rows.length)} รายการ${r.rows.length >= r.limit ? ' (แสดง ' + r.limit + ' รายการล่าสุด)' : ''} · ${esc(periodTxt())}</div>
           <input type="search" id="am-lq" placeholder="ค้นหาในรายการ" class="input-clean !py-1 !text-[12px] w-48"></div>
-        <div class="am-scroll border border-slate-200 rounded-lg overflow-auto flex-1 min-h-0"><table class="am-list w-full"><thead><tr><th class="w-[130px]">วันเวลา</th><th>รายการ</th>${showSt ? '<th class="w-[110px]">สถานะ</th>' : ''}<th class="w-[170px]">โดย</th></tr></thead><tbody>
+        <div class="am-scroll border border-slate-200 rounded-lg overflow-auto flex-1 min-h-0"><table class="am-list w-full"><thead><tr><th class="w-[130px]">วันเวลา</th><th>รายการ</th>${showSt ? `<th class="w-[110px]">${tab === 'login' ? 'วิธีเข้า' : 'สถานะ'}</th>` : ''}<th class="w-[170px]">โดย</th></tr></thead><tbody>
         ${r.rows.map(x => `<tr data-s="${esc((x.title + ' ' + x.sub + ' ' + x.user_name).toLowerCase())}"><td class="whitespace-nowrap text-slate-500">${esc(thDT(x.t))}</td>
           <td><div class="text-slate-800 break-words">${esc(x.title)}</div>${x.sub ? `<div class="text-[11px] text-slate-400">${esc(x.sub)}</div>` : ''}${x.done_at ? `<div class="text-[11px] text-emerald-600">ปิดงาน ${esc(thDT(x.done_at))}</div>` : ''}</td>
           ${showSt ? `<td>${stBadge(x.status)}</td>` : ''}<td class="text-slate-600">${esc(x.user_name || '-')}</td></tr>`).join('')}</tbody></table></div></div>`
@@ -2100,8 +2111,8 @@ document.querySelectorAll(".perm-check:checked")
         { name: 'รายวัน', columns: [['วันที่', 12]].concat(SERIES.map(sr => [sr[1], 12])), rows: detail.days.map((d, i) => [d].concat(SERIES.map(sr => detail.daily[sr[0]][i]))) },
         { name: 'ผู้ใช้งาน', columns: [['ชื่อ', 30], ['Username', 20], ['ระดับ', 12], ['ตำแหน่ง', 18], ['เข้าใช้งานในช่วงนี้ (ครั้ง)', 14], ['เข้าล่าสุด', 18]],
           rows: detail.users.map(u => [u.name || '', u.user_id, u.user_level || '', u.user_position || '', u.n, dtx(u.last)]) },
-        { name: 'ประวัติล็อกอิน', columns: [['วันที่', 12], ['เวลา', 10], ['ชื่อ', 30], ['Username', 20]],
-          rows: login.rows.map(x => [String(x.t).slice(0, 10), String(x.t).slice(11, 19), x.user_name || '', x.user || '']) },
+        { name: 'ประวัติล็อกอิน', columns: [['วันที่', 12], ['เวลา', 10], ['วิธีเข้า', 10], ['ชื่อ', 30], ['Username', 20]],
+          rows: login.rows.map(x => [String(x.t).slice(0, 10), String(x.t).slice(11, 19), x.status || '', x.user_name || '', x.user || '']) },
         listSheet('แจ้งซ่อม', repair, true, { cols: [['ปิดงานเมื่อ', 18]], val: x => [dtx(x.done_at)] }),
         listSheet('PM', pm, true), listSheet('มิเตอร์', meter, false), listSheet('สต็อก', stock, true), listSheet('ข้อมูล-ตั้งค่า', data, true)
       ]);
