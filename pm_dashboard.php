@@ -676,23 +676,25 @@ include "config_ctrl/checksession.php";
     // หน้าตาอีเว้นท์: กลุ่ม (ชื่อเช็คชีต + ทำแล้ว/ทั้งหมด), รายวันในมุมมองรายปี (จำนวน), รายเครื่อง, วันหยุด
     function pmcEventContent(arg) {
         const p = arg.event.extendedProps;
+        // ทำครบแล้ว และตรวจรับครบทุกงาน (หรือรายเครื่องที่ตรวจรับแล้ว) => ไอคอน check แทนจุดสีด้านหน้า
+        const lead = (p.kind === 'event' ? p.approved : (p.t && p.n >= p.t && p.ok >= p.t)) ? '<i class="fas fa-circle-check text-[11px] text-emerald-600 flex-none" title="ตรวจรับแล้ว"></i>' : '<span class="pmc-dot"></span>';
         if (arg.event.display === 'background') return { html: '' };
         if (p.kind === 'hol') return { html: `<div class="pmc-hol"><i class="fas fa-umbrella-beach text-[10px]"></i><span>${pmcEsc(arg.event.title)}</span></div>` };
         if (p.kind === 'day') {
             if (arg.view.type === 'multiMonthYear' || window.innerWidth < 768) return { html: `<span class="pmc-mini">${p.t}</span>` };
-            return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name">${p.t} งาน</span>${p.wait ? `<span class="pmc-wb">รอส่ง ${p.wait}</span>` : ''}<span class="pmc-cnt">${p.n}/${p.t}</span></div>` };
+            return { html: `<div class="pmc-pill">${lead}<span class="pmc-name">${p.t} งาน</span>${p.wait ? `<span class="pmc-wb">รอส่ง ${p.wait}</span>` : ''}<span class="pmc-cnt">${p.n}/${p.t}</span></div>` };
         }
         if (p.kind === 'event') {
             const sub = [p.checksheet, p.location].filter(Boolean).map(pmcEsc).join(' · ');
-            return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name"><b class="font-medium">${pmcEsc(p.machine || '-')}</b>${sub ? ` <span class="pmc-sub">· ${sub}</span>` : ''}</span>${p.review ? '<i class="fas fa-hourglass-half text-[10px] text-emerald-600" title="รอตรวจรับ"></i>' : p.status == 1 ? '<i class="fas fa-check text-[10px] text-emerald-600"></i>' : p.wait ? '<span class="pmc-wb">รอส่ง</span>' : ''}</div>` };
+            return { html: `<div class="pmc-pill">${lead}<span class="pmc-name"><b class="font-medium">${pmcEsc(p.machine || '-')}</b>${sub ? ` <span class="pmc-sub">· ${sub}</span>` : ''}</span>${p.review ? '<i class="fas fa-hourglass-half text-[10px] text-emerald-600" title="รอตรวจรับ"></i>' : p.approved ? '' : p.status == 1 ? '<i class="fas fa-check text-[10px] text-emerald-600"></i>' : p.wait ? '<span class="pmc-wb">รอส่ง</span>' : ''}</div>` };
         }
-        return { html: `<div class="pmc-pill"><span class="pmc-dot"></span><span class="pmc-name">${pmcEsc(arg.event.title)}</span>${p.wait ? `<span class="pmc-wb">รอส่ง ${p.wait}</span>` : ''}<span class="pmc-cnt">${p.n}/${p.t}</span></div>` };
+        return { html: `<div class="pmc-pill">${lead}<span class="pmc-name">${pmcEsc(arg.event.title)}</span>${p.wait ? `<span class="pmc-wb">รอส่ง ${p.wait}</span>` : ''}<span class="pmc-cnt">${p.n}/${p.t}</span></div>` };
     }
     function pmcEventTip(info) {
         const p = info.event.extendedProps;
         if (p.kind === 'group' || p.kind === 'day') {
             const left = p.t - p.n;
-            info.el.title = `${p.kind === 'group' ? (p.cs || 'ไม่ระบุเช็คชีต') : 'งาน PM'} · ทำแล้ว ${p.n} จาก ${p.t}` + (p.w ? ` (รอตรวจรับ ${p.w})` : '') + (left ? ` · ${p.state === 'overdue' ? 'เลยกำหนด' : 'รอทำ'} ${left}` : '') + (p.wait ? ` · รอส่ง ${p.wait}` : '');
+            info.el.title = `${p.kind === 'group' ? (p.cs || 'ไม่ระบุเช็คชีต') : 'งาน PM'} · ทำแล้ว ${p.n} จาก ${p.t}` + (p.w ? ` (รอตรวจรับ ${p.w})` : '') + (p.ok ? ` · ตรวจรับแล้ว ${p.ok}` : '') + (left ? ` · ${p.state === 'overdue' ? 'เลยกำหนด' : 'รอทำ'} ${left}` : '') + (p.wait ? ` · รอส่ง ${p.wait}` : '');
         } else if (p.kind === 'hol') info.el.title = 'วันหยุด: ' + info.event.title;
         else if (p.kind === 'event') info.el.title = info.event.title;
     }

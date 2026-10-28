@@ -302,13 +302,13 @@ if ($action === 'get_summary') {
     $rows = null;
     if ($group === 'cs') {
         $rows = pmdRows($connect, "SELECT p.event_date AS d, p.checksheet_id AS cs_id, MAX(c.name) AS cs,
-                    COUNT(*) AS t, SUM(p.status = 1) AS n, SUM(" . pmap_wait_sql($connect, 'p') . ") AS w, MIN(p.id) AS id1
+                    COUNT(*) AS t, SUM(p.status = 1) AS n, SUM(" . pmap_wait_sql($connect, 'p') . ") AS w, " . (pmap_has_col($connect) ? "SUM(p.approval_status = 1)" : "0") . " AS ok, MIN(p.id) AS id1
                 FROM pm_plan_events p $join $where
                 GROUP BY p.event_date, p.checksheet_id ORDER BY p.event_date LIMIT 601", $types, $params);
         if ($rows !== false && count($rows) > 600 && empty($_GET['force'])) { $group = 'day'; $rows = null; }
     }
     if ($group === 'day') {
-        $rows = pmdRows($connect, "SELECT p.event_date AS d, COUNT(*) AS t, SUM(p.status = 1) AS n, SUM(" . pmap_wait_sql($connect, 'p') . ") AS w
+        $rows = pmdRows($connect, "SELECT p.event_date AS d, COUNT(*) AS t, SUM(p.status = 1) AS n, SUM(" . pmap_wait_sql($connect, 'p') . ") AS w, " . (pmap_has_col($connect) ? "SUM(p.approval_status = 1)" : "0") . " AS ok
                 FROM pm_plan_events p $join $where GROUP BY p.event_date ORDER BY p.event_date", $types, $params);
     }
     if ($rows === false) { echo json_encode(['success' => false, 'error' => $connect->error], JSON_UNESCAPED_UNICODE); exit; }
@@ -316,6 +316,7 @@ if ($action === 'get_summary') {
         $r['t'] = (int)$r['t'];
         $r['n'] = (int)$r['n'];
         $r['w'] = (int)$r['w'];
+        $r['ok'] = (int)$r['ok'];   // ตรวจรับแล้ว
         if (isset($r['id1'])) $r['id1'] = (int)$r['id1'];
     }
     unset($r);
@@ -341,7 +342,7 @@ if ($action === 'get_events') {
         array_pop($rows);
         $total = (int)pmdRows($connect, "SELECT COUNT(*) AS c FROM pm_plan_events p $join $where", $types, $params)[0]['c'];
     }
-    foreach ($rows as &$r) { $r['id'] = (int)$r['id']; $r['status'] = (int)$r['status']; $r['review'] = $r['status'] === 1 && $r['ap'] !== null && (int)$r['ap'] === 0; unset($r['ap']); }
+    foreach ($rows as &$r) { $r['id'] = (int)$r['id']; $r['status'] = (int)$r['status']; $r['review'] = $r['status'] === 1 && $r['ap'] !== null && (int)$r['ap'] === 0; $r['approved'] = $r['status'] === 1 && $r['ap'] !== null && (int)$r['ap'] === 1; unset($r['ap']); }
     unset($r);
     echo json_encode(['success' => true, 'total' => $total, 'today' => date('Y-m-d'), 'data' => $rows], JSON_UNESCAPED_UNICODE);
     exit;
