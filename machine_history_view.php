@@ -44,6 +44,16 @@
         100% { background-position: 0 50%; }
     }
 
+    /* แท็บ แจ้งซ่อม / แผน PM */
+    .mh-tab { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 14px; font-size: 13px; font-weight: 700; color: #64748b; transition: background .2s, color .2s; }
+    .mh-tab.on { background: var(--color-primary, #0284c7); color: #fff; box-shadow: 0 4px 12px rgba(2, 132, 199, .25); }
+    .mh-tab .mh-n { font-size: 11px; padding: 0 7px; border-radius: 999px; background: rgba(100, 116, 139, .12); line-height: 18px; }
+    .mh-tab.on .mh-n { background: rgba(255, 255, 255, .25); }
+    /* แท็บย่อยในแผน PM: งาน PM ตามรอบแผน / ประวัติแผน PM */
+    .pm-sub { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 6px; border-radius: 12px; font-size: 12.5px; font-weight: 700; color: #64748b; }
+    .pm-sub.on { background: #fff; color: #047857; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+    .pm-sub .mh-n { font-size: 11px; padding: 0 7px; border-radius: 999px; background: rgba(100, 116, 139, .12); line-height: 18px; }
+    .pm-sub.on .mh-n { background: #d1fae5; }
     .timeline-item { position: relative; padding-left: 28px; }
     .timeline-item::before {
         content: '';
@@ -171,6 +181,19 @@
                 </div>
             </section>
 
+            <!-- แท็บ: แจ้งซ่อม / แผน PM -->
+            <div id="mh-tabs" class="grid grid-cols-2 gap-1 p-1 bg-white rounded-2xl border border-slate-200 shadow-sm sticky top-[76px] z-20" role="tablist">
+                <button type="button" class="mh-tab on" data-tab="repair" role="tab"><i data-lucide="wrench" class="w-4 h-4"></i>แจ้งซ่อม <span class="mh-n" id="tab-n-repair">0</span></button>
+                <button type="button" class="mh-tab" data-tab="pm" role="tab"><i data-lucide="clipboard-check" class="w-4 h-4"></i>แผน PM <span class="mh-n" id="tab-n-pm">0</span></button>
+            </div>
+
+            <div id="panel-pm" class="hidden space-y-5">
+            <div class="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-2xl" role="tablist">
+                <button type="button" class="pm-sub on" data-sub="due" role="tab">งาน PM ตามรอบแผน <span class="mh-n" id="sub-n-due">0</span></button>
+                <button type="button" class="pm-sub" data-sub="hist" role="tab">ประวัติแผน PM <span class="mh-n" id="sub-n-hist">0</span></button>
+            </div>
+
+            <div id="pm-sub-due" class="space-y-5">
             <!-- งาน PM ของเครื่องนี้ (เฉพาะช่าง / super admin ที่ล็อกอินหน่วยงานเดียวกัน — handle_machine_pm.php) -->
             <section id="pm-section" class="hidden bg-white rounded-3xl border border-emerald-200 shadow-sm p-5">
                 <h3 class="font-bold text-slate-800 flex items-center gap-2 mb-3">
@@ -180,8 +203,38 @@
                 <div id="pm-list" class="space-y-2"></div>
             </section>
 
+            <!-- รอบที่ค้าง (คนทั่วไป: ดูอย่างเดียว — ช่างใช้การ์ดด้านบน) + รอบถัดไป -->
+            <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 space-y-4">
+                <div id="pmd-due" class="hidden"></div>
+                <div id="pmh-upcoming"></div>
+            </section>
+            </div>
+
+            <!-- ประวัติแผน PM (ทุกคนดูได้ — handle_machine_pm.php?action=history) -->
+            <section id="pm-sub-hist" class="hidden bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                        <i data-lucide="history" class="w-4.5 h-4.5 text-emerald-600"></i>
+                        ประวัติแผน PM
+                    </h3>
+                    <span id="pmh-stat" class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700"></span>
+                </div>
+                <div id="pmh-list" class="space-y-2"></div>
+                <div class="pt-4">
+                    <button id="pmh-more" onclick="loadPmHistory(true)" class="hidden w-full py-2.5 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i><span>โหลดเพิ่มเติม</span>
+                    </button>
+                </div>
+                <div id="pmh-empty" class="hidden text-center py-8">
+                    <div class="w-14 h-14 mx-auto rounded-full bg-slate-50 flex items-center justify-center mb-3"><i data-lucide="calendar-x" class="w-7 h-7 text-slate-400"></i></div>
+                    <p class="text-sm font-semibold text-slate-600">ยังไม่มีรอบ PM ที่ผ่านมา</p>
+                    <p class="text-xs text-slate-400 mt-1">เครื่องจักรนี้ยังไม่มีรอบ PM ที่ถึงกำหนด</p>
+                </div>
+            </section>
+            </div>
+
             <!-- Repair History -->
-            <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
+            <section id="panel-repair" class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="font-bold text-slate-800 flex items-center gap-2">
                         <i data-lucide="wrench" class="w-4.5 h-4.5 text-sky-600"></i>
@@ -303,6 +356,99 @@ function setupRepairButtons(machine) {
     document.body.classList.add('pb-28');
 }
 
+// ===== แท็บ แจ้งซ่อม / แผน PM (จำแท็บใน #pm) =====
+let tabChosen = location.hash === '#pm';
+function showTab(name, byUser) {
+    if (byUser) tabChosen = true;
+    document.querySelectorAll('.mh-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+    document.getElementById('panel-repair').classList.toggle('hidden', name !== 'repair');
+    document.getElementById('panel-pm').classList.toggle('hidden', name !== 'pm');
+    history.replaceState(null, '', name === 'pm' ? '#pm' : location.pathname + location.search);
+}
+document.querySelectorAll('.mh-tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab, true)));
+if (location.hash === '#pm') showTab('pm');
+function showPmSub(name) {
+    document.querySelectorAll('.pm-sub').forEach(b => b.classList.toggle('on', b.dataset.sub === name));
+    document.getElementById('pm-sub-due').classList.toggle('hidden', name !== 'due');
+    document.getElementById('pm-sub-hist').classList.toggle('hidden', name !== 'hist');
+}
+document.querySelectorAll('.pm-sub').forEach(b => b.addEventListener('click', () => showPmSub(b.dataset.sub)));
+let pmCanDo = false;   // ช่าง / super admin (มีการ์ดทำ PM แล้ว ไม่ต้องแสดงรายการรอบค้างซ้ำ)
+
+// ===== ประวัติแผน PM: รอบถัดไป + รอบที่ถึงกำหนดแล้ว (ใหม่สุดก่อน) =====
+const PMH_STATE = {
+    approved: ['ตรวจรับแล้ว', 'bg-emerald-100 text-emerald-700', 'badge-check'],
+    done:     ['ทำแล้ว', 'bg-emerald-100 text-emerald-700', 'check-circle-2'],
+    waiting:  ['รอตรวจรับ', 'bg-emerald-50 text-emerald-700 border border-dashed border-emerald-500', 'hourglass'],
+    today:    ['ถึงกำหนดวันนี้', 'bg-sky-100 text-sky-700', 'clock'],
+    missed:   ['เลยกำหนด ยังไม่ทำ', 'bg-rose-100 text-rose-700', 'alert-triangle'],
+};
+let pmhPage = 0, pmhLoading = false;
+const thShortDate = d => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-';
+// รอบที่ถึงกำหนดแล้วยังไม่ทำ (ทุกคนเห็น) — ช่าง/super admin มีการ์ดทำ PM ด้านบนแทน
+let pmDue = [];
+function renderPmDue() {
+    const box = document.getElementById('pmd-due');
+    if (pmCanDo) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    box.innerHTML = '<p class="text-[11px] font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1 mb-1.5"><i data-lucide="clipboard-check" class="w-3.5 h-3.5"></i>รอบที่ถึงกำหนด</p>'
+        + (pmDue.length ? pmDue.map(d => '<div class="flex items-center justify-between gap-2 text-sm py-1"><span class="text-slate-700 truncate">' + esc(d.checksheet || 'ใบงาน PM') + '</span>'
+            + '<span class="flex-shrink-0 text-xs font-semibold ' + (d.overdue ? 'text-rose-600' : 'text-sky-700') + '">' + thShortDate(d.event_date) + (d.overdue ? ' · เลยกำหนด' : ' · วันนี้') + '</span></div>').join('')
+            : '<p class="text-sm text-slate-500 flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>ไม่มีรอบที่ค้าง</p>');
+    lucide.createIcons();
+}
+async function loadPmHistory(more) {
+    if (pmhLoading) return;
+    pmhLoading = true;
+    const page = more ? pmhPage + 1 : 1;
+    let r;
+    try {
+        const url = new URL('handle_machine_pm.php', window.location.href);
+        url.searchParams.set('action', 'history');
+        url.searchParams.set('asset_code', assetId);
+        if (agId) url.searchParams.set('ag_id', agId);
+        url.searchParams.set('page', page);
+        url.searchParams.set('per_page', HISTORY_PER_PAGE);
+        r = await (await fetch(url.toString(), { credentials: 'same-origin' })).json();
+    } catch (e) { r = null; }
+    pmhLoading = false;
+    if (!r || !r.success) return;
+    pmhPage = page;
+    const s = r.stats;
+    document.getElementById('tab-n-pm').innerText = s.total;
+    document.getElementById('pmh-stat').innerText = s.total ? 'ทำแล้ว ' + s.done + '/' + s.total + ' รอบ' : '0 รอบ';
+    document.getElementById('sub-n-hist').innerText = s.total;
+    if (!more) {
+        document.getElementById('sub-n-due').innerText = r.due.length;
+        pmDue = r.due; renderPmDue();
+        const up = document.getElementById('pmh-upcoming');
+        up.innerHTML = '<p class="text-[11px] font-bold text-sky-700 uppercase tracking-wider flex items-center gap-1 mb-1.5"><i data-lucide="calendar-clock" class="w-3.5 h-3.5"></i>รอบถัดไป</p>'
+            + (r.upcoming.length ? '' : '<p class="text-sm text-slate-400">ไม่มีรอบถัดไปในแผน</p>')
+            + r.upcoming.map(u => '<div class="flex items-center justify-between gap-2 text-sm py-0.5"><span class="text-slate-700 truncate">' + esc(u.checksheet || 'ใบงาน PM') + '</span><span class="flex-shrink-0 font-semibold text-sky-700">' + thShortDate(u.event_date) + '</span></div>').join('');
+    }
+    const html = r.items.map(it => {
+        const st = PMH_STATE[it.state] || PMH_STATE.done;
+        const rows = [];
+        if (it.actual_date) rows.push('ทำเมื่อ ' + thShortDate(it.actual_date) + (it.inspector ? ' · ' + esc(it.inspector) : ''));
+        if (it.approver) rows.push('ตรวจรับโดย ' + esc(it.approver) + (it.approved_at ? ' · ' + thShortDate(it.approved_at) : ''));
+        const recorded = ['approved', 'done', 'waiting'].includes(it.state);
+        // ดูใบงานได้เฉพาะคนที่ล็อกอิน (pm_worksheet.php ตรวจ session)
+        const link = recorded && r.logged_in ? '<a href="pm_worksheet.php?plan_id=' + it.event_id + '&mode=history" class="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-[11px] font-bold text-sky-700"><i data-lucide="file-text" class="w-3.5 h-3.5"></i>ดูใบงาน</a>' : '';
+        return '<div class="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">'
+            + '<div class="flex items-start justify-between gap-2"><div class="min-w-0">'
+            + '<p class="text-xs text-slate-400 font-medium flex items-center gap-1.5 flex-wrap"><i data-lucide="calendar" class="w-3.5 h-3.5"></i>กำหนด ' + thShortDate(it.event_date) + (it.doc_no ? ' <span class="text-slate-300">•</span> <span class="font-mono">' + esc(it.doc_no) + '</span>' : '') + '</p>'
+            + '<p class="font-semibold text-slate-800 text-sm mt-1 break-words">' + esc(it.checksheet || 'ใบงาน PM') + '</p></div>'
+            + '<span class="flex-shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold ' + st[1] + '"><i data-lucide="' + st[2] + '" class="w-3 h-3"></i>' + st[0] + '</span></div>'
+            + (rows.length || link ? '<div class="mt-2 flex items-end justify-between gap-2"><div class="text-xs text-slate-500 space-y-0.5 min-w-0">' + rows.map(x => '<p>' + x + '</p>').join('') + '</div>' + link + '</div>' : '')
+            + '</div>';
+    }).join('');
+    const list = document.getElementById('pmh-list');
+    if (more) list.insertAdjacentHTML('beforeend', html); else list.innerHTML = html;
+    document.getElementById('pmh-empty').classList.toggle('hidden', !!(more || r.items.length));
+    document.getElementById('pmh-more').classList.toggle('hidden', !r.has_more);
+    lucide.createIcons();
+}
+
 // ===== ทำ PM ตามรอบแผน (ช่าง / super admin) =====
 //  แสดงรอบที่ถึงกำหนด (วันนี้ + เลยกำหนด) => เปิดใบงานบันทึกผล PM · ไม่มีรอบ = บอกรอบถัดไป · คนทั่วไป/ไม่ได้ล็อกอิน = ไม่แสดง
 async function loadPm() {
@@ -321,6 +467,7 @@ async function loadPm() {
         box.classList.remove('hidden');
         return;
     }
+    pmCanDo = true; renderPmDue();
     const th = d => new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
     const wsUrl = id => 'pm_worksheet.php?plan_id=' + encodeURIComponent(id);
     if (!r.due.length) {
@@ -335,6 +482,7 @@ async function loadPm() {
         const b = document.getElementById('btn-pm-bottom');
         b.href = wsUrl(r.due[0].event_id);
         b.classList.remove('hidden'); b.classList.add('flex');
+        if (!tabChosen) showTab('pm');   // มีรอบที่ต้องทำ => เปิดแท็บแผน PM ให้เลย
     }
     box.classList.remove('hidden');
     lucide.createIcons();
@@ -431,6 +579,7 @@ function renderHistory(history, meta, append) {
 
     const total = meta && typeof meta.total === 'number' ? meta.total : history.length;
     count.innerText = `${total} รายการ`;
+    document.getElementById('tab-n-repair').innerText = total;
 
     if (!append && (!history || history.length === 0)) {
         list.innerHTML = '';
@@ -532,6 +681,7 @@ async function loadData() {
         if (json.success) {
             renderMachine(json.data.machine);
             loadPm();
+            loadPmHistory(false);
             renderHistory(json.data.history || [], json.data.history_meta, false);
             document.getElementById('loading-state').classList.add('hidden');
             document.getElementById('content').classList.remove('hidden');

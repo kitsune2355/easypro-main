@@ -105,16 +105,30 @@ function weekMonday($year, $month, $k) {
 }
 
 /**
- * เสนอความถี่และวันที่เริ่มจากตาราง Excel (ช่องสัปดาห์ 0-47, เดือนละ 4 ช่อง)
+ * เดือนของคอลัมน์ในไฟล์ (หน้าเว็บอ่านจากหัวตาราง เช่น "June 2026" ... "May 2027" = ตามช่วงสัญญา) => [[ปี, เดือน], ...]
+ * ไม่ส่งมา (ไฟล์แบบเดิม) => มกราคม–ธันวาคม ของปี $year
+ */
+function importMonths($input) {
+    $out = [];
+    foreach ((array)($input['months'] ?? []) as $ym) {
+        if (preg_match('/^(\d{4})-(\d{1,2})$/', (string)$ym, $m) && $m[2] >= 1 && $m[2] <= 12) $out[] = [(int)$m[1], (int)$m[2]];
+        if (count($out) >= 120) break;
+    }
+    if (!$out) { $y = intval($input['year'] ?? 0); if ($y) for ($i = 1; $i <= 12; $i++) $out[] = [$y, $i]; }
+    return $out;
+}
+
+/**
+ * เสนอความถี่และวันที่เริ่มจากตาราง Excel (ช่องสัปดาห์ เดือนละ 4 ช่อง ตามลำดับเดือนใน $colMonths = importMonths())
  * - ระยะห่าง 4 ช่อง = 1 เดือน = 30 วัน, ต่ำกว่า 4 ช่อง = สัปดาห์ละ 7 วัน
  * - วันที่เริ่ม = วันจันทร์ของสัปดาห์แรกที่มีกำหนด (ภายในช่วงสัญญา)
  */
-function suggestPlan($cells, $year, $freqOptions, $contractStart, $contractEnd) {
+function suggestPlan($cells, $colMonths, $freqOptions, $contractStart, $contractEnd) {
     global $LETTER_DAYS, $MONTH_FREQ;
     $idxs = array_keys($cells);
     sort($idxs);
     $out = ['freq' => '', 'start_date' => '', 'note' => []];
-    if (!$idxs || !$year) return $out;
+    if (!$idxs || !$colMonths) return $out;
 
     // ระยะห่างที่พบบ่อยที่สุด (ถ้าเท่ากัน ใช้ค่าน้อยกว่า)
     $gaps = [];
@@ -148,7 +162,9 @@ function suggestPlan($cells, $year, $freqOptions, $contractStart, $contractEnd) 
 
     // วันที่เริ่ม: วันจันทร์ของสัปดาห์แรกที่อยู่ในช่วงสัญญา
     foreach ($idxs as $idx) {
-        $d = weekMonday($year, intdiv($idx, 4) + 1, $idx % 4 + 1);
+        $mi = intdiv($idx, 4);
+        if (!isset($colMonths[$mi])) break;
+        $d = weekMonday($colMonths[$mi][0], $colMonths[$mi][1], $idx % 4 + 1);
         if ($contractStart && $d < $contractStart) continue;
         if ($contractEnd && $d > $contractEnd) break;
         $out['start_date'] = $d;
@@ -221,7 +237,7 @@ function normCode($s) {
  * rows: [{row, name, code, location, letters: ['M','Q',...]}]
  * เช็คชีต 1 ชุดต่อ (ประเภทเครื่อง + Name)
  */
-function analyzeRows($connect, $ag_id, $rows) {
+function analyzeRows($connect, $ag_id, $rows, $maxCell = 47) {
     global $LETTER_LABEL;
     if (empty($rows)) throw new Exception('ไม่พบข้อมูลเครื่องจักรในไฟล์');
 
@@ -277,13 +293,13 @@ function analyzeRows($connect, $ag_id, $rows) {
         $out['group'] = $m['TGroupName'] ?? '';
         if (isset($dupCodes[$code])) $out['message'] = 'เลขครุภัณฑ์นี้มีมากกว่า 1 เครื่องในระบบ (ใช้เครื่องแรก)';
 
-        // cells: {ช่องสัปดาห์ 0-47: ตัวอักษร}
+        // cells: {ช่องสัปดาห์ 0..(เดือน×4 - 1): ตัวอักษร}
         $cells = [];
         $counts = [];
         foreach (($r['cells'] ?? []) as $idx => $l) {
             $idx = intval($idx);
             $l = strtoupper(trim((string)$l));
-            if ($idx < 0 || $idx > 47 || $l === '') continue;
+            if ($idx < 0 || $idx > $maxCell || $l === '') continue;
             $cells[$idx] = $l;
             if ($l !== '*') $counts[$l] = ($counts[$l] ?? 0) + 1;
         }
@@ -379,13 +395,14 @@ try {
 
     // ขั้นที่ 1: ตรวจสอบไฟล์ (ยังไม่บันทึกอะไร)
     if ($action === 'preview') {
-        $a = analyzeRows($connect, $ag_id, $input['rows'] ?? []);
+        $a = analyzeRows($connect, $ag_id, $input['rows'] ?? [], max(48, count(importMonths($input)) * 4) - 1);
         jsonOut(['success' => true, 'data' => ['rows' => $a['rows'], 'sheets' => array_values($a['sheets']), 'stats' => $a['stats']]]);
     }
 
     // ขั้นที่ 2: สร้างเช็คชีตที่ยังไม่มี แล้วส่งรายการ เครื่อง × เช็คชีต กลับไปให้กรอกแผน
     if ($action === 'create_sheets') {
-        $a = analyzeRows($connect, $ag_id, $input['rows'] ?? []);
+        $months = importMonths($input);
+        $a = analyzeRows($connect, $ag_id, $input['rows'] ?? [], max(48, count($months) * 4) - 1);
         $sheetIds = [];
         $createdIds = [];   // key => id ของเช็คชีตที่สร้างใหม่ (ใช้อัปโหลดไฟล์แนบต่อ)
         // อ่านก่อนเริ่ม transaction (CREATE TABLE IF NOT EXISTS จะ commit อัตโนมัติ)
@@ -436,7 +453,6 @@ try {
         }
 
         // ค่าเริ่มต้นจาก Excel: ความถี่ตามระยะห่าง + วันที่เริ่ม (วันจันทร์) — แอดมินตรวจและแก้ไขในตารางได้
-        $year = intval($input['year'] ?? 0);
         $freqOptions = getFreqOptions($connect);
 
         $planRows = [];
@@ -444,7 +460,7 @@ try {
         foreach ($a['pairs'] as $p) {
             $sid = $sheetIds[$p['sheet_key']];
             if (isset($existingPlans[$p['machine']['ass_id'] . '|' . $sid])) { $skipped++; continue; }
-            $sg = suggestPlan($p['cells'], $year, $freqOptions, $contract_start, $contract_end);
+            $sg = suggestPlan($p['cells'], $months, $freqOptions, $contract_start, $contract_end);
             $planRows[] = [
                 'machine_id' => $p['machine']['ass_id'], 'code' => $p['machine']['ass_code'], 'machine' => $p['machine']['asset_name'],
                 'group' => $p['machine']['TGroupName'] ?? '', 'location' => $p['location'],

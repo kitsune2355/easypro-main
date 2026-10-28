@@ -200,6 +200,15 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
     let defaultAlert = '';
     let agencyName = '';
     const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    // เดือนของคอลัมน์ในไฟล์ที่อ่าน (หัวตาราง) — y = null เมื่อหัวไม่มีปี (ไฟล์แบบเดิม มกราคม–ธันวาคม) => ใช้ปีในช่อง "ปีของตาราง"
+    let impHeadMonths = [];
+    // [{y, m}] เดือนจริงของคอลัมน์ (เติมปีที่ไม่มีต่อจากเดือนก่อนหน้า ข้ามธันวาคม => ปีถัดไป)
+    function impMonths() {
+        const base = parseInt($('imp-year').value, 10) || new Date().getFullYear();
+        let y = impHeadMonths.length && impHeadMonths[0].y ? impHeadMonths[0].y : base, prev = 0;
+        return impHeadMonths.map(o => { if (o.y) y = o.y; else if (prev && o.m <= prev) y++; prev = o.m; return { y, m: o.m }; });
+    }
+    const impMonthKeys = () => impMonths().map(o => o.y + '-' + String(o.m).padStart(2, '0'));
     const LEGEND = 'D = Day W= Week M = Month Q = Quarter H = Half Year Y = Year R = Reading * =Multiple check Work Order Load';
     let sheetList = [];
     let attachState = {};   // sheet key => { images: File[], docs: File[] }
@@ -229,24 +238,40 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
     }
 
     // ---------- Template (รูปแบบเดียวกับไฟล์ Yearly PM Schedule) ----------
+    //  คอลัมน์เดือน = ตามระยะเวลาสัญญาของหน่วยงาน (เช่น June 2026 ... May 2027) — ไม่มีวันสัญญา => มกราคม–ธันวาคม ของปีที่เลือก
+    function contractMonths() {
+        const s = /^(\d{4})-(\d{2})/.exec(contract.start || ''), e = /^(\d{4})-(\d{2})/.exec(contract.end || '');
+        if (!s || !e) return null;
+        const out = [];
+        let y = +s[1], m = +s[2];
+        while ((y < +e[1] || (y === +e[1] && m <= +e[2])) && out.length < 60) {
+            out.push({ y, m });
+            if (++m > 12) { m = 1; y++; }
+        }
+        return out.length ? out : null;
+    }
     $('imp-template-btn').addEventListener('click', async () => {
         const year = parseInt($('imp-year').value, 10) || parseInt((contract.start || '').slice(0, 4), 10) || new Date().getFullYear();
+        const months = contractMonths() || MONTHS.map((_, i) => ({ y: year, m: i + 1 }));
+        const NW = months.length * 4;     // ช่องสัปดาห์ เดือนละ 4 ช่อง
         let machines = [];
         try {
             const res = await axios.get('handle_pm_import.php?action=machines');
             if (res.data.success) machines = res.data.data;
         } catch (e) { /* ไม่มีรายการเครื่องก็ยังดาวน์โหลด Template เปล่าได้ */ }
 
-        const W = 3 + 48;                 // Name, CODE, Location + 48 สัปดาห์
+        const first = months[0], last = months[months.length - 1];
+        const label = o => MONTHS[o.m - 1] + ' ' + o.y;
+        const W = 3 + NW;                 // Name, CODE, Location + ช่องสัปดาห์
         const blank = n => Array(n).fill('');
         const aoa = [
-            [`YEARLY PREVENTIVE MAINTENANCE SCHEDULE ${agencyName ? agencyName + ' ' : ''}FOR JANUARY ${year} - DECEMBER ${year}`, ...blank(W - 1)],
+            ['YEARLY PREVENTIVE MAINTENANCE SCHEDULE ' + (agencyName ? agencyName + ' ' : '') + 'FOR ' + label(first).toUpperCase() + ' - ' + label(last).toUpperCase(), ...blank(W - 1)],
             ['ส่วนงานวิศวกรรม บริษัท โปรแอ็คทีฟ แมเนจเม้นท์ จำกัด', ...blank(W - 1)],
-            ['Name', 'CODE', 'Location', ...MONTHS.flatMap(m => [m, '', '', ''])],
-            ['', '', '', ...Array.from({ length: 48 }, (_, k) => k + 1)]
+            ['Name', 'CODE', 'Location', ...months.flatMap(o => [label(o), '', '', ''])],
+            ['', '', '', ...Array.from({ length: NW }, (_, k) => k + 1)]
         ];
         // ใส่เครื่องจักรของหน่วยงานไว้ให้ (Name = ประเภทเครื่องจักร, CODE = เลขครุภัณฑ์) — กรอกตัวอักษรในช่องสัปดาห์
-        machines.forEach(m => aoa.push([m.TGroupName || m.asset_name || '', m.ass_code, (m.location || '').trim(), ...blank(48)]));
+        machines.forEach(m => aoa.push([m.TGroupName || m.asset_name || '', m.ass_code, (m.location || '').trim(), ...blank(NW)]));
         const footer = aoa.length;
         aoa.push(['หมายเหตุ', ...blank(19), LEGEND, ...blank(W - 21)]);
         aoa.push(['ผู้จัดเตรียม..', ...blank(19), 'วันที่', ...blank(W - 21)]);
@@ -256,10 +281,10 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
         const R = (r1, c1, r2, c2) => ({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } });
         ws['!merges'] = [
             R(0, 0, 0, W - 1), R(1, 0, 1, W - 1),
-            ...MONTHS.map((_, i) => R(2, 3 + i * 4, 2, 6 + i * 4)),
+            ...months.map((_, i) => R(2, 3 + i * 4, 2, 6 + i * 4)),
             ...[0, 1, 2].flatMap(i => [R(footer + i, 0, footer + i, 19), R(footer + i, 20, footer + i, 31)])
         ];
-        ws['!cols'] = [{ wch: 28 }, { wch: 16 }, { wch: 28 }, ...Array(48).fill({ wch: 3.5 })];
+        ws['!cols'] = [{ wch: 28 }, { wch: 16 }, { wch: 28 }, ...Array(NW).fill({ wch: 3.5 })];
 
         const guide = XLSX.utils.aoa_to_sheet([
             ['วิธีกรอก Template นำเข้าแผน PM'],
@@ -267,7 +292,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             ['1. Name', 'ชื่อเช็คชีต (เครื่องที่มี Name เดียวกันในประเภทเดียวกันจะใช้เช็คชีตเดียวกัน)'],
             ['2. CODE', 'เลขครุภัณฑ์ ต้องตรงกับในระบบ (ใส่รายการเครื่องของหน่วยงานไว้ให้แล้ว)'],
             ['3. Location', 'ตำแหน่งที่ตั้ง'],
-            ['4. ช่องสัปดาห์ 1-48', 'เดือนละ 4 สัปดาห์ ใส่ตัวอักษรในสัปดาห์ที่ต้องทำ PM'],
+            ['4. ช่องสัปดาห์ 1-' + NW, 'เดือนละ 4 สัปดาห์ (' + label(first) + ' – ' + label(last) + ' ตามระยะเวลาสัญญา) ใส่ตัวอักษรในสัปดาห์ที่ต้องทำ PM'],
             ['', LEGEND],
             [''],
             ['ระบบจะตั้งค่าเริ่มต้นให้', ''],
@@ -276,14 +301,15 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             ['- แจ้งเตือนล่วงหน้า', '8 โมงเช้าของวันนั้น'],
             ['', 'ตรวจสอบและแก้ไขได้ในหน้าตรวจสอบก่อนบันทึก'],
             [''],
-            ['ห้ามแก้ไข', 'หัวตาราง Name / CODE / Location และชื่อเดือน (ระบบใช้หาตำแหน่งคอลัมน์)']
+            ['ห้ามแก้ไข', 'หัวตาราง Name / CODE / Location และชื่อเดือน + ปี (ระบบใช้หาตำแหน่งและวันที่ของคอลัมน์)']
         ]);
         guide['!cols'] = [{ wch: 24 }, { wch: 90 }];
 
+        const tag = first.y === last.y ? String(first.y) : first.y + '-' + last.y;
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, `PM ${year}`);
+        XLSX.utils.book_append_sheet(wb, ws, 'PM ' + tag);
         XLSX.utils.book_append_sheet(wb, guide, 'วิธีกรอก');
-        XLSX.writeFile(wb, `Template_Import_PM_${year}.xlsx`);
+        XLSX.writeFile(wb, 'Template_Import_PM_' + tag + '.xlsx');
     });
 
     // ---------- ขั้นที่ 1: อ่าน Excel ----------
@@ -326,20 +352,31 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
         const nameCol = head.indexOf('name');
         const codeCol = head.indexOf('code');
         const locCol = head.indexOf('location');
-        let weekCol = head.findIndex(c => /^jan/.test(c));
+        // คอลัมน์เดือน: ชื่อเดือน (อังกฤษ) ทุก 4 ช่อง เช่น "January" หรือ "June 2026" (Template ตามระยะเวลาสัญญา)
+        const monthOf = c => { const t = String(c || '').trim().toLowerCase().slice(0, 3); const i = MONTHS.findIndex(m => m.slice(0, 3).toLowerCase() === t); return i < 0 ? 0 : i + 1; };
+        let weekCol = head.findIndex(c => monthOf(c) > 0);
         if (weekCol < 0) weekCol = Math.max(nameCol, codeCol, locCol) + 1;
+        impHeadMonths = [];
+        for (let c = weekCol; monthOf(head[c]); c += 4) {
+            const ym = /\b(\d{4})\b/.exec(head[c]);
+            let y = ym ? +ym[1] : null;
+            if (y && y > 2400) y -= 543;   // ปี พ.ศ.
+            impHeadMonths.push({ m: monthOf(head[c]), y });
+        }
+        if (!impHeadMonths.length) impHeadMonths = MONTHS.map((_, i) => ({ m: i + 1, y: null }));
 
-        // ปีจากหัวเรื่อง เช่น "... JANUARY 2026 - DECEMBER 2026"
+        // ปีจากหัวเดือนแรก หรือหัวเรื่อง เช่น "... JANUARY 2026 - DECEMBER 2026"
         const titleYear = rows.slice(0, h).flat().join(' ').match(/\b(20\d{2})\b/);
-        $('imp-year').value = titleYear ? titleYear[1] : new Date().getFullYear();
+        $('imp-year').value = impHeadMonths[0].y || (titleYear ? titleYear[1] : new Date().getFullYear());
+        const NW = impHeadMonths.length * 4;
 
         parsedRows = [];
         for (let i = h + 1; i < rows.length; i++) {
             const r = rows[i];
             const code = String(r[codeCol] ?? '').trim();
             if (!code) continue;
-            const cells = {};   // ช่องสัปดาห์ 0-47 (เดือนละ 4 ช่อง) => ตัวอักษร
-            for (let k = 0; k < 48; k++) {
+            const cells = {};   // ช่องสัปดาห์ 0..NW-1 (เดือนละ 4 ช่อง) => ตัวอักษร
+            for (let k = 0; k < NW; k++) {
                 const v = String(r[weekCol + k] ?? '').trim().toUpperCase();
                 if (/^[A-Z*]$/.test(v)) cells[k] = v;
             }
@@ -368,7 +405,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
     async function runPreview() {
         Swal.fire({ title: 'กำลังตรวจสอบข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         try {
-            const res = await axios.post('handle_pm_import.php?action=preview', { rows: parsedRows });
+            const res = await axios.post('handle_pm_import.php?action=preview', { rows: parsedRows, months: impMonthKeys() });
             if (!res.data.success) throw new Error(res.data.error);
             Swal.close();
             renderPreview(res.data.data);
@@ -708,7 +745,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
 
         Swal.fire({ title: 'กำลังสร้างเช็คชีต...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         try {
-            const res = await axios.post('handle_pm_import.php?action=create_sheets', { rows: parsedRows, year: parseInt($('imp-year').value, 10), items: itemState });
+            const res = await axios.post('handle_pm_import.php?action=create_sheets', { rows: parsedRows, year: parseInt($('imp-year').value, 10), months: impMonthKeys(), items: itemState });
             if (!res.data.success) throw new Error(res.data.error);
             const d = res.data.data;
 
@@ -787,18 +824,19 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
         // ความถี่และวันที่เริ่มตั้งค่าเริ่มต้นจาก Excel แล้ว (ตรวจสอบ/แก้ไขได้) — แจ้งเตือนและระบุวันให้แอดมินกรอก
         // แจ้งเตือนล่วงหน้า: ค่าเริ่มต้น 8 โมงเช้าของวันนั้น ทุกเครื่องจักร
         const defAlert = alertOptions.find(a => String(a.value) === defaultAlert);
+        const months = impMonths(), NW = months.length * 4;   // คอลัมน์เดือนตามไฟล์ (ตามระยะเวลาสัญญา)
         const data = planRows.map(r => {
             const row = { ...r, freq: r.freq || '', alert: defAlert ? defAlert.desc : '', days: '', start_date: r.start_date || '' };
-            for (let k = 0; k < 48; k++) row['w' + k] = (r.cells || {})[k] || '';
+            for (let k = 0; k < NW; k++) row['w' + k] = (r.cells || {})[k] || '';
             return row;
         });
-        const year = parseInt($('imp-year').value, 10);
-
         // ตำแหน่งช่องสัปดาห์ของวันที่เริ่ม (วันจันทร์ที่ k ของเดือน => สัปดาห์ k) เพื่อไฮไลต์
         const startWeekIdx = (ymd) => {
             const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd || '');
-            if (!m || +m[1] !== year) return -1;
-            return (+m[2] - 1) * 4 + Math.min(4, Math.ceil(+m[3] / 7)) - 1;
+            if (!m) return -1;
+            const mi = months.findIndex(o => o.y === +m[1] && o.m === +m[2]);
+            if (mi < 0) return -1;
+            return mi * 4 + Math.min(4, Math.ceil(+m[3] / 7)) - 1;
         };
 
         const dateCol = {
@@ -812,17 +850,17 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
 
         if (hot) hot.destroy();
         // หัวตารางเหมือน Template: Name / CODE / Location + เดือนละ 4 สัปดาห์ แล้วต่อด้วยข้อมูลแผน PM
-        const weekCols = Array.from({ length: 48 }, (_, k) => ({
+        const weekCols = Array.from({ length: NW }, (_, k) => ({
             data: 'w' + k, readOnly: true, className: 'imp-week' + (k % 4 === 3 ? ' imp-month-end' : '')
         }));
-        const PLAN_FIRST_COL = 3 + 48;
+        const PLAN_FIRST_COL = 3 + NW;
 
         hot = new Handsontable($('imp-plan-hot'), {
             data: data,
             colorScheme: 'light',   // ไม่ใช้โหมดมืดตามเครื่อง (ทั้งหน้าเป็นธีมสว่าง)
             nestedHeaders: [
-                ['Name', 'CODE', 'Location', ...MONTHS.map(m => ({ label: m, colspan: 4 })), { label: 'แผน PM (ตรวจสอบ / แก้ไข)', colspan: 5 }],
-                ['', '', '', ...Array.from({ length: 48 }, (_, k) => String(k + 1)),
+                ['Name', 'CODE', 'Location', ...months.map(o => ({ label: MONTHS[o.m - 1] + ' ' + o.y, colspan: 4 })), { label: 'แผน PM (ตรวจสอบ / แก้ไข)', colspan: 5 }],
+                ['', '', '', ...Array.from({ length: NW }, (_, k) => String(k + 1)),
                  'ความถี่', 'แจ้งเตือนล่วงหน้า', 'ระบุวัน', 'วันที่เริ่ม', 'หมายเหตุจาก Excel']
             ],
             columns: [
@@ -870,7 +908,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             width: '100%',
             height: '100%',
             stretchH: 'none',
-            colWidths: [180, 110, 150, ...Array(48).fill(45), 160, 170, 110, 110, 280],
+            colWidths: [180, 110, 150, ...Array(NW).fill(45), 160, 170, 110, 110, 280],
             fixedColumnsStart: 2,
             // ช่องสัปดาห์กว้างคงที่: ถ้าให้ Handsontable คำนวณเอง ความกว้างที่ใช้คำนวณพื้นที่เลื่อนไม่ตรงกับที่วาดจริง => เลื่อนสุดขวาแล้วมีพื้นที่ว่าง
             modifyColWidth: (width, col) => (col >= 3 && col < PLAN_FIRST_COL ? 45 : width),
