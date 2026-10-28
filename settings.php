@@ -228,10 +228,11 @@
                 ]
             },
             {
-                category: "การประเมินผล PM",
-                id: "pm_feedback_setup",
-                icon: "star",
+                category: "แผน PM",
+                id: "pm_setup",
+                icon: "clipboard-check",
                 items: [
+                    { label: "การบันทึกผล PM", href: "settings_pm_record.php", id: "pm_record" },
                     { label: "รายการหัวข้อประเมิน", href: "settings_pm_feedback.php", id: "pm_feedback" },
                     { label: "ผู้ประเมิน PM", href: "settings_pm_evaluators.php", id: "pm_evaluators" },
                 ]

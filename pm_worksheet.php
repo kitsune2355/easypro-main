@@ -429,6 +429,16 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                                 <input type="hidden" id="inspector_users_json" name="inspector_users_json">
                             </div>
                         </div>
+                        <!-- วันที่ทำ PM: ตามการตั้งค่าหน่วยงาน (วันนี้ / เลือกได้ภายในรอบของแผน) -->
+                        <div id="ws-date-wrap" class="hidden">
+                            <label for="actual_date" class="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-1.5">
+                                <i class="fa-regular fa-calendar-check text-slate-500"></i>
+                                <span>วันที่ทำ PM <span id="ws-date-req" class="text-red-500 hidden">*</span></span>
+                            </label>
+                            <div id="ws-date-today" class="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-sm text-slate-700"></div>
+                            <input type="date" id="actual_date" class="hidden w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none text-sm shadow-sm bg-white">
+                            <p id="ws-date-hint" class="text-xs text-slate-500 mt-1.5"></p>
+                        </div>
                         <div>
                             <label class="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-1.5">
                                 <i class="fa-solid fa-comment-dots text-slate-500"></i>
@@ -441,7 +451,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-1.5">
                             <i class="fa-solid fa-signature text-slate-500"></i>
-                            <span>ลายมือชื่อผู้ตรวจสอบ <span class="text-red-500">*</span></span>
+                            <span>ลายมือชื่อผู้ตรวจสอบ <span id="ws-sign-req" class="text-red-500">*</span><span id="ws-sign-opt" class="hidden text-xs font-normal text-slate-400">(ไม่บังคับ)</span></span>
                         </label>
                         <div class="border border-slate-300 rounded-lg overflow-hidden bg-white shadow-sm relative group">
                             <canvas id="inspector-signature-pad" class="signature-canvas touch-none"></canvas>
@@ -699,7 +709,27 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                 container.innerHTML = '<div class="p-2 text-sm text-slate-400 text-center">ไม่พบรายชื่อ</div>';
                 return;
             }
-            
+
+            // ช่องค้นหาชื่อ (ติดด้านบนขณะเลื่อนรายชื่อ)
+            container.innerHTML = `
+                <div class="sticky -top-2 -mx-2 -mt-2 px-2 pt-2 pb-1.5 bg-white z-[1]">
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                        <input type="search" class="ws-user-q w-full pl-7 pr-2 py-1.5 border border-slate-200 rounded-md text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" placeholder="ค้นหาชื่อ..." autocomplete="off">
+                    </div>
+                </div>
+                <div class="ws-user-empty hidden p-2 text-sm text-slate-400 text-center">ไม่พบชื่อที่ค้นหา</div>`;
+            container.querySelector('.ws-user-q').addEventListener('input', e => {
+                const q = e.target.value.trim().toLowerCase();
+                let shown = 0;
+                container.querySelectorAll('.ws-user-opt').forEach(el => {
+                    const hit = !q || el.dataset.q.includes(q);
+                    el.classList.toggle('hidden', !hit);
+                    if (hit) shown++;
+                });
+                container.querySelector('.ws-user-empty').classList.toggle('hidden', shown > 0);
+            });
+
             usersList.forEach(user => {
                 const userId = String(user.user_id || '');       // เช่น i-2, i-3
                 const userPkId = String(user.id || '');          // primary key ใน tb_user เช่น 8, 9
@@ -709,8 +739,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                 const safeUserPkId = String(userPkId).replace(/"/g, '&quot;');
                 
                 const html = `
-                    <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
-                        <input 
+                    <label class="ws-user-opt flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer" data-q="${safeName.toLowerCase()}">
+                        <input
                             type="checkbox"
                             value="${safeUserId}"
                             data-user-id="${safeUserId}"
@@ -733,7 +763,43 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             document.getElementById('evaluator_dropdown').classList.add('hidden');
             
             // เปิดตัวที่เลือก
-            document.getElementById(dropdownId).classList.remove('hidden');
+            const dd = document.getElementById(dropdownId);
+            dd.classList.remove('hidden');
+            // จอที่มีเมาส์: โฟกัสช่องค้นหาเลย (มือถือไม่โฟกัส ไม่ให้คีย์บอร์ดเด้งบังรายชื่อ)
+            if (window.matchMedia('(pointer: fine)').matches) dd.querySelector('.ws-user-q')?.focus();
+        }
+
+        // ตั้งค่าการบันทึกผลของหน่วยงาน (handle_pm_worksheet.php?action=get_data → record_setting)
+        let wsRecordSetting = { sign_required: 1, date_mode: 'today', window: null };
+        const wsShortDate = d => new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+        function applyRecordSetting(s) {
+            if (!s) return;
+            wsRecordSetting = s;
+            const signReq = !!+s.sign_required;
+            document.getElementById('ws-sign-req')?.classList.toggle('hidden', !signReq);
+            document.getElementById('ws-sign-opt')?.classList.toggle('hidden', signReq);
+
+            const wrap = document.getElementById('ws-date-wrap'), inp = document.getElementById('actual_date');
+            const txt = document.getElementById('ws-date-today'), hint = document.getElementById('ws-date-hint');
+            if (!wrap || !inp) return;
+            wrap.classList.remove('hidden');
+            const w = s.window;
+            const pick = s.date_mode === 'pick' && w;
+            inp.classList.toggle('hidden', !pick);
+            txt.classList.toggle('hidden', !!pick);
+            document.getElementById('ws-date-req')?.classList.toggle('hidden', !pick);
+            if (!pick) {
+                txt.textContent = formatThaiDate(s.today) + ' (วันที่บันทึก)';
+                hint.textContent = '';
+                return;
+            }
+            inp.min = w.min; inp.max = w.max;
+            inp.value = s.today < w.min ? w.min : (s.today > w.max ? w.max : s.today);
+            const range = w.early ? 'ยังไม่ถึงรอบของแผน — บันทึกเป็นวันนี้'
+                : (w.min === w.max ? `เลือกได้เฉพาะ ${wsShortDate(w.min)}` : `เลือกได้ ${wsShortDate(w.min)} – ${wsShortDate(w.max)} (รอบของแผน)`);
+            const upd = () => { hint.innerHTML = (inp.value ? `<b class="text-slate-700">${formatThaiDate(inp.value)}</b> · ` : '') + range; };
+            inp.oninput = () => { inp.classList.remove('field-error'); upd(); };
+            upd();
         }
 
         function clearSelection(type, event) {
@@ -1041,6 +1107,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 					} else {
 						renderInfo(data.info);
 						wsRenderCancelInfo(data);
+						applyRecordSetting(data.record_setting);
 						renderSpares(data.spares);
 		
 						worksheetItems = Array.isArray(data.items) ? data.items : [];
@@ -2163,6 +2230,13 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 						openAndScrollToElement(el);
 						return;
 					}
+
+					if (err.fieldKey === 'actual_date') {
+						const el = document.getElementById('actual_date');
+						openAndScrollToElement(el);
+						setTimeout(() => el?.focus(), 300);
+						return;
+					}
 				}
 		
 				if (err.type === 'item') {
@@ -2289,7 +2363,25 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 				});
 			}
 	
-			if (!inspectorPad || inspectorPad.isEmpty()) {
+			// วันที่ทำ PM (โหมดเลือกวันที่): ต้องอยู่ในรอบของแผน
+			const dateInp = document.getElementById('actual_date');
+			const dw = wsRecordSetting.window;
+			let actualDate = '';
+			if (wsRecordSetting.date_mode === 'pick' && dw && dateInp) {
+				actualDate = dateInp.value;
+				if (!actualDate || actualDate < dw.min || actualDate > dw.max) {
+					markElementError(dateInp);
+					errors.push({
+						type: 'header',
+						fieldKey: 'actual_date',
+						message: `วันที่ทำ PM ต้องอยู่ระหว่าง ${wsShortDate(dw.min)} – ${wsShortDate(dw.max)}`,
+						element: dateInp
+					});
+				}
+			}
+
+			// ลายมือชื่อ: บังคับตามการตั้งค่าหน่วยงาน
+			if (+wsRecordSetting.sign_required && (!inspectorPad || inspectorPad.isEmpty())) {
 				const signCanvasWrap = document.getElementById('inspector-signature-pad')?.closest('.border');
 				markElementError(signCanvasWrap);
 				errors.push({
@@ -2307,6 +2399,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 					inspector_name: inspectorName,
 					inspector_users_json: inspectorUsersJson,
 					remarks,
+					actual_date: actualDate,
 					inspector_signature: (inspectorPad && !inspectorPad.isEmpty())
 						? inspectorPad.toDataURL('image/png')
 						: ''
@@ -2747,6 +2840,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 				formBody.append('inspector_users_json', inspectorCheck.data.inspector_users_json);
 				formBody.append('remarks', inspectorCheck.data.remarks);
 				formBody.append('inspector_signature', cleanInspectorSignature);
+				formBody.append('actual_date', inspectorCheck.data.actual_date || '');
 				formBody.append('items', itemsPayload);
 				formBody.append('parts', partsPayload);
 				

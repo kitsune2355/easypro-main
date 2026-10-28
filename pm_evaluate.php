@@ -105,8 +105,8 @@
             ? `<span class="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold"><i class="fas fa-user-check mr-1"></i>ผู้ประเมิน: ${esc(ME.name)}</span>`
             : `<span class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 font-semibold"><i class="fas fa-eye mr-1"></i>ดูอย่างเดียว</span>`;
         const w = $('ev-warn');
-        if (!ME.evaluator_count) { w.className = 'mb-3 rounded-xl border px-3 py-2.5 text-sm border-amber-200 bg-amber-50 text-amber-800'; w.innerHTML = '<i class="fas fa-triangle-exclamation mr-1"></i> ยังไม่ได้กำหนดผู้ประเมิน — ผู้ดูแลระบบกำหนดได้ที่ <b>ตั้งค่าข้อมูล → การประเมินผล PM → ผู้ประเมิน PM</b>'; }
-        else if (!ME.topics.length) { w.className = 'mb-3 rounded-xl border px-3 py-2.5 text-sm border-amber-200 bg-amber-50 text-amber-800'; w.innerHTML = '<i class="fas fa-triangle-exclamation mr-1"></i> ยังไม่มีหัวข้อประเมิน — เพิ่มได้ที่ <b>ตั้งค่าข้อมูล → การประเมินผล PM → รายการหัวข้อประเมิน</b>'; }
+        if (!ME.evaluator_count) { w.className = 'mb-3 rounded-xl border px-3 py-2.5 text-sm border-amber-200 bg-amber-50 text-amber-800'; w.innerHTML = '<i class="fas fa-triangle-exclamation mr-1"></i> ยังไม่ได้กำหนดผู้ประเมิน — ผู้ดูแลระบบกำหนดได้ที่ <b>ตั้งค่าข้อมูล → แผน PM → ผู้ประเมิน PM</b>'; }
+        else if (!ME.topics.length) { w.className = 'mb-3 rounded-xl border px-3 py-2.5 text-sm border-amber-200 bg-amber-50 text-amber-800'; w.innerHTML = '<i class="fas fa-triangle-exclamation mr-1"></i> ยังไม่มีหัวข้อประเมิน — เพิ่มได้ที่ <b>ตั้งค่าข้อมูล → แผน PM → รายการหัวข้อประเมิน</b>'; }
         else if (!ME.is_evaluator) { w.className = 'mb-3 rounded-xl border px-3 py-2.5 text-sm border-slate-200 bg-slate-50 text-slate-600'; w.innerHTML = '<i class="fas fa-circle-info mr-1"></i> คุณไม่ได้อยู่ในรายชื่อผู้ประเมิน จึงดูสถานะการประเมินได้อย่างเดียว'; }
         else { w.className = 'hidden'; }
     }

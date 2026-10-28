@@ -191,6 +191,11 @@ const AG_ID = <?php echo json_encode(isset($sess_user_agency_es) ? (string)$sess
 const LIST_MAX = 150;   // แสดงรายการไม่เกินนี้ (ค้นหา/สแกนเพื่อไปเครื่องอื่น)
 
 let ITEMS = [], EVENTS = [], SPARES = [], users = [], sigPad = null, sigPath = '';
+// ตั้งค่าการบันทึกผลของหน่วยงาน: บังคับลายเซ็น / วันที่ทำ PM (วันนี้ หรือเลือกได้ในช่วงที่ทุกเครื่องในชุดเลือกได้)
+let REC = { sign_required: 1, date_mode: 'today', window: null }, pickDate = '';
+const shortTh = d => new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+const longTh = d => new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+const ymdLocal = () => { const t = new Date(); return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); };
 let common = {};          // item_id => 'Pass' | 'N/A' (ผลเริ่มต้นของทุกเครื่อง)
 let per = {};             // event_id => { values, photos, status:{item_id:'Pass'|'Fail'|'N/A'}, parts:[อะไหล่ที่ใช้จริง], ok }
 const sent = new Map();   // event_id => { ok, msg } ผลการส่งในรอบนี้
@@ -281,6 +286,7 @@ async function load() {
     const r = await (await fetch(`handle_pm_worksheet.php?action=get_batch_data&checksheet_id=${CHECKSHEET_ID}&date=${DATE}`)).json();
     if (!r.success) { Swal.fire('โหลดข้อมูลไม่สำเร็จ', r.error || '', 'error'); return; }
     ITEMS = r.items; EVENTS = r.events; SPARES = r.spares || [];
+    if (r.record_setting) REC = r.record_setting;
     ITEMS.forEach(it => common[it.id] = 'Pass');
     $('hdrTitle').textContent = r.checksheet.name;
     $('hdrSub').textContent = `${thDate(DATE)} · ${EVENTS.length} เครื่องที่ยังไม่ได้ทำ`;
@@ -737,20 +743,37 @@ $('btnSend').addEventListener('click', () => {
     openSheet(`<div class="flex items-center justify-between mb-1"><h3 class="font-semibold text-slate-800 text-lg">ส่ง ${ids.length} เครื่องที่ครบ</h3>
             <button type="button" class="nav-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
         <p class="text-sm text-slate-500">ระบบสร้างใบงานแยกรายเครื่อง ${nf.length ? `· <b class="text-red-600">ผิดปกติ ${nf.length} เครื่อง</b>: ${nf.slice(0, 8).map(id => esc(evOf(id)?.machine_code || id)).join(', ')}${nf.length > 8 ? ' …' : ''}` : '· ทุกเครื่องปกติ'}${npart ? ` · <b class="text-cyan-700">ใช้อะไหล่ ${npart} เครื่อง</b> (ตัดสต็อกเมื่อส่ง)` : ''}</p>
-        <label class="block text-xs font-semibold text-slate-500 mt-3 mb-1">ผู้ตรวจสอบ (เลือกได้หลายคน)</label>
+        <label class="block text-xs font-semibold text-slate-500 mt-3 mb-1">ผู้ตรวจสอบ <span class="text-red-500">*</span> <span class="font-normal text-slate-400">(เลือกได้หลายคน)</span></label>
+        ${users.length ? `<div class="relative mb-1.5"><i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+            <input type="search" id="uQ" class="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#006B9F]/30 focus:border-[#006B9F]" placeholder="ค้นหาชื่อ..." autocomplete="off"></div>` : ''}
         <div id="uList" class="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-1">${users.length ? users.map(u => {
             const name = `${u.user_name || ''} ${u.user_fname || ''}`.trim();
-            return `<label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded-lg cursor-pointer text-sm"><input type="checkbox" class="w-4 h-4" data-uid="${esc(u.user_id)}" data-upk="${esc(u.id)}" data-name="${esc(name)}" ${picked.has(String(u.user_id)) ? 'checked' : ''}>${esc(name)}</label>`;
-        }).join('') : '<div class="p-3 text-sm text-slate-400 text-center">ไม่พบรายชื่อ</div>'}</div>
+            return `<label class="u-opt flex items-center gap-2 p-2 hover:bg-slate-50 rounded-lg cursor-pointer text-sm" data-q="${esc(name.toLowerCase())}"><input type="checkbox" class="w-4 h-4" data-uid="${esc(u.user_id)}" data-upk="${esc(u.id)}" data-name="${esc(name)}" ${picked.has(String(u.user_id)) ? 'checked' : ''}>${esc(name)}</label>`;
+        }).join('') + '<div id="uEmpty" class="hidden p-3 text-sm text-slate-400 text-center">ไม่พบชื่อที่ค้นหา</div>' : '<div class="p-3 text-sm text-slate-400 text-center">ไม่พบรายชื่อ</div>'}</div>
+        ${REC.date_mode === 'pick' && REC.window ? `<label for="aDate" class="block text-xs font-semibold text-slate-500 mt-3 mb-1">วันที่ทำ PM <span class="text-red-500">*</span></label>
+            <input type="date" id="aDate" min="${esc(REC.window.min)}" max="${esc(REC.window.max)}" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
+            <p class="text-xs text-slate-400 mt-1">${REC.window.early ? 'ยังไม่ถึงรอบของแผน — บันทึกเป็นวันนี้' : (REC.window.min === REC.window.max ? `เลือกได้เฉพาะ ${shortTh(REC.window.min)}` : `เลือกได้ ${shortTh(REC.window.min)} – ${shortTh(REC.window.max)} (รอบของแผน)`)}</p>`
+            : `<span class="block text-xs font-semibold text-slate-500 mt-3 mb-1">วันที่ทำ PM</span>
+            <div class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-700">${esc(longTh(REC.today || ymdLocal()))} (วันที่บันทึก)</div>`}
         <label class="block text-xs font-semibold text-slate-500 mt-3 mb-1">หมายเหตุ (ใส่ให้ทุกเครื่องในชุดนี้)</label>
         <textarea id="rmk" rows="2" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm" placeholder="ถ้ามี">${esc(remarks)}</textarea>
-        <div class="flex items-center justify-between mt-3 mb-1"><span class="text-xs font-semibold text-slate-500">ลายมือชื่อผู้ตรวจสอบ</span>
+        <div class="flex items-center justify-between mt-3 mb-1"><span class="text-xs font-semibold text-slate-500">ลายมือชื่อผู้ตรวจสอบ${+REC.sign_required ? ' <span class=\"text-red-500\">*</span>' : ' <span class="font-normal text-slate-400">(ไม่บังคับ)</span>'}</span>
             ${sigPath ? '<button type="button" id="sigNew" class="text-xs text-[#006B9F] font-semibold">เซ็นใหม่</button>' : '<button type="button" id="sigClear" class="text-xs text-slate-500">ล้าง</button>'}</div>
         <div id="sigBox">${sigPath ? '<div class="p-3 rounded-xl bg-emerald-50 text-emerald-700 text-sm">ใช้ลายเซ็นที่เซ็นไว้แล้ววันนี้</div>' : '<div class="border-2 border-dashed border-slate-200 rounded-xl bg-slate-50"><canvas id="sig" class="w-full h-36 block"></canvas></div>'}</div>
         <div id="sendProg" class="hidden mt-3"><div class="text-sm text-slate-500 mb-1"><span id="pgTxt">0 / ${ids.length}</span></div><div class="h-2.5 bg-slate-100 rounded-full overflow-hidden"><div id="pgBar" class="h-full bg-emerald-500 transition-all" style="width:0%"></div></div></div>
         <button type="button" id="sendGo" class="btn w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white"><i class="fa-solid fa-paper-plane"></i>ส่ง ${ids.length} เครื่อง</button>
         <p class="text-xs text-slate-400 mt-2 text-center">เครื่องที่ยังไม่ตรวจเก็บเป็นร่างต่อ ส่งรอบถัดไปได้</p>`);
     $('sheet').querySelector('[data-close]').onclick = closeSheet;
+    $('uQ') && ($('uQ').oninput = e => {
+        const q = e.target.value.trim().toLowerCase();
+        let shown = 0;
+        document.querySelectorAll('#uList .u-opt').forEach(el => { const hit = !q || el.dataset.q.includes(q); el.classList.toggle('hidden', !hit); if (hit) shown++; });
+        $('uEmpty').classList.toggle('hidden', shown > 0);
+    });
+    if ($('aDate')) {
+        const w = REC.window, t = REC.today;
+        $('aDate').value = pickDate && pickDate >= w.min && pickDate <= w.max ? pickDate : (t < w.min ? w.min : (t > w.max ? w.max : t));
+    }
     const initPad = () => {
         const c = $('sig'); if (!c) return;
         const r = window.devicePixelRatio || 1;
@@ -767,8 +790,14 @@ async function sendBatch(ids) {
     picked = new Set(us.map(u => String(u.user_id)));
     remarks = $('rmk').value.trim();
     const errs = [];
+    const hasSig = !!sigPath || (sigPad && !sigPad.isEmpty());
     if (!us.length) errs.push('เลือกชื่อผู้ตรวจสอบ');
-    if (!sigPath && (!sigPad || sigPad.isEmpty())) errs.push('ลงลายมือชื่อผู้ตรวจสอบ');
+    if (+REC.sign_required && !hasSig) errs.push('ลงลายมือชื่อผู้ตรวจสอบ');
+    if ($('aDate')) {
+        pickDate = $('aDate').value;
+        const w = REC.window;
+        if (!pickDate || pickDate < w.min || pickDate > w.max) errs.push(`วันที่ทำ PM ต้องอยู่ระหว่าง ${shortTh(w.min)} – ${shortTh(w.max)}`);
+    }
     if (errs.length) { toast(errs.join(' · ')); return; }
 
     sending = true;
@@ -787,7 +816,9 @@ async function sendBatch(ids) {
         fd.append('inspector_users_json', JSON.stringify(us));
         fd.append('remarks', remarks);
         fd.append('items', JSON.stringify(items));
-        if (sigPath) fd.append('signature_path', sigPath); else fd.append('inspector_signature', sigPad.toDataURL('image/png'));
+        if (sigPath) fd.append('signature_path', sigPath);
+        else if (sigPad && !sigPad.isEmpty()) fd.append('inspector_signature', sigPad.toDataURL('image/png'));   // ไม่บังคับและไม่ได้เซ็น => ไม่ส่ง
+        if ($('aDate')) fd.append('actual_date', pickDate);
         const pe_ = {};
         part.forEach(id => {
             const p = pe(id);

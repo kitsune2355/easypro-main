@@ -198,14 +198,14 @@ if ($action === 'get_one') {
 // =========================================
 if ($action === 'save') {
     @set_time_limit(0);
-    if (!is_evaluator($connect, $AG, $ME)) fail('คุณไม่ได้อยู่ในรายชื่อผู้ประเมิน PM ของหน่วยงานนี้ (กำหนดได้ที่ ตั้งค่าข้อมูล → การประเมินผล PM → ผู้ประเมิน)', 403);
+    if (!is_evaluator($connect, $AG, $ME)) fail('คุณไม่ได้อยู่ในรายชื่อผู้ประเมิน PM ของหน่วยงานนี้ (กำหนดได้ที่ ตั้งค่าข้อมูล → แผน PM → ผู้ประเมิน)', 403);
     $ids = array_values(array_unique(array_filter(array_map('intval', (array)($input['event_ids'] ?? [])))));
     if (!$ids) fail('ไม่ได้เลือกใบงาน');
     if (count($ids) > 100) fail('ส่งได้ครั้งละไม่เกิน 100 ใบ');
 
     // คะแนนต้องครบทุกหัวข้อที่เปิดใช้ และอยู่ระหว่าง 1–5
     $titles = topics($connect, $AG);
-    if (!$titles) fail('ยังไม่มีหัวข้อประเมิน — เพิ่มได้ที่ ตั้งค่าข้อมูล → การประเมินผล PM');
+    if (!$titles) fail('ยังไม่มีหัวข้อประเมิน — เพิ่มได้ที่ ตั้งค่าข้อมูล → แผน PM');
     $scores = (array)($input['scores'] ?? []);
     $topics = [];
     foreach ($titles as $t) {

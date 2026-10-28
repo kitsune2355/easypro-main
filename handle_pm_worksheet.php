@@ -7,6 +7,7 @@ error_reporting(E_ALL);
 
 include 'config_ctrl/connect.php'; 
 require_once __DIR__ . '/config_ctrl/pm_work_cancel.php';   // ยกเลิกผลบันทึก: ใช้เลขที่เอกสารเดิม / ครั้งที่แก้ไข
+require_once __DIR__ . '/config_ctrl/pm_record_setting.php'; // ตั้งค่าการบันทึกผล: บังคับลายเซ็น / วันที่ทำ PM
 
 if (mysqli_connect_errno()) {
     http_response_code(500); 
@@ -223,7 +224,8 @@ function saveResultImage($base64_string, $base_folder) {
 //  - ผู้เรียกเปิด/ปิด transaction เอง, ผิดพลาด => throw Exception
 //  - $photos = [checksheet_item_id => base64], $signature_path = ไฟล์ลายเซ็นที่บันทึกไว้แล้ว (ถ้ามี)
 // =========================================
-function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users, $inspector_signature, $remarks, $created_by, $submitted_items, $parts, $photos, $signature_path = null) {
+//  - $actual_date_in = วันที่ทำ PM ที่ผู้ใช้เลือก (ใช้เมื่อหน่วยงานตั้งค่า "เลือกวันที่เอง") — ตรวจช่วงใน pmrs_actual_date
+function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users, $inspector_signature, $remarks, $created_by, $submitted_items, $parts, $photos, $signature_path = null, $actual_date_in = '') {
     $event_id = intval($event_id);
     // 1. กันบันทึกซ้ำ
     $sql_duplicate = "
@@ -295,15 +297,25 @@ function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users,
     }
 
     // 3. บันทึกลายเซ็นผู้ตรวจสอบ
-    // บันทึกหลายใบพร้อมกัน: ใช้ไฟล์ลายเซ็นที่บันทึกไว้แล้วร่วมกัน
-    $inspector_signature_path = $signature_path ? $signature_path : saveBase64ImageToPath(
-        $inspector_signature,
-        'uploads/pm_work_records/signatures',
-        'inspector_sign'
-    );
+    // บันทึกหลายใบพร้อมกัน: ใช้ไฟล์ลายเซ็นที่บันทึกไว้แล้วร่วมกัน · หน่วยงานปิด "บังคับลายเซ็น" => ไม่เซ็นได้ (เก็บค่าว่าง)
+    $record_setting = pmrs_get($connect, $info['ag_id']);
+    $contract_end = isset($_SESSION['sess_ag_end_date']) ? (string)$_SESSION['sess_ag_end_date'] : '';
+    $actual_date = pmrs_actual_date($connect, $info['ag_id'], $event_id, $actual_date_in, $contract_end);
 
-    if (!$inspector_signature_path) {
-        throw new Exception('ไม่สามารถบันทึกลายเซ็นผู้ตรวจสอบได้');
+    $inspector_signature_path = '';
+    if ($signature_path) {
+        $inspector_signature_path = $signature_path;
+    } elseif (trim((string)$inspector_signature) !== '') {
+        $inspector_signature_path = saveBase64ImageToPath(
+            $inspector_signature,
+            'uploads/pm_work_records/signatures',
+            'inspector_sign'
+        );
+        if (!$inspector_signature_path) {
+            throw new Exception('ไม่สามารถบันทึกลายเซ็นผู้ตรวจสอบได้');
+        }
+    } elseif ($record_setting['sign_required']) {
+        throw new Exception('กรุณาลงลายมือชื่อผู้ตรวจสอบ');
     }
 
     // 4. insert pm_work_records
@@ -350,7 +362,7 @@ function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users,
     $location = dbEsc($connect, $info['location']);
 
     $plan_date = dbEsc($connect, $info['plan_date']);
-    $actual_date = date('Y-m-d');
+    $actual_date = dbEsc($connect, $actual_date);
 
     $inspector_name_db = dbEsc($connect, $inspector_name);
     $inspector_signature_path_db = dbEsc($connect, $inspector_signature_path);
@@ -907,7 +919,7 @@ if ($action === 'get_data') {
     $event_id = isset($_GET['plan_id']) ? intval($_GET['plan_id']) : 0;
     
     // 1. ดึงข้อมูลส่วนหัว
-    $sql_info = "SELECT e.id, e.checksheet_id, e.event_date AS plan_date, 
+    $sql_info = "SELECT e.id, e.ag_id, e.checksheet_id, e.event_date AS plan_date,
                         c.name AS checksheet_name, c.doc_no, c.rev_no,
                         a.asset_name AS machine_name, 
                         a.ass_code AS machine_code, 
@@ -995,7 +1007,8 @@ if ($action === 'get_data') {
         'spares' => $spares,
         'items' => $items,
         'files' => $files,
-        'cancel_logs' => pmwc_logs($connect, $event_id)   // เคยถูกยกเลิกผลบันทึก (แจ้งช่างก่อนบันทึกใหม่)
+        'cancel_logs' => pmwc_logs($connect, $event_id),   // เคยถูกยกเลิกผลบันทึก (แจ้งช่างก่อนบันทึกใหม่)
+        'record_setting' => pmrs_client($connect, $info['ag_id'], $event_id, isset($_SESSION['sess_ag_end_date']) ? (string)$_SESSION['sess_ag_end_date'] : '')
     ], JSON_UNESCAPED_UNICODE);
 
     exit;
@@ -1037,10 +1050,8 @@ if ($action === 'save') {
         exit;
     }
 
-    if ($inspector_signature === '') {
-        echo json_encode(['success' => false, 'error' => 'กรุณาลงลายมือชื่อผู้ตรวจสอบ'], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+    // ลายเซ็นไม่บังคับ (ตามการตั้งค่าหน่วยงาน) ตรวจใน pmws_save_event
+    $actual_date_in = isset($_POST['actual_date']) ? trim($_POST['actual_date']) : '';
 
     // items ต้องเป็น JSON เฉพาะข้อมูลผลตรวจ ห้ามใส่ base64 รูปภาพไว้ใน JSON
     $items_json = isset($_POST['items']) ? $_POST['items'] : '';
@@ -1082,7 +1093,7 @@ if ($action === 'save') {
             if ($iid > 0 && isset($_POST['photo_' . $iid])) $photos[$iid] = $_POST['photo_' . $iid];
         }
 
-        $work_record_id = pmws_save_event($connect, $event_id, $inspector_name, $inspector_users, $inspector_signature, $remarks, $created_by, $submitted_items, $parts, $photos);
+        $work_record_id = pmws_save_event($connect, $event_id, $inspector_name, $inspector_users, $inspector_signature, $remarks, $created_by, $submitted_items, $parts, $photos, null, $actual_date_in);
 
         mysqli_commit($connect);
 
@@ -1157,7 +1168,23 @@ if ($action === 'get_batch_data') {
     while ($row = $res->fetch_assoc()) $events[] = $row;
     $stmt->close();
 
-    echo json_encode(['success' => true, 'checksheet' => $checksheet, 'items' => $items, 'spares' => $spares, 'events' => $events, 'date' => $date], JSON_UNESCAPED_UNICODE);
+    // ตั้งค่าการบันทึกผล — โหมดเลือกวันที่: ใช้ช่วงที่ทุกเครื่องในชุดเลือกได้ร่วมกัน (เซิร์ฟเวอร์ตรวจรายเครื่องอีกครั้งตอนบันทึก)
+    $contract_end = isset($_SESSION['sess_ag_end_date']) ? (string)$_SESSION['sess_ag_end_date'] : '';
+    $record_setting = pmrs_client($connect, $ag_id);
+    if ($record_setting['date_mode'] === 'pick' && $events) {
+        $w = null;
+        foreach ($events as $ev) {
+            $x = pmrs_window($connect, $ev['id'], $contract_end);
+            if (!$x) continue;
+            if (!$w) { $w = $x; continue; }
+            if ($x['min'] > $w['min']) $w['min'] = $x['min'];
+            if ($x['max'] < $w['max']) $w['max'] = $x['max'];
+        }
+        if ($w && $w['min'] > $w['max']) $w['min'] = $w['max'];
+        $record_setting['window'] = $w;
+    }
+
+    echo json_encode(['success' => true, 'checksheet' => $checksheet, 'items' => $items, 'spares' => $spares, 'events' => $events, 'date' => $date, 'record_setting' => $record_setting], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -1202,11 +1229,14 @@ if ($action === 'save_batch') {
         $base = realpath('uploads/pm_work_records/signatures');
         $real = realpath($signature_path);
         if (!$base || !$real || strpos($real, $base) !== 0 || !is_file($real)) $fail('ไฟล์ลายเซ็นไม่ถูกต้อง กรุณาเซ็นใหม่');
-    } else {
-        if ($inspector_signature === '') $fail('กรุณาลงลายมือชื่อผู้ตรวจสอบ');
+    } elseif ($inspector_signature !== '') {
         $signature_path = saveBase64ImageToPath($clean($inspector_signature), 'uploads/pm_work_records/signatures', 'inspector_sign');
         if (!$signature_path) $fail('ไม่สามารถบันทึกลายเซ็นผู้ตรวจสอบได้');
+    } else {
+        $rs = pmrs_get($connect, $ag_id);
+        if ($rs['sign_required']) $fail('กรุณาลงลายมือชื่อผู้ตรวจสอบ');   // ไม่บังคับ => บันทึกโดยไม่มีลายเซ็น
     }
+    $actual_date_in = trim($_POST['actual_date'] ?? '');
 
     $results = [];
     foreach ($event_ids as $eid) {
@@ -1245,7 +1275,7 @@ if ($action === 'save_batch') {
             $parts = isset($mine['parts']) && is_array($mine['parts']) ? array_values(array_filter($mine['parts'], 'is_array')) : [];
 
             mysqli_begin_transaction($connect);
-            $wid = pmws_save_event($connect, $eid, $inspector_name, $inspector_users, '', $remarks, $created_by, $submitted, $parts, $photos, $signature_path);
+            $wid = pmws_save_event($connect, $eid, $inspector_name, $inspector_users, '', $remarks, $created_by, $submitted, $parts, $photos, $signature_path, $actual_date_in);
             mysqli_commit($connect);
             $results[] = ['event_id' => $eid, 'success' => true, 'work_record_id' => $wid];
         } catch (Exception $e) {

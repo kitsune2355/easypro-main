@@ -72,7 +72,7 @@ $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'] ?? '') ? $_GET['date']
 <main class="max-w-6xl mx-auto px-3 sm:px-4 py-4 space-y-4 pb-28">
     <div id="not-eval" class="hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex gap-3">
         <i class="fa-solid fa-lock mt-0.5"></i>
-        <div><b>คุณยังไม่ได้เป็นผู้ประเมิน PM</b> — ดูได้อย่างเดียว ผู้ดูแลระบบกำหนดผู้ประเมินได้ที่ ตั้งค่าข้อมูล → การประเมินผล PM → ผู้ประเมิน PM</div>
+        <div><b>คุณยังไม่ได้เป็นผู้ประเมิน PM</b> — ดูได้อย่างเดียว ผู้ดูแลระบบกำหนดผู้ประเมินได้ที่ ตั้งค่าข้อมูล → แผน PM → ผู้ประเมิน PM</div>
     </div>
 
     <!-- 1. ใบงาน -->
@@ -216,7 +216,7 @@ function renderTopics() {
         <div class="py-2.5 flex flex-col sm:flex-row sm:items-center gap-2 justify-between" data-t="${i}">
             <div class="text-sm text-slate-700"><span class="text-slate-400 mr-1">${i + 1}.</span>${esc(t)}</div>
             <div class="flex gap-1.5">${[1, 2, 3, 4, 5].map(v => `<button type="button" class="sc ${scores[t] === v ? 'on' : ''}" data-v="${v}">${v}</button>`).join('')}</div>
-        </div>`).join('') : '<div class="py-6 text-center text-red-600 text-sm">ยังไม่มีหัวข้อประเมิน — เพิ่มได้ที่ ตั้งค่าข้อมูล → การประเมินผล PM → รายการหัวข้อประเมิน</div>';
+        </div>`).join('') : '<div class="py-6 text-center text-red-600 text-sm">ยังไม่มีหัวข้อประเมิน — เพิ่มได้ที่ ตั้งค่าข้อมูล → แผน PM → รายการหัวข้อประเมิน</div>';
 }
 $('topics').addEventListener('click', e => {
     const b = e.target.closest('.sc'); if (!b) return;
