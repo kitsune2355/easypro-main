@@ -55,7 +55,9 @@ $qr_image_url = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&ecc=H&
         <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 32px 32px;"></div>
     </div>
 
-    <div class="relative z-10 w-full max-w-[420px] p-6 animate__animated animate__zoomIn">
+    <div class="relative z-10 w-full max-w-[420px] p-6">
+        <!-- animation เฉพาะจอกว้าง (xl ขึ้นไป) · mobile ไม่ใส่คลาส animate -->
+        <script>if (matchMedia('(min-width: 1280px)').matches) document.currentScript.parentElement.classList.add('animate__animated', 'animate__zoomIn');</script>
         
         <div class="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.4)] p-8 text-center relative overflow-hidden">
             <div class="absolute -top-16 -right-16 w-32 h-32 bg-easy-primary/5 rounded-full"></div>

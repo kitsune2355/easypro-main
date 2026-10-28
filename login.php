@@ -65,7 +65,8 @@ if (!empty($_SESSION['login_error'])) {
     <div class="relative z-10 min-h-[100dvh] w-full flex flex-col items-center justify-center p-4 sm:p-6 xl:p-12 overflow-x-hidden">
         <div class="w-full max-w-full xl:max-w-6xl grid grid-cols-1 xl:grid-cols-2 gap-6 xl:gap-20 items-center justify-center">
             
-            <div class="hidden xl:block text-white animate__animated animate__fadeInLeft">
+            <div class="hidden xl:block text-white">
+                <script>if (matchMedia('(min-width: 1280px)').matches) document.currentScript.parentElement.classList.add('animate__animated', 'animate__fadeInLeft');</script>
                 <div class="flex flex-row items-center space-x-6">
                     <div class="inline-flex items-center justify-center w-32 h-32 bg-white backdrop-blur-md rounded-2xl shadow-lg border border-white/20 mb-8 overflow-hidden">
                         <img src="../es/logo - easypro2.png" alt="EasyPro" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" class="w-full h-full object-contain p-2"/>
@@ -114,7 +115,9 @@ if (!empty($_SESSION['login_error'])) {
                 </div>
             </div>
 
-            <div class="w-full max-w-[420px] sm:max-w-[460px] mx-auto animate__animated animate__fadeInRight flex flex-col justify-center overflow-hidden">
+            <div class="w-full max-w-[420px] sm:max-w-[460px] mx-auto flex flex-col justify-center overflow-hidden">
+                <!-- animation เฉพาะจอกว้าง (xl ขึ้นไป) · mobile ไม่ใส่คลาส animate -->
+                <script>if (matchMedia('(min-width: 1280px)').matches) document.currentScript.parentElement.classList.add('animate__animated', 'animate__fadeInRight');</script>
                 
                 <div class="text-center mb-4 xl:hidden">
                     <img src="../es/logo - easypro2.png" alt="EasyPro" onerror="this.style.display='none';" class="h-14 mx-auto mb-2 bg-white rounded-xl p-2 shadow-sm"/>
