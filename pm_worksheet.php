@@ -429,7 +429,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                                 <input type="hidden" id="inspector_users_json" name="inspector_users_json">
                             </div>
                         </div>
-                        <!-- วันที่ทำ PM: ตามการตั้งค่าหน่วยงาน (วันนี้ / เลือกได้ภายในรอบของแผน) -->
+                        <!-- วันที่ทำ PM: ตามการตั้งค่าหน่วยงาน (วันนี้ / เลือกได้ภายในช่วงสัญญา/แผน) -->
                         <div id="ws-date-wrap" class="hidden">
                             <label for="actual_date" class="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-1.5">
                                 <i class="fa-regular fa-calendar-check text-slate-500"></i>
@@ -795,8 +795,8 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             }
             inp.min = w.min; inp.max = w.max;
             inp.value = s.today < w.min ? w.min : (s.today > w.max ? w.max : s.today);
-            const range = w.early ? 'ยังไม่ถึงรอบของแผน — บันทึกเป็นวันนี้'
-                : (w.min === w.max ? `เลือกได้เฉพาะ ${wsShortDate(w.min)}` : `เลือกได้ ${wsShortDate(w.min)} – ${wsShortDate(w.max)} (รอบของแผน)`);
+            const range = w.early ? 'ยังไม่ถึงวันเริ่มสัญญา — บันทึกเป็นวันนี้'
+                : (w.min === w.max ? `เลือกได้เฉพาะ ${wsShortDate(w.min)}` : `เลือกได้ ${wsShortDate(w.min)} – ${wsShortDate(w.max)} (ช่วงสัญญา)`);
             const upd = () => { hint.innerHTML = (inp.value ? `<b class="text-slate-700">${formatThaiDate(inp.value)}</b> · ` : '') + range; };
             inp.oninput = () => { inp.classList.remove('field-error'); upd(); };
             upd();
@@ -2363,7 +2363,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 				});
 			}
 	
-			// วันที่ทำ PM (โหมดเลือกวันที่): ต้องอยู่ในรอบของแผน
+			// วันที่ทำ PM (โหมดเลือกวันที่): ต้องอยู่ในช่วงสัญญา/แผนของหน่วยงาน
 			const dateInp = document.getElementById('actual_date');
 			const dw = wsRecordSetting.window;
 			let actualDate = '';

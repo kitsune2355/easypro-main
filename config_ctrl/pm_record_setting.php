@@ -1,7 +1,7 @@
 <?php
 // ตั้งค่าการบันทึกผล PM (ต่อหน่วยงาน) — ตั้งค่าที่ ตั้งค่าข้อมูล → แผน PM → การบันทึกผล PM (settings_pm_record.php)
 //  sign_required : 1 = บังคับลายมือชื่อผู้ตรวจสอบ (ค่าเดิม) / 0 = ไม่บังคับ
-//  date_mode     : 'today' = วันที่ทำ PM คือวันที่บันทึก (ค่าเดิม) / 'pick' = เลือกวันที่ได้ภายในรอบของแผน
+//  date_mode     : 'today' = วันที่ทำ PM คือวันที่บันทึก (ค่าเดิม) / 'pick' = เลือกวันที่ได้ภายในช่วงสัญญา/แผนของหน่วยงาน
 
 if (!function_exists('pmrs_ensure')) {
 
@@ -38,38 +38,33 @@ if (!function_exists('pmrs_ensure')) {
         return $cache[$ag] = $def;
     }
 
-    // ช่วงวันที่ทำ PM ที่เลือกได้ของกำหนดการหนึ่ง (รอบของแผน)
-    //  ตั้งแต่ต้นเดือนของกำหนดการ ถึงสิ้นเดือนก่อนเดือนของรอบถัดไป
-    //  เช่น ทุก 3 เดือน ก.ย. 69 → ธ.ค. 69 = 1 ก.ย. 69 – 30 พ.ย. 69 · รอบถัดไปอยู่เดือนเดียวกัน (รายสัปดาห์) = ถึงวันก่อนรอบถัดไป
-    //  ไม่ทับรอบก่อนหน้า · ไม่เกินวันนี้ · รอบสุดท้ายถึงวันสิ้นสุดสัญญา · ยังไม่ถึงรอบ (ทำล่วงหน้า) = วันนี้เท่านั้น
+    // ช่วงวันที่ทำ PM ที่เลือกได้ของกำหนดการหนึ่ง = ช่วงสัญญา/แผนของหน่วยงาน (tb_agency.ag_start_date – ag_end_date) และไม่เกินวันนี้
+    //  เช่น สัญญา 1 มิ.ย. 69 – 31 พ.ค. 70 วันนี้ 28 ต.ค. 69 => เลือกได้ 1 มิ.ย. 69 – 28 ต.ค. 69 ทุกใบงาน
+    //  ไม่มีวันเริ่ม/สิ้นสุดสัญญา => ใช้กำหนดการแรก/สุดท้ายของแผน · ยังไม่ถึงวันเริ่มสัญญา = วันนี้เท่านั้น
+    //  ($contract_end ใช้เมื่อหาข้อมูลหน่วยงานไม่ได้)
     function pmrs_window($connect, $event_id, $contract_end = '') {
         $event_id = (int)$event_id;
-        $res = mysqli_query($connect, "SELECT plan_id, event_date FROM pm_plan_events WHERE id = $event_id LIMIT 1");
+        $res = mysqli_query($connect, "SELECT e.plan_id, e.event_date, ag.ag_start_date, ag.ag_end_date
+                                       FROM pm_plan_events e LEFT JOIN tb_agency ag ON ag.ag_id = e.ag_id
+                                       WHERE e.id = $event_id LIMIT 1");
         $ev = $res ? mysqli_fetch_assoc($res) : null;
         if (!$ev || !$ev['event_date']) return null;
-        $plan = (int)$ev['plan_id'];
-        $date = $ev['event_date'];
-        $d = mysqli_real_escape_string($connect, $date);
-        $res = mysqli_query($connect, "SELECT MAX(CASE WHEN event_date < '$d' THEN event_date END) AS prev_d, MIN(CASE WHEN event_date > '$d' THEN event_date END) AS next_d
-                                       FROM pm_plan_events WHERE plan_id = $plan");
-        $nb = $res ? mysqli_fetch_assoc($res) : [];
-        $prev = isset($nb['prev_d']) ? $nb['prev_d'] : null;
-        $next = isset($nb['next_d']) ? $nb['next_d'] : null;
+        $isDate = function ($d) { return $d && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && $d !== '0000-00-00'; };
 
-        $min = date('Y-m-01', strtotime($date));
-        if ($prev && $prev >= $min) $min = date('Y-m-d', strtotime($prev . ' +1 day'));
-        if ($next) {
-            $max = substr($next, 0, 7) !== substr($date, 0, 7)
-                ? date('Y-m-d', strtotime(date('Y-m-01', strtotime($next)) . ' -1 day'))
-                : date('Y-m-d', strtotime($next . ' -1 day'));
-        } else {
-            $max = ($contract_end && preg_match('/^\d{4}-\d{2}-\d{2}$/', $contract_end) && $contract_end >= $date) ? $contract_end : date('Y-m-t', strtotime($date));
+        $min = $isDate($ev['ag_start_date']) ? $ev['ag_start_date'] : '';
+        $max = $isDate($ev['ag_end_date']) ? $ev['ag_end_date'] : ($isDate($contract_end) ? $contract_end : '');
+        if ($min === '' || $max === '') {
+            $plan = (int)$ev['plan_id'];
+            $r = mysqli_query($connect, "SELECT MIN(event_date) AS f, MAX(event_date) AS l FROM pm_plan_events WHERE plan_id = $plan");
+            $fl = $r ? mysqli_fetch_assoc($r) : [];
+            if ($min === '') $min = date('Y-m-01', strtotime(!empty($fl['f']) ? $fl['f'] : $ev['event_date']));
+            if ($max === '') $max = date('Y-m-t', strtotime(!empty($fl['l']) ? $fl['l'] : $ev['event_date']));
         }
         $today = date('Y-m-d');
         if ($max > $today) $max = $today;
-        $early = $min > $today;
+        $early = $min > $max;
         if ($early) $min = $max = $today;
-        return ['plan_date' => $date, 'min' => $min, 'max' => $max, 'early' => $early];
+        return ['plan_date' => $ev['event_date'], 'min' => $min, 'max' => $max, 'early' => $early];
     }
 
     // ค่าที่หน้าบันทึกผลใช้: การตั้งค่า + ช่วงวันที่ (เฉพาะโหมดเลือกวันที่)
@@ -80,7 +75,7 @@ if (!function_exists('pmrs_ensure')) {
         return $s;
     }
 
-    // วันที่ทำ PM ที่จะบันทึก — โหมดวันนี้: วันนี้เสมอ · โหมดเลือก: ต้องอยู่ในรอบของแผน (ไม่ส่งมา = วันนี้ ถ้าอยู่ในรอบ)
+    // วันที่ทำ PM ที่จะบันทึก — โหมดวันนี้: วันนี้เสมอ · โหมดเลือก: ต้องอยู่ในช่วงสัญญา/แผน (ไม่ส่งมา = วันนี้ ถ้าอยู่ในรอบ)
     function pmrs_actual_date($connect, $ag, $event_id, $date, $contract_end = '') {
         $today = date('Y-m-d');
         $s = pmrs_get($connect, $ag);

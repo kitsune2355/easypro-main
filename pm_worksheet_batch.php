@@ -752,7 +752,7 @@ $('btnSend').addEventListener('click', () => {
         }).join('') + '<div id="uEmpty" class="hidden p-3 text-sm text-slate-400 text-center">ไม่พบชื่อที่ค้นหา</div>' : '<div class="p-3 text-sm text-slate-400 text-center">ไม่พบรายชื่อ</div>'}</div>
         ${REC.date_mode === 'pick' && REC.window ? `<label for="aDate" class="block text-xs font-semibold text-slate-500 mt-3 mb-1">วันที่ทำ PM <span class="text-red-500">*</span></label>
             <input type="date" id="aDate" min="${esc(REC.window.min)}" max="${esc(REC.window.max)}" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
-            <p class="text-xs text-slate-400 mt-1">${REC.window.early ? 'ยังไม่ถึงรอบของแผน — บันทึกเป็นวันนี้' : (REC.window.min === REC.window.max ? `เลือกได้เฉพาะ ${shortTh(REC.window.min)}` : `เลือกได้ ${shortTh(REC.window.min)} – ${shortTh(REC.window.max)} (รอบของแผน)`)}</p>`
+            <p class="text-xs text-slate-400 mt-1">${REC.window.early ? 'ยังไม่ถึงวันเริ่มสัญญา — บันทึกเป็นวันนี้' : (REC.window.min === REC.window.max ? `เลือกได้เฉพาะ ${shortTh(REC.window.min)}` : `เลือกได้ ${shortTh(REC.window.min)} – ${shortTh(REC.window.max)} (ช่วงสัญญา)`)}</p>`
             : `<span class="block text-xs font-semibold text-slate-500 mt-3 mb-1">วันที่ทำ PM</span>
             <div class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-700">${esc(longTh(REC.today || ymdLocal()))} (วันที่บันทึก)</div>`}
         <label class="block text-xs font-semibold text-slate-500 mt-3 mb-1">หมายเหตุ (ใส่ให้ทุกเครื่องในชุดนี้)</label>

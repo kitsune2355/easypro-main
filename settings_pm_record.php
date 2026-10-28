@@ -1,6 +1,6 @@
 <?php
 @session_start();
-// ตั้งค่าการบันทึกผล PM — ลายมือชื่อผู้ตรวจสอบ (บังคับ/ไม่บังคับ) และวันที่ทำ PM (วันนี้ / เลือกวันที่ภายในรอบของแผน)
+// ตั้งค่าการบันทึกผล PM — ลายมือชื่อผู้ตรวจสอบ (บังคับ/ไม่บังคับ) และวันที่ทำ PM (วันนี้ / เลือกวันที่ภายในช่วงสัญญา/แผน)
 //  รูปแบบหน้าเดียวกับ settings_job_other.php
 include "config_ctrl/checksession.php";
 ?>
@@ -149,7 +149,7 @@ include "config_ctrl/checksession.php";
                   <span class="dot"></span>
                   <span>
                     <span class="block text-sm font-medium text-slate-800">เลือกวันที่เอง</span>
-                    <span class="block text-xs text-slate-500 mt-0.5 leading-relaxed">มีช่องเลือกวันที่ตอนบันทึกผล เลือกได้เฉพาะ<b class="text-slate-700 font-medium">ในรอบของแผน PM</b> และไม่เกินวันนี้</span>
+                    <span class="block text-xs text-slate-500 mt-0.5 leading-relaxed">มีช่องเลือกวันที่ตอนบันทึกผล เลือกได้เฉพาะ<b class="text-slate-700 font-medium">ในช่วงสัญญา/แผนของหน่วยงาน</b> และไม่เกินวันนี้</span>
                   </span>
                 </button>
               </div>
@@ -157,8 +157,8 @@ include "config_ctrl/checksession.php";
               <div class="mt-3 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2.5 leading-relaxed flex gap-2">
                 <i data-lucide="info" class="w-4 h-4 shrink-0 text-slate-400 mt-px"></i>
                 <div>
-                  <b class="text-slate-600 font-medium">ตัวอย่างรอบของแผน</b> แผนทุก 3 เดือน กำหนดการ ก.ย. 69 รอบถัดไป ธ.ค. 69 → เลือกได้ <b class="text-slate-700 font-medium">1 ก.ย. 69 – 30 พ.ย. 69</b><br>
-                  แผนรายสัปดาห์ (รอบถัดไปอยู่เดือนเดียวกัน) → เลือกได้ถึงวันก่อนรอบถัดไป
+                  <b class="text-slate-600 font-medium">ตัวอย่าง</b> สัญญา 1 มิ.ย. 69 – 31 พ.ค. 70 วันนี้ 28 ต.ค. 69 → ใบงานทุกรอบเลือกได้ <b class="text-slate-700 font-medium">1 มิ.ย. 69 – 28 ต.ค. 69</b><br>
+                  เลือกล่วงหน้าเกินวันนี้ไม่ได้ และไม่เกินวันสิ้นสุดสัญญา
                 </div>
               </div>
             </div>
