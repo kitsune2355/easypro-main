@@ -52,6 +52,10 @@ $_SESSION['sess_agency_name'] 			= $r['ag_contract'];
 $_SESSION['sess_ag_start_date'] 		= $r['ag_start_date'];
 $_SESSION['sess_ag_end_date'] 	 		= $r['ag_end_date'];
 
+// จดจำหน่วยงานที่เลือกไว้กับ token เข้าสู่ระบบ (เปิดใหม่ / session หาย => อยู่หน่วยงานเดิม)
+require_once __DIR__ . '/config_ctrl/remember_login.php';
+rm_sync(isset($connect) ? $connect : null);
+
 echo json_encode([
   'ok' => true,
   'message' => 'saved',

@@ -69,6 +69,9 @@ if ($num_rows >= 1) {
     require_once __DIR__ . '/login_log.php';
     $res_m = tl_log($connect, $result["user_id"], 'password') or die(mysqli_error($connect));
 
+    // จดจำการเข้าสู่ระบบ 30 วัน (หน่วยงานที่เลือกภายหลังจะบันทึกตามตอนเปิดหน้า — checksession.php)
+    if ($result['user_status_login'] == '1') { require_once __DIR__ . '/remember_login.php'; rm_issue($connect); }
+
     // ดึงสิทธิ์ agency employer (โค้ดเดิม ไม่ได้ใช้ $Tem_Ag ต่อ แต่ผมคงไว้ให้)
     $Tem_Ag = '';
     $sql_emp = "

@@ -9,6 +9,12 @@
 $loginUrl = "https://happylandgroup.biz/es/login.php";
 
 /* ??????? session ????????????? login */
+/* จดจำการเข้าสู่ระบบ 30 วัน (config_ctrl/remember_login.php): session หาย => สร้างคืนจาก token */
+require_once __DIR__ . '/remember_login.php';
+if ((empty($_SESSION['sess_user_id_es']) || empty($_SESSION['sess_user_level_es'])) && !empty($_COOKIE[RM_COOKIE])) {
+    rm_restore(isset($connect) ? $connect : null);
+}
+
 if (
     empty($_SESSION['sess_user_id_es']) ||
     empty($_SESSION['sess_user_level_es'])
@@ -36,7 +42,8 @@ if ($_SESSION['sess_user_level_es'] !== 'super_admin' && !empty($_SESSION['sess_
     }
 }
 
-if ($overtime > 3600) {
+// ไม่ได้ใช้งานเกิน 1 ชั่วโมง => ออกจากระบบ เว้นแต่ยังมี token จดจำการเข้าสู่ระบบของผู้ใช้คนนี้
+if ($overtime > 3600 && !rm_valid_for_session(isset($connect) ? $connect : null)) {
     session_unset();
     session_destroy();
 
@@ -46,6 +53,7 @@ if ($overtime > 3600) {
 
 /* ??????? session */
 $_SESSION['session_time'] = time();
+rm_sync(isset($connect) ? $connect : null);   // เก็บสำเนา session ล่าสุด (เช่น เปลี่ยนหน่วยงาน)
 	
 	$sess_member_id			= $_SESSION['sess_member_id'];
 	$sess_id				= $_SESSION['sess_id_es'];

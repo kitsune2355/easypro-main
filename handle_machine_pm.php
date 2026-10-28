@@ -12,6 +12,10 @@ mysqli_set_charset($connect, 'utf8mb4');
 
 function mp_out($a) { echo json_encode($a, JSON_UNESCAPED_UNICODE); exit; }
 
+// สแกน QR นอกหน้า main.php: session หายแต่ยังมี token จดจำการเข้าสู่ระบบ => ใช้ต่อได้ (ช่างเห็นปุ่มทำ PM)
+require_once __DIR__ . '/config_ctrl/remember_login.php';
+if (empty($_SESSION['sess_user_id_es']) && !empty($_COOKIE[RM_COOKIE])) rm_restore($connect);
+
 // =========================================
 // ประวัติแผน PM ของเครื่อง (แท็บ "แผน PM" — ดูได้ทุกคนเหมือนประวัติแจ้งซ่อม)
 //  GET ?action=history&asset_code=&ag_id=&page=&per_page=

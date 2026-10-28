@@ -84,6 +84,10 @@ if ($num_rows >= 1) {
     }
     $_SESSION['needAgencyPopupES'] = 0;
 
+    // จดจำการเข้าสู่ระบบ 30 วัน
+    require_once __DIR__ . '/remember_login.php';
+    rm_issue($connect);
+
     // ล็อกอินสำเร็จ -> ส่งไปหน้าเมนูแจ้งซ่อมโดยตรง
     header('Location: ../main2.php#maintenance_request.php');
     exit();

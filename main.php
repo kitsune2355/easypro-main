@@ -761,6 +761,20 @@ document.getElementById('ms-change-password').addEventListener('click', function
     window.addEventListener('orientationchange', function () { setTimeout(function () { base.h = window.innerHeight; check(); }, 400); });
 })();
 
+// ===== ต่ออายุการใช้งานขณะเปิดหน้าค้างไว้ (handle_keepalive.php) =====
+//  ทุก 5 นาทีขณะแท็บเปิดอยู่ + ทันทีที่กลับมาที่แท็บ (มือถือสลับแอป) — session หายจะสร้างคืนจาก token 30 วัน
+(function () {
+    let last = Date.now();
+    const ping = () => {
+        last = Date.now();
+        fetch('handle_keepalive.php', { cache: 'no-store', credentials: 'same-origin' }).then(r => r.json()).then(r => {
+            if (r && r.success && !r.logged_in) window.location.href = 'login.php';   // token หมดอายุ / ถูกยกเลิก
+        }).catch(() => {});
+    };
+    setInterval(() => { if (document.visibilityState === 'visible') ping(); }, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - last > 60 * 1000) ping(); });
+})();
+
 window.navigate = function(href, queryString) {
     if (!href) return;
     if (href !== 'pm.php') {

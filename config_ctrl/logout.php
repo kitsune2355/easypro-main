@@ -1,6 +1,10 @@
 <?php
 @session_start();
 
+// ยกเลิก token จดจำการเข้าสู่ระบบของเครื่องนี้
+require_once __DIR__ . '/remember_login.php';
+rm_revoke(null);
+
 unset($_SESSION['sess_user_id']);
 unset($_SESSION['sess_user_code']);
 unset($_SESSION['sess_user_password']);
