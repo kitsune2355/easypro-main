@@ -407,6 +407,8 @@ $day_chunks = array_chunk($planned_days, $cols_per_page);
 
 // หัวหน้างาน = ผู้ตรวจรับล่าสุดของรอบในรายงานนี้ (แสดงหน้าสุดท้ายเหมือนลายเซ็นผู้ดำเนินการ)
 $approval = pmap_latest_approval($connect, array_column($events, 'id'));
+// ผู้จัดการอาคาร / ผู้อนุมัติ = ผู้ประเมินล่าสุดที่มีลายเซ็น (หน้าสุดท้าย)
+$evaluation = pmap_latest_evaluation($connect, array_column($events, 'id'));
 
 /* =========================================================
    4) ข้อมูล Header จาก Record ถ้ามี ไม่งั้นดึง master จาก event
@@ -828,7 +830,7 @@ $page_counter = 0;
 
         .sign-line {
             border-bottom: 1px dotted #000;
-            height: 13px;
+            height: 30px;
             margin: 0 20px 2px;
         }
 
@@ -1015,9 +1017,16 @@ $page_counter = 0;
                         <?php endif; ?>
                     </td>
                     <td style="width:33.33%;">
+                        <?php if ($page_counter === $total_pages && $evaluation): ?>
+                            <img src="<?php echo h($evaluation['evaluator_signature_path']); ?>" class="signature-img">
+                            <div>ผู้จัดการอาคาร / ผู้อนุมัติ</div>
+                            <div><?php echo h($evaluation['evaluator_name']); ?></div>
+                            <div>วันที่ <?php echo h($evaluation['date_th']); ?></div>
+                        <?php else: ?>
                         <div class="sign-line"></div>
                         <div>ผู้จัดการอาคาร / ผู้อนุมัติ</div>
                         <div>วันที่ ........../........../..........</div>
+                        <?php endif; ?>
                     </td>
                 </tr>
             </table>

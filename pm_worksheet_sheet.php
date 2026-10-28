@@ -135,6 +135,8 @@ if (!empty($record['plan_event_id']) && pmap_has_col($connect)) {
         $approval = $apRes ? mysqli_fetch_assoc($apRes) : null;
     } catch (Exception $e) { $approval = null; }
 }
+// ผู้ประเมิน (ประเมินผล PM — มีลายเซ็น) => ช่อง Verified By / ทวนสอบโดย
+$evaluation = !empty($record['plan_event_id']) ? pmap_latest_evaluation($connect, [(int)$record['plan_event_id']]) : null;
 ?>
     <div class="w-[210mm] min-h-[297mm] bg-white mx-auto p-[5mm] border border-black print:w-full print:min-h-0 print:m-0 print:border-0 print:p-0 print:break-after-always">
 
@@ -326,45 +328,51 @@ if (!empty($record['plan_event_id']) && pmap_has_col($connect)) {
 
         <table>
             <tr>
-                <td class="h-[92px] align-top text-center text-[8px] w-1/3">
+                <td class="min-h-[92px] align-top text-center text-[8px] w-1/3 pb-[4px]">
                     <div class="font-bold text-[10px] mb-1">Done By / ดำเนินการโดย</div>
                     <div class="text-[7px] mb-1">Signature/ลงนาม (Tech./ช่าง)</div>
 
                     <?php if (!empty($signature_path)): ?>
                         <img src="<?php echo h($signature_path); ?>" class="block max-w-[120px] max-h-[36px] object-contain mx-auto my-[2px]">
                     <?php else: ?>
-                        <div class="border-b border-dotted border-black h-[14px] mx-[18px] my-[2px]"></div>
+                        <div class="border-b border-dotted border-black h-[34px] mx-[18px] my-[2px]"></div>
                     <?php endif; ?>
 
                     <div><?php echo h($inspector_name_text); ?></div>
                     <div class="mt-1">Date/วันที่ <?php echo h($actual_date); ?></div>
                 </td>
 
-                <td class="h-[92px] align-top text-center text-[8px] w-1/3">
+                <td class="min-h-[92px] align-top text-center text-[8px] w-1/3 pb-[4px]">
                     <div class="font-bold text-[10px] mb-1">Checked By / ตรวจสอบโดย</div>
                     <div class="text-[7px] mb-1">Signature/ลงนาม (Engineer / Supervisor)</div>
                     <?php if ($approval): ?>
                         <?php if (!empty($approval['signature_path'])): ?>
                             <img src="<?php echo h($approval['signature_path']); ?>" class="block max-w-[120px] max-h-[36px] object-contain mx-auto my-[2px]">
                         <?php else: ?>
-                            <div class="border-b border-dotted border-black h-[14px] mx-[18px] my-[2px]"></div>
+                            <div class="border-b border-dotted border-black h-[34px] mx-[18px] my-[2px]"></div>
                         <?php endif; ?>
                         <div><?php echo h($approval['approver_name']); ?></div>
                         <div class="mt-1">Date/วันที่ <?php echo h(thaiDate($approval['created_at'])); ?></div>
                     <?php else: ?>
-                    <div class="border-b border-dotted border-black h-[14px] mx-[18px] my-[2px]"></div>
-                    <div class="mt-[18px]">Date/วันที่ ______________________</div>
+                    <div class="border-b border-dotted border-black h-[34px] mx-[18px] my-[2px]"></div>
+                    <div class="mt-1">Date/วันที่ ______________________</div>
                     <?php endif; ?>
                 </td>
 
-                <td class="h-[92px] align-top text-center text-[8px] w-1/3">
+                <td class="min-h-[92px] align-top text-center text-[8px] w-1/3 pb-[4px]">
                     <div class="font-bold text-[10px] mb-1">Verified By / ทวนสอบโดย</div>
                     <div class="text-[7px] mb-1">Signature/ลงนาม (B.M./ผู้จัดการอาคาร)</div>
-                    <div class="border-b border-dotted border-black h-[14px] mx-[18px] my-[2px]"></div>
+                    <?php if ($evaluation): ?>
+                        <img src="<?php echo h($evaluation['evaluator_signature_path']); ?>" class="block max-w-[120px] max-h-[36px] object-contain mx-auto my-[2px]">
+                        <div><?php echo h($evaluation['evaluator_name']); ?></div>
+                        <div class="mt-1">Date/วันที่ <?php echo h(thaiDate($evaluation['eval_date'])); ?></div>
+                    <?php else: ?>
+                    <div class="border-b border-dotted border-black h-[34px] mx-[18px] my-[2px]"></div>
                     <div class="mt-1">Date/วันที่ ______________________</div>
+                    <?php endif; ?>
 
                     <div class="bg-[#bdd7ee] border border-black mx-[20px] my-[4px] mt-[6px] p-[3px] font-normal">CUSTOMER'S ACCEPTANCE</div>
-                    <div class="border-b border-dotted border-black h-[14px] mx-[18px] my-[2px]"></div>
+                    <div class="border-b border-dotted border-black h-[34px] mx-[18px] my-[2px]"></div>
                     <div>Date/วันที่ ______________________</div>
                 </td>
             </tr>

@@ -134,6 +134,24 @@ if (!function_exists('pmap_ensure')) {
         return $row;
     }
 
+    // ผู้ประเมินล่าสุดที่มีลายเซ็น ของกลุ่มกำหนดการ (ช่อง ทวนสอบ / ผู้อนุมัติ ในใบพิมพ์และรายงาน PM)
+    //  => ['evaluator_name', 'evaluator_signature_path', 'eval_date', 'date_th'] หรือ null
+    function pmap_latest_evaluation($connect, $eventIds) {
+        $ids = array_values(array_filter(array_map('intval', (array)$eventIds)));
+        if (!$ids) return null;
+        try {
+            $r = mysqli_query($connect, "SELECT ev.evaluator_name, ev.evaluator_signature_path, ev.eval_date FROM pm_plan_events e
+                JOIN pm_work_evaluations ev ON ev.id = e.evaluation_id
+                WHERE e.id IN (" . implode(',', $ids) . ") AND e.evaluation_status = 1 AND IFNULL(ev.evaluator_signature_path, '') <> ''
+                ORDER BY ev.eval_date DESC, ev.id DESC LIMIT 1");
+            $row = $r ? mysqli_fetch_assoc($r) : null;
+        } catch (Exception $e) { return null; }
+        if (!$row) return null;
+        $t = strtotime($row['eval_date']);
+        $row['date_th'] = $t ? date('d/m/', $t) . (date('Y', $t) + 543) : '';
+        return $row;
+    }
+
     // จำนวนงานที่รอตรวจรับของหน่วยงาน
     function pmap_pending_count($connect, $ag) {
         if (!pmap_has_col($connect)) return 0;

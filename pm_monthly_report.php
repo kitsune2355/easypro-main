@@ -458,6 +458,8 @@ if ($latest_record) {
 
 // หัวหน้างาน / ผู้ตรวจสอบ = ผู้ตรวจรับล่าสุดของรอบในรายงานนี้ (หน่วยงานที่ใช้ขั้นตรวจรับ)
 $approval = pmap_latest_approval($connect, array_column($events, 'event_id'));
+// ผู้จัดการอาคาร / ผู้อนุมัติ = ผู้ประเมินล่าสุดที่มีลายเซ็น
+$evaluation = pmap_latest_evaluation($connect, array_column($events, 'event_id'));
 
 $total_rows_target = 14;
 $empty_rows = max(0, $total_rows_target - count($row_defs));
@@ -658,7 +660,7 @@ $empty_rows = max(0, $total_rows_target - count($row_defs));
 
         .sign-line {
             border-bottom: 1px dotted #000;
-            height: 16px;
+            height: 34px;
             margin: 0 20px 2px;
         }
 
@@ -886,9 +888,16 @@ $empty_rows = max(0, $total_rows_target - count($row_defs));
                     <?php endif; ?>
                 </td>
                 <td style="width:33.33%;">
+                    <?php if ($evaluation): ?>
+                        <img src="<?php echo h($evaluation['evaluator_signature_path']); ?>" class="signature-img">
+                        <div>ผู้จัดการอาคาร / ผู้อนุมัติ</div>
+                        <div><?php echo h($evaluation['evaluator_name']); ?></div>
+                        <div>วันที่ <?php echo h($evaluation['date_th']); ?></div>
+                    <?php else: ?>
                     <div class="sign-line"></div>
                     <div>ผู้จัดการอาคาร / ผู้อนุมัติ</div>
                     <div>วันที่ ........../........../..........</div>
+                    <?php endif; ?>
                 </td>
             </tr>
         </table>
