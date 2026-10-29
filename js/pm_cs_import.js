@@ -719,9 +719,14 @@
     }
 
     async function readFile(f) {
-        fileName = f.name;
-        $('csi-fname').textContent = f.name;
         const buf = await f.arrayBuffer();
+        // ตรวจลายเซ็นไฟล์: SheetJS อ่านไฟล์เสีย/ไม่ใช่ Excel เป็นข้อความขยะได้โดยไม่แจ้ง error
+        //  .xlsx/.xlsm = ZIP (PK) · .xls = OLE (D0 CF 11 E0) หรือ ZIP/HTML/XML ที่ Excel บันทึกเป็น .xls
+        const sig = new Uint8Array(buf.slice(0, 8)), zip = sig[0] === 0x50 && sig[1] === 0x4B, ole = sig[0] === 0xD0 && sig[1] === 0xCF && sig[2] === 0x11 && sig[3] === 0xE0;
+        const head = new TextDecoder('utf-8').decode(buf.slice(0, 64)).trimStart();   // TextDecoder ตัด BOM ให้เอง
+        if (!buf.byteLength) throw new Error('ไฟล์ว่าง');
+        if (/\.xls[xm]$/i.test(f.name) && !zip) throw new Error('ไฟล์นี้ไม่ใช่ไฟล์ Excel (.xlsx) หรือไฟล์เสีย — ลองเปิดใน Excel แล้วบันทึกใหม่เป็น .xlsx');
+        if (/\.xls$/i.test(f.name) && !zip && !ole && !head.startsWith('<')) throw new Error('ไฟล์นี้ไม่ใช่ไฟล์ Excel (.xls) หรือไฟล์เสีย — ลองเปิดใน Excel แล้วบันทึกใหม่เป็น .xlsx');
         wb = /\.csv$/i.test(f.name) ? XLSX.read(new TextDecoder('utf-8').decode(buf), { type: 'string' }) : XLSX.read(buf, { type: 'array' });
         // รูปแบบเซลล์ (.xlsx / .xlsm) — อ่านไม่ได้ก็แสดงเป็นตารางธรรมดา
         Object.values(imgCache).forEach(u => { if (/^blob:/.test(u)) URL.revokeObjectURL(u); });
@@ -739,6 +744,8 @@
         sel.innerHTML = wb.SheetNames.map(n => `<option value="${esc(n)}" ${n === best ? 'selected' : ''}>${esc(n)}</option>`).join('');   // value ระบุเอง: ชื่อชีตที่มีช่องว่างท้ายชื่อ (option ตัดช่องว่างเมื่อไม่มี value)
         sel.classList.toggle('hidden', wb.SheetNames.length < 2);
         loadSheet();
+        fileName = f.name;
+        $('csi-fname').textContent = f.name;   // อ่านสำเร็จแล้วจึงเปลี่ยนชื่อไฟล์ (ไฟล์เสีย => ยังเป็นไฟล์เดิมที่แสดงอยู่)
     }
 
     // popup เต็มจอ (Fullscreen API — iframe ของ main.php เปิด allowfullscreen ไว้) · เปิดอัตโนมัติตอนเปิด popup, ปุ่มสลับ/Esc ย่อกลับ
