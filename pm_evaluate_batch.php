@@ -267,7 +267,10 @@ $('btn-save').onclick = async () => {
         const body = { event_ids: part, scores, comments: $('comments').value.trim() };
         if (sigPath) body.signature_path = sigPath; else body.signature = sigPad.toDataURL('image/png');
         try {
-            const r = await (await fetch('handle_pm_evaluate.php?action=save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
+            const txt = await (await fetch('handle_pm_evaluate.php?action=save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).text();
+            let r;
+            // ผลไม่ใช่ JSON (เซิร์ฟเวอร์ขัดข้อง) => แสดงข้อความจากเซิร์ฟเวอร์ ให้รู้สาเหตุ
+            try { r = JSON.parse(txt); } catch (pe) { throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง: ' + txt.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300)); }
             if (!r.success) throw new Error(r.error || 'บันทึกไม่สำเร็จ');
             sigPath = r.signature_path || sigPath;
             r.results.forEach(x => { done.set(+x.event_id, { ok: x.success, msg: x.error || '' }); x.success ? okN++ : failN++; });

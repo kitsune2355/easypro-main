@@ -3,13 +3,23 @@
 //  - ผู้ประเมิน: กำหนดในตั้งค่า (pm_evaluators) — บันทึกได้เฉพาะผู้ใช้ที่อยู่ในรายชื่อ ชื่อผู้ประเมิน = ผู้ใช้ที่ล็อกอิน
 //  - ประเมินทีละใบหรือรวมหลายใบได้ (คะแนน/ความเห็น/ลายเซ็นชุดเดียว) — เก็บผลแยกทุกใบงานใน pm_work_evaluations
 @session_start();
+// ข้อความ warning/notice ของ PHP ต้องไม่ปนใน JSON (หน้าเว็บจะอ่านผลไม่ได้: Unexpected token '<') — error ร้ายแรงส่งกลับเป็น JSON ให้เห็นสาเหตุ
+ini_set('display_errors', '0');
+ob_start();
+register_shutdown_function(function () {
+    $e = error_get_last();
+    if (!$e || !in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) return;
+    while (ob_get_level()) ob_end_clean();
+    if (!headers_sent()) header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => false, 'error' => 'ระบบขัดข้อง: ' . $e['message'] . ' (' . basename($e['file']) . ':' . $e['line'] . ')'], JSON_UNESCAPED_UNICODE);
+});
 include 'config_ctrl/connect.php';
 require_once __DIR__ . '/config_ctrl/pm_approve.php';   // ใบงานที่รอหัวหน้าช่างตรวจรับ ยังประเมินไม่ได้
 
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('Asia/Bangkok');
 
-function out($arr) { echo json_encode($arr, JSON_UNESCAPED_UNICODE); exit; }
+function out($arr) { while (ob_get_level()) ob_end_clean(); echo json_encode($arr, JSON_UNESCAPED_UNICODE); exit; }   // ทิ้งข้อความอื่นที่หลุดออกมาก่อน (เช่น warning) ให้เหลือแต่ JSON
 function fail($msg, $code = 200) { http_response_code($code); out(['success' => false, 'error' => $msg]); }
 
 if (empty($_SESSION['sess_user_id_es'])) fail('กรุณาเข้าสู่ระบบใหม่', 401);
@@ -53,15 +63,8 @@ function topics($connect, $ag) {
     return $t;
 }
 
-function save_signature($b64) {
-    if (!preg_match('/^data:image\/(png|jpe?g|webp);base64,/', $b64, $m)) return null;
-    $data = base64_decode(substr($b64, strpos($b64, ',') + 1));
-    if ($data === false || strlen($data) < 50) return null;
-    $dir = 'uploads/pm_work_records/eval_signatures/' . date('Y/m/d') . '/';
-    if (!is_dir($dir)) mkdir($dir, 0777, true);
-    $file = $dir . uniqid('eval_sign_', true) . '_' . time() . '.' . ($m[1] === 'jpeg' ? 'jpg' : $m[1]);
-    return file_put_contents($file, $data) ? $file : null;
-}
+// ลายมือชื่อผู้ประเมิน: eval_signatures — เซิร์ฟเวอร์สร้างโฟลเดอร์ไม่ได้ (Permission denied) => signatures (config_ctrl/pm_approve.php)
+function save_signature($b64) { return pm_save_sig_image($b64, ['eval_signatures', 'signatures'], 'eval_sign'); }
 
 if ($AG <= 0) fail('ไม่พบหน่วยงานของผู้ใช้');
 
@@ -221,9 +224,7 @@ if ($action === 'save') {
     // ลายเซ็น: ชุดแรกส่งรูปมา => บันทึกครั้งเดียว ชุดต่อไปส่ง path กลับมา (ต้องอยู่ในโฟลเดอร์ลายเซ็นประเมินเท่านั้น)
     $sig = trim((string)($input['signature_path'] ?? ''));
     if ($sig !== '') {
-        $base = realpath('uploads/pm_work_records/eval_signatures');
-        $real = realpath($sig);
-        if (!$base || !$real || strpos($real, $base) !== 0 || !is_file($real)) fail('ไฟล์ลายเซ็นไม่ถูกต้อง กรุณาเซ็นใหม่');
+        if (!pm_sig_path_ok($sig, ['eval_signatures', 'signatures'])) fail('ไฟล์ลายเซ็นไม่ถูกต้อง กรุณาเซ็นใหม่');
     } else {
         $sig = save_signature((string)($input['signature'] ?? ''));
         if (!$sig) fail('กรุณาลงลายมือชื่อผู้ประเมิน');

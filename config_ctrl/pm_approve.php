@@ -92,23 +92,37 @@ if (!function_exists('pmap_ensure')) {
         } catch (Exception $e) { return false; }
     }
 
-    // ลายมือชื่อผู้ตรวจรับ: data URL => ไฟล์ใน uploads/pm_work_records/approve_signatures/ปี/เดือน/วัน (คืน path หรือ null)
-    function pmap_save_signature($b64) {
+    // บันทึกรูปลายเซ็น (data URL) => uploads/pm_work_records/<โฟลเดอร์>/ปี/เดือน/วัน — คืน path (จาก root ของระบบ) หรือ null
+    //  ลองโฟลเดอร์ตามลำดับ: เซิร์ฟเวอร์บางที่ PHP ไม่มีสิทธิ์สร้างโฟลเดอร์ในบางที่ (mkdir: Permission denied)
+    //  => ใช้โฟลเดอร์ลายเซ็นของช่าง (signatures — ระบบเขียนได้อยู่แล้ว) แทน · ไม่ให้ warning ปนผลลัพธ์ JSON
+    function pm_save_sig_image($b64, $folders, $prefix) {
         if (!preg_match('#^data:image/(png|jpe?g|webp);base64,#', (string)$b64, $m)) return null;
         $data = base64_decode(substr($b64, strpos($b64, ',') + 1));
         if ($data === false || strlen($data) < 50) return null;
-        $dir = 'uploads/pm_work_records/approve_signatures/' . date('Y/m/d') . '/';
-        if (!is_dir(dirname(__DIR__) . '/' . $dir)) @mkdir(dirname(__DIR__) . '/' . $dir, 0777, true);
-        $file = $dir . uniqid('approve_sign_', true) . '_' . time() . '.' . ($m[1] === 'jpeg' ? 'jpg' : $m[1]);
-        return file_put_contents(dirname(__DIR__) . '/' . $file, $data) ? $file : null;
+        $root = dirname(__DIR__) . '/';
+        foreach ($folders as $folder) {
+            $dir = 'uploads/pm_work_records/' . $folder . '/' . date('Y/m/d') . '/';
+            if (!is_dir($root . $dir) && !@mkdir($root . $dir, 0777, true) && !is_dir($root . $dir)) continue;
+            $file = $dir . uniqid($prefix . '_', true) . '_' . time() . '.' . ($m[1] === 'jpeg' ? 'jpg' : $m[1]);
+            if (@file_put_contents($root . $file, $data)) return $file;
+        }
+        return null;
     }
 
-    // path ลายเซ็นที่ส่งกลับมาใช้ซ้ำ (ตรวจรับหลายชุด) ต้องอยู่ในโฟลเดอร์ลายเซ็นผู้ตรวจรับเท่านั้น
-    function pmap_valid_signature_path($path) {
-        $base = realpath(dirname(__DIR__) . '/uploads/pm_work_records/approve_signatures');
+    // path ลายเซ็นที่ส่งกลับมาใช้ซ้ำ (บันทึกหลายชุด) ต้องเป็นไฟล์ในโฟลเดอร์ลายเซ็นที่อนุญาตเท่านั้น
+    function pm_sig_path_ok($path, $folders) {
         $real = realpath(dirname(__DIR__) . '/' . $path);
-        return $base && $real && strpos($real, $base) === 0 && is_file($real);
+        if (!$real || !is_file($real)) return false;
+        foreach ($folders as $folder) {
+            $base = realpath(dirname(__DIR__) . '/uploads/pm_work_records/' . $folder);
+            if ($base && strpos($real, $base . DIRECTORY_SEPARATOR) === 0) return true;
+        }
+        return false;
     }
+
+    // ลายมือชื่อผู้ตรวจรับ: approve_signatures (สร้างไม่ได้ => signatures)
+    function pmap_save_signature($b64) { return pm_save_sig_image($b64, ['approve_signatures', 'signatures'], 'approve_sign'); }
+    function pmap_valid_signature_path($path) { return pm_sig_path_ok($path, ['approve_signatures', 'signatures']); }
 
     function pmap_approver_count($connect, $ag) {
         $ag = (int)$ag;
