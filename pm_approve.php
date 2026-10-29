@@ -92,12 +92,14 @@
     const mainEl = () => $('tab-approve').closest('main');
     const postJson = async (action, body) => (await fetch(API + '?action=' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
 
+    // ความสูงส่วนรายการ = พื้นที่ที่เหลือของหน้าจอ (จอคอม: ส่วนแบ่งซ้าย-ขวา · ไม่มีรายการ: กล่องว่างพอดีจอทุกขนาด)
     function fitSplit() {
-        const el = $('ap-split'), main = el && el.closest('main');
+        const el = $('ap-split') || $('ap-empty'), main = el && el.closest('main');
         if (!main) return;
-        if (!WIDE.matches) { el.style.height = ''; return; }
+        const empty = el.id === 'ap-empty';
+        if (!WIDE.matches && !empty) { el.style.height = ''; return; }
         const top = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
-        el.style.height = Math.max(420, main.clientHeight - top - 32) + 'px';
+        el.style.height = Math.max(empty ? 220 : 420, main.clientHeight - top - (empty ? 42 : 32)) + 'px';   // กล่องว่าง: ไม่ให้เกิดแถบเลื่อน (ระยะขอบล่างของการ์ด + main)
     }
     window.addEventListener('resize', fitSplit);
 
@@ -145,7 +147,8 @@
     function render() {
         if (!groups.length) {
             selKey = null; lockMain();
-            $('ap-list').innerHTML = `<div class="py-12 text-center text-slate-400 text-sm"><i class="fas fa-clipboard-check text-3xl text-slate-300 block mb-2"></i>${status === 'pending' ? 'ไม่มีงานที่รอตรวจรับ' : 'ไม่พบรายการ'}</div>`;
+            $('ap-list').innerHTML = `<div id="ap-empty" class="flex flex-col items-center justify-center text-center text-slate-400 text-sm border border-dashed border-slate-200 rounded-xl"><i class="fas fa-clipboard-check text-4xl text-slate-300 mb-3"></i>${status === 'pending' ? 'ไม่มีงานที่รอตรวจรับ' : 'ไม่พบรายการ'}</div>`;
+            fitSplit();
             return;
         }
         if (!groups.some(g => keyOf(g) === selKey)) selKey = WIDE.matches ? keyOf(groups[0]) : null;
