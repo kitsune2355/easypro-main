@@ -201,6 +201,10 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
             .ws-sheet thead th.ws-col-photo { flex: 0 0 5rem; width: auto; min-width: 0; }
         }
         /* ช่องที่ข้อนั้นไม่มี (N/A ไม่อนุญาต / ไม่ต้องวัดค่า) — กล่องเส้นประจางขนาดเท่าช่องจริง */
+        /* หัวข้อหมวดของจุดตรวจ */
+        .ws-sheet tbody tr.ws-sec { display: block; }
+        .ws-sheet tr.ws-sec > td { display: block; border: 0 !important; background: transparent !important; padding: .55rem .25rem .3rem; font-size: 13px; font-weight: 700; color: #334155; }
+        .ws-sheet tr.ws-sec:first-child > td { padding-top: 0; }
         .ws-nil { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; height: 100%; min-height: 2.25rem; border: 1.5px dashed #e2e8f0; border-radius: .5rem; color: #cbd5e1; font-size: 13px; user-select: none; }
         /* แถบปุ่มล่าง */
         .ws-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: #fff; border-top: 1px solid #e2e8f0; padding: .6rem .75rem; padding-bottom: calc(.6rem + env(safe-area-inset-bottom, 0px)); }
@@ -1634,6 +1638,10 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 
                 const chip = `<span id="ws-state-${item.id}" class="${WS_CHIP_CLS} ${WS_STATE[''].cls}"><i class="${WS_STATE[''].icon}"></i>${WS_STATE[''].text}</span>`;
 
+                // หัวข้อหมวด: ขึ้นเมื่อหมวดเปลี่ยน (จุดตรวจที่ไม่มีหมวดไม่มีหัวข้อ)
+                if (item.section_name && item.section_name !== (items[index - 1] || {}).section_name) {
+                    rows += `<tr class="ws-sec"><td colspan="5"><i class="fa-solid fa-layer-group mr-1.5 text-slate-400"></i>${wsAttr(item.section_name)}</td></tr>`;
+                }
                 rows += `
                     <tr class="ws-item" data-item-id="${item.id}" data-state="" data-search="${wsAttr(String(item.check_point || '').toLowerCase())}">
                         ${wsPointCells(index, item, badges, chip)}
@@ -1747,6 +1755,12 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                 if (show) visible++;
             });
             document.getElementById('ws-empty')?.classList.toggle('hidden', visible > 0);
+            // หัวข้อหมวดที่จุดตรวจในหมวดถูกซ่อนหมด => ซ่อนด้วย
+            document.querySelectorAll('#items-list tr.ws-sec').forEach(h => {
+                let n = h.nextElementSibling, any = false;
+                while (n && !n.classList.contains('ws-sec')) { if (n.classList.contains('ws-item') && !n.classList.contains('ws-hide')) { any = true; break; } n = n.nextElementSibling; }
+                h.classList.toggle('ws-hide', !any);
+            });
             document.querySelectorAll('#items-list .ws-filter-btn').forEach(b => {
                 const on = b.dataset.wsFilter === wsFilter;
                 b.classList.toggle('bg-primary', on);
@@ -2038,6 +2052,9 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
 					  `
 					: `<span class="text-slate-400 text-xs">ไม่มีรูป</span>`;
 
+				if (item.section_name && item.section_name !== (items[index - 1] || {}).section_name) {
+					rows += `<tr class="ws-sec"><td colspan="5"><i class="fa-solid fa-layer-group mr-1.5 text-slate-400"></i>${wsAttr(item.section_name)}</td></tr>`;
+				}
 				rows += `
 					<tr class="ws-item" data-item-id="${item.checksheet_item_id}" data-state="${wsAttr(item.result_status || '')}">
 						${wsPointCells(index, item, '', `<span class="${WS_CHIP_CLS} ${statusCls}"><i class="${statusIcon}"></i>${statusLabel}</span>`)}

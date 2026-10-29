@@ -4,7 +4,8 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-include 'config_ctrl/connect.php'; 
+include 'config_ctrl/connect.php';
+include_once 'config_ctrl/pm_cs_section.php';   // หมวดของจุดตรวจ 
 
 if (mysqli_connect_errno()) {
     http_response_code(500); 
@@ -330,11 +331,14 @@ if ($action === 'save') {
                     $value_name     = mysqli_real_escape_string($connect, $item[7] ?? '');
                     $unit           = mysqli_real_escape_string($connect, $item[8] ?? '');
                     $expected_value = mysqli_real_escape_string($connect, $item[9] ?? '');
+                    // หมวด (ช่องที่ 11 ต่อท้าย — ลำดับช่อง 0–9 เดิมไม่เปลี่ยน) · ยังไม่รัน SQL => ไม่บันทึกหมวด
+                    $sec = pmcs_has_section($connect);
+                    $section_name = $sec ? mysqli_real_escape_string($connect, pmcs_section_value($item[10] ?? '')) : '';
 
                     $sql_item = "INSERT INTO pm_checksheet_items 
-                                 (checksheet_id, check_point, standard_text, method_text, action_abnormal, check_type_id, illustration_path, photo_required_id, value_name, unit, expected_value, sort_order) 
+                                 (checksheet_id, " . ($sec ? "section_name, " : "") . "check_point, standard_text, method_text, action_abnormal, check_type_id, illustration_path, photo_required_id, value_name, unit, expected_value, sort_order) 
                                  VALUES 
-                                 ($checksheet_id, '$check_point', '$standard_text', '$method_text', '$action_abnormal', $check_type_id, '$illustration_path', $photo_required_id, '$value_name', '$unit', '$expected_value', $sort_order)";
+                                 ($checksheet_id, " . ($sec ? ($section_name === '' ? "NULL, " : "'$section_name', ") : "") . "'$check_point', '$standard_text', '$method_text', '$action_abnormal', $check_type_id, '$illustration_path', $photo_required_id, '$value_name', '$unit', '$expected_value', $sort_order)";
                     
                     if (!mysqli_query($connect, $sql_item)) {
                         throw new Exception('เกิดข้อผิดพลาดในการบันทึกจุดตรวจสอบ: ' . mysqli_error($connect));

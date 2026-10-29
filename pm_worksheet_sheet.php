@@ -104,7 +104,11 @@ if (empty($inspector_names) && !empty($record['inspector_name'])) {
 $inspector_name_text = !empty($inspector_names) ? implode(', ', $inspector_names) : '-';
 
 $total_rows_target = 24;
-$current_rows = count($items);
+// หมวดของจุดตรวจ (ถ้ามี) ขึ้นเป็นแถวสีเทาแทนหัวข้อ MONTHLY P.M. — นับรวมในจำนวนแถวด้วย
+$ws_sections = 0; $ws_prev_sec = null;
+foreach ($items as $it) { $sec = trim((string)($it['section_name'] ?? '')); if ($sec !== '' && $sec !== $ws_prev_sec) $ws_sections++; $ws_prev_sec = $sec; }
+$ws_has_sections = $ws_sections > 0;
+$current_rows = count($items) + $ws_sections;
 $empty_rows = max(0, $total_rows_target - $current_rows);
 
 $doc_no = $record['doc_no'] ?? '-';
@@ -203,12 +207,20 @@ $evaluation = !empty($record['plan_event_id']) ? pmap_latest_evaluation($connect
                 </tr>
             </thead>
             <tbody>
+                <?php if (!$ws_has_sections): ?>
                 <tr class="bg-[#a6a6a6] font-bold">
                     <td class="text-center"></td>
                     <td colspan="3">MONTHLY P.M. / MAINTENANCE TASKS</td>
                 </tr>
+                <?php endif; ?>
 
-                <?php foreach ($items as $index => $item): ?>
+                <?php $prev_sec = null; foreach ($items as $index => $item): ?>
+                    <?php $sec = trim((string)($item['section_name'] ?? '')); if ($sec !== '' && $sec !== $prev_sec): ?>
+                    <tr class="bg-[#a6a6a6] font-bold">
+                        <td class="text-center"></td>
+                        <td colspan="3"><?php echo h($sec); ?></td>
+                    </tr>
+                    <?php endif; $prev_sec = $sec; ?>
                     <?php
                         $status = $item['result_status'] ?? '';
                         $mark = recordMark($status);

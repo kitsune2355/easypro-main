@@ -86,6 +86,8 @@ $date = isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'
         .wsc[data-state="Fail"] { background: #fef2f2; }
         .wsc-lbl { display: block; font-size: .6875rem; font-weight: 600; color: #64748b; margin-bottom: .2rem; }
         /* คอลัมน์คงที่ทุกข้อ: ผลการตรวจ (3 ช่องเสมอ) | ค่าที่วัด | รูป — ช่องที่ข้อนั้นไม่มีเป็นกล่องเส้นประ "–" ทุกข้อจึงตรงแนวกัน */
+        .wsc-secname { font-size: 13px; font-weight: 700; color: #334155; margin: .6rem .25rem .3rem; }
+        .wsc-cols + .wsc-secname { margin-top: .1rem; }
         .wsc-nil { flex: 1 1 0; min-width: 0; padding: 0 .375rem; display: flex; align-items: center; justify-content: center; height: 100%; min-height: 2.25rem; border: 1.5px dashed #e2e8f0; border-radius: .5rem; color: #cbd5e1; font-size: 13px; user-select: none; }
         .wsc-sec.v.nil { display: none; }   /* มือถือ: ช่องค่าที่วัดขึ้นบรรทัดใหม่ — ข้อที่ไม่ต้องวัดไม่ต้องมีบรรทัดว่าง */
         .wsc-cols { display: none; }
@@ -445,6 +447,10 @@ const BADGE = {
     // ค่าที่ต้องวัด + มาตรฐาน อยู่ในหัวการ์ด (แถวกรอกค่าสูงเท่าปุ่มผลการตรวจ)
     meas: it => `<span class="wsc-badge bg-blue-50 text-[#006B9F] border-blue-200"><i class="fa-solid fa-ruler mr-1"></i>${esc(it.measurement_name || 'ต้องวัดค่า')} · มาตรฐาน ${esc(it.expected_value)} ${esc(it.unit || '')}</span>`
 };
+// การ์ดจุดตรวจ + หัวข้อหมวดเมื่อหมวดเปลี่ยน (จุดตรวจที่ไม่มีหมวดไม่มีหัวข้อ)
+function wsCards(list) {
+    return list.map((it, i) => (it.section_name && it.section_name !== (list[i - 1] || {}).section_name ? `<div class="wsc-secname"><i class="fa-solid fa-layer-group mr-1.5 text-slate-400"></i>${esc(it.section_name)}</div>` : '') + wsCard(it)).join('');
+}
 const WSC_COLS = '<div class="wsc-cols" aria-hidden="true"><span>ผลการตรวจ</span><span>ค่าที่วัดได้จริง</span><span>รูปภาพ</span></div>';
 function photoBox(it) {
     const src = pe(cur).photos[it.id], need = photoNeeded(cur, it);
@@ -525,8 +531,8 @@ function renderFocus() {
             </div>
             <button type="button" data-ws class="inline-flex items-center gap-1.5 text-xs text-[#006B9F] font-semibold mt-2 hover:underline"><i class="fa-solid fa-up-right-from-square"></i>เปิดใบงานเต็มของเครื่องนี้ (นำข้อมูลที่กรอกไว้ไปด้วย)</button>
         </div>
-        ${must.length ? `<div><div class="ws-sec-title">กรอกทุกเครื่อง</div>${WSC_COLS}${must.map(wsCard).join('')}</div>` : ''}
-        ${showItems && rest.length ? `<div><div class="ws-sec-title">${must.length ? `จุดตรวจอื่น ${rest.length} ข้อ` : `จุดตรวจ ${ITEMS.length} ข้อ`} — แตะเฉพาะข้อที่ไม่ปกติ ข้ออื่นนับเป็นปกติ</div>${WSC_COLS}${rest.map(wsCard).join('')}</div>` : ''}
+        ${must.length ? `<div><div class="ws-sec-title">กรอกทุกเครื่อง</div>${WSC_COLS}${wsCards(must)}</div>` : ''}
+        ${showItems && rest.length ? `<div><div class="ws-sec-title">${must.length ? `จุดตรวจอื่น ${rest.length} ข้อ` : `จุดตรวจ ${ITEMS.length} ข้อ`} — แตะเฉพาะข้อที่ไม่ปกติ ข้ออื่นนับเป็นปกติ</div>${WSC_COLS}${wsCards(rest)}</div>` : ''}
         ${!showItems && rest.some(canPhoto) ? photoLink(rest) : ''}
         ${partsBlock()}
         ${miss.length ? `<div class="text-sm text-red-600 px-1">ยังขาด: ${miss.map(esc).join(' · ')}</div>` : ''}`;

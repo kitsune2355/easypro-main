@@ -213,7 +213,10 @@ include "config_ctrl/checksession.php";
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
     const fmtD = v => v ? window.formatDate(v, false) : '-';
 
-    const EMPTY_ITEM = () => ['', '', '', '', 'ผ่าน / ไม่ผ่าน', '', 'ไม่บังคับ', '', '', ''];
+    // ตารางจุดตรวจ: ช่องแรก = หมวด แล้วตามด้วย 10 ช่องเดิม — ส่ง/รับกับเซิร์ฟเวอร์เป็นลำดับเดิม 0–9 + หมวดต่อท้าย (ช่อง 10)
+    const EMPTY_ITEM = () => ['', '', '', '', '', 'ผ่าน / ไม่ผ่าน', '', 'ไม่บังคับ', '', '', ''];
+    const toHot = v => [v[10] || ''].concat(v.slice(0, 10));
+    const fromHot = r => r.slice(1, 11).concat([r[0] || '']);
     const EMPTY_SPARE = () => ['', ''];
     const TYPE_REV = { 1: 'ผ่าน / ไม่ผ่าน', 2: 'ผ่าน / ไม่ผ่าน / ไม่เกี่ยวข้อง' };
     const REQ_REV = { 1: 'บังคับ', 2: 'ไม่บังคับ', 3: 'บังคับเฉพาะกรณีที่ไม่ผ่าน' };
@@ -432,6 +435,14 @@ include "config_ctrl/checksession.php";
     }
 
     // ย่อรูปให้ไม่เกิน 800px แล้วเก็บเป็น Base64 JPEG 70% ในเซลล์
+    function sectionRenderer(hot, td, row, col, prop, value) {
+        Handsontable.renderers.TextRenderer.apply(this, arguments);
+        const prev = row > 0 ? hot.getDataAtCell(row - 1, col) : null;
+        const same = value && prev === value;
+        td.style.color = same ? '#cbd5e1' : '#0f172a';
+        td.style.fontWeight = value && !same ? '600' : '';
+        td.style.background = value ? '#f8fafc' : '';
+    }
     function pickCellImage(hot, row, col) {
         const fileInput = $('hot-image-input');
         if (!fileInput) return;
@@ -463,15 +474,15 @@ include "config_ctrl/checksession.php";
     window.csImportApply = function (items, mode) {
         const hot = window.hotChecksheet;
         if (!hot) return;
-        const keep = mode === 'append' ? hot.getData().filter(r => r[0] && String(r[0]).trim()) : [];
-        hot.loadData(keep.concat(items));
+        const keep = mode === 'append' ? hot.getData().filter(r => r[1] && String(r[1]).trim()) : [];
+        hot.loadData(keep.concat(items.map(toHot)));
         csDirty = true;
         updateItemCount();
     };
 
     function updateItemCount() {
         if (!window.hotChecksheet) return;
-        const n = window.hotChecksheet.getData().filter(r => r[0] && String(r[0]).trim()).length;
+        const n = window.hotChecksheet.getData().filter(r => r[1] && String(r[1]).trim()).length;
         $('cs-item-count').textContent = n ? `${n} จุด` : '';
     }
 
@@ -509,11 +520,11 @@ include "config_ctrl/checksession.php";
         window.hotChecksheet = new Handsontable($('hot-checksheet'), {
             data: [EMPTY_ITEM()],
             colHeaders: [
-                'จุดที่ตรวจสอบ', 'มาตรฐานการตรวจสอบ', 'วิธีตรวจสอบ/เครื่องมือ', 'ข้อปฏิบัติเมื่อผิดปกติ',
+                'หมวด', 'จุดที่ตรวจสอบ', 'มาตรฐานการตรวจสอบ', 'วิธีตรวจสอบ/เครื่องมือ', 'ข้อปฏิบัติเมื่อผิดปกติ',
                 'ประเภทจุดตรวจสอบ', 'รูปภาพประกอบ', 'บังคับถ่ายรูป',
                 'ชื่อค่าวัด', 'หน่วยวัด', 'ค่าที่คาดหวัง'
             ],
-            colWidths: [190, 180, 170, 170, 190, 100, 190, 110, 90, 110],
+            colWidths: [130, 190, 180, 170, 170, 190, 100, 190, 110, 90, 110],
             height: 220,
             width: '100%',
             stretchH: 'all',
@@ -522,6 +533,7 @@ include "config_ctrl/checksession.php";
             manualColumnResize: true,
             licenseKey: 'non-commercial-and-evaluation',
             columns: [
+                { type: 'text', renderer: sectionRenderer, placeholder: '(ไม่มีหมวด)' },
                 { type: 'text' }, { type: 'text' }, { type: 'text' }, { type: 'text' },
                 { type: 'dropdown', source: ['ผ่าน / ไม่ผ่าน', 'ผ่าน / ไม่ผ่าน / ไม่เกี่ยวข้อง'] },
                 { renderer: imageRenderer, readOnly: true },
@@ -529,7 +541,7 @@ include "config_ctrl/checksession.php";
                 { type: 'text' }, { type: 'text' }, { type: 'text' }
             ],
             afterOnCellMouseDown: function (event, coords) {
-                if (coords.col === 5 && coords.row >= 0) pickCellImage(this, coords.row, coords.col);
+                if (coords.col === 6 && coords.row >= 0) pickCellImage(this, coords.row, coords.col);   // รูปภาพประกอบ (หลังช่องหมวด)
             },
             afterChange: (changes, source) => { markDirty(changes, source); updateItemCount(); },
             afterLoadData: refit, afterCreateRow: refit,
@@ -627,7 +639,7 @@ include "config_ctrl/checksession.php";
             let spareData = data.spares.map(s => [s.part_name, s.quantity]);
             if (!spareData.length) spareData = [EMPTY_SPARE()];
             let itemData = data.items.map(item => [
-                item.check_point, item.standard_text, item.method_text, item.action_abnormal,
+                item.section_name || '', item.check_point, item.standard_text, item.method_text, item.action_abnormal,
                 TYPE_REV[item.check_type_id] || 'ผ่าน / ไม่ผ่าน',
                 item.illustration_path || '',
                 REQ_REV[item.photo_required_id] || 'ไม่บังคับ',
@@ -845,7 +857,7 @@ include "config_ctrl/checksession.php";
         formData.append('ag_id', AG_ID);
         formData.append('user_id', USER_ID);
         if (window.hotSpareParts) formData.append('spare_parts', JSON.stringify(window.hotSpareParts.getData()));
-        if (window.hotChecksheet) formData.append('checksheet_items', JSON.stringify(window.hotChecksheet.getData()));
+        if (window.hotChecksheet) formData.append('checksheet_items', JSON.stringify(window.hotChecksheet.getData().map(fromHot)));
 
         // ไฟล์ใหม่แนบไปด้วย / ไฟล์เดิมส่ง id กลับไปเพื่อบอกว่ายังเก็บไว้
         checksheetImageFiles.forEach(file => {
@@ -946,6 +958,7 @@ include "config_ctrl/checksession.php";
                             </tr></thead>
                             <tbody class="divide-y divide-slate-100">
                             ${items.length === 0 ? '<tr><td colspan="6" class="p-8 text-center text-slate-400">ยังไม่มีจุดตรวจ</td></tr>' : items.map((it, i) => `
+                                ${it.section_name && it.section_name !== (items[i - 1] || {}).section_name ? `<tr><td colspan="6" class="px-2 py-1.5 bg-slate-50 font-semibold text-slate-700"><i class="fas fa-layer-group text-slate-400 mr-1.5"></i>${esc(it.section_name)}</td></tr>` : ''}
                                 <tr class="align-top">
                                     <td class="p-2 text-center text-slate-400">${i + 1}</td>
                                     <td class="p-2"><div class="font-medium text-slate-800">${esc(it.check_point)}</div><div class="text-slate-500">${esc(it.standard_text)}</div></td>

@@ -10,15 +10,15 @@
 (function () {
     // ช่องปลายทาง = คอลัมน์ตารางจุดตรวจ (ลำดับเดียวกับ Handsontable ใน pm_checksheet.php)
     const FIELDS = [
-        { k: 'check_point', label: 'จุดที่ตรวจสอบ', kw: ['จุดที่ตรวจ', 'จุดตรวจ', 'รายการตรวจ', 'รายการ', 'หัวข้อ', 'ชิ้นส่วน', 'check point', 'checkpoint', 'check item', 'item', 'description', 'detail', 'inspection', 'part'] },
+        { k: 'check_point', label: 'จุดที่ตรวจสอบ', kw: ['จุดที่ตรวจ', 'จุดตรวจ', 'รายการตรวจ', 'รายการ', 'หัวข้อ', 'ชิ้นส่วน', 'รายละเอียดการทำงาน', 'check point', 'checkpoint', 'check item', 'item', 'task', 'description', 'detail', 'inspection', 'part'] },
         { k: 'standard', label: 'มาตรฐานการตรวจสอบ', kw: ['มาตรฐาน', 'เกณฑ์', 'ค่ามาตรฐาน', 'standard', 'criteria', 'spec', 'specification', 'requirement'] },
         { k: 'method', label: 'วิธีตรวจสอบ/เครื่องมือ', kw: ['วิธี', 'เครื่องมือ', 'method', 'tool', 'how to', 'procedure'] },
         { k: 'action', label: 'ข้อปฏิบัติเมื่อผิดปกติ', kw: ['ผิดปกติ', 'แก้ไข', 'ข้อปฏิบัติ', 'การดำเนินการ', 'action', 'corrective', 'remedy', 'abnormal'] },
         { k: 'value_name', label: 'ชื่อค่าวัด', kw: ['ค่าที่วัด', 'ชื่อค่า', 'ค่าวัด', 'parameter', 'measure', 'reading'] },
         { k: 'unit', label: 'หน่วยวัด', kw: ['หน่วย', 'unit'] },
         { k: 'expected', label: 'ค่าที่คาดหวัง', kw: ['ค่าที่คาดหวัง', 'ค่าเป้าหมาย', 'expected', 'target', 'set point', 'setpoint'] },
-        // อุปกรณ์ / หมวด (มักเป็นเซลล์รวมแนวตั้ง) => ใส่นำหน้าจุดตรวจ เช่น "FCU - ล้างแผ่นกรองอากาศ"
-        { k: 'group', label: 'อุปกรณ์/หมวด (นำหน้าจุดตรวจ)', kw: ['อุปกรณ์', 'หมวด', 'ระบบ', 'equipment', 'system', 'component', 'group', 'section'] },
+        // หมวด / อุปกรณ์ (มักเป็นเซลล์รวมแนวตั้ง) => หมวดของจุดตรวจ (ติ๊ก "ใส่ชื่อหมวดนำหน้าจุดตรวจ" => ต่อหน้าชื่อด้วย)
+        { k: 'group', label: 'หมวด / อุปกรณ์', kw: ['อุปกรณ์', 'หมวด', 'ระบบ', 'equipment', 'system', 'component', 'group', 'section'] },
     ];
     // คอลัมน์ที่ไม่ใช้ (ลำดับ ผลตรวจ หมายเหตุ วันที่ ช่องติ๊ก ฯลฯ)
     const IGNORE_KW = ['ลำดับ', 'no.', 'no', 'ที่', 'ผล', 'result', 'หมายเหตุ', 'remark', 'note', 'วันที่', 'date', 'ok', 'ng', 'ปกติ', 'ผิดปกติ', 'ไม่ปกติ', 'ผ่าน', 'ไม่ผ่าน', 'normal', 'abnormal', 'สถานะ', 'status', 'ลงชื่อ', 'signature', 'ผู้ตรวจ'];
@@ -33,7 +33,13 @@
     let wb = null, sheetName = '', rows = [], headRow = 0, map = [], fileName = '';
 
     // ---------- อ่านชีต (เติมค่าเซลล์รวม) ----------
-    const rawRows = name => XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: false, blankrows: true }).map(r => (r || []).map(v => String(v ?? '')));
+    // อ่านตั้งแต่ A1 เสมอ: ชีตที่ข้อมูลเริ่มแถว/คอลัมน์อื่น ลำดับแถว/คอลัมน์ต้องตรงกับเซลล์รวม (!merges) และรูปแบบจาก ExcelJS ที่นับจาก A1
+    const rawRows = name => {
+        const ws = wb.Sheets[name];
+        if (!ws || !ws['!ref']) return [];
+        const range = XLSX.utils.decode_range(ws['!ref']); range.s.r = 0; range.s.c = 0;
+        return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false, blankrows: true, range }).map(r => (r || []).map(v => String(v ?? '')));
+    };
     function sheetRows(name) {
         const ws = wb.Sheets[name];
         const aoa = rawRows(name);
@@ -173,11 +179,13 @@
     }
     // ชนิดของคอลัมน์ (รวมคอลัมน์ที่อยู่ใต้หัวเซลล์รวมเดียวกันทางขวาของคอลัมน์ที่จับคู่)
     function fieldOf(c) {
+        if (orient === 'col') return colSel[c] ? 'check_point' : '';
         if (map[c]) return map[c];
         for (let x = c - 1; x >= hdrSpan(c)[0]; x--) if (map[x]) return map[x];
         return '';
     }
     function dataStart() {
+        if (orient === 'col') return headEnd + 1;
         const sub = rows[headRow + 1];
         return headRow + (scoreHeader(sub) > 0 && !(sub || []).some(v => /^\d+([.,]\d+)?$/.test(clean(v))) ? 2 : 1);
     }
@@ -232,7 +240,100 @@
     let defType = CHECK_TYPES[0], defPhoto = PHOTO_REQS[0], rowOpt = {};
 
     // แปลงแถวข้อมูลเป็นจุดตรวจ => { items: [{ src: แถว (0-based), v: [10 ช่องของตาราง] }], kind: { แถว: 'item' | 'cont' (ต่อจากแถวบน) | 'section' | 'skip' | 'removed' | 'cut' | 'footer' }, footerAt }
+    // ---------- แบบ "จุดตรวจเป็นคอลัมน์" (เช่น ใบตรวจถังดับเพลิง: แถว = เครื่อง, หัวคอลัมน์หลายชั้น = จุดตรวจ) ----------
+    //  orient: 'row' = จุดตรวจเป็นแถว (ปกติ) / 'col' = หัวคอลัมน์แต่ละช่องคือ 1 จุดตรวจ · headRow..headEnd = แถวหัวตาราง (หลายชั้น)
+    // rowMap = ชนิดของแถวหัวตาราง { แถว: 'check_point' | 'group' (หมวด) | 'standard' | … } — เลือกที่เลขแถว (หัวแถว)
+    let orient = 'row', colSel = [], headEnd = 0, rowMap = {};
+    // คอลัมน์ข้อมูลของเครื่อง/ลำดับ/หมายเหตุ — ไม่ใช่จุดตรวจ
+    const ID_RE = /^(item|items|no\.?|ลำดับ|ลำดับที่|ที่|code|รหัส|รหัสเครื่อง|รหัสอุปกรณ์|asset ?(code|no\.?)|tag( ?no\.?)?|location|สถานที่|สถานที่ติดตั้ง|ตำแหน่ง|ตำแหน่งติดตั้ง|จุดติดตั้ง|ชั้น|floor|zone|โซน|remark|remarks|หมายเหตุ|วันที่|date|signature|ลงชื่อ|ผู้ตรวจ.*|brand.*|model|ยี่ห้อ.*|รุ่น.*|serial( ?no\.?)?|s\/n|sn)$/i;
+    // แถวหัวตารางที่มีทั้ง "รหัส" และ "สถานที่" => น่าจะเป็นแบบจุดตรวจเป็นคอลัมน์ (คืนเลขแถว หรือ -1)
+    function detectColLayout() {
+        for (let i = 0; i < Math.min(rows.length, 30); i++) {
+            const t = (rows[i] || []).map(v => low(v));
+            if (t.some(v => /^(code|รหัส|รหัสเครื่อง|รหัสอุปกรณ์|asset ?code|tag( ?no\.?)?)$/.test(v)) && t.some(v => /^(location|สถานที่|สถานที่ติดตั้ง|ตำแหน่ง|ตำแหน่งติดตั้ง|จุดติดตั้ง)$/.test(v))) return i;
+        }
+        return -1;
+    }
+    // หัวคอลัมน์ทุกชั้น (เซลล์รวมเติมค่าแล้ว) เช่น ["รายการตรวจเช็ค", "เกจวัดน้ำยา", "Recharge"]
+    function colLevels(c) {
+        const out = [];
+        for (let r = headRow; r <= headEnd; r++) { const v = norm(clean((rows[r] || [])[c])); if (v && v !== out[out.length - 1]) out.push(v); }
+        return out;
+    }
+    // ตั้งค่าแบบจุดตรวจเป็นคอลัมน์จากแถวหัวตาราง h: หาความลึกของหัว + เลือกคอลัมน์จุดตรวจเริ่มต้น
+    function setupCol(h) {
+        orient = 'col'; headRow = h;
+        const n = width(), idCols = [];
+        for (let c = 0; c < n; c++) if (ID_RE.test(low((rows[h] || [])[c]))) idCols.push(c);
+        // หัวหลายชั้น: แถวถัดลงมาที่ช่องรหัส/ลำดับว่าง (เซลล์รวมแนวตั้ง) แต่มีข้อความในคอลัมน์อื่น
+        headEnd = h;
+        for (let r = h + 1; r <= h + 4 && r < rows.length; r++) {
+            const d = disp[r] || [];
+            const idEmpty = idCols.length ? idCols.every(c => !norm(d[c])) : false;
+            if (idEmpty && d.some((v, c) => norm(v) && !idCols.includes(c))) headEnd = r; else break;
+        }
+        colSel = Array.from({ length: n }, (_, c) => {
+            if (idCols.includes(c)) return false;
+            const lv = colLevels(c), leaf = low(lv[lv.length - 1] || '');
+            return !!leaf && !ID_RE.test(leaf) && !IGNORE_KW.includes(leaf);
+        });
+        removed = new Set(); cutAt = null; rowOpt = {};
+        autoRowMap();
+        // แถวถัดจากหัวตารางที่ช่องรหัส/ลำดับ/สถานที่มีป้าย เช่น "Standard", "หน่วย" => แถวมาตรฐาน/หน่วย ของแต่ละจุดตรวจ
+        const LABEL_ROWS = [[/^(standard|standards|มาตรฐาน|ค่ามาตรฐาน|เกณฑ์|criteria|spec)/i, 'standard'], [/^(unit|units|หน่วย)/i, 'unit'], [/^(method|วิธี)/i, 'method'], [/^(expected|target|ค่าที่คาดหวัง|ค่าเป้าหมาย)/i, 'expected']];
+        for (let r = headEnd + 1; r <= headEnd + 3 && r < rows.length; r++) {
+            const lbl = (rows[r] || []).map((v, c) => (colSel[c] ? '' : norm(clean(v)))).find(Boolean) || '';
+            const hit = LABEL_ROWS.find(([re, k]) => re.test(lbl) && rowOf(k) < 0);
+            if (!hit) break;
+            rowMap[r] = hit[1]; headEnd = r;
+        }
+    }
+    // ค่าเริ่มต้น: แถวล่างสุดของหัว = จุดตรวจ · แถวเหนือขึ้นไปที่มีหลายค่า (เช่น เกจวัดน้ำยา / สภาพทั่วไป) = หมวด
+    //  แถวที่ทุกคอลัมน์เหมือนกัน (เช่น "รายการตรวจเช็ค") ไม่ใช้
+    function autoRowMap() {
+        rowMap = {};
+        rowMap[headEnd] = 'check_point';
+        const sel = colSel.map((on, c) => (on ? c : -1)).filter(c => c >= 0);
+        for (let r = headEnd - 1; r >= headRow; r--) {
+            if (new Set(sel.map(c => cellVal(r, c)).filter(Boolean)).size >= 2) { rowMap[r] = 'group'; break; }
+        }
+    }
+    const cellVal = (r, c) => (r < 0 ? '' : norm(clean((rows[r] || [])[c])));
+    const rowOf = k => { for (const r in rowMap) if (rowMap[r] === k) return +r; return -1; };
+    // ชื่อจุดตรวจของคอลัมน์ c (จากแถวที่เลือกเป็นจุดตรวจ) — ติ๊ก "ใส่ชื่อหมวดนำหน้า" => หมวด - จุดตรวจ
+    const colName = (c, withSec) => { const cp = cellVal(rowOf('check_point'), c), sec = cellVal(rowOf('group'), c); return cp && withSec && sec && sec !== cp ? sec + ' - ' + cp : cp; };
+    function buildColItems(opt) {
+        const sel = colSel.map((on, c) => (on ? c : -1)).filter(c => c >= 0);
+        const items = [], kind = {}, R = k => rowOf(k);
+        // จุดตรวจ 1 ข้อใช้หลายคอลัมน์ (เช่น ชื่ออังกฤษ | ชื่อไทย) — ช่องมาตรฐาน/ผลตรวจใต้แถวจุดตรวจรวมเซลล์คลุมคอลัมน์เหล่านั้น
+        //  => รวมเป็นจุดตรวจเดียว ชื่อ "General clean / ทำความสะอาดทั่วไป"
+        const cpR = R('check_point');
+        const span = (wb.Sheets[sheetName]['!merges'] || []).filter(m => m.e.c > m.s.c && m.s.r > cpR && m.s.r <= cpR + 3);
+        const groupOf = c => { const m = span.find(m => m.s.c <= c && c <= m.e.c); return m ? m.s.c : c; };
+        const groups = [];
+        sel.forEach(c => { const g = groupOf(c), last = groups[groups.length - 1]; if (last && last.g === g) last.cols.push(c); else groups.push({ g, cols: [c] }); });
+        let prevKey = '';
+        groups.forEach(({ cols }) => {
+            const c = cols[0];
+            const sec = cellVal(R('group'), c), cp0 = [...new Set(cols.map(x => cellVal(cpR, x)).filter(Boolean))].join(' / ');
+            const key = cp0 + '|' + sec;
+            if (!cp0 || key === prevKey) return;   // เซลล์รวมแนวนอน (หัวเดียวกันหลายคอลัมน์) => จุดตรวจเดียว
+            prevKey = key;
+            const cp = opt.section && sec && sec !== cp0 ? sec + ' - ' + cp0 : cp0;
+            let standard = cellVal(R('standard'), c), unit = cellVal(R('unit'), c), expected = cellVal(R('expected'), c), valueName = cellVal(R('value_name'), c);
+            if (opt.split && !expected && standard) {
+                const sv = splitValue(standard);
+                if (sv) { expected = sv.expected; if (!unit) unit = sv.unit; if (!valueName) valueName = cp; }
+            }
+            const src = 'c' + c, ro = rowOpt[src] || {};
+            items.push({ src, col: c, v: [cp, standard, cellVal(R('method'), c), cellVal(R('action'), c), ro.type || opt.checkType, '', ro.photo || opt.photo, valueName, unit, expected, sec] });
+        });
+        for (let i = headRow; i <= headEnd; i++) kind[i] = 'head';
+        return { items, kind, footerAt: null };
+    }
+
     function buildItems(opt) {
+        if (orient === 'col') return buildColItems(opt);
         const col = k => map.indexOf(k);
         // ค่าว่าง => ดูคอลัมน์ทางขวาที่อยู่ใต้หัวเซลล์รวมเดียวกัน (ไม่ข้ามไปคอลัมน์ที่จับคู่ชนิดอื่น)
         const ends = {};
@@ -240,7 +341,11 @@
             const c = col(k);
             if (c < 0) return '';
             if (!(c in ends)) ends[c] = hdrSpan(c)[1];
-            for (let x = c; x <= ends[c]; x++) { if (x !== c && map[x]) break; const v = norm(clean((r || [])[x])); if (v) return v; }
+            for (let x = c; x <= ends[c]; x++) {
+                if (x !== c && map[x]) break;
+                const v = norm(clean((r || [])[x]));
+                if (v && !(k === 'check_point' && /^\d+(\.\d+)*[.)]?$/.test(v))) return v;   // จุดตรวจ: ข้ามเลขลำดับ (หัว "TASKS" รวมทั้งคอลัมน์ลำดับและรายการ)
+            }
             return '';
         };
         // แถว i อยู่ใต้เซลล์รวมแนวตั้งของคอลัมน์ที่จับคู่ (ไม่ใช่คอลัมน์จุดตรวจ) => แถวแรกของเซลล์รวม
@@ -273,9 +378,8 @@
             // ข้อความจุดตรวจที่ยาวต่อลงมาอีกแถว (ช่องมาตรฐาน ฯลฯ เป็นเซลล์รวมแนวตั้งคลุมทั้งสองแถว) => ต่อท้ายจุดตรวจแถวบน
             const prev = items[items.length - 1], cs = contStart(i);
             if (prev && cs != null && prev.src >= cs && kind[i - 1] !== 'section') { prev.v[0] += ' ' + cp; kind[i] = 'cont'; continue; }
-            const grp = get(r, 'group');
-            if (grp && grp !== cp) cp = grp + ' - ' + cp;
-            if (opt.section && section) cp = section + ' - ' + cp;
+            const grp = get(r, 'group'), sec = grp && grp !== cp ? grp : section;
+            if (opt.section && sec) cp = sec + ' - ' + cp;
             let standard = get(r, 'standard'), unit = get(r, 'unit'), expected = get(r, 'expected'), valueName = get(r, 'value_name');
             if (opt.split && !expected && standard) {
                 const sv = splitValue(standard);
@@ -283,14 +387,14 @@
             }
             kind[i] = 'item';
             const ro = rowOpt[i] || {};
-            items.push({ src: i, v: [cp, standard, get(r, 'method'), get(r, 'action'), ro.type || opt.checkType, '', ro.photo || opt.photo, valueName, unit, expected] });
+            items.push({ src: i, v: [cp, standard, get(r, 'method'), get(r, 'action'), ro.type || opt.checkType, '', ro.photo || opt.photo, valueName, unit, expected, sec] });
         }
         return { items, kind, footerAt };
     }
 
     // ---------- หน้าต่าง: บน = ตาราง Excel (ติ๊กแถวที่จะนำเข้า) / ล่าง = ตารางจุดตรวจแบบในระบบ — สีของชนิดคอลัมน์ตรงกัน · ชี้แถวแล้วไฮไลต์คู่ ----------
     const FCOLOR = { check_point: '#0284c7', standard: '#059669', method: '#7c3aed', action: '#e11d48', value_name: '#d97706', unit: '#0d9488', expected: '#ea580c', group: '#475569' };
-    const SHORT = { check_point: 'จุดตรวจ', standard: 'มาตรฐาน', method: 'วิธีตรวจ', action: 'เมื่อผิดปกติ', value_name: 'ชื่อค่าวัด', unit: 'หน่วย', expected: 'ค่าที่คาดหวัง', group: 'อุปกรณ์/หมวด' };
+    const SHORT = { check_point: 'จุดตรวจ', standard: 'มาตรฐาน', method: 'วิธีตรวจ', action: 'เมื่อผิดปกติ', value_name: 'ชื่อค่าวัด', unit: 'หน่วย', expected: 'ค่าที่คาดหวัง', group: 'หมวด' };
     const tint = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
     let result = { items: [], kind: {} };
 
@@ -311,6 +415,11 @@
                 <button type="button" id="csi-fs" title="เต็มจอ / ย่อ" class="w-9 h-9 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500"><i data-lucide="maximize-2" class="w-5 h-5"></i></button>
                 <button type="button" data-csi-close class="w-9 h-9 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
+            <div id="csi-err" role="alert" class="hidden mx-5 mt-3 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                <i data-lucide="circle-alert" class="w-5 h-5 shrink-0 text-rose-500 mt-0.5"></i>
+                <div class="flex-1 min-w-0"><b id="csi-err-title"></b><div id="csi-err-msg" class="text-rose-700 break-words"></div></div>
+                <button type="button" data-err-close class="text-rose-400 hover:text-rose-700" title="ปิด"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
             <div id="csi-empty" class="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-500">
                 <i data-lucide="file-spreadsheet" class="w-12 h-12 text-slate-300 mb-3"></i>
                 <div class="text-base font-medium text-slate-700">เลือกไฟล์ใบตรวจเช็ค (Excel / CSV) ของหน่วยงาน</div>
@@ -320,6 +429,13 @@
                 <div id="csi-pa" class="min-h-0 min-w-0 flex flex-col">
                     <div class="px-4 py-2 text-sm text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
                         <b class="text-slate-800">ไฟล์ Excel</b>
+                        <div class="inline-flex items-center gap-1 text-xs" title="ใบตรวจที่แต่ละแถวคือเครื่อง (เช่น ถังดับเพลิง) และจุดตรวจอยู่ที่หัวคอลัมน์ ให้เลือก คอลัมน์">
+                            <span>จุดตรวจเป็น</span>
+                            <span class="inline-flex rounded-lg border border-slate-200 p-0.5">
+                                <button type="button" data-orient="row" class="px-2.5 h-7 rounded-md hover:bg-slate-100">แถว</button>
+                                <button type="button" data-orient="col" class="px-2.5 h-7 rounded-md hover:bg-slate-100">คอลัมน์</button>
+                            </span>
+                        </div>
                         <span class="flex items-center gap-3 text-xs"><span class="inline-flex items-center gap-1"><i class="w-1 h-3.5 rounded-sm bg-amber-400"></i>หัวตาราง</span><span class="inline-flex items-center gap-1"><i class="w-1 h-3.5 rounded-sm bg-slate-400"></i>หมวด</span><span class="inline-flex items-center gap-1"><i class="w-1 h-3.5 rounded-sm bg-emerald-500"></i>นำเข้า</span></span>
                         <div class="flex-1"></div>
                         <div class="inline-flex items-center rounded-lg border border-slate-200 text-slate-600">
@@ -336,7 +452,7 @@
                     <div class="px-5 py-2.5 text-sm text-slate-500 flex flex-wrap items-center gap-x-5 gap-y-1.5">
                         <div class="flex items-center gap-2"><b class="text-slate-800">จุดตรวจที่จะใส่ลงเช็คชีต</b> <span id="csi-count" class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-xs"></span></div>
                         <label class="inline-flex items-center gap-1.5 cursor-pointer" title="เช่น 220 V, ≤ 80 °C"><input type="checkbox" id="csi-split" checked class="w-4 h-4 accent-emerald-600"> แยกค่าตัวเลข + หน่วยจากมาตรฐาน</label>
-                        <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="csi-section" class="w-4 h-4 accent-emerald-600"> ใส่ชื่อหมวดนำหน้าจุดตรวจ</label>
+                        <label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="csi-section" class="w-4 h-4 accent-emerald-600"> <span id="csi-section-lbl">ใส่ชื่อหมวดนำหน้าจุดตรวจ</span></label>
                         <label class="inline-flex items-center gap-1.5 cursor-pointer" title="Done By / Checked by / ลายเซ็น …"><input type="checkbox" id="csi-footer" checked class="w-4 h-4 accent-emerald-600"> หยุดที่ส่วนลงชื่อท้ายฟอร์ม</label>
                         <div class="flex-1"></div><span id="csi-note" class="text-xs"></span></div>
                     <div id="csi-right" class="flex-1 min-h-0 overflow-auto px-5 pb-4"></div>
@@ -355,7 +471,7 @@
     const opts = () => ({ split: $('csi-split').checked, section: $('csi-section').checked, footer: $('csi-footer').checked, checkType: defType, photo: defPhoto });
 
     // ไฟล์: หน้าตาแบบ Excel — หัวคอลัมน์ A B C … (แถบสี + ชนิดที่จับคู่, คลิกเพื่อเปลี่ยน) · หัวแถว = เลขแถว + ช่องติ๊กนำเข้า + แถบสีสถานะ
-    const RH_W = 58;
+    const RH_W0 = 58, RH_WC = 112;   // ความกว้างหัวแถว (โหมดคอลัมน์มีชื่อชนิดของแถว)
     let disp = [], colX = [], tableW = 0;
     function renderLeft() {
         const n = width(), ds = dataStart(), last = Math.min(rows.length, 400);
@@ -376,34 +492,37 @@
             for (let r = m.s.r; r <= m.e.r; r++) for (let c = m.s.c; c <= m.e.c; c++) if (r !== m.s.r || c !== m.s.c) covered.add(r + ',' + c);
         });
         const widths = Array.from({ length: n }, (_, c) => colW(c));
+        const RH_W = orient === 'col' ? RH_WC : RH_W0;
         colX = [RH_W]; widths.forEach((w, c) => colX.push(colX[c] + w));
         tableW = colX[n];
         let h = `<div id="csi-xl" class="relative w-max" style="zoom:${view.zoom}"><table class="csi-xt${grid ? ' gl' : ''}" style="width:${tableW}px">`
             + `<colgroup><col style="width:${RH_W}px">${widths.map(w => `<col style="width:${w}px">`).join('')}</colgroup><thead><tr><th class="csi-corner"></th>`;
         for (let c = 0; c < n; c++) {
-            const k = map[c], hn = headName(c);
+            const k = orient === 'col' ? (colSel[c] ? 'check_point' : '') : map[c], hn = orient === 'col' ? colLevels(c).join(' / ') : headName(c);
+            const ck = orient === 'col' ? (colSel[c] ? 'นำเข้า' : '') : (k ? SHORT[k] : '');
             h += `<th data-col="${c}" class="csi-colh" title="คอลัมน์ ${XLSX.utils.encode_col(c)}${hn ? ' · ' + esc(hn) : ''} — คลิกเพื่อเลือกชนิด"${k ? ` style="box-shadow:inset 0 3px 0 ${FCOLOR[k]};background:linear-gradient(${tint(FCOLOR[k], .1)},${tint(FCOLOR[k], .1)}),#f3f4f6"` : ''}>`
-                + `<div>${XLSX.utils.encode_col(c)}</div>${k ? `<div class="csi-ck" style="color:${FCOLOR[k]}">${SHORT[k]}</div>` : ''}</th>`;
+                + `<div>${XLSX.utils.encode_col(c)}</div>${ck ? `<div class="csi-ck" style="color:${FCOLOR[k]}">${ck}</div>` : ''}</th>`;
         }
         h += '</tr></thead><tbody>';
         const STRIP = { head: '#fbbf24', section: '#94a3b8', item: '#10b981', cont: '#10b981' };
-        const TAG = { head: 'แถวหัวตาราง', section: 'หัวข้อหมวด', item: 'นำเข้า', cont: 'ข้อความต่อจากจุดตรวจแถวบน', removed: 'ไม่นำเข้า', cut: 'ตัดออก', footer: 'ส่วนลงชื่อท้ายฟอร์ม', skip: 'ไม่มีจุดตรวจ' };
+        const TAG = { head: orient === 'col' ? 'แถวหัวตาราง — คลิกเพื่อเลือกชนิดของแถว' : 'แถวหัวตาราง', section: 'หัวข้อหมวด', item: 'นำเข้า', cont: 'ข้อความต่อจากจุดตรวจแถวบน', removed: 'ไม่นำเข้า', cut: 'ตัดออก', footer: 'ส่วนลงชื่อท้ายฟอร์ม', skip: 'ไม่มีจุดตรวจ' };
         for (let i = 0; i < last; i++) {
             const k = i < headRow ? 'above' : i < ds ? 'head' : (result.kind[i] || 'empty');
             const item = k === 'item' || k === 'cont', off = k === 'removed' || k === 'cut' || k === 'footer';
             const rh = ws ? Math.round((ws.getRow(i + 1).height || dh) * 4 / 3) : 0;
+            const rk = orient === 'col' ? rowMap[i] : '';   // ชนิดของแถว (โหมดคอลัมน์)
             h += `<tr data-src="${i}"${off ? ' class="csi-off"' : ''}${rh ? ` style="height:${rh}px"` : ''}>`
-                + `<th class="csi-rh" title="แถว ${i + 1}${TAG[k] ? ' · ' + TAG[k] : ''}"${STRIP[k] ? ` style="box-shadow:inset 3px 0 0 ${STRIP[k]}"` : ''}><div${rh ? ` style="max-height:${rh}px"` : ''}>`
-                + `${k === 'item' || k === 'removed' ? `<input type="checkbox" data-toggle="${i}" ${item ? 'checked' : ''} title="นำเข้าแถวนี้">` : ''}<span data-head="${i}" title="ตั้งเป็นแถวหัวตาราง">${i + 1}</span></div></th>`;
+                + `<th class="csi-rh${orient === 'col' ? ' csi-rhc' : ''}"${orient === 'col' ? ` data-rowh="${i}"` : ''} title="แถว ${i + 1}${TAG[k] ? ' · ' + TAG[k] : ''}"${STRIP[k] ? ` style="box-shadow:inset 3px 0 0 ${STRIP[k]}"` : ''}><div${rh ? ` style="max-height:${rh}px"` : ''}>`
+                + `${k === 'item' || k === 'removed' ? `<input type="checkbox" data-toggle="${i}" ${item ? 'checked' : ''} title="นำเข้าแถวนี้">` : ''}${orient === 'col' ? `<span>${i + 1}</span>${rk ? `<b class="csi-rk" style="color:${FCOLOR[rk]}">${SHORT[rk]}</b>` : ''}` : `<span data-head="${i}" title="ตั้งเป็นแถวหัวตาราง">${i + 1}</span>`}</div></th>`;
             for (let c = 0; c < n; c++) {
                 const key = i + ',' + c;
                 if (covered.has(key)) continue;
                 const sp = span[key], txt = clean((disp[i] || [])[c]);
                 let st = ws ? cellCss(ws, i, c, sp) : '';
                 // แถวที่นำเข้า: ระบายสีจางตามชนิดคอลัมน์ (เซลล์รวม => คอลัมน์แรกในช่วงที่จับคู่)
-                if (item) {
+                if (item || (orient === 'col' && rk)) {   // แบบจุดตรวจเป็นคอลัมน์: แถวที่เลือกชนิด × คอลัมน์ที่นำเข้า
                     let f = null;
-                    for (let x = c; x < c + (sp ? sp.cs : 1); x++) if (fieldOf(x)) { f = FCOLOR[fieldOf(x)]; break; }
+                    for (let x = c; x < c + (sp ? sp.cs : 1); x++) if (orient === 'col' ? colSel[x] && FCOLOR[rk] : fieldOf(x)) { f = orient === 'col' ? FCOLOR[rk] : FCOLOR[fieldOf(x)]; break; }
                     if (f) st += `background-image:linear-gradient(${tint(f, .14)},${tint(f, .14)});`;
                 }
                 // ข้อความไม่ตัดบรรทัด ล้นไปช่องขวาที่ว่างได้เหมือน Excel
@@ -437,7 +556,7 @@
     // ล่าง: ตารางจุดตรวจ — คอลัมน์และหน้าตาเดียวกับตารางจุดตรวจในหน้าสร้างเช็คชีต (Handsontable)
     //  ช่องที่มาจากคอลัมน์ในไฟล์มีขีดสีใต้หัวคอลัมน์ สีเดียวกับหัวคอลัมน์ด้านบน · ✕ ไม่นำเข้า · ✂ ไม่นำเข้าตั้งแต่แถวนี้ลงไป
     const SYS_COLS = [
-        { i: 0, label: 'จุดที่ตรวจสอบ', k: 'check_point', w: 190 }, { i: 1, label: 'มาตรฐานการตรวจสอบ', k: 'standard', w: 180 },
+        { i: 10, label: 'หมวด', k: 'group', w: 130 }, { i: 0, label: 'จุดที่ตรวจสอบ', k: 'check_point', w: 190 }, { i: 1, label: 'มาตรฐานการตรวจสอบ', k: 'standard', w: 180 },
         { i: 2, label: 'วิธีตรวจสอบ/เครื่องมือ', k: 'method', w: 170 }, { i: 3, label: 'ข้อปฏิบัติเมื่อผิดปกติ', k: 'action', w: 170 },
         { i: 4, label: 'ประเภทจุดตรวจสอบ', w: 190, dd: 'type', opts: CHECK_TYPES }, { i: 5, label: 'รูปภาพประกอบ', w: 100, img: true },
         { i: 6, label: 'บังคับถ่ายรูป', w: 190, dd: 'photo', opts: PHOTO_REQS }, { i: 7, label: 'ชื่อค่าวัด', k: 'value_name', w: 110 },
@@ -445,7 +564,7 @@
     ];
     function renderRight() {
         // คอลัมน์ที่มีค่ามาจากไฟล์ (ตรง หรือแยกจากมาตรฐาน) => ขีดสีใต้หัวคอลัมน์
-        const fromFile = c => c.k && (map.indexOf(c.k) >= 0 || ((c.k === 'expected' || c.k === 'unit' || c.k === 'value_name') && result.items.some(it => it.v[c.i])));
+        const fromFile = c => c.k && (map.indexOf(c.k) >= 0 || ((c.k === 'expected' || c.k === 'unit' || c.k === 'value_name' || c.k === 'group') && result.items.some(it => it.v[c.i])));
         let h = '<table class="csi-sys border-collapse w-full text-[13px] border border-slate-200"><thead class="sticky top-0 z-[2]"><tr><th class="w-12"></th>'
             + SYS_COLS.map(c => `<th style="min-width:${c.w}px"><div class="truncate">${c.label}</div>${fromFile(c) ? `<div class="mx-auto mt-1 h-[3px] w-10 rounded-full" style="background:${FCOLOR[c.k]}"></div>` : ''}`
                 + (c.dd ? `<select data-no-search data-all="${c.dd}" title="ใช้กับทุกแถว" class="csi-dd mt-1 w-full font-normal">${c.opts.map(o => `<option ${o === (c.dd === 'type' ? defType : defPhoto) ? 'selected' : ''}>${o}</option>`).join('')}</select>` : '') + '</th>').join('')
@@ -453,12 +572,13 @@
         h += result.items.map((it, n) => {
             const v = it.v;
             return `<tr data-src="${it.src}" class="group">
-                <td class="text-center text-slate-500 bg-slate-50" title="แถว ${it.src + 1} ในไฟล์">${n + 1}</td>
+                <td class="text-center text-slate-500 bg-slate-50" title="${orient === 'col' ? 'คอลัมน์ ' + XLSX.utils.encode_col(it.col) : 'แถว ' + (it.src + 1)} ในไฟล์">${n + 1}</td>
                 ${SYS_COLS.map(c => c.img ? '<td class="text-center text-[11px] text-slate-400 bg-slate-50">+ เพิ่มรูป</td>'
                     : c.dd ? `<td><select data-no-search data-row="${c.dd}" data-src="${it.src}" class="csi-dd w-full">${c.opts.map(o => `<option ${o === v[c.i] ? 'selected' : ''}>${o}</option>`).join('')}</select></td>`
+                    : c.i === 10 ? `<td class="${v[10] && v[10] === ((result.items[n - 1] || {}).v || [])[10] ? 'text-slate-300' : 'font-semibold'}">${esc(v[10] || '')}</td>`   // หมวดเดียวกับแถวบน => ตัวจาง
                     : `<td>${esc(v[c.i])}</td>`).join('')}
                 <td class="text-right whitespace-nowrap sticky right-0 z-[1] !bg-white shadow-[-6px_0_8px_-6px_rgba(15,23,42,.15)]">
-                    <button type="button" data-cut="${it.src}" title="ไม่นำเข้าตั้งแต่แถวนี้ลงไป" class="invisible group-hover:visible w-7 h-7 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 inline-flex items-center justify-center"><i data-lucide="scissors" class="w-4 h-4"></i></button>
+                    ${orient === 'col' ? '' : `<button type="button" data-cut="${it.src}" title="ไม่นำเข้าตั้งแต่แถวนี้ลงไป" class="invisible group-hover:visible w-7 h-7 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 inline-flex items-center justify-center"><i data-lucide="scissors" class="w-4 h-4"></i></button>`}
                     <button type="button" data-rm="${it.src}" title="ไม่นำเข้าจุดนี้" class="w-7 h-7 rounded-md border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 inline-flex items-center justify-center"><i data-lucide="x" class="w-4 h-4"></i></button></td>
             </tr>`;
         }).join('');
@@ -466,6 +586,12 @@
             + (result.items.length ? '' : '<div class="p-8 text-center text-slate-400">ยังไม่มีจุดตรวจ — คลิกหัวคอลัมน์ด้านบนที่เป็นรายการตรวจ แล้วเลือก "จุดที่ตรวจสอบ"</div>');
         $('csi-count').textContent = result.items.length + ' จุด';
         // แถวที่ไม่นำเข้า (ติ๊กออก / ตัดท้าย / ส่วนลงชื่อท้ายฟอร์ม) + คืนได้
+        if (orient === 'col') {   // จุดตรวจมาจากหัวคอลัมน์ — แถวข้อมูล (เครื่อง/รายการ) ไม่นำเข้า
+            const off = colSel.filter((on, c) => !on && colLevels(c).length).length;
+            $('csi-note').innerHTML = `<span class="text-slate-500">จุดตรวจจากหัวคอลัมน์ · แถวข้อมูลด้านล่างไม่นำเข้า${off ? ` · ไม่ใช้ ${off} คอลัมน์` : ''}</span>`;
+            $('csi-append').disabled = $('csi-replace').disabled = !result.items.length;
+            return;
+        }
         const nRm = [...removed].filter(i => result.kind[i] === 'removed').length;
         const notes = [];
         if (nRm) notes.push(`ติ๊กออก ${nRm} แถว`);
@@ -497,6 +623,18 @@
     // เมนูเลือกชนิดของคอลัมน์ (คลิกหัวคอลัมน์ตารางไฟล์ด้านบน)
     function openMenu(c, el) {
         const m = $('csi-menu'), rect = el.getBoundingClientRect();
+        if (orient === 'col') {
+            // แบบจุดตรวจเป็นคอลัมน์: ใช้ / ไม่ใช้ + ชื่อจุดตรวจที่จะได้
+            const name = colName(c, $('csi-section').checked);
+            m.innerHTML = `<div class="px-3.5 py-1.5 text-xs text-slate-400">คอลัมน์ ${XLSX.utils.encode_col(c)} · ${esc(colLevels(c).join(' / ')) || 'ไม่มีหัว'}</div>`
+                + `<div class="px-3.5 pb-2 text-xs max-w-[22rem]">${name ? '<span class="text-slate-400">จะได้จุดตรวจ:</span> <b class="text-slate-700">' + esc(name) + '</b>' : '<span class="text-amber-600">' + (rowOf('check_point') < 0 ? 'ยังไม่ได้เลือกแถวที่เป็นจุดตรวจ — คลิกเลขแถวด้านซ้าย' : 'คอลัมน์นี้ไม่มีชื่อจุดตรวจ') + '</span>'}</div>`
+                + `<button type="button" data-set="col-on" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 ${colSel[c] ? 'font-semibold bg-slate-50' : ''}"><span class="w-3 h-3 rounded-full" style="background:${FCOLOR.check_point}"></span>ใช้เป็นจุดตรวจ</button>`
+                + `<div class="border-t border-slate-100 my-1"></div><button type="button" data-set="col-off" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 text-slate-500 ${colSel[c] ? '' : 'font-semibold bg-slate-50'}">ไม่ใช้คอลัมน์นี้ (รหัส ที่ตั้ง หมายเหตุ …)</button>`;
+            m.dataset.col = c; showCol(c); m.classList.remove('hidden');
+            m.style.left = Math.min(rect.left, window.innerWidth - m.offsetWidth - 8) + 'px';
+            m.style.top = Math.min(rect.bottom + 4, window.innerHeight - m.offsetHeight - 8) + 'px';
+            return;
+        }
         const smp = [...new Set(disp.slice(dataStart()).map(r => norm(clean((r || [])[c]))).filter(Boolean))];
         m.innerHTML = `<div class="px-3.5 py-1.5 text-xs text-slate-400">คอลัมน์ ${XLSX.utils.encode_col(c)} · ${esc(headName(c)) || 'ไม่มีหัว'}</div>`
             + `<div class="px-3.5 pb-2 text-xs max-w-[22rem]">${smp.length ? '<span class="text-slate-400">ข้อความในคอลัมน์:</span> ' + smp.slice(0, 4).map(v => `<span class="inline-block max-w-[10rem] truncate align-bottom px-1.5 rounded bg-blue-50 text-blue-700">${esc(v)}</span>`).join(' ') + (smp.length > 4 ? ` <span class="text-slate-400">+${smp.length - 4}</span>` : '') : '<span class="text-amber-600">ไม่มีข้อความในคอลัมน์นี้</span>'}</div>` +
@@ -508,6 +646,40 @@
         m.classList.remove('hidden');
         m.style.left = Math.min(rect.left, window.innerWidth - m.offsetWidth - 8) + 'px';
         m.style.top = Math.min(rect.bottom + 4, window.innerHeight - m.offsetHeight - 8) + 'px';
+    }
+    // โหมดคอลัมน์: คลิกเลขแถว => เลือกชนิดของแถว (จุดตรวจ / หมวด / มาตรฐาน …) หรือขยาย/ย่อช่วงแถวหัวตาราง
+    function openRowMenu(i, el) {
+        const m = $('csi-menu'), rect = el.getBoundingClientRect();
+        const sel = colSel.map((on, c) => (on ? c : -1)).filter(c => c >= 0);
+        const smp = [...new Set(sel.map(c => cellVal(i, c)).filter(Boolean))];
+        const inHead = i >= headRow && i <= headEnd;
+        const btn = (k, html, on) => `<button type="button" data-rset="${k}" class="w-full text-left px-3.5 py-2 hover:bg-slate-50 flex items-center gap-2.5 ${on ? 'font-semibold bg-slate-50' : ''}">${html}</button>`;
+        m.innerHTML = `<div class="px-3.5 py-1.5 text-xs text-slate-400">แถว ${i + 1}${inHead ? ' · หัวตาราง' : ''}</div>`
+            + `<div class="px-3.5 pb-2 text-xs max-w-[22rem]">${smp.length ? '<span class="text-slate-400">ข้อความในแถว (คอลัมน์ที่นำเข้า):</span> ' + smp.slice(0, 4).map(v => `<span class="inline-block max-w-[10rem] truncate align-bottom px-1.5 rounded bg-blue-50 text-blue-700">${esc(v)}</span>`).join(' ') + (smp.length > 4 ? ` <span class="text-slate-400">+${smp.length - 4}</span>` : '') : '<span class="text-amber-600">ไม่มีข้อความในคอลัมน์ที่นำเข้า</span>'}</div>`
+            // ไม่มีข้อความในคอลัมน์ที่นำเข้า => ไม่มีอะไรให้ใช้เป็นจุดตรวจ/มาตรฐาน — ไม่แสดงรายการชนิด (เคยตั้งไว้ => เอาออกได้)
+            + (!smp.length ? (rowMap[i] ? btn('', '<span class="text-slate-500">ไม่ใช้แถวนี้</span>', false) : '')
+            : (inHead ? '' : '<div class="px-3.5 pb-1.5 text-[11px] text-slate-500">แถวนี้อยู่นอกหัวตาราง — เลือกชนิดแล้วจะรวมเป็นส่วนหัว (ไม่นับเป็นแถวข้อมูล)</div>')
+            + FIELDS.map(f => { const at = rowOf(f.k); return btn(f.k, `<span class="w-3 h-3 rounded-full" style="background:${FCOLOR[f.k]}"></span>${esc(f.label)}${at >= 0 && at !== i ? `<span class="ml-auto text-[11px] text-slate-400">ย้ายจากแถว ${at + 1}</span>` : ''}`, rowMap[i] === f.k); }).join('')
+            + (inHead ? btn('', '<span class="text-slate-500">ไม่ใช้แถวนี้</span>', !rowMap[i]) : ''))
+            + '<div class="border-t border-slate-100 my-1"></div>'
+            + btn('top', '<i data-lucide="arrow-up-to-line" class="w-4 h-4 text-slate-400"></i>ตั้งเป็นแถวบนสุดของหัวตาราง', i === headRow)
+            + btn('bottom', '<i data-lucide="arrow-down-to-line" class="w-4 h-4 text-slate-400"></i>ตั้งเป็นแถวล่างสุดของหัวตาราง', i === headEnd);
+        m.dataset.row = i;
+        m.classList.remove('hidden');
+        if (window.lucide) lucide.createIcons({ root: m });
+        m.style.left = Math.min(rect.right + 4, window.innerWidth - m.offsetWidth - 8) + 'px';
+        m.style.top = Math.max(8, Math.min(rect.top, window.innerHeight - m.offsetHeight - 8)) + 'px';
+    }
+    function setRowType(i, k) {
+        if (k === 'top' || k === 'bottom') {
+            if (k === 'top') { headRow = i; if (headEnd < i) headEnd = i; } else { headEnd = i; if (headRow > i) headRow = i; }
+            Object.keys(rowMap).forEach(r => { if (+r < headRow || +r > headEnd) delete rowMap[r]; });
+            if (rowOf('check_point') < 0) rowMap[headEnd] = rowMap[headEnd] || 'check_point';
+            return;
+        }
+        Object.keys(rowMap).forEach(r => { if (k && rowMap[r] === k) delete rowMap[r]; });   // ชนิดหนึ่งใช้ได้แถวเดียว
+        if (k) { rowMap[i] = k; if (i > headEnd) headEnd = i; if (i < headRow) headRow = i; }   // แถวนอกหัวตาราง => ขยายหัวตารางให้รวม
+        else delete rowMap[i];
     }
     function showCol(c) {
         const band = $('csi-band'), xt = document.querySelector('#csi-left .csi-xt');
@@ -526,11 +698,24 @@
         removed = new Set(); cutAt = null; rowOpt = {};
         rows = sheetRows(sheetName);
         disp = rawRows(sheetName);   // ค่าที่แสดงในหน้าตาแบบ Excel (เซลล์รวมแสดงครั้งเดียว)
-        headRow = detectHeader();
-        map = autoMap();
+        const hc = detectColLayout();   // มีหัว "รหัส" + "สถานที่" => แบบจุดตรวจเป็นคอลัมน์
+        setOrient(hc >= 0 ? 'col' : 'row', hc);
         $('csi-empty').classList.add('hidden');
         $('csi-main').classList.remove('hidden');
         refresh();
+    }
+    // สลับแบบ จุดตรวจเป็นแถว / เป็นคอลัมน์ (ปุ่มที่แถบตารางไฟล์) · h = แถวหัวตาราง (ไม่ระบุ => หาให้)
+    function setOrient(o, h) {
+        if (o === 'col') {
+            const hc = h != null && h >= 0 ? h : detectColLayout();
+            setupCol(hc >= 0 ? hc : headRow);
+        } else {
+            orient = 'row';
+            removed = new Set(); cutAt = null; rowOpt = {};
+            headRow = detectHeader(); map = autoMap();
+        }
+        document.querySelectorAll('#csi-modal [data-orient]').forEach(b => b.classList.toggle('csi-on', b.dataset.orient === orient));
+        ['csi-split', 'csi-footer'].forEach(id => $(id).closest('label').classList.toggle('hidden', orient === 'col'));
     }
 
     async function readFile(f) {
@@ -551,7 +736,7 @@
             if (s > bestS) { bestS = s; best = n; }
         });
         const sel = $('csi-sheet');
-        sel.innerHTML = wb.SheetNames.map(n => `<option ${n === best ? 'selected' : ''}>${esc(n)}</option>`).join('');
+        sel.innerHTML = wb.SheetNames.map(n => `<option value="${esc(n)}" ${n === best ? 'selected' : ''}>${esc(n)}</option>`).join('');   // value ระบุเอง: ชื่อชีตที่มีช่องว่างท้ายชื่อ (option ตัดช่องว่างเมื่อไม่มี value)
         sel.classList.toggle('hidden', wb.SheetNames.length < 2);
         loadSheet();
     }
@@ -598,7 +783,7 @@
     function apply(mode) {
         const items = buildItems(opts()).items.map(it => it.v);
         if (!items.length) return;
-        saveMap();
+        if (orient === 'row') saveMap();   // จำการจับคู่คอลัมน์เฉพาะแบบจุดตรวจเป็นแถว
         // เรียกจากหน้าต่าง SweetAlert (pm_import) => ไม่แสดง Swal ซ้ำ (เปิดได้ทีละอัน จะปิดหน้าต่างแก้ไข)
         const own = openOpt.apply;
         (own || window.csImportApply)(items, mode);
@@ -606,6 +791,14 @@
         if (!own && window.Swal) Swal.fire({ icon: 'success', title: `นำเข้า ${items.length} จุดตรวจ`, text: 'ตรวจสอบในตาราง แล้วกดบันทึกเช็คชีต', timer: 1800, showConfirmButton: false });
     }
 
+    // ข้อผิดพลาดแสดงเป็นแถบในหน้าต่างนี้ — ไม่ใช้ SweetAlert: ถูกหน้าต่างนี้บัง และถ้าเปิดซ้อนบน SweetAlert (pm_import) จะปิดหน้าต่างแก้ไขที่อยู่ด้านล่าง
+    function showErr(title, msg) {
+        const box = $('csi-err');
+        if (!box) return;
+        box.classList.toggle('hidden', !title);
+        $('csi-err-title').textContent = title || '';
+        $('csi-err-msg').textContent = msg || '';
+    }
     let openOpt = {};
     window.openChecksheetImport = function (opt) {
         openOpt = opt || {};
@@ -621,6 +814,7 @@
             + ' #csi-modal .csi-xt thead th.csi-corner { left: 0; z-index: 4; }'
             + ' #csi-modal .csi-xt th.csi-rh { position: sticky; left: 0; z-index: 2; background: #f3f4f6; border-right: 1px solid #d4d4d8; border-bottom: 1px solid #d4d4d8; color: #6b7280; font: 400 11px/1.1 system-ui, sans-serif; padding: 0 4px 0 6px; vertical-align: middle; }'
             + ' #csi-modal .csi-xt th.csi-rh > div { display: flex; align-items: center; gap: 4px; overflow: hidden; } #csi-modal .csi-xt th.csi-rh input { width: 13px; height: 13px; accent-color: #059669; cursor: pointer; } #csi-modal .csi-xt th.csi-rh span { cursor: pointer; } #csi-modal .csi-xt th.csi-rh span:hover { color: #d97706; }'
+            + ' #csi-modal .csi-xt th.csi-rhc { cursor: pointer; } #csi-modal .csi-xt th.csi-rhc:hover { background: #e5e7eb; } #csi-modal .csi-rk { font-size: 10px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }'
             + ' #csi-modal .csi-xt tr.csi-off > td { opacity: .3; } #csi-modal .csi-xt tr.csi-hl > th { background: #fde68a; }'
             + ' #csi-imgs img { position: absolute; z-index: 1; pointer-events: none; }'
             + ' #csi-band { display: none; position: absolute; top: 0; z-index: 1; pointer-events: none; background: rgba(37,99,235,.08); box-shadow: inset 2px 0 0 #2563eb, inset -2px 0 0 #2563eb; }'
@@ -637,15 +831,23 @@
         const m = $('csi-modal');
         m.addEventListener('click', e => {
             if (e.target.closest('[data-csi-close]') || e.target === m) { close(); return; }
+            const rset = e.target.closest('#csi-menu [data-rset]');
+            if (rset) { setRowType(+$('csi-menu').dataset.row, rset.dataset.rset); closeMenu(); refresh(); return; }
+            const rowh = e.target.closest('[data-rowh]');
+            if (rowh) { openRowMenu(+rowh.dataset.rowh, rowh); return; }
             const set = e.target.closest('#csi-menu [data-set]');
             if (set) {
                 const c = +$('csi-menu').dataset.col, k = set.dataset.set;
+                if (k === 'col-on' || k === 'col-off') { colSel[c] = k === 'col-on'; closeMenu(); refresh(); return; }   // เมนูหัวคอลัมน์ (โหมดคอลัมน์) // แบบจุดตรวจเป็นคอลัมน์
                 if (k) map = map.map((v, i) => (v === k && i !== c ? '' : v));   // ชนิดหนึ่งใช้ได้คอลัมน์เดียว
                 map[c] = k;
                 closeMenu(); refresh();
                 return;
             }
             if (e.target.closest('#csi-fs')) { setFs(!isFs()); return; }
+            if (e.target.closest('[data-err-close]')) { showErr(''); return; }
+            const ori = e.target.closest('[data-orient]');
+            if (ori) { if (ori.dataset.orient !== orient && rows.length) { setOrient(ori.dataset.orient); refresh(); } return; }
             const lay = e.target.closest('[data-layout]');
             if (lay) { view.layout = lay.dataset.layout; saveView(); applyLayout(); return; }
             const zb = e.target.closest('[data-zoom]');
@@ -661,26 +863,30 @@
             const tg = e.target.closest('[data-toggle]');
             if (tg) { const i = +tg.dataset.toggle; if (tg.checked) removed.delete(i); else removed.add(i); refresh(); return; }
             const rm = e.target.closest('[data-rm]');
-            if (rm) { removed.add(+rm.dataset.rm); refresh(); return; }
+            if (rm) { const v = rm.dataset.rm; if (/^c\d+$/.test(v)) colSel[+v.slice(1)] = false; else removed.add(+v); refresh(); return; }
             const cut = e.target.closest('[data-cut]');
             if (cut) { cutAt = +cut.dataset.cut; refresh(); return; }
             if (e.target.closest('[data-restore-all]')) { removed = new Set(); cutAt = null; refresh(); return; }
             const hd = e.target.closest('[data-head]');
-            if (hd) { headRow = +hd.dataset.head; map = autoMap(); refresh(); return; }
+            if (hd) { if (orient === 'col') setupCol(+hd.dataset.head); else { headRow = +hd.dataset.head; map = autoMap(); } refresh(); return; }
             if (!e.target.closest('#csi-menu')) closeMenu();
         });
         m.addEventListener('mouseover', e => {
             // ชี้หัวคอลัมน์ไฟล์ => ไฮไลต์คอลัมน์ (เมนูเปิดอยู่ => คงคอลัมน์ของเมนู)
             const menuOpen = !$('csi-menu').classList.contains('hidden');
             const ch = e.target.closest('#csi-left .csi-colh');
-            if (!menuOpen) showCol(ch ? +ch.dataset.col : null);
             const el = e.target.closest('#csi-left tr[data-src], #csi-right tr[data-src]');
+            // แบบจุดตรวจเป็นคอลัมน์: ชี้แถวในตารางจุดตรวจ => ไฮไลต์คอลัมน์ต้นทางในไฟล์
+            const srcCol = orient === 'col' && el && /^c\d+$/.test(el.dataset.src) ? +el.dataset.src.slice(1) : null;
+            if (!menuOpen) showCol(ch ? +ch.dataset.col : srcCol);
             pair(el ? el.dataset.src : null, el ? el.closest('#csi-left, #csi-right').id : '');
         });
         window.addEventListener('keydown', onKey, true);
         $('csi-file').addEventListener('change', e => {
             const f = e.target.files[0];
-            if (f) readFile(f).catch(err => { if (window.Swal) Swal.fire('อ่านไฟล์ไม่ได้', err.message, 'error'); });
+            showErr('');
+            if (f) readFile(f).catch(err => showErr('อ่านไฟล์ไม่ได้: ' + f.name, err && err.message ? err.message : String(err)));
+            e.target.value = '';   // เลือกไฟล์เดิมซ้ำได้ (หลังแก้ไฟล์)
         });
         $('csi-sheet').addEventListener('change', loadSheet);
         // Ctrl + ล้อเมาส์ = ซูมตารางไฟล์
@@ -707,7 +913,7 @@
                 refresh(); return;
             }
             const one = e.target.closest('select[data-row]');
-            if (one) { const k = +one.dataset.src; rowOpt[k] = rowOpt[k] || {}; rowOpt[k][one.dataset.row] = one.value; refresh(); }
+            if (one) { const k = one.dataset.src; rowOpt[k] = rowOpt[k] || {}; rowOpt[k][one.dataset.row] = one.value; refresh(); }
         });
         $('csi-append').addEventListener('click', () => apply('append'));
         $('csi-replace').addEventListener('click', () => apply('replace'));

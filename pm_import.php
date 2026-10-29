@@ -525,6 +525,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
     const PHOTO_REQS = [{ id: 2, label: 'ไม่บังคับ' }, { id: 1, label: 'บังคับ' }, { id: 3, label: 'บังคับเฉพาะกรณีที่ไม่ผ่าน' }];
     // คอลัมน์ในหน้าต่างแก้ไข (ลำดับเดียวกับการวางจาก Excel)
     const ITEM_COLS = [
+        { f: 'section_name', label: 'หมวด', w: 130 },
         { f: 'check_point', label: 'จุดตรวจ', req: true, w: 180 },
         { f: 'standard_text', label: 'มาตรฐาน', w: 160 },
         { f: 'method_text', label: 'วิธีตรวจ', w: 160 },
@@ -535,7 +536,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
         { f: 'unit', label: 'หน่วย', w: 80 },
         { f: 'expected_value', label: 'ค่ามาตรฐาน', w: 100 },
     ];
-    const blankItem = () => ({ check_point: '', standard_text: '', method_text: '', action_abnormal: '', check_type_id: 1, photo_required_id: 2, value_name: '', unit: '', expected_value: '' });
+    const blankItem = () => ({ section_name: '', check_point: '', standard_text: '', method_text: '', action_abnormal: '', check_type_id: 1, photo_required_id: 2, value_name: '', unit: '', expected_value: '' });
 
     // จุดตรวจเริ่มต้นของหน่วยงาน (ตั้งค่าได้ที่ปุ่ม "ตั้งค่าจุดตรวจเริ่มต้น") — โหลดมากับ get_options
     let agencyDefaults = [{ ...blankItem(), check_point: 'ตรวจสอบอุปกรณ์', standard_text: 'ตรวจสอบอุปกรณ์', method_text: 'ตรวจสอบอุปกรณ์' }];
@@ -624,9 +625,9 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
                     $('imp-it-xls').addEventListener('click', () => openChecksheetImport({
                         apply: (rows, mode) => {
                             const optId = (list, label, def) => (list.find(o => o.label === label) || { id: def }).id;
-                            const add = rows.map(v => ({ ...blankItem(), check_point: v[0], standard_text: v[1], method_text: v[2], action_abnormal: v[3],
+                            const add = rows.map(v => ({ ...blankItem(), section_name: v[10] || '', check_point: v[0], standard_text: v[1], method_text: v[2], action_abnormal: v[3],
                                 check_type_id: optId(CHECK_TYPES, v[4], 1), photo_required_id: optId(PHOTO_REQS, v[6], 2), value_name: v[7], unit: v[8], expected_value: v[9] }));
-                            const keep = mode === 'append' ? readItemRows(body).filter(it => ITEM_COLS.some(c => !c.opts && it[c.f] !== '')) : [];
+                            const keep = mode === 'append' ? readItemRows(body).filter(it => ITEM_COLS.some(c => !c.opts && c.f !== 'section_name' && it[c.f] !== '')) : [];
                             body.innerHTML = keep.concat(add).map(itemRowHtml).join('');
                         },
                     }));
@@ -664,7 +665,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             },
             preConfirm: () => {
                 const all = readItemRows($('imp-it-body'));
-                const items = all.filter(it => ITEM_COLS.some(c => !c.opts && it[c.f] !== ''));
+                const items = all.filter(it => ITEM_COLS.some(c => !c.opts && c.f !== 'section_name' && it[c.f] !== ''));   // แถวที่มีแค่หมวด = แถวว่าง
                 const errs = [];
                 items.forEach(it => {
                     const n = all.indexOf(it) + 1;

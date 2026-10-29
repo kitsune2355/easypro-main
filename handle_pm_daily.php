@@ -85,8 +85,10 @@ function pmdFilters($ag_id, $withSearch = true) {
             $types .= "s";
             $params[] = $type;
         }
-        $q = trim((string)($_GET['q'] ?? ''));
-        if ($q !== '') {
+        // q = ค้นหาหลัก, q2 = ค้นหาในกลุ่มที่เปิดอยู่ (หน้ารายการเครื่องบนมือถือ) — ใช้ร่วมกันได้
+        foreach (['q', 'q2'] as $qk) {
+            $q = trim((string)($_GET[$qk] ?? ''));
+            if ($q === '') continue;
             // คอลัมน์ต่างตารางมี collation ต่างกัน => แปลงเป็น utf8mb4 ก่อนค้นหา (ไม่สนตัวพิมพ์เล็ก/ใหญ่)
             $where[] = "CONVERT(CONCAT_WS(' ', a.asset_name, a.ass_code, c.name, g.TGroupName, ar.area_name, ac.ac_name, rm.ar_name) USING utf8mb4) LIKE ?";
             $types .= "s";

@@ -3,6 +3,7 @@
 @session_start();
 include 'config_ctrl/connect.php';
 require_once 'pm_plan_functions.php';
+require_once 'config_ctrl/pm_cs_section.php';   // หมวดของจุดตรวจ
 
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('Asia/Bangkok');
@@ -202,7 +203,7 @@ function agencyDefaultItems($connect, $ag_id) {
 
 /**
  * จุดตรวจที่ผู้ใช้กำหนดในหน้านำเข้า => รายการที่บันทึกได้ (ไม่มีรายการที่ใช้ได้ => $fallback)
- * item: {check_point, standard_text, method_text, action_abnormal, check_type_id (1-2), photo_required_id (1-3), value_name, unit, expected_value}
+ * item: {section_name (หมวด), check_point, standard_text, method_text, action_abnormal, check_type_id (1-2), photo_required_id (1-3), value_name, unit, expected_value}
  */
 function cleanSheetItems($items, $fallback) {
     $cut = function ($v, $len) { return mb_substr(trim((string)$v), 0, $len); };
@@ -214,6 +215,7 @@ function cleanSheetItems($items, $fallback) {
         $type = intval($it['check_type_id'] ?? 1);
         $photo = intval($it['photo_required_id'] ?? 2);
         $out[] = [
+            'section_name'      => pmcs_section_value($it['section_name'] ?? ''),
             'check_point'       => $point,
             'standard_text'     => trim((string)($it['standard_text'] ?? '')),
             'method_text'       => trim((string)($it['method_text'] ?? '')),
@@ -422,7 +424,9 @@ try {
         mysqli_begin_transaction($connect);
         try {
             $stmtSheet = mysqli_prepare($connect, "INSERT INTO pm_checksheets (name, ass_type_id, effective_date, doc_no, rev_no, estimated_time, ag_id, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmtItem = mysqli_prepare($connect, "INSERT INTO pm_checksheet_items (checksheet_id, check_point, standard_text, method_text, action_abnormal, check_type_id, illustration_path, photo_required_id, value_name, unit, expected_value, sort_order) VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?)");
+            // หมวด: ยังไม่รัน SQL => ไม่บันทึก (ค่าว่าง => NULL)
+            $hasSec = pmcs_has_section($connect);
+            $stmtItem = mysqli_prepare($connect, "INSERT INTO pm_checksheet_items (checksheet_id, " . ($hasSec ? "section_name, " : "") . "check_point, standard_text, method_text, action_abnormal, check_type_id, illustration_path, photo_required_id, value_name, unit, expected_value, sort_order) VALUES (?, " . ($hasSec ? "NULLIF(?, ''), " : "") . "?, ?, ?, ?, ?, '', ?, ?, ?, ?, ?)");
             $sheetItems = $input['items'] ?? [];   // sheet key => [จุดตรวจ] ที่กำหนดในหน้านำเข้า
             foreach ($a['sheets'] as $key => $s) {
                 if ($s['existing_id']) { $sheetIds[$key] = $s['existing_id']; continue; }
@@ -435,7 +439,9 @@ try {
 
                 foreach (cleanSheetItems($sheetItems[$key] ?? [], $agencyItems) as $n => $it) {
                     $sort = $n + 1;
-                    mysqli_stmt_bind_param($stmtItem, "issssiisssi", $sid, $it['check_point'], $it['standard_text'], $it['method_text'],
+                    if ($hasSec) mysqli_stmt_bind_param($stmtItem, "isssssiisssi", $sid, $it['section_name'], $it['check_point'], $it['standard_text'], $it['method_text'],
+                        $it['action_abnormal'], $it['check_type_id'], $it['photo_required_id'], $it['value_name'], $it['unit'], $it['expected_value'], $sort);
+                    else mysqli_stmt_bind_param($stmtItem, "issssiisssi", $sid, $it['check_point'], $it['standard_text'], $it['method_text'],
                         $it['action_abnormal'], $it['check_type_id'], $it['photo_required_id'], $it['value_name'], $it['unit'], $it['expected_value'], $sort);
                     if (!mysqli_stmt_execute($stmtItem)) throw new Exception('สร้างจุดตรวจไม่สำเร็จ: ' . mysqli_error($connect));
                 }

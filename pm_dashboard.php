@@ -939,6 +939,21 @@ include "config_ctrl/checksession.php";
         }
     }
 
+    // ชื่อเครื่องที่ขึ้นต้นเหมือนกันทุกเครื่อง เช่น "ไฟแสงสว่างฉุกเฉิน (Emergency Light Stand Alone) (หน้าลิฟต์)" => ส่วนต้นร่วม / ส่วนที่ต่าง (แบบเดียวกับ pm_daily.php)
+    function pmcCommonPrefix(names) {
+        names = names.filter(Boolean);
+        if (names.length < 2) return '';
+        let p = names[0];
+        names.forEach(n => { while (p && !n.startsWith(p)) p = p.slice(0, -1); });
+        p = p.replace(/[^\s\-–(/]*$/, '').replace(/[\s\-–(/]+$/, '');
+        return p.length >= 6 && names.every(n => n.trim().length > p.length + 1) ? p : '';
+    }
+    function pmcShortName(name, pfx) {
+        if (!pfx || !name || !name.startsWith(pfx)) return name || '-';
+        let rest = name.slice(pfx.length).trim().replace(/^[-–/]\s*/, '');
+        if (/^\(.*\)$/.test(rest)) { const inner = rest.slice(1, -1); let d = 0, ok = true; for (const ch of inner) { if (ch === '(') d++; else if (ch === ')' && --d < 0) { ok = false; break; } } if (ok && d === 0) rest = inner; }
+        return rest || name;
+    }
     // ป๊อปอัปงานของวัน: จัดกลุ่มตามเช็คชีต + ปุ่มบันทึกพร้อมกัน (รายเครื่องโหลดเมื่อกด "รายเครื่อง")
     //  openCs = id เช็คชีตที่ให้เปิดรายการเครื่องไว้เลย
     function openPmDayPanel(dateStr, openCs) {
@@ -996,10 +1011,14 @@ include "config_ctrl/checksession.php";
             try {
                 const r = await pmcGet({ action: 'get_events', start: dateStr, end: pmcAddDays(dateStr, 1), cs: g.id ?? 'none', ...filters });
                 g.list = r.data;
-                box.innerHTML = r.data.map((ev, i) => {
+                // รหัสเครื่องเด่น + ชื่อเฉพาะส่วนที่ต่างกัน (ส่วนต้นที่ซ้ำกันทุกเครื่องแสดงครั้งเดียวด้านบน) — ชื่อยาวหาง่ายบนมือถือ
+                const pfx = pmcCommonPrefix(r.data.map(ev => ev.machine));
+                box.innerHTML = (pfx ? `<div class="text-[11px] text-slate-500 sm:col-span-2">ทุกเครื่อง: <b class="text-slate-700">${esc(pfx)}</b> …</div>` : '') + r.data.map((ev, i) => {
                     const d = ev.status == 1, w = !d && ((PMC.drafts || {})[dateStr + '|' + g.id] || []).includes(+ev.id);
-                    return `<button type="button" data-ev="${gi}:${i}" title="${w ? 'รอส่ง (ตรวจครบในหน้าบันทึกพร้อมกันแล้ว)' : ''}" class="text-left px-2.5 py-1.5 rounded-lg border ${d ? 'border-emerald-200 bg-emerald-50/50' : w ? 'border-amber-300 bg-amber-50' : 'border-slate-200'} hover:bg-sky-50 text-xs flex items-center gap-2 min-w-0">
-                        <span class="w-2 h-2 rounded-full flex-none ${d ? 'bg-emerald-500' : w ? 'bg-amber-500' : 'bg-[#006B9F]'}"></span><span class="truncate">${esc(ev.machine || ev.checksheet || '-')}</span>${ev.location ? `<span class="truncate text-slate-400 ml-auto">${esc(ev.location)}</span>` : ''}</button>`;
+                    return `<button type="button" data-ev="${gi}:${i}" title="${esc(ev.machine || '')}${w ? ' — รอส่ง (ตรวจครบในหน้าบันทึกพร้อมกันแล้ว)' : ''}" class="text-left px-2.5 py-1.5 rounded-lg border ${d ? 'border-emerald-200 bg-emerald-50/50' : w ? 'border-amber-300 bg-amber-50' : 'border-slate-200'} hover:bg-sky-50 text-xs flex items-center gap-2 min-w-0">
+                        <span class="w-2 h-2 rounded-full flex-none ${d ? 'bg-emerald-500' : w ? 'bg-amber-500' : 'bg-[#006B9F]'}"></span>
+                        <span class="min-w-0 flex-1"><span class="flex items-baseline gap-1.5 min-w-0">${ev.machine_code ? `<b class="font-mono text-[#006B9F] flex-none">${esc(ev.machine_code)}</b>` : ''}<span class="truncate text-slate-700">${esc(pmcShortName(ev.machine || ev.checksheet || '-', pfx))}</span></span>
+                        ${ev.location ? `<span class="block truncate text-slate-400">${esc(ev.location)}</span>` : ''}</span></button>`;
                 }).join('') + (r.total > r.data.length ? `<div class="text-xs text-slate-400 py-1 sm:col-span-2">แสดง ${r.data.length} จาก ${r.total.toLocaleString()} เครื่อง — ใช้ตัวกรองเพื่อค้นหาเครื่อง</div>` : '');
             } catch (e) {
                 box.dataset.ready = '';

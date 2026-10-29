@@ -21,9 +21,16 @@
     .pmd-name { font-weight: 600; color: #1e293b; font-size: 14px; }
     .pmd-sub { font-size: 12px; color: #64748b; }
     .pmd-badge { display: inline-flex; align-items: center; gap: .25rem; padding: .1rem .5rem; border-radius: 9999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    /* แถวที่เปิดใบงานได้: แตะทั้งแถวได้ · รหัสเครื่องเด่น + ชื่อเฉพาะส่วนที่ต่างจากเครื่องอื่นในกลุ่ม */
+    .pmd-row[data-open], .pmd-row[data-history] { cursor: pointer; }
+    .pmd-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; color: #006B9F; font-size: 13px; }
+    .pmd-prefix { padding: .45rem 1rem; font-size: 12px; color: #64748b; background: #f8fafc; border-top: 1px solid #f1f5f9; }
     @media (max-width: 639.98px) {
-        .pmd-row { grid-template-columns: minmax(0, 1fr); }
-        .pmd-row .pmd-act button { width: 100%; justify-content: center; padding-top: .6rem; padding-bottom: .6rem; }
+        /* มือถือ: ปุ่มเหลือไอคอนชิดขวา แถวไม่สูงเกิน (แตะทั้งแถวเพื่อเปิด) */
+        .pmd-row { gap: .5rem; padding: .6rem .75rem; }
+        .pmd-row .pmd-act button { width: 2.5rem; height: 2.5rem; padding: 0; justify-content: center; }
+        .pmd-row .pmd-act .pmd-btn-txt { display: none; }
+        .pmd-row:active { background: #f0f9ff; }
     }
     /* จอคอม (lg+): แบ่งซ้าย-ขวา — รายการกลุ่มทางซ้าย, เครื่องในกลุ่มที่เลือกทางขวา (เลื่อนแยกกัน) */
     .pmd-split { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: .75rem; min-height: 420px; }
@@ -208,14 +215,14 @@
 
     // โหลดเครื่องในกลุ่มทีละหน้า
     async function loadItems(key, more) {
-        const it = items[key] || (items[key] = { rows: [], loading: false, error: '', done: false });
+        const it = items[key] || (items[key] = { rows: [], loading: false, error: '', done: false, q2: '' });
         if (it.loading || (more && it.done)) return;
         it.loading = true; it.error = '';
         if (!more) it.rows = [];
         renderGroup(key);
         const seq = reqSeq;
         try {
-            const res = await fetch('handle_pm_daily.php?action=items&' + params({ key, offset: it.rows.length, limit: PAGE }));
+            const res = await fetch('handle_pm_daily.php?action=items&' + params({ key, offset: it.rows.length, limit: PAGE, q2: it.q2 || '' }));
             const data = await res.json();
             if (seq !== reqSeq || items[key] !== it) return;
             if (!data.success) throw new Error(data.error || 'โหลดรายการไม่สำเร็จ');
@@ -298,7 +305,8 @@
         if (selKey == null) { box.innerHTML = ''; lockMain(); return; }
         const g = summary.groups.find(x => x.key === selKey);
         // มือถือ: หัวหน้าเต็มจอ (ปุ่มกลับ + ชื่อกลุ่ม) — จอคอมใช้หัวกลุ่มเดิม (summary)
-        box.innerHTML = `<div class="lg:hidden sticky top-0 z-[3] bg-white border-b border-slate-200 flex items-center gap-1 pl-1 pr-3 py-1.5 shadow-sm">
+        box.innerHTML = `<div class="lg:hidden sticky top-0 z-[3] bg-white border-b border-slate-200 shadow-sm">
+            <div class="flex items-center gap-1 pl-1 pr-3 py-1.5">
                 <button type="button" data-back class="w-11 h-11 flex-none rounded-full flex items-center justify-center text-slate-600 active:bg-slate-100" title="กลับไป${GROUP_NAME[grpVal()]}ทั้งหมด" aria-label="กลับ"><i data-lucide="arrow-left" class="w-5 h-5"></i></button>
                 <div class="min-w-0 flex-1">
                     <div class="font-semibold text-slate-800 text-[15px] leading-tight truncate">${esc(labelOf(g))}</div>
@@ -309,7 +317,22 @@
                     </div>
                 </div>
             </div>
+            ${g.n > 5 ? `<div class="px-3 pb-2"><div class="relative">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                <input type="search" id="pmd-iq" enterkeyhint="search" autocomplete="off" placeholder="ค้นหาในรายการนี้: รหัส / ชื่อ / สถานที่" value="${esc((items[selKey] && items[selKey].q2) || '')}"
+                       class="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
+            </div></div>` : ''}
+            </div>
             <details class="pmd-group" data-key="${esc(selKey)}"></details>`;
+        // ค้นหาเฉพาะเครื่องในกลุ่มนี้ (ค้นที่เซิร์ฟเวอร์ — รายการโหลดทีละหน้า)
+        const iq = $('pmd-iq');
+        if (iq) {
+            let t = null;
+            iq.addEventListener('input', () => {
+                clearTimeout(t);
+                t = setTimeout(() => { const key = selKey; if (key == null) return; items[key] = { rows: [], loading: false, error: '', done: false, q2: iq.value.trim() }; loadItems(key); }, 300);
+            });
+        }
         lucide.createIcons({ root: box });
         box.scrollTop = 0;
         lockMain();
@@ -324,6 +347,7 @@
         renderDetail();
     }
     function backToList() {
+        if (selKey != null && items[selKey] && items[selKey].q2) delete items[selKey];   // ค้นหาในกลุ่มไว้ => กลับเข้ามาใหม่เห็นทั้งหมด
         selKey = null; openKeys = new Set();
         document.querySelectorAll('#pmd-side [data-sel]').forEach(b => b.classList.remove('on'));
         renderDetail();
@@ -344,11 +368,15 @@
 
         let body = '';
         if (open) {
-            body = (it ? it.rows.map(rowHtml).join('') : '')
+            const pfx = it ? commonPrefix(it.rows.map(r => r.machine_name)) : '';
+            const searching = !!(it && it.q2);
+            body = (pfx ? `<div class="pmd-prefix">ทุกเครื่องในรายการ: <b class="text-slate-700">${esc(pfx)}</b> …</div>` : '')
+                + (it ? it.rows.map(r => rowHtml(r, pfx)).join('') : '')
                 + (it && it.loading ? `<div class="py-4 text-center text-sm text-slate-400 border-t border-slate-100">กำลังโหลด...</div>` : '')
                 + (it && it.error ? `<div class="py-4 text-center text-sm text-red-600 border-t border-slate-100">${esc(it.error)} <button type="button" data-retry="${esc(key)}" class="underline ml-1">ลองใหม่</button></div>` : '')
-                + (it && !it.loading && !it.error && !it.done && it.rows.length < g.n
-                    ? `<button type="button" data-more="${esc(key)}" class="w-full py-2.5 text-sm text-sky-700 hover:bg-sky-50 border-t border-slate-100">แสดงเพิ่มอีก ${Math.min(PAGE, g.n - it.rows.length)} จาก ${fmt(g.n - it.rows.length)} เครื่องที่เหลือ</button>` : '');
+                + (searching && !it.loading && !it.error && !it.rows.length ? `<div class="py-8 text-center text-sm text-slate-400">ไม่พบเครื่องที่ตรงกับ “${esc(it.q2)}”</div>` : '')
+                + (it && !it.loading && !it.error && !it.done && (searching || it.rows.length < g.n)
+                    ? `<button type="button" data-more="${esc(key)}" class="w-full py-2.5 text-sm text-sky-700 hover:bg-sky-50 border-t border-slate-100">${searching ? 'แสดงเพิ่ม' : `แสดงเพิ่มอีก ${Math.min(PAGE, g.n - it.rows.length)} จาก ${fmt(g.n - it.rows.length)} เครื่องที่เหลือ`}</button>` : '');
         }
 
         el.open = open;
@@ -365,21 +393,40 @@
         lucide.createIcons({ root: el });
     }
 
-    function rowHtml(r) {
+    // ชื่อเครื่องที่ขึ้นต้นเหมือนกันทั้งกลุ่ม เช่น "ไฟแสงสว่างฉุกเฉิน (Emergency Light Stand Alone) (หน้าลิฟต์)"
+    //  => คืนส่วนต้นร่วม (แสดงครั้งเดียวที่หัวกลุ่ม) · แต่ละแถวแสดงเฉพาะส่วนที่ต่าง — ชื่อยาวอ่าน/หาง่ายบนมือถือ
+    function commonPrefix(names) {
+        names = names.filter(Boolean);
+        if (names.length < 2) return '';
+        let p = names[0];
+        names.forEach(n => { while (p && !n.startsWith(p)) p = p.slice(0, -1); });
+        p = p.replace(/[^\s\-–(/]*$/, '').replace(/[\s\-–(/]+$/, '');   // ตัดที่ขอบคำ
+        return p.length >= 6 && names.every(n => n.trim().length > p.length + 1) ? p : '';
+    }
+    function shortName(name, pfx) {
+        if (!pfx || !name || !name.startsWith(pfx)) return name || '-';
+        let rest = name.slice(pfx.length).trim().replace(/^[-–/]\s*/, '');
+        // "(ข้อความ)" ทั้งก้อน => เอาวงเล็บนอกออก (วงเล็บในยังคู่กันครบ)
+        if (/^\(.*\)$/.test(rest)) { const inner = rest.slice(1, -1); let d = 0, ok = true; for (const ch of inner) { if (ch === '(') d++; else if (ch === ')' && --d < 0) { ok = false; break; } } if (ok && d === 0) rest = inner; }
+        return rest || name;
+    }
+
+    function rowHtml(r, pfx) {
         const st = stateOf(r), s = STATE[st];
-        let btn;
-        // ปุ่มแบบขอบ (ไม่ทึบ) ให้รายการยาว ๆ ดูไม่ลายตา
+        let btn, act = '';
+        // ปุ่มแบบขอบ (ไม่ทึบ) ให้รายการยาว ๆ ดูไม่ลายตา · มือถือเหลือแค่ไอคอน (แตะทั้งแถวได้)
         if (st !== 'done' && st !== 'waiting') {
-            btn = `<button type="button" data-open="${r.id}" class="px-3 py-2 rounded-lg border border-sky-200 text-sky-700 hover:bg-sky-600 hover:text-white hover:border-sky-600 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> เปิดใบงาน</button>`;
+            act = `data-open="${r.id}"`;
+            btn = `<button type="button" data-open="${r.id}" title="เปิดใบงาน" aria-label="เปิดใบงาน" class="px-3 py-2 rounded-lg border border-sky-200 text-sky-700 hover:bg-sky-600 hover:text-white hover:border-sky-600 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"><i data-lucide="external-link" class="w-3.5 h-3.5"></i> <span class="pmd-btn-txt">เปิดใบงาน</span></button>`;
         } else if (r.has_record) {
-            btn = `<button type="button" data-history="${r.id}" class="px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"><i data-lucide="search" class="w-3.5 h-3.5"></i> ดูประวัติ</button>`;
+            act = `data-history="${r.id}"`;
+            btn = `<button type="button" data-history="${r.id}" title="ดูประวัติ" aria-label="ดูประวัติ" class="px-3 py-2 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"><i data-lucide="search" class="w-3.5 h-3.5"></i> <span class="pmd-btn-txt">ดูประวัติ</span></button>`;
         } else {
             // status = 1 แต่ไม่มีใบบันทึกผลในระบบ (เช่น แก้สถานะในฐานข้อมูลโดยตรง)
             btn = `<span class="text-xs text-slate-400" title="งานนี้ถูกตั้งสถานะเป็นทำแล้ว แต่ไม่มีใบบันทึกผลในระบบ">ไม่มีใบบันทึก</span>`;
         }
         const g = grpVal();
         const meta = [
-            r.machine_code && `<span class="font-mono">${esc(r.machine_code)}</span>`,
             g !== 'machine_type' && r.machine_type && esc(r.machine_type),
             g !== 'location' && r.location && `<span class="inline-flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3"></i>${esc(r.location)}</span>`,
             g !== 'checksheet' && r.checksheet && `<span class="inline-flex items-center gap-1"><i data-lucide="file-check-2" class="w-3 h-3"></i>${esc(r.checksheet)}</span>`,
@@ -390,13 +437,14 @@
         if (st === 'overdue') badge = `<span class="pmd-badge ${s.cls}"><i data-lucide="${s.icon}" class="w-3 h-3"></i>เลยกำหนด · ${thShort(r.event_date)}</span>`;
         else if (st === 'done' || st === 'waiting') badge = `<span class="pmd-badge ${s.cls}"><i data-lucide="${s.icon}" class="w-3 h-3"></i>${s.label}${r.inspector ? ' · ' + esc(r.inspector) : ''}</span>`;
         else if (showDate) badge = `<span class="pmd-badge bg-slate-100 text-slate-600">${thShort(r.event_date)}</span>`;
-        return `<div class="pmd-row ${st === 'done' ? 'is-done' : ''}">
+        return `<div class="pmd-row ${st === 'done' ? 'is-done' : ''}" ${act}>
             <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-2">
-                    <span class="pmd-name">${esc(r.machine_name || '-')}</span>
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    ${r.machine_code ? `<span class="pmd-code">${esc(r.machine_code)}</span>` : ''}
+                    <span class="pmd-name" title="${esc(r.machine_name || '')}">${esc(shortName(r.machine_name, pfx))}</span>
                     ${badge}
                 </div>
-                <div class="pmd-sub flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">${meta}</div>
+                ${meta ? `<div class="pmd-sub flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">${meta}</div>` : ''}
             </div>
             <div class="pmd-act shrink-0">${btn}</div>
         </div>`;

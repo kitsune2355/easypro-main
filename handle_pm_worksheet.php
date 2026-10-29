@@ -8,6 +8,7 @@ error_reporting(E_ALL);
 include 'config_ctrl/connect.php'; 
 require_once __DIR__ . '/config_ctrl/pm_work_cancel.php';   // ยกเลิกผลบันทึก: ใช้เลขที่เอกสารเดิม / ครั้งที่แก้ไข
 require_once __DIR__ . '/config_ctrl/pm_record_setting.php'; // ตั้งค่าการบันทึกผล: บังคับลายเซ็น / วันที่ทำ PM
+require_once __DIR__ . '/config_ctrl/pm_cs_section.php';     // หมวดของจุดตรวจ (ยังไม่รัน SQL => ไม่มีหมวด)
 require_once __DIR__ . '/config_ctrl/pm_approve.php';        // ขั้นตรวจรับโดยหัวหน้าช่าง (เปิดต่อหน่วยงาน)
 
 if (mysqli_connect_errno()) {
@@ -637,6 +638,7 @@ function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users,
         SELECT 
             id,
             checksheet_id,
+            " . (pmcs_has_section($connect) ? "section_name," : "NULL AS section_name,") . "
             check_point,
             standard_text,
             method_text,
@@ -741,6 +743,11 @@ function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users,
         $actual_value_db = dbEsc($connect, $actual_value);
         $result_photo_path_db = dbEsc($connect, $result_photo_path);
 
+        // หมวด (snapshot) — ยังไม่รัน SQL => ไม่บันทึก
+        $recSec = pmcs_has_section($connect, 'pm_work_record_items');
+        $section_name_db = dbEsc($connect, pmcs_section_value($item['section_name'] ?? ''));
+        $secCol = $recSec ? 'section_name,' : '';
+        $secVal = $recSec ? ($section_name_db === '' ? 'NULL,' : "'$section_name_db',") : '';
         $sql_insert_item = "
             INSERT INTO pm_work_record_items (
                 work_record_id,
@@ -748,7 +755,7 @@ function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users,
                 checksheet_item_id,
 
                 sort_order,
-
+                $secCol
                 check_point,
                 standard_text,
                 method_text,
@@ -773,7 +780,7 @@ function pmws_save_event($connect, $event_id, $inspector_name, $inspector_users,
                 $checksheet_item_id,
 
                 $sort_order,
-
+                $secVal
                 '$check_point',
                 '$standard_text',
                 '$method_text',
@@ -968,7 +975,7 @@ if ($action === 'get_data') {
     }
 
     // 3. ดึงข้อมูลรายการจุดตรวจสอบตาม checksheet_id
-    $sql_items = "SELECT id, check_point, standard_text, method_text, 
+    $sql_items = "SELECT id, " . (pmcs_has_section($connect) ? "section_name, " : "NULL AS section_name, ") . "check_point, standard_text, method_text, 
                          action_abnormal AS action_text, 
                          check_type_id, illustration_path AS reference_image, photo_required_id, 
                          value_name AS measurement_name, unit, expected_value, sort_order
@@ -1149,7 +1156,7 @@ if ($action === 'get_batch_data') {
     }
 
     $items = [];
-    $res = mysqli_query($connect, "SELECT id, check_point, standard_text, method_text, action_abnormal AS action_text, check_type_id,
+    $res = mysqli_query($connect, "SELECT id, " . (pmcs_has_section($connect) ? "section_name, " : "NULL AS section_name, ") . "check_point, standard_text, method_text, action_abnormal AS action_text, check_type_id,
                                           illustration_path AS reference_image, photo_required_id, value_name AS measurement_name, unit, expected_value, sort_order
                                    FROM pm_checksheet_items WHERE checksheet_id = $checksheet_id ORDER BY sort_order ASC, id ASC");
     while ($res && ($row = mysqli_fetch_assoc($res))) $items[] = $row;
