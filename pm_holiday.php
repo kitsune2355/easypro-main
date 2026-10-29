@@ -284,8 +284,7 @@ include "config_ctrl/checksession.php";
 
         const gridOptions = {
             columnDefs: columnDefs,
-            rowData: [], 
-            rowModelType: 'infinite',
+            rowModelType: 'infinite',   // ไม่ใส่ rowData — ใช้ได้เฉพาะ ClientSideRowModel (AG Grid แจ้ง error #200)
             pagination: true,
             paginationPageSize: 10,
             cacheBlockSize: 10,

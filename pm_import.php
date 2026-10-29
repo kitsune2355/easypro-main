@@ -23,6 +23,11 @@ include_once "config_ctrl/checksession.php";
                     <span id="imp-contract" class="font-medium text-sky-600"></span></p>
             </div>
             <div class="flex flex-wrap gap-2">
+                <?php if (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin') { ?>
+                <button id="bd-open" type="button" title="ลบแผน PM ที่นำเข้าผิด (Super Admin)" class="border border-red-200 text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i> ลบแผนที่นำเข้าผิด
+                </button>
+                <?php } ?>
                 <button id="imp-defaults-btn" type="button" title="จุดตรวจที่ใส่ให้เช็คชีตใหม่ที่สร้างจากการนำเข้า (แยกตามหน่วยงาน)" class="border border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
                     <i data-lucide="list-checks" class="w-4 h-4"></i> ตั้งค่าจุดตรวจเริ่มต้น
                 </button>
@@ -119,15 +124,22 @@ include_once "config_ctrl/checksession.php";
     </div>
 
     <?php if (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin') { ?>
-    <!-- Super Admin: ลบแผน PM ที่นำเข้าผิด (ทีละรอบการสร้าง) — handle_pm_bulk_delete.php -->
-    <div id="bd-card" class="bg-white p-5 rounded-xl shadow-sm border border-red-200 mt-4">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
+    <!-- Super Admin: ลบแผน PM ที่นำเข้าผิด (ทีละรอบการสร้าง) — handle_pm_bulk_delete.php
+         ซ่อนไว้ เปิดจากปุ่ม "ลบแผนที่นำเข้าผิด" เป็นหน้าต่างทับหน้าจอ (โฟกัสเฉพาะงานลบ) · z-index ต่ำกว่า SweetAlert (10000) เพื่อให้กล่องยืนยันแสดงทับได้ -->
+    <div id="bd-modal" class="hidden fixed inset-0 p-2 sm:p-6 items-center justify-center" style="z-index:9000;background:rgba(15,23,42,.55)">
+    <!-- หัวหน้าต่างอยู่กับที่ เลื่อนเฉพาะเนื้อหาในกล่อง (ไม่ใช่แถบเลื่อนของพื้นหลัง) -->
+    <div id="bd-card" role="dialog" aria-modal="true" aria-labelledby="bd-title" class="bg-white rounded-xl shadow-2xl border border-red-200 w-full max-w-6xl max-h-full flex flex-col overflow-hidden">
+        <div class="shrink-0 px-5 pt-5 pb-3 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
-                <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2"><i data-lucide="trash-2" class="w-5 h-5 text-red-500"></i> ลบแผน PM ที่นำเข้าผิด <span class="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">Super Admin</span></h3>
+                <h3 id="bd-title" class="text-lg font-semibold text-slate-800 flex items-center gap-2"><i data-lucide="trash-2" class="w-5 h-5 text-red-500"></i> ลบแผน PM ที่นำเข้าผิด <span class="text-[11px] font-semibold text-red-600 bg-red-50 border border-red-100 rounded-full px-2 py-0.5">Super Admin</span></h3>
                 <p class="text-[12px] text-slate-500 mt-0.5">หน่วยงาน <b id="bd-agency"></b> · การนำเข้า 1 ครั้งมักมี 2 แถว: <b class="text-violet-700">สร้างเช็คชีต</b> (ขั้นที่ 1) และ <b class="text-sky-700">บันทึกแผน PM</b> (ขั้นที่ 2) — ติ๊กแถวที่นำเข้าผิด แล้วกด ตรวจสอบก่อนลบ (ระบบสรุปให้ดูก่อน ยังไม่ลบ)</p>
             </div>
-            <button id="bd-reload" type="button" class="border border-slate-300 text-slate-700 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> โหลดใหม่</button>
+            <div class="flex items-center gap-2">
+                <button id="bd-reload" type="button" class="whitespace-nowrap border border-slate-300 text-slate-700 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> โหลดใหม่</button>
+                <button id="bd-close" type="button" title="ปิด (Esc)" class="w-9 h-9 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
         </div>
+        <div id="bd-scroll" class="flex-1 min-h-0 overflow-auto overscroll-contain px-5 pt-3 pb-5">
         <div class="text-[12px] text-slate-600 bg-amber-50 border border-amber-100 rounded-lg p-3 mb-3 leading-relaxed">
             <div class="font-semibold text-slate-700 mb-1">เมื่อกดลบ ระบบจะ:</div>
             <ul class="list-disc pl-5 space-y-0.5">
@@ -178,10 +190,12 @@ include_once "config_ctrl/checksession.php";
                 </div>
             </div>
         </div>
-        <div class="flex flex-wrap items-center justify-between gap-2 mt-3">
+        <div class="sticky -bottom-5 z-10 bg-white border-t border-slate-100 -mx-5 px-5 py-3 mt-3 flex flex-wrap items-center justify-between gap-2">
             <span id="bd-selinfo" class="text-[12px] text-slate-500">ยังไม่ได้เลือก</span>
             <button id="bd-preview" type="button" disabled class="bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"><i data-lucide="search-check" class="w-4 h-4"></i> ตรวจสอบก่อนลบ</button>
         </div>
+        </div>
+    </div>
     </div>
     <?php } ?>
 </div>
@@ -584,6 +598,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
                 </div>
                 <div class="flex flex-wrap items-center gap-3 mt-3">
                     <button type="button" id="imp-it-add" class="px-3 py-1.5 rounded-lg border border-sky-300 text-sky-700 hover:bg-sky-50 text-sm">+ เพิ่มจุดตรวจ</button>
+                    ${window.openChecksheetImport ? `<button type="button" id="imp-it-xls" class="px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-sm inline-flex items-center gap-1.5"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> นำเข้าจาก Excel</button>` : ''}
                     ${opts.footerHtml || ''}
                 </div></div>`,
             showCancelButton: true, confirmButtonText: opts.confirmText || 'บันทึกจุดตรวจ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#006B9F',
@@ -595,6 +610,20 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
                     body.insertAdjacentHTML('beforeend', itemRowHtml(blankItem(), body.rows.length));
                     body.lastElementChild.querySelector('input').focus();
                 });
+                // นำเข้าจุดตรวจจากไฟล์ใบตรวจเช็คของหน่วยงาน (js/pm_cs_import.js — เปิดซ้อนบนหน้าต่างนี้)
+                //  แถวที่ได้: [จุดตรวจ, มาตรฐาน, วิธีตรวจ, เมื่อผิดปกติ, ประเภท(ข้อความ), รูป, บังคับถ่ายรูป(ข้อความ), ชื่อค่าวัด, หน่วย, ค่าที่คาดหวัง]
+                if ($('imp-it-xls')) {
+                    lucide.createIcons();
+                    $('imp-it-xls').addEventListener('click', () => openChecksheetImport({
+                        apply: (rows, mode) => {
+                            const optId = (list, label, def) => (list.find(o => o.label === label) || { id: def }).id;
+                            const add = rows.map(v => ({ ...blankItem(), check_point: v[0], standard_text: v[1], method_text: v[2], action_abnormal: v[3],
+                                check_type_id: optId(CHECK_TYPES, v[4], 1), photo_required_id: optId(PHOTO_REQS, v[6], 2), value_name: v[7], unit: v[8], expected_value: v[9] }));
+                            const keep = mode === 'append' ? readItemRows(body).filter(it => ITEM_COLS.some(c => !c.opts && it[c.f] !== '')) : [];
+                            body.innerHTML = keep.concat(add).map(itemRowHtml).join('');
+                        },
+                    }));
+                }
                 body.addEventListener('click', e => {
                     const del = e.target.closest('.imp-it-del');
                     if (!del) return;
@@ -1214,7 +1243,21 @@ pmLazy('import', function () {
         load();
     });
 
-    load();
+    // เปิด/ปิดหน้าต่าง — โหลดรายการทุกครั้งที่เปิด (ข้อมูลล่าสุด) · Esc / คลิกพื้นหลัง = ปิด (ยกเว้นตอนมีกล่อง SweetAlert)
+    const modal = $('bd-modal');
+    // ระหว่างเปิด ล็อกการเลื่อนของหน้าด้านหลัง (เลื่อนได้เฉพาะในกล่อง #bd-scroll)
+    function closeBd() { modal.classList.add('hidden'); modal.classList.remove('flex'); document.documentElement.style.overflow = document.body.style.overflow = ''; document.removeEventListener('keydown', onBdKey); $('bd-open').focus(); }
+    function onBdKey(e) { if (e.key === 'Escape' && !(window.Swal && Swal.isVisible())) closeBd(); }
+    $('bd-open').addEventListener('click', () => {
+        modal.classList.remove('hidden'); modal.classList.add('flex');
+        document.documentElement.style.overflow = document.body.style.overflow = 'hidden';
+        $('bd-scroll').scrollTop = 0;
+        document.addEventListener('keydown', onBdKey);
+        $('bd-close').focus();
+        load();
+    });
+    $('bd-close').addEventListener('click', closeBd);
+    modal.addEventListener('click', e => { if (e.target === modal) closeBd(); });
 });
 </script>
 <?php } ?>

@@ -130,6 +130,9 @@ include "config_ctrl/checksession.php";
                         <span id="cs-item-count" class="text-xs text-slate-500"></span>
                     </div>
                     <div class="flex items-center gap-2">
+                        <button type="button" onclick="openChecksheetImport()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 text-sm text-emerald-700 hover:bg-emerald-50" title="อ่านจุดตรวจจากไฟล์ใบตรวจเช็คของหน่วยงาน">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> นำเข้าจาก Excel
+                        </button>
                         <input type="number" id="row-add-count" value="1" min="1" aria-label="จำนวนแถวที่จะเพิ่ม" class="w-16 border border-slate-200 rounded-lg py-1.5 px-2 text-sm text-center outline-none focus:ring-2 focus:ring-sky-500/30">
                         <button type="button" onclick="addHotRows()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-700 hover:bg-slate-50">
                             <i data-lucide="plus" class="w-4 h-4"></i> เพิ่มแถว
@@ -455,6 +458,16 @@ include "config_ctrl/checksession.php";
         };
         fileInput.click();
     }
+
+    // นำเข้าจุดตรวจจาก Excel (js/pm_cs_import.js): mode = replace แทนที่ทั้งหมด / append ต่อท้ายแถวที่มีข้อมูล
+    window.csImportApply = function (items, mode) {
+        const hot = window.hotChecksheet;
+        if (!hot) return;
+        const keep = mode === 'append' ? hot.getData().filter(r => r[0] && String(r[0]).trim()) : [];
+        hot.loadData(keep.concat(items));
+        csDirty = true;
+        updateItemCount();
+    };
 
     function updateItemCount() {
         if (!window.hotChecksheet) return;

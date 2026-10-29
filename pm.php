@@ -74,7 +74,8 @@ $pmCanApprove = $pmApproveOn
     <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-enterprise/dist/ag-grid-enterprise.min.js"></script>
     <script src="js/img-carousel.js"></script>
-    <script src="js/search-select.js"></script>   <!-- ทุก select ในหน้าวางแผน PM ค้นหาได้ -->
+    <script src="js/search-select.js"></script>
+    <script src="js/pm_cs_import.js"></script>   <!-- นำเข้าจุดตรวจจาก Excel (สร้างเช็คชีต) -->   <!-- ทุก select ในหน้าวางแผน PM ค้นหาได้ -->
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
     <style>
