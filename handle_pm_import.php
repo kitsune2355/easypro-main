@@ -4,6 +4,7 @@
 include 'config_ctrl/connect.php';
 require_once 'pm_plan_functions.php';
 require_once 'config_ctrl/pm_cs_section.php';   // หมวดของจุดตรวจ
+pmcs_ensure($connect);   // ยังไม่มีคอลัมน์หมวด => เพิ่มให้ (ก่อนเปิดทรานแซกชัน)
 
 header('Content-Type: application/json; charset=utf-8');
 date_default_timezone_set('Asia/Bangkok');

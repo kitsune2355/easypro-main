@@ -873,7 +873,9 @@ include "config_ctrl/checksession.php";
             Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             const response = await axios.post('handle_pm_checksheet.php', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             if (response.data.success) {
-                Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'ข้อมูลเช็คชีตถูกบันทึกแล้ว', timer: 1500, showConfirmButton: false });
+                // บันทึกได้ แต่หมวดของจุดตรวจไม่ถูกบันทึก (ฐานข้อมูลยังไม่มีคอลัมน์หมวด) => แจ้งค้างไว้ให้อ่าน
+                if (response.data.warning) Swal.fire({ icon: 'warning', title: 'บันทึกแล้ว แต่ไม่มีหมวด', text: response.data.warning, confirmButtonText: 'รับทราบ', confirmButtonColor: '#006B9F' });
+                else Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'ข้อมูลเช็คชีตถูกบันทึกแล้ว', timer: 1500, showConfirmButton: false });
                 csDirty = false;
                 window.closeChecksheetEditor(true);
                 // สร้างใหม่ => กลับหน้าแรก (เรียงตามแก้ไขล่าสุด) / แก้ไข => คงหน้าเดิม

@@ -8,7 +8,8 @@ error_reporting(E_ALL);
 include 'config_ctrl/connect.php'; 
 require_once __DIR__ . '/config_ctrl/pm_work_cancel.php';   // ยกเลิกผลบันทึก: ใช้เลขที่เอกสารเดิม / ครั้งที่แก้ไข
 require_once __DIR__ . '/config_ctrl/pm_record_setting.php'; // ตั้งค่าการบันทึกผล: บังคับลายเซ็น / วันที่ทำ PM
-require_once __DIR__ . '/config_ctrl/pm_cs_section.php';     // หมวดของจุดตรวจ (ยังไม่รัน SQL => ไม่มีหมวด)
+require_once __DIR__ . '/config_ctrl/pm_cs_section.php';     // หมวดของจุดตรวจ
+pmcs_ensure($connect);   // ยังไม่มีคอลัมน์หมวด => เพิ่มให้ (ก่อนเปิดทรานแซกชัน)
 require_once __DIR__ . '/config_ctrl/pm_approve.php';        // ขั้นตรวจรับโดยหัวหน้าช่าง (เปิดต่อหน่วยงาน)
 
 if (mysqli_connect_errno()) {

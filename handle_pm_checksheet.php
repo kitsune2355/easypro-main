@@ -5,7 +5,9 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 include 'config_ctrl/connect.php';
-include_once 'config_ctrl/pm_cs_section.php';   // หมวดของจุดตรวจ 
+include_once 'config_ctrl/pm_cs_section.php';   // หมวดของจุดตรวจ
+pmcs_ensure($connect);   // ยังไม่มีคอลัมน์หมวด => เพิ่มให้ (ก่อนเปิดทรานแซกชัน)
+$pmcs_dropped = false;   // มีหมวดแต่บันทึกไม่ได้ (เพิ่มคอลัมน์ไม่สำเร็จ) 
 
 if (mysqli_connect_errno()) {
     http_response_code(500); 
@@ -334,6 +336,7 @@ if ($action === 'save') {
                     // หมวด (ช่องที่ 11 ต่อท้าย — ลำดับช่อง 0–9 เดิมไม่เปลี่ยน) · ยังไม่รัน SQL => ไม่บันทึกหมวด
                     $sec = pmcs_has_section($connect);
                     $section_name = $sec ? mysqli_real_escape_string($connect, pmcs_section_value($item[10] ?? '')) : '';
+                    if (!$sec && pmcs_section_value($item[10] ?? '') !== '') $pmcs_dropped = true;
 
                     $sql_item = "INSERT INTO pm_checksheet_items 
                                  (checksheet_id, " . ($sec ? "section_name, " : "") . "check_point, standard_text, method_text, action_abnormal, check_type_id, illustration_path, photo_required_id, value_name, unit, expected_value, sort_order) 
@@ -375,6 +378,7 @@ if ($action === 'save') {
 
         // หากทำงานมาถึงตรงนี้โดยไม่มี Error (Throw) แปลว่าสำเร็จ
         $response = ['success' => true, 'message' => 'บันทึกข้อมูลเรียบร้อยแล้ว'];
+        if ($pmcs_dropped) $response['warning'] = pmcs_missing_note();
 
     } catch (Exception $e) {
         $response = ['success' => false, 'error' => $e->getMessage()];
