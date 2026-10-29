@@ -85,11 +85,19 @@ $date = isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date'
         .wsc-sec.p { flex: 0 0 4.25rem; }
         .wsc[data-state="Fail"] { background: #fef2f2; }
         .wsc-lbl { display: block; font-size: .6875rem; font-weight: 600; color: #64748b; margin-bottom: .2rem; }
+        /* คอลัมน์คงที่ทุกข้อ: ผลการตรวจ (3 ช่องเสมอ) | ค่าที่วัด | รูป — ช่องที่ข้อนั้นไม่มีเป็นกล่องเส้นประ "–" ทุกข้อจึงตรงแนวกัน */
+        .wsc-nil { flex: 1 1 0; min-width: 0; padding: 0 .375rem; display: flex; align-items: center; justify-content: center; height: 100%; min-height: 2.25rem; border: 1.5px dashed #e2e8f0; border-radius: .5rem; color: #cbd5e1; font-size: 13px; user-select: none; }
+        .wsc-sec.v.nil { display: none; }   /* มือถือ: ช่องค่าที่วัดขึ้นบรรทัดใหม่ — ข้อที่ไม่ต้องวัดไม่ต้องมีบรรทัดว่าง */
+        .wsc-cols { display: none; }
         @media (min-width: 640px) {
             .wsc-sec.v { flex: 0 0 10rem; order: 0; }
             .wsc-sec.p { flex: 0 0 5rem; }
+            .wsc-sec.v.nil { display: block; }
+            /* หัวคอลัมน์เหนือรายการ (ตรงกับช่องในการ์ด: ขอบซ้าย 3px + ขอบ 1px + padding .625rem) */
+            .wsc-cols { display: flex; gap: .5rem; padding: 0 calc(.625rem + 1px) .3rem calc(.625rem + 3px); font-size: 11px; color: #94a3b8; text-align: center; }
+            .wsc-cols > :nth-child(1) { flex: 1 1 0; } .wsc-cols > :nth-child(2) { flex: 0 0 10rem; } .wsc-cols > :nth-child(3) { flex: 0 0 5rem; }
         }
-        .ws-choice { flex: 1 1 0; min-height: 2.25rem; display: flex; align-items: center; justify-content: center; gap: .3rem; padding: 0 .375rem; border-radius: .5rem; border: 1.5px solid #e2e8f0; background: #fff; color: #475569; font-size: 13px; font-weight: 500; white-space: nowrap; transition: background .15s, border-color .15s; }
+        .ws-choice { flex: 1 1 0; min-width: 0; min-height: 2.25rem; display: flex; align-items: center; justify-content: center; gap: .3rem; padding: 0 .375rem; border-radius: .5rem; border: 1.5px solid #e2e8f0; background: #fff; color: #475569; font-size: 13px; font-weight: 500; white-space: nowrap; transition: background .15s, border-color .15s; }
         .ws-choice i { font-size: 11px; }
         .ws-choice:hover { border-color: #cbd5e1; }
         .ws-choice.on-pass { background: #16a34a; border-color: #16a34a; color: #fff; font-weight: 600; }
@@ -437,6 +445,7 @@ const BADGE = {
     // ค่าที่ต้องวัด + มาตรฐาน อยู่ในหัวการ์ด (แถวกรอกค่าสูงเท่าปุ่มผลการตรวจ)
     meas: it => `<span class="wsc-badge bg-blue-50 text-[#006B9F] border-blue-200"><i class="fa-solid fa-ruler mr-1"></i>${esc(it.measurement_name || 'ต้องวัดค่า')} · มาตรฐาน ${esc(it.expected_value)} ${esc(it.unit || '')}</span>`
 };
+const WSC_COLS = '<div class="wsc-cols" aria-hidden="true"><span>ผลการตรวจ</span><span>ค่าที่วัดได้จริง</span><span>รูปภาพ</span></div>';
 function photoBox(it) {
     const src = pe(cur).photos[it.id], need = photoNeeded(cur, it);
     return `<label class="ws-photo ${src ? 'has' : ''} ${tried && need && !src ? 'miss' : ''}" title="${src ? 'เปลี่ยนรูป' : 'เพิ่มรูป'}">
@@ -477,11 +486,11 @@ function wsCard(it) {
                 <div class="flex gap-1 h-full" data-item="${it.id}">
                     ${choice('Pass', 'ปกติ', 'fa-check', 'on-pass')}
                     ${choice('Fail', 'ผิดปกติ', 'fa-xmark', 'on-fail')}
-                    ${canNA(it) ? choice('N/A', 'N/A', 'fa-ban', 'on-na') : ''}
+                    ${canNA(it) ? choice('N/A', 'N/A', 'fa-ban', 'on-na') : '<span class="wsc-nil" title="ข้อนี้ไม่มีตัวเลือก N/A">–</span>'}
                 </div>
             </div>
-            ${isMeas(it) ? `<div class="wsc-sec v">${valueBox(it)}</div>` : ''}
-            ${showPhoto ? `<div class="wsc-sec p">${photoBox(it)}</div>` : ''}
+            ${isMeas(it) ? `<div class="wsc-sec v">${valueBox(it)}</div>` : '<div class="wsc-sec v nil"><span class="wsc-nil" title="ข้อนี้ไม่ต้องวัดค่า">–</span></div>'}
+            <div class="wsc-sec p">${showPhoto ? photoBox(it) : `<span class="wsc-nil" title="${+it.photo_required_id === 3 ? 'ถ่ายรูปเมื่อเลือกผิดปกติ' : 'ข้อนี้ไม่ต้องถ่ายรูป'}">–</span>`}</div>
         </div>
         ${f && it.action_text ? `<div class="px-2.5 pb-2 -mt-1 text-xs text-red-700"><b>เมื่อผิดปกติ:</b> ${esc(it.action_text)}</div>` : ''}
     </div>`;
@@ -516,8 +525,8 @@ function renderFocus() {
             </div>
             <button type="button" data-ws class="inline-flex items-center gap-1.5 text-xs text-[#006B9F] font-semibold mt-2 hover:underline"><i class="fa-solid fa-up-right-from-square"></i>เปิดใบงานเต็มของเครื่องนี้ (นำข้อมูลที่กรอกไว้ไปด้วย)</button>
         </div>
-        ${must.length ? `<div><div class="ws-sec-title">กรอกทุกเครื่อง</div>${must.map(wsCard).join('')}</div>` : ''}
-        ${showItems && rest.length ? `<div><div class="ws-sec-title">${must.length ? `จุดตรวจอื่น ${rest.length} ข้อ` : `จุดตรวจ ${ITEMS.length} ข้อ`} — แตะเฉพาะข้อที่ไม่ปกติ ข้ออื่นนับเป็นปกติ</div>${rest.map(wsCard).join('')}</div>` : ''}
+        ${must.length ? `<div><div class="ws-sec-title">กรอกทุกเครื่อง</div>${WSC_COLS}${must.map(wsCard).join('')}</div>` : ''}
+        ${showItems && rest.length ? `<div><div class="ws-sec-title">${must.length ? `จุดตรวจอื่น ${rest.length} ข้อ` : `จุดตรวจ ${ITEMS.length} ข้อ`} — แตะเฉพาะข้อที่ไม่ปกติ ข้ออื่นนับเป็นปกติ</div>${WSC_COLS}${rest.map(wsCard).join('')}</div>` : ''}
         ${!showItems && rest.some(canPhoto) ? photoLink(rest) : ''}
         ${partsBlock()}
         ${miss.length ? `<div class="text-sm text-red-600 px-1">ยังขาด: ${miss.map(esc).join(' · ')}</div>` : ''}`;

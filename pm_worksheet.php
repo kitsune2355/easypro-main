@@ -190,7 +190,18 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
         @media (min-width: 640px) {
             .ws-sheet tr.ws-item > td.ws-col-value { flex: 0 0 10rem; order: 0; }
             .ws-sheet tr.ws-item > td.ws-col-photo { flex: 0 0 5rem; }
+            /* คอลัมน์คงที่ทุกข้อ: ผลการตรวจ | ค่าที่วัด | รูป — ข้อที่ไม่ต้องวัดค่าแสดงช่อง "–" แทนการซ่อน (ทุกข้อตรงแนวกัน) */
+            .ws-sheet tr.ws-item > td.ws-empty { display: block; }
+            .ws-sheet thead { display: block; }
+            .ws-sheet thead tr { display: flex; gap: .5rem; padding: 0 calc(.625rem + 1px) .3rem calc(.625rem + 3px); }
+            .ws-sheet thead th { padding: 0; border: 0 !important; background: transparent; font-size: 11px; color: #94a3b8; text-align: center; }
+            .ws-sheet thead th.ws-col-no, .ws-sheet thead th.ws-col-point { display: none; }
+            .ws-sheet thead th.ws-col-status { flex: 1 1 0; width: auto; min-width: 0; }
+            .ws-sheet thead th.ws-col-value { flex: 0 0 10rem; width: auto; min-width: 0; }
+            .ws-sheet thead th.ws-col-photo { flex: 0 0 5rem; width: auto; min-width: 0; }
         }
+        /* ช่องที่ข้อนั้นไม่มี (N/A ไม่อนุญาต / ไม่ต้องวัดค่า) — กล่องเส้นประจางขนาดเท่าช่องจริง */
+        .ws-nil { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; height: 100%; min-height: 2.25rem; border: 1.5px dashed #e2e8f0; border-radius: .5rem; color: #cbd5e1; font-size: 13px; user-select: none; }
         /* แถบปุ่มล่าง */
         .ws-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: #fff; border-top: 1px solid #e2e8f0; padding: .6rem .75rem; padding-bottom: calc(.6rem + env(safe-area-inset-bottom, 0px)); }
         .ws-btn { border-radius: .75rem; padding: .6rem .9rem; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; transition: background .15s; }
@@ -1582,7 +1593,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                             <div class="flex gap-1.5">
                                 ${choice(item, photoReqId, 'Pass', 'ปกติ', 'fa-solid fa-check', 'peer-checked:bg-green-600 peer-checked:border-green-600 peer-checked:text-white')}
                                 ${choice(item, photoReqId, 'Fail', 'ผิดปกติ', 'fa-solid fa-xmark', 'peer-checked:bg-red-600 peer-checked:border-red-600 peer-checked:text-white')}
-                                ${isNA ? choice(item, photoReqId, 'N/A', 'N/A', 'fa-solid fa-ban', 'peer-checked:bg-slate-600 peer-checked:border-slate-600 peer-checked:text-white') : ''}
+                                ${isNA ? choice(item, photoReqId, 'N/A', 'N/A', 'fa-solid fa-ban', 'peer-checked:bg-slate-600 peer-checked:border-slate-600 peer-checked:text-white') : '<span class="ws-nil" title="ข้อนี้ไม่มีตัวเลือก N/A">–</span>'}
                             </div>
                         </div>
                     </td>`;
@@ -1598,7 +1609,7 @@ $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
                         <div class="text-xs text-slate-500 mt-1">มาตรฐาน <b class="text-primary">${item.expected_value}</b> ${item.unit || ''}</div>
                     </td>` : `
                     <td class="ws-col-value ws-empty" data-label="ค่าที่วัดได้จริง">
-                        <span class="text-slate-300">–</span>
+                        <span class="ws-nil" title="ข้อนี้ไม่ต้องวัดค่า">–</span>
                         <input type="hidden" name="val_${item.id}" value="-">
                     </td>`;
 

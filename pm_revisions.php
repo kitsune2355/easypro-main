@@ -33,7 +33,8 @@ if (($_SESSION['sess_user_level_es'] ?? '') !== 'super_admin') return;
             </div>
         </div>
 
-        <div class="overflow-auto border border-slate-200 rounded-lg" style="max-height: calc(100vh - 340px); min-height: 240px">
+        <!-- สูงเต็มพื้นที่ที่เหลือของจอ (pmFillRest) — รายการเยอะเลื่อนในกล่องนี้ · ไม่มีรายการ: ข้อความกลางกล่อง -->
+        <div id="rv-wrap" class="overflow-auto border border-slate-200 rounded-lg flex flex-col" style="min-height: 160px">
             <table class="w-full text-sm">
                 <thead class="bg-slate-50 text-slate-600 text-[12px] sticky top-0 z-10">
                     <tr>
@@ -48,6 +49,9 @@ if (($_SESSION['sess_user_level_es'] ?? '') !== 'super_admin') return;
                 </thead>
                 <tbody id="rv-body"><tr><td colspan="7" class="p-6 text-center text-slate-400">กำลังโหลด...</td></tr></tbody>
             </table>
+            <div id="rv-empty" class="hidden flex-1 flex-col items-center justify-center text-center text-slate-400 text-sm p-6">
+                <i data-lucide="history" class="w-10 h-10 text-slate-300 mb-3"></i><span id="rv-empty-text"></span>
+            </div>
         </div>
     </div>
 </div>
@@ -84,11 +88,13 @@ pmLazy('revisions', function () {
                     <button type="button" data-old="${i}" class="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50">ผลเดิม</button>
                     ${r.state === 'redo' || r.state === 'done' ? `<button type="button" data-open="${i}" class="px-2.5 py-1.5 rounded-lg ${r.state === 'redo' ? 'bg-sky-600 hover:bg-sky-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white text-xs font-semibold">${r.state === 'redo' ? 'เปิดใบงาน' : 'ดูใบงานใหม่'}</button>` : ''}
                 </td>
-            </tr>`).join('')
-            : `<tr><td colspan="7" class="p-8 text-center text-slate-400">${status || $('rv-q').value ? 'ไม่พบรายการตามเงื่อนไข' : 'ยังไม่มีการยกเลิกผลบันทึก PM ในหน่วยงานนี้'}</td></tr>`;
+            </tr>`).join('') : '';
+        $('rv-empty-text').textContent = status || $('rv-q').value ? 'ไม่พบรายการตามเงื่อนไข' : 'ยังไม่มีการยกเลิกผลบันทึก PM ในหน่วยงานนี้';
+        $('rv-empty').classList.toggle('hidden', !!ROWS.length); $('rv-empty').classList.toggle('flex', !ROWS.length);
     }
 
     async function load() {
+        $('rv-empty').classList.add('hidden'); $('rv-empty').classList.remove('flex');
         $('rv-body').innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400">กำลังโหลด...</td></tr>';
         try {
             const r = await (await fetch('handle_pm_work_cancel.php?action=logs&' + new URLSearchParams({ q: $('rv-q').value.trim(), status }))).json();
@@ -203,6 +209,7 @@ pmLazy('revisions', function () {
     });
     $('rv-reset-btn').addEventListener('click', resetFlow);
     window.addEventListener('pm:batch-closed', () => { if (!$('tab-revisions').classList.contains('hidden')) load(); });   // ปิดใบงานแล้วสถานะอาจเปลี่ยน
+    pmFillRest('revisions', $('rv-wrap'), 160);   // ตารางสูงพอดีจอ แม้มีรายการน้อย/ไม่มี
     if (window.lucide) lucide.createIcons();
     load();
 });

@@ -15,7 +15,7 @@ include_once "config_ctrl/checksession.php";
 </style>
 <div id="tab-import" class="tab-content hidden">
     <!-- ขั้นที่ 1: อ่านไฟล์ + สร้างเช็คชีต -->
-    <div id="imp-step1" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-4">
+    <div id="imp-step1" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
             <div>
                 <h3 class="text-lg font-semibold text-slate-800">นำเข้าแผน PM จาก Excel</h3>
@@ -52,6 +52,13 @@ include_once "config_ctrl/checksession.php";
                 <input type="number" id="imp-year" min="2000" max="2100"
                        class="w-full border border-slate-300 rounded-lg py-2.5 px-3 text-sm focus:ring-2 focus:ring-sky-500 outline-none">
             </div>
+        </div>
+
+        <!-- ยังไม่ได้เลือกไฟล์: กล่องว่างสูงเต็มพื้นที่ที่เหลือของจอ (pmFillRest) — ซ่อนเมื่อแสดงผลการอ่านไฟล์ (#imp-preview) -->
+        <div id="imp-empty" class="mt-5 flex flex-col items-center justify-center text-center text-slate-400 text-sm border border-dashed border-slate-200 rounded-xl p-6">
+            <i data-lucide="file-spreadsheet" class="w-10 h-10 text-slate-300 mb-3"></i>
+            <div class="text-slate-500 font-medium">เลือกไฟล์ Excel ตารางแผน PM รายปี (Yearly PM Schedule) เพื่อเริ่มนำเข้า</div>
+            <div class="mt-1 text-[12px]">ยังไม่มีไฟล์ — ดาวน์โหลด Template ได้ที่ปุ่มด้านบน</div>
         </div>
 
         <div id="imp-preview" class="hidden mt-5">
@@ -98,7 +105,7 @@ include_once "config_ctrl/checksession.php";
     </div>
 
     <!-- ขั้นที่ 2: กรอกแผน PM (ลากคัดลอกได้) -->
-    <div id="imp-step2" class="hidden bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+    <div id="imp-step2" class="hidden bg-white p-5 rounded-xl shadow-sm border border-slate-200 mt-4">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-3">
             <div>
                 <h3 class="text-lg font-semibold text-slate-800">ขั้นที่ 2: กำหนดแผน PM</h3>
@@ -1087,6 +1094,16 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             Swal.fire({ icon: 'error', title: 'บันทึกไม่สำเร็จ', html: e.message + '<br>(ไม่มีข้อมูลใดถูกบันทึก)' });
         }
     });
+
+    // กล่อง "ยังไม่มีไฟล์" สูงพอดีจอ — แสดงเฉพาะตอนยังไม่มีผลการอ่านไฟล์ และไม่ได้อยู่ขั้นที่ 2
+    const fitEmpty = pmFillRest('import', $('imp-empty'), 140, { hideShort: true });   // มือถือที่ฟอร์มเต็มจอแล้ว => ไม่แสดงกล่องว่าง
+    const syncEmpty = () => {
+        const show = $('imp-preview').classList.contains('hidden') && $('imp-step2').classList.contains('hidden');
+        $('imp-empty').classList.toggle('hidden', !show); $('imp-empty').classList.toggle('flex', show);
+        if (show) fitEmpty();
+    };
+    ['imp-preview', 'imp-step2'].forEach(id => new MutationObserver(syncEmpty).observe($(id), { attributes: true, attributeFilter: ['class'] }));
+    syncEmpty();
 
     loadOptions();
 });

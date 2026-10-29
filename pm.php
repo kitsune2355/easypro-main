@@ -224,6 +224,34 @@ $pmCanApprove = $pmApproveOn
             fns.forEach(fn => { try { fn(); } catch (e) { console.error('เริ่มต้นแท็บ ' + tabId + ' ไม่สำเร็จ', e); } });
             return fns.length > 0;
         };
+        /* ให้ el สูงเต็มพื้นที่ที่เหลือของหน้าจอ (ถึงขอบล่างของการ์ดที่ครอบ + ขอบล่างของ main) — แท็บที่ข้อมูลน้อย/ยังไม่มีข้อมูลไม่ค้างครึ่งจอ
+           pmFillRest(tabId, el, min, { hideShort }) => คืนฟังก์ชัน fit() ไว้เรียกเมื่อเนื้อหาเปลี่ยน · ปรับให้เองเมื่อเปิดแท็บ / ย่อขยายหน้าต่าง
+           hideShort: ที่เหลือน้อยกว่า min (เช่น มือถือที่ฟอร์มกินเกือบทั้งจอ) => ซ่อน el แทนการดันหน้าให้เลื่อน — ใช้กับกล่องว่างที่ไม่มีข้อมูลสำคัญ */
+        window.pmFillRest = function (tabId, el, min, opts) {
+            const tab = document.getElementById('tab-' + tabId), hideShort = !!(opts && opts.hideShort);
+            const fit = () => {
+                const main = el && el.closest('main');
+                if (!main) return;
+                if (hideShort) el.style.display = '';   // วัดใหม่ทุกครั้ง (เคยซ่อนเพราะที่ไม่พอ)
+                if (!el.offsetParent) return;   // แท็บ/กล่องซ่อนอยู่
+                // ระยะใต้ el = ขอบล่างของการ์ดที่ครอบ (padding) + margin ล่างของการ์ด
+                const mr = main.getBoundingClientRect(), r = el.getBoundingClientRect(), card = el.parentElement && el.parentElement.closest('.rounded-xl');
+                const below = card ? card.getBoundingClientRect().bottom - r.bottom + (parseFloat(getComputedStyle(card).marginBottom) || 0) : 0;
+                const padB = parseFloat(getComputedStyle(main).paddingBottom) || 0;
+                const top = r.top - mr.top + main.scrollTop;
+                const rest = Math.floor(main.clientHeight - top - below - padB);
+                if (hideShort && rest < (min || 200)) { el.style.display = 'none'; return; }
+                const h = Math.max(min || 200, rest) + 'px';
+                if (el.style.height !== h) el.style.height = h;   // ค่าเดิม => ไม่ตั้งซ้ำ (กัน ResizeObserver วน)
+            };
+            window.addEventListener('resize', fit);
+            // เนื้อหาด้านบนเปลี่ยนสูง (ข้อความที่โหลดทีหลัง ไอคอน ปุ่มตัดบรรทัด) => ปรับตาม
+            const card = el.parentElement && el.parentElement.closest('.rounded-xl');
+            if (card && window.ResizeObserver) new ResizeObserver(() => fit()).observe(card);
+            if (tab) new MutationObserver(() => { if (!tab.classList.contains('hidden')) fit(); }).observe(tab, { attributes: true, attributeFilter: ['class'] });
+            fit();
+            return fit;
+        };
     </script>
     <script>
         /* มือถือ: แสดงแถวของตาราง AG Grid หน้าปัจจุบันเป็นการ์ด (ตารางยังเป็นตัวจัดการข้อมูล/แบ่งหน้า/กรอง)
