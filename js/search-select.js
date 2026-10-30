@@ -132,19 +132,31 @@
         if (el && scroll) el.scrollIntoView({ block: 'nearest' });
     }
 
+    // ตำแหน่งกล่อง: ใช้พื้นที่ที่มองเห็นจริง (visualViewport) — มือถือเปิดแป้นพิมพ์แล้วจอเหลือครึ่งเดียว กล่องต้องไม่ไปอยู่ใต้แป้นพิมพ์
     function place() {
-        if (!cur) return;
+        if (!cur || !pop) return;
         const r = cur._ssBtn.getBoundingClientRect();
+        const vv = window.visualViewport;
+        const vTop = vv ? vv.offsetTop : 0, vBottom = vv ? vv.offsetTop + vv.height : innerHeight;
         const vw = innerWidth, vh = innerHeight;
         const w = Math.min(Math.max(r.width, 240), vw - 16);
-        const below = vh - r.bottom - 8, above = r.top - 8;
+        const below = vBottom - r.bottom - 8, above = r.top - vTop - 8;
         const up = below < 260 && above > below;
-        const maxH = Math.max(160, Math.min(340, (up ? above : below) - 4));
+        const maxH = Math.max(120, Math.min(340, (up ? above : below) - 4));
         pop.style.width = w + 'px';
         pop.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + 'px';
         pop.style.maxHeight = maxH + 'px';
         if (up) { pop.style.top = ''; pop.style.bottom = (vh - r.top + 4) + 'px'; }
         else { pop.style.bottom = ''; pop.style.top = (r.bottom + 4) + 'px'; }
+    }
+    // เลื่อนหน้า / ขนาดจอเปลี่ยน => ย้ายกล่องตามปุ่ม (ไม่ปิด) — ปิดเฉพาะเมื่อปุ่มเลื่อนพ้นจอ
+    //  มือถือ: แตะแล้ว focus ช่องค้นหา => แป้นพิมพ์ขึ้น (resize ความสูง) + เบราว์เซอร์เลื่อนหน้าให้เห็นช่องพิมพ์ (scroll)
+    //  ถ้าปิดตามเหตุการณ์เหล่านี้ กล่องจะปิดทันทีพร้อมแป้นพิมพ์
+    function follow() {
+        if (!cur || !pop) return;
+        const r = cur._ssBtn.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > innerHeight || (!r.width && !r.height)) { close(); return; }
+        place();
     }
 
     function open(sel, typed) {
@@ -227,8 +239,11 @@
         // กันกรณีโค้ดเดิมเปลี่ยนค่าแบบที่ไม่มีเหตุการณ์ (เช่น form.reset() / option.selected = true)
         setInterval(() => enhanced.forEach(sel => { if (!sel.isConnected) { enhanced.delete(sel); return; } refresh(sel); }), 600);
         document.addEventListener('mousedown', e => { if (pop && !pop.contains(e.target) && !(cur && cur._ssBtn.contains(e.target))) close(); }, true);
-        document.addEventListener('scroll', e => { if (pop && !pop.contains(e.target)) close(); }, true);
-        window.addEventListener('resize', close);
+        document.addEventListener('scroll', e => { if (pop && !pop.contains(e.target)) follow(); }, true);
+        // ความกว้างเปลี่ยน (หมุนจอ / ย่อหน้าต่าง) => ปิด · ความสูงอย่างเดียว (แป้นพิมพ์มือถือ) => ย้ายตำแหน่ง
+        let lastW = innerWidth;
+        window.addEventListener('resize', () => { if (innerWidth !== lastW) { lastW = innerWidth; close(); } else follow(); });
+        if (window.visualViewport) { visualViewport.addEventListener('resize', follow); visualViewport.addEventListener('scroll', follow); }
     }
 
     window.SearchSelect = { refresh: sel => refresh(sel), enhance, close };

@@ -22,7 +22,7 @@ include "config_ctrl/checksession.php";
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="js/search-select.js"></script>   <!-- เลือกช่าง: พิมพ์ค้นหาชื่อได้ -->
+    <script src="js/search-select.js?v=<?php echo @filemtime(__DIR__ . '/js/search-select.js'); ?>"></script>   <!-- เลือกช่าง: พิมพ์ค้นหาชื่อได้ -->
 
     <script>
       tailwind.config = {
