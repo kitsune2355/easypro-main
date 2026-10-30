@@ -51,19 +51,23 @@ function sxe_index($rows, $nameCol, $idCol)
 }
 
 // ---------- อาคาร / ชั้น / ห้อง (เครื่องจักร, มิเตอร์) ----------
-//  เฉพาะที่ใช้งานอยู่ (status 0) · ชั้นหาในอาคาร, ห้องหาในชั้น
+//  รายการใน Template = ที่ใช้งานอยู่ (status 0) · การเทียบชื่อรับทุกสถานะ (ข้อมูลส่งออกของเครื่อง/มิเตอร์ในพื้นที่ที่ปิดแล้ว นำเข้ากลับได้)
+//  ชั้นหาในอาคาร, ห้องหาในชั้น
 function sxe_loc_lookups($c, $ag)
 {
-    $lk = ['building' => [], '_floors' => [], '_rooms' => [], '_paths' => []];
-    foreach (sxq($c, "SELECT area_id, area_name FROM tb_area WHERE ag_id = ? AND area_status = 0 ORDER BY area_name", 's', [$ag]) as $r) $lk['building'][trim($r['area_name'])] = $r['area_id'];
-    $areaName = array_flip(array_map('strval', $lk['building']));
-    foreach (sxq($c, "SELECT c.ac_id, c.ac_area_id, c.ac_name FROM tb_area_class c JOIN tb_area a ON a.area_id = c.ac_area_id WHERE a.ag_id = ? AND a.area_status = 0 AND c.ac_status = 0 ORDER BY c.ac_name", 's', [$ag]) as $r) {
-        $lk['_floors'][$r['ac_area_id']][sxi_key($r['ac_name'])] = $r['ac_id'];
-        $lk['_floorName'][$r['ac_id']] = [$r['ac_area_id'], trim($r['ac_name'])];
+    $lk = ['building' => [], '_alias' => ['building' => []], '_floors' => [], '_rooms' => [], '_paths' => []];
+    $on = []; $floorOn = [];
+    foreach (sxq($c, "SELECT area_id, area_name, area_status FROM tb_area WHERE ag_id = ? ORDER BY area_name", 's', [$ag]) as $r) {
+        if ((int)$r['area_status'] === 0) { $lk['building'][trim($r['area_name'])] = $r['area_id']; $on[$r['area_id']] = trim($r['area_name']); }
+        else $lk['_alias']['building'][trim($r['area_name'])] = $r['area_id'];
     }
-    foreach (sxq($c, "SELECT r.ar_id, r.ar_ac_id, r.ar_name FROM tb_area_room r JOIN tb_area a ON a.area_id = r.ar_area_id WHERE a.ag_id = ? AND a.area_status = 0 AND r.ar_status = 0 ORDER BY r.ar_name", 's', [$ag]) as $r) {
-        $lk['_rooms'][$r['ar_ac_id']][sxi_key($r['ar_name'])] = $r['ar_id'];
-        if (isset($lk['_floorName'][$r['ar_ac_id']])) { list($aid, $fn) = $lk['_floorName'][$r['ar_ac_id']]; $lk['_paths'][] = ($areaName[$aid] ?? '') . ' / ' . $fn . ' / ' . trim($r['ar_name']); }
+    foreach (sxq($c, "SELECT c.ac_id, c.ac_area_id, c.ac_name, c.ac_status FROM tb_area_class c JOIN tb_area a ON a.area_id = c.ac_area_id WHERE a.ag_id = ? ORDER BY c.ac_name", 's', [$ag]) as $r) {
+        if ((int)$r['ac_status'] === 0 || !isset($lk['_floors'][$r['ac_area_id']][sxi_key($r['ac_name'])])) $lk['_floors'][$r['ac_area_id']][sxi_key($r['ac_name'])] = $r['ac_id'];   // ชื่อซ้ำ => ตัวที่ใช้งานอยู่
+        if ((int)$r['ac_status'] === 0 && isset($on[$r['ac_area_id']])) $floorOn[$r['ac_id']] = $on[$r['ac_area_id']] . ' / ' . trim($r['ac_name']);
+    }
+    foreach (sxq($c, "SELECT r.ar_id, r.ar_ac_id, r.ar_name, r.ar_status FROM tb_area_room r JOIN tb_area a ON a.area_id = r.ar_area_id WHERE a.ag_id = ? ORDER BY r.ar_name", 's', [$ag]) as $r) {
+        if ((int)$r['ar_status'] === 0 || !isset($lk['_rooms'][$r['ar_ac_id']][sxi_key($r['ar_name'])])) $lk['_rooms'][$r['ar_ac_id']][sxi_key($r['ar_name'])] = $r['ar_id'];
+        if ((int)$r['ar_status'] === 0 && isset($floorOn[$r['ar_ac_id']])) $lk['_paths'][] = $floorOn[$r['ar_ac_id']] . ' / ' . trim($r['ar_name']);
     }
     return $lk;
 }
@@ -151,8 +155,8 @@ function sxi_entities()
                         'warranty' => $r['asset_warranty'] && $r['asset_warranty'] !== '0000-00-00' ? date('d/m/Y', strtotime($r['asset_warranty'])) : '', 'company' => $r['asset_company'],
                         'building' => $r['area_name'], 'floor' => $r['ac_name'], 'room' => $r['ar_name'], 'remark' => $r['asset_remark'], 'status' => $r['asset_status']];
             }, sxq($x['c'], "SELECT a.*, g.TGroupName, ar.area_name, ac.ac_name, rm.ar_name FROM tb_ass_list a
-                LEFT JOIN tb_asset_group g ON g.GroupId = a.asset_type LEFT JOIN tb_area ar ON ar.area_id = a.asset_rp_area_id
-                LEFT JOIN tb_area_class ac ON ac.ac_id = a.asset_rp_ac_id LEFT JOIN tb_area_room rm ON rm.ar_id = a.asset_rp_ar_id
+                LEFT JOIN tb_asset_group g ON g.GroupId = a.asset_type AND g.ag_id = a.ass_ag_id LEFT JOIN tb_area ar ON ar.area_id = a.asset_rp_area_id AND ar.ag_id = a.ass_ag_id
+                LEFT JOIN tb_area_class ac ON ac.ac_id = a.asset_rp_ac_id AND ac.ac_area_id = ar.area_id LEFT JOIN tb_area_room rm ON rm.ar_id = a.asset_rp_ar_id AND rm.ar_ac_id = ac.ac_id
                 WHERE a.ass_ag_id = ? ORDER BY a.ass_code", 's', [$x['ag']]));
         },
     ];
@@ -226,10 +230,10 @@ function sxi_entities()
         },
         'insert' => function ($x, $v) {
             $c = $x['c'];
-            $b = sxq($c, "SELECT area_id FROM tb_area WHERE ag_id = ? AND area_name = ? LIMIT 1", 'ss', [$x['ag'], $v['building']]);
+            $b = sxq($c, "SELECT area_id FROM tb_area WHERE ag_id = ? AND TRIM(REPLACE(REPLACE(area_name, '  ', ' '), '  ', ' ')) = ? LIMIT 1", 'ss', [$x['ag'], $v['building']]);
             $aid = $b ? $b[0]['area_id'] : sxq($c, "INSERT INTO tb_area (area_name, ag_id, area_status, area_user_ins, area_ins) VALUES (?, ?, ?, ?, NOW())", 'ssis', [$v['building'], $x['ag'], $v['floor'] === '' ? (int)($v['status'] ?? 0) : 0, $x['uid']]);
             if ($v['floor'] === '') return;
-            $f = sxq($c, "SELECT ac_id FROM tb_area_class WHERE ac_area_id = ? AND ac_name = ? LIMIT 1", 'is', [$aid, $v['floor']]);
+            $f = sxq($c, "SELECT ac_id FROM tb_area_class WHERE ac_area_id = ? AND TRIM(REPLACE(REPLACE(ac_name, '  ', ' '), '  ', ' ')) = ? LIMIT 1", 'is', [$aid, $v['floor']]);
             $acid = $f ? $f[0]['ac_id'] : sxq($c, "INSERT INTO tb_area_class (ac_area_id, ac_name, ac_status, ac_user_ins, ac_ins) VALUES (?, ?, ?, ?, NOW())", 'isis', [$aid, $v['floor'], $v['room'] === '' ? (int)($v['status'] ?? 0) : 0, $x['uid']]);
             if ($v['room'] === '') return;
             sxq($c, "INSERT INTO tb_area_room (ar_area_id, ar_ac_id, ar_name, ar_status, ar_user_ins, ar_ins, ar_upd, ar_upd_ins) VALUES (?, ?, ?, ?, ?, NOW(), NOW(), ?)", 'iisiss', [$aid, $acid, $v['room'], (int)($v['status'] ?? 0), $x['uid'], $x['uid']]);
@@ -244,6 +248,7 @@ function sxi_entities()
         'export' => function ($x) {
             $out = [];
             foreach (sxq($x['c'], "SELECT a.area_name, a.area_status, c.ac_name, c.ac_status, r.ar_name, r.ar_status FROM tb_area a LEFT JOIN tb_area_class c ON c.ac_area_id = a.area_id LEFT JOIN tb_area_room r ON r.ar_ac_id = c.ac_id WHERE a.ag_id = ? ORDER BY a.area_name, c.ac_name, r.ar_name", 's', [$x['ag']]) as $r) {
+                if ($r['ac_name'] !== null && trim($r['ac_name']) === '') continue;   // ชั้นที่ไม่มีชื่อ (ข้อมูลเก่า) นำเข้ากลับไม่ได้
                 $st = $r['ar_name'] !== null ? $r['ar_status'] : ($r['ac_name'] !== null ? $r['ac_status'] : $r['area_status']);
                 $out[] = ['building' => $r['area_name'], 'floor' => $r['ac_name'] ?? '', 'room' => $r['ar_name'] ?? '', 'status' => sxe_status_text($st)];
             }
@@ -255,14 +260,15 @@ function sxi_entities()
     //  คงเหลือ = ยอดยกมาเฉพาะเมื่อผูกคลังใหม่ (บันทึกประวัติสต็อก) · คลังที่ผูกอยู่แล้ว: แก้ได้เฉพาะ สูงสุด/ขั้นต่ำ (ยอดคงเหลือเปลี่ยนผ่านรับเข้า/ปรับยอด)
     $E['spares'] = [
         'title' => 'อะไหล่', 'sheet' => 'Spares', 'file' => 'Template_อะไหล่', 'key' => 'name',
-        'keyHint' => 'ชื่อสินค้าซ้ำกับในระบบ = แก้ไขรายการเดิม · คงเหลือใช้เป็นยอดยกมาเฉพาะคลังที่ยังไม่เคยผูกกับสินค้านั้น',
+        'rowKeyOf' => function ($v) { return $v['name'] . ' | ' . $v['wh']; },   // สินค้าเดียวกันหลายคลัง = หลายแถว (ห้ามซ้ำ ชื่อ + คลัง)
+        'keyHint' => 'ชื่อสินค้าซ้ำกับในระบบ = แก้ไขรายการเดิม · สินค้าอยู่หลายคลัง = 1 แถวต่อคลัง · คงเหลือใช้เป็นยอดยกมาเฉพาะคลังที่ยังไม่เคยผูกกับสินค้านั้น',
         'fields' => [
             ['k' => 'name', 'label' => 'ชื่อสินค้า', 'required' => true, 'kw' => ['ชื่อสินค้า', 'ชื่ออะไหล่', 'ชื่อ', 'name', 'item'], 'example' => 'ฟิวส์ 10A'],
-            ['k' => 'code', 'label' => 'รหัสสินค้า', 'max' => 255, 'kw' => ['รหัส', 'code'], 'hint' => 'ว่าง = สร้างรหัสให้อัตโนมัติ (รหัสประเภทงาน-ลำดับ)'],
+            ['k' => 'code', 'label' => 'รหัสสินค้า', 'max' => 100, 'kw' => ['รหัส', 'code'], 'hint' => 'ว่าง = สร้างรหัสให้อัตโนมัติ (รหัสประเภทงาน-ลำดับ)'],
             ['k' => 'job', 'label' => 'ประเภทงาน', 'required' => true, 'type' => 'lookup', 'kw' => ['ประเภทงาน', 'ประเภท', 'type'], 'hint' => 'ตามหน้าประเภทงาน'],
-            ['k' => 'model', 'label' => 'รุ่น / ชนิด', 'max' => 255, 'kw' => ['รุ่น', 'ชนิด', 'model']],
+            ['k' => 'model', 'label' => 'รุ่น / ชนิด', 'max' => 100, 'kw' => ['รุ่น', 'ชนิด', 'model']],
             ['k' => 'price', 'label' => 'ราคา/หน่วย', 'type' => 'number', 'kw' => ['ราคา', 'price'], 'example' => '120'],
-            ['k' => 'unit', 'label' => 'หน่วย', 'max' => 255, 'kw' => ['หน่วย', 'unit'], 'example' => 'ชิ้น'],
+            ['k' => 'unit', 'label' => 'หน่วย', 'max' => 50, 'kw' => ['หน่วย', 'unit'], 'example' => 'ชิ้น'],
             ['k' => 'detail', 'label' => 'รายละเอียด', 'max' => 2000, 'kw' => ['รายละเอียด', 'detail', 'description']],
             ['k' => 'wh', 'label' => 'คลัง', 'type' => 'lookup', 'kw' => ['คลัง', 'จัดเก็บ', 'warehouse'], 'hint' => 'ตามหน้าคลังสินค้า (ว่าง = ไม่ผูกคลัง)'],
             ['k' => 'qty', 'label' => 'คงเหลือ (ยอดยกมา)', 'type' => 'number', 'kw' => ['คงเหลือ', 'ยอดยกมา', 'qty', 'stock'], 'example' => '10'],
@@ -270,9 +276,15 @@ function sxi_entities()
             ['k' => 'qty_min', 'label' => 'ขั้นต่ำ (Min)', 'type' => 'number', 'kw' => ['ขั้นต่ำ', 'min'], 'example' => '2'],
         ],
         'lookups' => function ($x) {
-            $lk = ['job' => [], 'wh' => [], '_jobCode' => [], '_jobName' => [], '_whName' => []];
-            foreach (sxq($x['c'], "SELECT rps_id, rps_name, rps_code FROM tb_repair_system WHERE rps_status = 0 AND rps_ag_id = ? ORDER BY rps_name", 's', [$x['ag']]) as $r) { $lk['job'][trim($r['rps_name'])] = $r['rps_id']; $lk['_jobCode'][$r['rps_id']] = trim($r['rps_code']); $lk['_jobName'][$r['rps_id']] = trim($r['rps_name']); }
-            foreach (sxq($x['c'], "SELECT id, wh_name FROM tb_wh_stock WHERE ag_id = ? AND status = '0' ORDER BY wh_name", 's', [$x['ag']]) as $r) { $lk['wh'][trim($r['wh_name'])] = $r['id']; $lk['_whName'][$r['id']] = trim($r['wh_name']); }
+            $lk = ['job' => [], 'wh' => [], '_alias' => ['job' => [], 'wh' => []], '_jobCode' => [], '_jobName' => [], '_whName' => []];
+            foreach (sxq($x['c'], "SELECT rps_id, rps_name, rps_code, rps_status FROM tb_repair_system WHERE rps_ag_id = ? ORDER BY rps_name", 's', [$x['ag']]) as $r) {
+                if ((int)$r['rps_status'] === 0) $lk['job'][trim($r['rps_name'])] = $r['rps_id']; else $lk['_alias']['job'][trim($r['rps_name'])] = $r['rps_id'];
+                $lk['_jobCode'][$r['rps_id']] = trim($r['rps_code']); $lk['_jobName'][$r['rps_id']] = trim($r['rps_name']);
+            }
+            foreach (sxq($x['c'], "SELECT id, wh_name, status FROM tb_wh_stock WHERE ag_id = ? ORDER BY wh_name", 's', [$x['ag']]) as $r) {
+                if ((string)$r['status'] === '0') $lk['wh'][trim($r['wh_name'])] = $r['id']; else $lk['_alias']['wh'][trim($r['wh_name'])] = $r['id'];
+                $lk['_whName'][$r['id']] = trim($r['wh_name']);
+            }
             return $lk;
         },
         'existing' => function ($x) { return sxe_index(sxq($x['c'], "SELECT pd_id, pd_details_head FROM tb_repair_product WHERE ag_id = ?", 's', [$x['ag']]), 'pd_details_head', 'pd_id'); },
@@ -283,6 +295,7 @@ function sxi_entities()
                            VALUES (?, ?, ?, ?, '', ?, ?, ?, '0', ?, ?, ?, NOW(), NOW())", 'issssdssss',
                 [$v['job'], $code, $v['name'], $v['detail'], $v['model'] !== '' ? $v['model'] : '-', (float)$v['price'], $v['unit'], $x['uid'], $x['uid'], $x['ag']]);
             sxe_spare_stock($x, $pd, $code, $v, $lk);
+            return $pd;   // แถวถัดไปของสินค้าเดียวกัน (คลังอื่น) => แก้ไขรายการนี้
         },
         'update' => function ($x, $id, $v, $lk) {
             $c = $x['c'];
@@ -297,8 +310,8 @@ function sxi_entities()
             return array_map(function ($r) {
                 return ['name' => $r['pd_details_head'], 'code' => $r['pd_gen_code'], 'job' => $r['rps_name'], 'model' => $r['pd_model'] === '-' ? '' : $r['pd_model'], 'price' => $r['pd_price'], 'unit' => $r['pd_unit'],
                         'detail' => $r['pd_details'], 'wh' => $r['wh_name'], 'qty' => $r['qty'], 'qty_max' => $r['qty_all'], 'qty_min' => $r['qty_min']];
-            }, sxq($x['c'], "SELECT p.*, s.rps_name, ps.qty, ps.qty_all, ps.qty_min, w.wh_name FROM tb_repair_product p LEFT JOIN tb_repair_system s ON s.rps_id = p.pd_rps_id
-                LEFT JOIN product_stocks ps ON ps.pd_id = p.pd_id LEFT JOIN tb_wh_stock w ON w.id = ps.wh_id WHERE p.ag_id = ? ORDER BY p.pd_details_head, w.wh_name", 's', [$x['ag']]));
+            }, sxq($x['c'], "SELECT p.*, s.rps_name, ps.qty, ps.qty_all, ps.qty_min, w.wh_name FROM tb_repair_product p LEFT JOIN tb_repair_system s ON s.rps_id = p.pd_rps_id AND s.rps_ag_id = p.ag_id
+                LEFT JOIN product_stocks ps ON ps.pd_id = p.pd_id LEFT JOIN tb_wh_stock w ON w.id = ps.wh_id AND w.ag_id = p.ag_id WHERE p.ag_id = ? ORDER BY p.pd_details_head, w.wh_name", 's', [$x['ag']]));
         },
     ];
 
@@ -318,7 +331,11 @@ function sxi_entities()
         ]),
         'lookups' => function ($x) { return sxe_loc_lookups($x['c'], $x['ag']); },
         'names' => function ($x, $lk) { return ['room' => $lk['_paths']]; },
-        'check' => function (&$v, $lk) { return sxe_loc_check($v, $lk); },
+        'check' => function (&$v, $lk) {
+            if ($v['limit'] !== '' && ($v['limit'] < 0 || $v['limit'] > 999)) return ['limit' => 'แจ้งเตือน (%) ต้องอยู่ระหว่าง 0 - 999'];
+            if ($v['max'] !== '' && ($v['max'] <= 0 || $v['max'] > 2000000000)) return ['max' => 'ค่าสูงสุดของหน้าปัดไม่ถูกต้อง'];
+            return sxe_loc_check($v, $lk);
+        },
         'existing' => function ($x) {
             $m = [];
             foreach (sxq($x['c'], "SELECT mt_id, mt_type, mt_name FROM tb_meter WHERE mr_ag_id = ?", 's', [$x['ag']]) as $r) { $k = sxi_key($r['mt_type'] . ' | ' . $r['mt_name']); if (!isset($m[$k])) $m[$k] = $r['mt_id']; }
@@ -337,8 +354,8 @@ function sxi_entities()
             return array_map(function ($r) use ($types) {
                 return ['type' => isset($types[$r['mt_type']]) ? $types[$r['mt_type']][0] : $r['mt_type'], 'name' => $r['mt_name'], 'building' => $r['area_name'], 'floor' => $r['ac_name'], 'room' => $r['ar_name'],
                         'max' => $r['mt_max_val'], 'limit' => $r['mt_limit_percent'], 'status' => sxe_status_text($r['mt_status'])];
-            }, sxq($x['c'], "SELECT m.*, ar.area_name, ac.ac_name, rm.ar_name FROM tb_meter m LEFT JOIN tb_area ar ON ar.area_id = m.mt_rp_area_id LEFT JOIN tb_area_class ac ON ac.ac_id = m.mt_rp_ac_id
-                LEFT JOIN tb_area_room rm ON rm.ar_id = m.mt_rp_ar_id WHERE m.mr_ag_id = ? ORDER BY m.mt_type, m.mt_name", 's', [$x['ag']]));
+            }, sxq($x['c'], "SELECT m.*, ar.area_name, ac.ac_name, rm.ar_name FROM tb_meter m LEFT JOIN tb_area ar ON ar.area_id = m.mt_rp_area_id AND ar.ag_id = m.mr_ag_id LEFT JOIN tb_area_class ac ON ac.ac_id = m.mt_rp_ac_id AND ac.ac_area_id = ar.area_id
+                LEFT JOIN tb_area_room rm ON rm.ar_id = m.mt_rp_ar_id AND rm.ar_ac_id = ac.ac_id WHERE m.mr_ag_id = ? ORDER BY m.mt_type, m.mt_name", 's', [$x['ag']]));
         },
     ];
 
@@ -377,8 +394,10 @@ function sxi_entities()
             sxe_status_field(),
         ],
         'lookups' => function ($x) {
-            $lk = ['dept' => [], '_other' => []];
-            foreach (sxq($x['c'], "SELECT dep_id, dep_name FROM tb_department2 WHERE dep_status = 0 ORDER BY dep_name", '', []) as $r) $lk['dept'][trim($r['dep_name'])] = $r['dep_id'];
+            $lk = ['dept' => [], '_alias' => ['dept' => []], '_other' => []];
+            foreach (sxq($x['c'], "SELECT dep_id, dep_name, dep_status FROM tb_department2 ORDER BY dep_name", '', []) as $r) {
+                if ((int)$r['dep_status'] === 0) $lk['dept'][trim($r['dep_name'])] = $r['dep_id']; else $lk['_alias']['dept'][trim($r['dep_name'])] = $r['dep_id'];
+            }
             // ชื่อผู้ใช้ที่อยู่หน่วยงานอื่น หรือเป็น super_admin => ห้ามแก้ผ่านการนำเข้า
             foreach (sxq($x['c'], "SELECT user_id FROM tb_user WHERE user_agency <> ? OR user_level = 'super_admin'", 's', [$x['ag']]) as $r) $lk['_other'][sxi_key($r['user_id'])] = 1;
             return $lk;

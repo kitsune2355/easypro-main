@@ -17,7 +17,7 @@
 
     async function api(entity, action, body) {
         const url = `${API}?entity=${encodeURIComponent(entity)}&action=${action}`;
-        const res = body ? await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) : await fetch(url);
+        const res = body ? await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify(body) }) : await fetch(url);
         const txt = await res.text();
         let d;
         try { d = JSON.parse(txt); } catch (e) { throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง: ' + txt.replace(/<[^>]*>/g, ' ').slice(0, 200)); }
@@ -28,7 +28,7 @@
     // ---------- Template / ข้อมูลปัจจุบันในรูปแบบนำเข้า ----------
     //  ชีต 1 = หัวคอลัมน์ (* = บังคับ) + แถวตัวอย่าง หรือข้อมูลปัจจุบัน · ชีต "ค่าที่ใช้ได้" = รายการของช่องแบบเลือก · ชีต "คำอธิบาย"
     async function downloadTemplate(cfg, withData) {
-        Swal.fire({ title: withData ? 'กำลังเตรียมข้อมูล...' : 'กำลังสร้าง Template...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        Swal.fire({ title: withData ? 'กำลังเตรียมข้อมูล...' : 'กำลังสร้าง Template...', allowOutsideClick: false, didOpen: () => Swal.showLoading(), customClass: { container: 'sxi-swal' } });
         try {
             const d = await api(cfg.entity, withData ? 'export' : 'schema');
             const fields = d.fields;
@@ -57,7 +57,7 @@
             XLSX.writeFile(wb, `${d.file || cfg.entity}_${withData ? 'ข้อมูล_' + ymd : 'Template'}.xlsx`);
             Swal.close();
         } catch (e) {
-            Swal.fire('ข้อผิดพลาด', e.message, 'error');
+            Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: e.message, customClass: { container: 'sxi-swal' } });
         }
     }
 
@@ -150,7 +150,7 @@
         window.removeEventListener('keydown', onKey, true);
         S = null;
     }
-    function onKey(e) { if (e.key === 'Escape' && S) { e.stopImmediatePropagation(); if (!$('sxi-menu').classList.contains('hidden')) $('sxi-menu').classList.add('hidden'); else close(); } }
+    function onKey(e) { if (e.key === 'Escape' && S && !(window.Swal && Swal.isVisible())) { e.stopImmediatePropagation(); if (!$('sxi-menu').classList.contains('hidden')) $('sxi-menu').classList.add('hidden'); else close(); } }
     function showErr(msg) { const b = $('sxi-err'); if (!b) return; b.classList.toggle('hidden', !msg); $('sxi-err-msg').textContent = msg || ''; }
 
     // ---------- อ่านไฟล์ ----------
@@ -158,7 +158,12 @@
         const ws = S.wb.Sheets[name];
         if (!ws || !ws['!ref']) return [];
         const range = XLSX.utils.decode_range(ws['!ref']); range.s.r = 0; range.s.c = 0;
-        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false, blankrows: true, range }).map(r => (r || []).map(v => String(v ?? '')));
+        // เซลล์วันที่ของ Excel: SheetJS แสดงตามรูปแบบในไฟล์ (มักเป็น m/d/yy) => ใช้ ปี-เดือน-วัน กันวัน/เดือนสลับ
+        Object.keys(ws).forEach(a => {
+            const c = ws[a];
+            if (a[0] !== '!' && c && c.t === 'n' && c.z && XLSX.SSF.is_date(c.z)) { try { c.w = XLSX.SSF.format('yyyy-mm-dd', c.v); } catch (e) { /* รูปแบบแปลก ใช้ค่าเดิม */ } }
+        });
+        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false, dateNF: 'yyyy-mm-dd', blankrows: true, range }).map(r => (r || []).map(v => String(v ?? '')));
         // เซลล์รวม => เติมค่าทุกช่อง (หัวตารางหลายคอลัมน์)
         (ws['!merges'] || []).forEach(m => {
             const v = (aoa[m.s.r] || [])[m.s.c];
@@ -200,7 +205,7 @@
         if (!buf.byteLength) throw new Error('ไฟล์ว่าง');
         if (/\.xls[xm]$/i.test(f.name) && !zip) throw new Error('ไฟล์นี้ไม่ใช่ไฟล์ Excel (.xlsx) หรือไฟล์เสีย — ลองเปิดใน Excel แล้วบันทึกใหม่เป็น .xlsx');
         if (/\.xls$/i.test(f.name) && !zip && !ole && !new TextDecoder('utf-8').decode(buf.slice(0, 64)).trimStart().startsWith('<')) throw new Error('ไฟล์นี้ไม่ใช่ไฟล์ Excel (.xls) หรือไฟล์เสีย');
-        S.wb = /\.csv$/i.test(f.name) ? XLSX.read(new TextDecoder('utf-8').decode(buf), { type: 'string' }) : XLSX.read(buf, { type: 'array' });
+        S.wb = /\.csv$/i.test(f.name) ? XLSX.read(new TextDecoder('utf-8').decode(buf), { type: 'string' }) : XLSX.read(buf, { type: 'array', cellNF: true });   // cellNF = เก็บรูปแบบตัวเลข (.z) ไว้แยกเซลล์วันที่
         // ชีตที่หัวตารางตรงกับช่องมากสุด (ไม่ใช่ชีต "ค่าที่ใช้ได้"/"คำอธิบาย" ของ Template)
         let best = S.wb.SheetNames[0], bs = -1;
         S.wb.SheetNames.forEach(n => {
@@ -323,19 +328,19 @@
     }
 
     async function commit() {
-        const rows = dataRows().filter(r => !r.off).map(r => r.values), m = mode();
+        const rows = dataRows().filter(r => !r.off).map(r => r.values), m = mode(), cfg = S.cfg;
         const c = await Swal.fire({ title: 'นำเข้าข้อมูล?', html: $('sxi-foot').innerHTML, icon: 'question', showCancelButton: true, confirmButtonText: 'นำเข้า', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#059669', customClass: { container: 'sxi-swal' } });
         if (!c.isConfirmed) return;
-        Swal.fire({ title: 'กำลังนำเข้า...', allowOutsideClick: false, didOpen: () => Swal.showLoading(), customClass: { container: 'sxi-swal' } });
+        if (!S) return;   // หน้าต่างนำเข้าถูกปิดระหว่างยืนยัน
+        saveMap();
+        Swal.fire({ title: 'กำลังนำเข้า...', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading(), customClass: { container: 'sxi-swal' } });
         try {
-            const d = await api(S.cfg.entity, 'commit', { rows, mode: m });
-            saveMap();
-            const cfg = S.cfg;
+            const d = await api(cfg.entity, 'commit', { rows, mode: m });
             close();
             await Swal.fire({ icon: 'success', title: 'นำเข้าเรียบร้อย', html: `เพิ่ม <b>${d.inserted}</b> · อัปเดต <b>${d.updated}</b> · ข้าม <b>${d.skipped}</b> รายการ` });
             if (cfg.onDone) cfg.onDone(d); else location.reload();
         } catch (e) {
-            Swal.fire({ icon: 'error', title: 'นำเข้าไม่สำเร็จ', text: e.message + ' (ไม่มีข้อมูลใดถูกบันทึก)', customClass: { container: 'sxi-swal' } });
+            Swal.fire({ icon: 'error', title: 'นำเข้าไม่สำเร็จ', text: e.message, customClass: { container: 'sxi-swal' } });
         }
     }
 

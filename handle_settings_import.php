@@ -45,6 +45,7 @@ function sxi_lookups($E, $ctx)
 {
     $lk = isset($E['lookups']) ? call_user_func($E['lookups'], $ctx) : [];
     $idx = [];
+    foreach ($lk['_alias'] ?? [] as $name => $map) foreach ($map as $disp => $id) $idx[$name][sxi_key($disp)] = $id;   // ชื่อที่ใช้เทียบได้แต่ไม่แสดงใน Template (เช่น ปิดใช้งาน)
     foreach ($lk as $name => $map) if (is_array($map) && $name[0] !== '_') foreach ($map as $disp => $id) $idx[$name][sxi_key($disp)] = $id;
     $lk['_idx'] = $idx;
     return $lk;
@@ -68,16 +69,17 @@ function sxi_date($v)
     return checkdate($mo, $d, $y) ? sprintf('%04d-%02d-%02d', $y, $mo, $d) : null;
 }
 
-// ตรวจ + แปลงค่า 1 แถว => ['v' => ค่าที่บันทึกได้, 'errors' => [], 'bad' => [ช่องที่ผิด]]
+// ตรวจ + แปลงค่า 1 แถว => ['v' => ค่าที่บันทึกได้, 'errors' => [], 'bad' => [ช่องที่ผิด], 'missing' => [ช่องบังคับที่ว่าง => ข้อความ]]
+//  ช่องบังคับที่ว่าง: ผิดเฉพาะรายการใหม่ (รายการเดิม = ไม่เปลี่ยนค่า) — ตัดสินใน sxi_check_rows
 function sxi_validate($E, $row, $lk)
 {
-    $v = []; $errors = []; $bad = [];
+    $v = []; $errors = []; $bad = []; $missing = [];
     foreach ($E['fields'] as $f) {
         $k = $f['k'];
         $raw = trim(preg_replace('/\s+/u', ' ', (string)($row[$k] ?? '')));
         $type = $f['type'] ?? 'text';
         if ($raw === '') {
-            if (!empty($f['required'])) { $errors[] = 'ไม่ได้กรอก ' . $f['label']; $bad[] = $k; }
+            if (!empty($f['required'])) $missing[$k] = 'ไม่ได้กรอก ' . $f['label'];
             $v[$k] = ($type === 'lookup' || $type === 'choice') ? null : '';   // null = ไม่ระบุ (เพิ่มใหม่ใช้ค่าเริ่มต้น / แก้ไขไม่เปลี่ยน)
             continue;
         }
@@ -105,10 +107,10 @@ function sxi_validate($E, $row, $lk)
             $v[$k] = $raw;
         }
     }
-    if (empty($errors) && isset($E['check'])) {   // ตรวจเฉพาะชุดข้อมูล (เช่น ห้องต้องอยู่ในชั้นของอาคารนั้น)
+    if (empty($errors) && !isset($missing[$E['key']]) && isset($E['check'])) {   // ตรวจเฉพาะชุดข้อมูล (เช่น ห้องต้องอยู่ในชั้นของอาคารนั้น)
         foreach ((array)call_user_func_array($E['check'], [&$v, $lk]) as $k => $msg) { $errors[] = $msg; if (!is_int($k)) $bad[] = $k; }   // ตรวจเพิ่ม + เติมค่า (เช่น id ของอาคาร/ชั้น/ห้อง)
     }
-    return ['v' => $v, 'errors' => $errors, 'bad' => array_values(array_unique($bad))];
+    return ['v' => $v, 'errors' => $errors, 'bad' => array_values(array_unique($bad)), 'missing' => $missing];
 }
 
 // ตรวจทุกแถว: ค่า + รหัสซ้ำในไฟล์ + มีอยู่แล้วในระบบ
@@ -120,9 +122,12 @@ function sxi_check_rows($E, $ctx, $rows)
     foreach ($rows as $i => $row) {
         $r = sxi_validate($E, is_array($row) ? $row : [], $lk);
         $key = sxi_key(isset($E['keyOf']) ? call_user_func($E['keyOf'], $r['v']) : ($r['v'][$E['key']] ?? ''));
-        if ($key !== '' && isset($seen[$key])) { $r['errors'][] = 'ซ้ำกับแถวที่ ' . ($seen[$key] + 1) . ' ในไฟล์'; $r['bad'][] = $E['key']; }
-        elseif ($key !== '') $seen[$key] = $i;
+        $dup = isset($E['rowKeyOf']) ? sxi_key(call_user_func($E['rowKeyOf'], $r['v'])) : $key;   // แถวซ้ำในไฟล์ (เช่น อะไหล่ = ชื่อ + คลัง)
+        if ($key !== '' && isset($seen[$dup])) { $r['errors'][] = 'ซ้ำกับแถวที่ ' . ($seen[$dup] + 1) . ' ในไฟล์'; $r['bad'][] = $E['key']; }
+        elseif ($key !== '') $seen[$dup] = $i;
+        $r['key'] = $key;
         $r['id'] = $key !== '' && isset($existing[$key]) ? $existing[$key] : null;
+        if (!$r['id']) foreach ($r['missing'] as $k => $msg) { $r['errors'][] = $msg; $r['bad'][] = $k; }   // รายการใหม่ต้องกรอกช่องบังคับ
         $r['status'] = $r['errors'] ? 'error' : ($r['id'] ? 'update' : 'new');
         $out[] = $r;
     }
@@ -149,6 +154,7 @@ try {
         sxi_out($out);
     }
 
+    if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') !== 'XMLHttpRequest') sxi_out(['success' => false, 'error' => 'คำขอไม่ถูกต้อง — รีเฟรชหน้าแล้วลองใหม่']);
     $in = json_decode(file_get_contents('php://input'), true);
     $rows = is_array($in['rows'] ?? null) ? array_values($in['rows']) : [];
     $mode = ($in['mode'] ?? 'update') === 'skip' ? 'skip' : 'update';
@@ -164,7 +170,7 @@ try {
         list($res, $lk) = sxi_check_rows($E, $ctx, $rows);
         $bad = array_filter($res, function ($r) { return $r['status'] === 'error'; });
         if ($bad) sxi_out(['success' => false, 'error' => 'มี ' . count($bad) . ' แถวผิดพลาด — ตรวจสอบในหน้าต่างนำเข้าแล้วลองใหม่']);
-        $ins = 0; $upd = 0; $skip = 0;
+        $ins = 0; $upd = 0; $skip = 0; $made = [];
         mysqli_begin_transaction($connect);
         try {
             foreach ($res as $r) {
@@ -172,15 +178,20 @@ try {
                     if ($mode === 'skip') { $skip++; continue; }
                     call_user_func($E['update'], $ctx, $r['id'], $r['v'], $lk);
                     $upd++;
+                } elseif ($r['key'] !== '' && !empty($made[$r['key']])) {   // แถวถัดไปของรายการใหม่เดียวกัน (เช่น อะไหล่คลังที่ 2)
+                    call_user_func($E['update'], $ctx, $made[$r['key']], $r['v'], $lk);
                 } else {
-                    call_user_func($E['insert'], $ctx, $r['v'], $lk);
+                    $id = call_user_func($E['insert'], $ctx, $r['v'], $lk);
+                    if ($r['key'] !== '' && $id) $made[$r['key']] = $id;
                     $ins++;
                 }
             }
             mysqli_commit($connect);
         } catch (Exception $e) {
             mysqli_rollback($connect);
-            throw $e;
+            // ตารางส่วนใหญ่เป็น MyISAM ย้อนกลับไม่ได้ => บอกตามจริงว่าบันทึกไปแล้วบางส่วน
+            $done = $ins + $upd;
+            throw new Exception($e->getMessage() . ($done ? " — บันทึกไปแล้ว $done รายการก่อนเกิดข้อผิดพลาด ตรวจสอบข้อมูลในตารางก่อนนำเข้าซ้ำ (นำเข้าซ้ำได้ รายการที่บันทึกแล้วจะเป็น มีอยู่แล้ว)" : ' (ยังไม่มีข้อมูลถูกบันทึก)'));
         }
         if (isset($E['after'])) call_user_func($E['after'], $ctx);   // งานหลังบันทึก (นอกทรานแซกชัน)
         sxi_out(['success' => true, 'inserted' => $ins, 'updated' => $upd, 'skipped' => $skip]);
