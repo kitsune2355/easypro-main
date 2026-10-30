@@ -1099,5 +1099,12 @@ include "config_ctrl/checksession.php";
             });
         });
     </script>
+<!-- นำเข้าจาก Excel + Template (handle_settings_import.php) -->
+<script src="js/settings_import.js?v=<?php echo @filemtime(__DIR__ . '/js/settings_import.js'); ?>"></script>
+<script>
+    document.querySelectorAll('button[onclick="exportAllToExcel()"]').forEach(function (b) {
+        SettingsImport.attach({ entity: 'areas', anchor: b, btnClass: b.className });
+    });
+</script>
 </body>
 </html>

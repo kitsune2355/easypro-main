@@ -458,5 +458,11 @@ include "config_ctrl/checksession.php";
         loadDataFromAPI();
 
     </script>
+<!-- นำเข้าจาก Excel + Template (handle_settings_import.php) — ใช้ SheetJS อ่าน/เขียนไฟล์ -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="js/settings_import.js?v=<?php echo @filemtime(__DIR__ . '/js/settings_import.js'); ?>"></script>
+<script>
+    SettingsImport.attach({ entity: 'email_notify_eval', anchor: '#btn-export-excel' });
+</script>
 </body>
 </html>

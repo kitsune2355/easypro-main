@@ -1067,5 +1067,10 @@ include "config_ctrl/checksession.php";
         }
     });
 </script>
+<!-- นำเข้าจาก Excel + Template (handle_settings_import.php) -->
+<script src="js/settings_import.js?v=<?php echo @filemtime(__DIR__ . '/js/settings_import.js'); ?>"></script>
+<script>
+    SettingsImport.attach({ entity: 'meters', anchor: '#btn-export-excel' });
+</script>
 </body>
 </html>
