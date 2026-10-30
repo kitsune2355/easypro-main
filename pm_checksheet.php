@@ -130,7 +130,7 @@ include "config_ctrl/checksession.php";
                         <span id="cs-item-count" class="text-xs text-slate-500"></span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button type="button" onclick="openChecksheetImport()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 text-sm text-emerald-700 hover:bg-emerald-50" title="อ่านจุดตรวจจากไฟล์ใบตรวจเช็คของหน่วยงาน">
+                        <button type="button" onclick="openChecksheetImport({ target: csImportTarget() })" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-600 text-sm text-emerald-700 hover:bg-emerald-50" title="อ่านจุดตรวจจากไฟล์ใบตรวจเช็คของหน่วยงาน">
                             <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> นำเข้าจาก Excel
                         </button>
                         <input type="number" id="row-add-count" value="1" min="1" aria-label="จำนวนแถวที่จะเพิ่ม" class="w-16 border border-slate-200 rounded-lg py-1.5 px-2 text-sm text-center outline-none focus:ring-2 focus:ring-sky-500/30">
@@ -480,9 +480,14 @@ include "config_ctrl/checksession.php";
         updateItemCount();
     };
 
+    const itemCount = () => window.hotChecksheet ? window.hotChecksheet.getData().filter(r => r[1] && String(r[1]).trim()).length : 0;
+    // หน้าต่างนำเข้าบอกว่ากำลังใส่จุดตรวจลงเช็คชีตไหน (ผู้ใช้ลืมว่าเปิดแก้เช็คชีตไหนอยู่)
+    window.csImportTarget = function () {
+        return { mode: 'กำลัง' + $('cs-editor-title').textContent, name: $('checksheet-name').value.trim(), doc: $('checksheet-doc-no').value.trim(), count: itemCount() };
+    };
     function updateItemCount() {
         if (!window.hotChecksheet) return;
-        const n = window.hotChecksheet.getData().filter(r => r[1] && String(r[1]).trim()).length;
+        const n = itemCount();
         $('cs-item-count').textContent = n ? `${n} จุด` : '';
     }
 

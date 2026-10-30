@@ -31,6 +31,7 @@
     const low = s => norm(s).toLowerCase();
 
     let wb = null, sheetName = '', rows = [], headRow = 0, map = [], fileName = '';
+    let sheetList = [], lastSheet = '';   // ชีตที่แสดงเป็นแท็บ (ไม่รวมชีตซ่อน) · lastSheet = ชีตที่เปิดอยู่ตอนบันทึกไฟล์ครั้งล่าสุด
 
     // ---------- อ่านชีต (เติมค่าเซลล์รวม) ----------
     // อ่านตั้งแต่ A1 เสมอ: ชีตที่ข้อมูลเริ่มแถว/คอลัมน์อื่น ลำดับแถว/คอลัมน์ต้องตรงกับเซลล์รวม (!merges) และรูปแบบจาก ExcelJS ที่นับจาก A1
@@ -398,15 +399,25 @@
     const tint = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
     let result = { items: [], kind: {} };
 
+    // เช็คชีตที่กำลังแก้ (openOpt.target จากหน้าที่เปิด) — ผู้ใช้เปิดไฟล์ Excel ไปแก้แล้วลืมว่าจะนำเข้าลงเช็คชีตไหน
+    const targetName = () => { const t = openOpt.target; return t ? t.name || 'ยังไม่ได้ตั้งชื่อ' : ''; };
+    function targetHtml() {
+        const t = openOpt.target;
+        if (!t) return '';
+        return `<div id="csi-target" class="inline-flex items-center gap-2 min-w-0 max-w-full px-3 py-1.5 rounded-lg border border-sky-200 bg-sky-50 text-sky-900" title="จุดตรวจที่นำเข้าจะใส่ลงเช็คชีตนี้">
+            <i data-lucide="clipboard-pen" class="w-4 h-4 shrink-0 text-sky-600"></i>
+            <span class="truncate">${esc(t.mode || 'กำลังแก้ไข')} <b>${esc(targetName())}</b>${t.doc ? ' <span class="text-sky-700">· ' + esc(t.doc) + '</span>' : ''}</span>
+            ${t.count != null ? `<span class="shrink-0 px-2 py-0.5 rounded-full bg-white border border-sky-200 text-xs text-sky-700">${t.count ? `มีอยู่ ${t.count} จุด` : 'ยังไม่มีจุดตรวจ'}</span>` : ''}</div>`;
+    }
     function modalHtml() {
         return `<div id="csi-modal" class="fixed inset-0 flex items-center justify-center p-2 sm:p-4" style="z-index:10050;background:rgba(15,23,42,.5)">
         <div id="csi-box" class="bg-white rounded-2xl shadow-2xl w-full max-w-[1500px] h-[94vh] flex flex-col overflow-hidden text-[14px] text-slate-700">
             <div class="flex flex-wrap items-center gap-3 px-5 py-3.5 border-b border-slate-200">
                 <div class="font-semibold text-slate-800 text-base mr-1">นำเข้าจุดตรวจจาก Excel</div>
+                ${targetHtml()}
                 <label class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-slate-300 hover:bg-slate-50 cursor-pointer">
                     <i data-lucide="upload" class="w-4 h-4 text-emerald-600"></i><span id="csi-fname">เลือกไฟล์</span>
                     <input type="file" id="csi-file" accept=".xlsx,.xls,.xlsm,.csv" class="hidden"></label>
-                <select id="csi-sheet" class="hidden border border-slate-300 rounded-lg py-2 px-2.5" title="ชีต"></select>
                 <div class="flex-1"></div>
                 <div class="inline-flex items-center rounded-lg border border-slate-200 p-0.5 text-slate-500" title="มุมมอง">
                     <button type="button" data-layout="tb" title="บน-ล่าง" class="w-8 h-8 rounded-md flex items-center justify-center hover:bg-slate-100"><i data-lucide="rows-2" class="w-4 h-4"></i></button>
@@ -428,7 +439,7 @@
             <div id="csi-main" class="hidden flex-1 min-h-0 min-w-0 flex">
                 <div id="csi-pa" class="min-h-0 min-w-0 flex flex-col">
                     <div class="px-4 py-2 text-sm text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1">
-                        <b class="text-slate-800">ไฟล์ Excel</b>
+                        <b class="text-slate-800">ไฟล์ Excel <span class="font-normal text-slate-500">· ชีต</span> <span id="csi-sname" class="text-emerald-700"></span></b>
                         <div class="inline-flex items-center gap-1 text-xs" title="ใบตรวจที่แต่ละแถวคือเครื่อง (เช่น ถังดับเพลิง) และจุดตรวจอยู่ที่หัวคอลัมน์ ให้เลือก คอลัมน์">
                             <span>จุดตรวจเป็น</span>
                             <span class="inline-flex rounded-lg border border-slate-200 p-0.5">
@@ -446,6 +457,7 @@
                         </div>
                     </div>
                     <div id="csi-left" class="flex-1 min-h-0 overflow-auto bg-white border-t border-slate-200"></div>
+                    <div id="csi-tabs" class="flex items-stretch gap-0.5 overflow-x-auto bg-slate-100 border-t border-slate-300 px-2 text-[13px] shrink-0"></div>
                 </div>
                 <div id="csi-gutter" title="ลากเพื่อปรับขนาด · ดับเบิลคลิก = ครึ่งต่อครึ่ง"></div>
                 <div id="csi-pb" class="flex-1 min-h-0 min-w-0 flex flex-col">
@@ -693,8 +705,17 @@
     }
     const closeMenu = () => { if ($('csi-menu')) $('csi-menu').classList.add('hidden'); showCol(null); };
 
-    function loadSheet() {
-        sheetName = $('csi-sheet').value;
+    // แท็บชีตใต้ตารางไฟล์ (แบบ Excel) — ผู้ใช้มักจำไม่ได้ว่าแก้ชีตไหน: แท็บที่เลือกเป็นสีเขียว + ป้าย "เปิดล่าสุด" ที่ชีตที่เปิดอยู่ตอนบันทึกไฟล์
+    function renderTabs() {
+        $('csi-sname').textContent = sheetName;
+        $('csi-tabs').innerHTML = '<span class="self-center text-slate-500 pr-1.5 shrink-0">ชีต</span>' + sheetList.map((n, i) =>
+            `<button type="button" data-sheet="${i}" class="csi-tab${n === sheetName ? ' csi-cur' : ''}"${n === lastSheet ? ' title="ชีตที่เปิดอยู่ตอนบันทึกไฟล์ครั้งล่าสุด"' : ''}>${esc(n)}${n === lastSheet ? '<span class="csi-last">เปิดล่าสุด</span>' : ''}</button>`).join('');
+        const cur = $('csi-tabs').querySelector('.csi-cur');
+        if (cur) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+    function loadSheet(name) {
+        sheetName = name;
+        renderTabs();
         removed = new Set(); cutAt = null; rowOpt = {};
         rows = sheetRows(sheetName);
         disp = rawRows(sheetName);   // ค่าที่แสดงในหน้าตาแบบ Excel (เซลล์รวมแสดงครั้งเดียว)
@@ -734,16 +755,23 @@
         if (/\.xls[xm]$/i.test(f.name)) {
             try { const EJ = await loadExcelJs(); xwb = new EJ.Workbook(); await xwb.xlsx.load(buf.slice(0)); readTheme(); } catch (e) { xwb = null; }
         }
-        // เลือกชีตที่มีหัวตารางชัดที่สุดให้ก่อน
-        let best = wb.SheetNames[0], bestS = -1;
-        wb.SheetNames.forEach(n => {
-            const s = Math.max(0, ...sheetRows(n).slice(0, 30).map(scoreHeader));
+        // แท็บ = ชีตที่ไม่ได้ซ่อน (ซ่อนหมด => แสดงทุกชีต)
+        const wbm = wb.Workbook || {}, meta = wbm.Sheets || [];
+        sheetList = wb.SheetNames.filter((n, i) => !(meta[i] && meta[i].Hidden));
+        if (!sheetList.length) sheetList = wb.SheetNames.slice();
+        // ชีตที่เปิดอยู่ตอนบันทึกไฟล์ (activeTab ของ workbookView — ไม่ระบุ = ชีตแรก) · CSV / .xls บางแบบไม่มีข้อมูลนี้
+        const wv = (wbm.WBView || [])[0];
+        lastSheet = wv ? wb.SheetNames[+wv.activeTab || 0] || '' : '';
+        if (!sheetList.includes(lastSheet)) lastSheet = '';
+        // เปิดชีตที่เปิดอยู่ตอนบันทึกก่อน (ชีตที่เพิ่งแก้) ถ้ามีหัวตาราง — ไม่มี/เป็นชีตหมายเหตุ => ชีตที่มีหัวตารางชัดที่สุด
+        let best = sheetList[0], bestS = -1;
+        const score = {};
+        sheetList.forEach(n => {
+            const s = score[n] = Math.max(0, ...sheetRows(n).slice(0, 30).map(scoreHeader));
             if (s > bestS) { bestS = s; best = n; }
         });
-        const sel = $('csi-sheet');
-        sel.innerHTML = wb.SheetNames.map(n => `<option value="${esc(n)}" ${n === best ? 'selected' : ''}>${esc(n)}</option>`).join('');   // value ระบุเอง: ชื่อชีตที่มีช่องว่างท้ายชื่อ (option ตัดช่องว่างเมื่อไม่มี value)
-        sel.classList.toggle('hidden', wb.SheetNames.length < 2);
-        loadSheet();
+        const hasData = n => sheetRows(n).some(r => r.some(v => String(v).trim()));
+        loadSheet(lastSheet && (score[lastSheet] > 0 || (bestS <= 0 && hasData(lastSheet))) ? lastSheet : best);
         fileName = f.name;
         $('csi-fname').textContent = f.name;   // อ่านสำเร็จแล้วจึงเปลี่ยนชื่อไฟล์ (ไฟล์เสีย => ยังเป็นไฟล์เดิมที่แสดงอยู่)
     }
@@ -795,7 +823,7 @@
         const own = openOpt.apply;
         (own || window.csImportApply)(items, mode);
         close();
-        if (!own && window.Swal) Swal.fire({ icon: 'success', title: `นำเข้า ${items.length} จุดตรวจ`, text: 'ตรวจสอบในตาราง แล้วกดบันทึกเช็คชีต', timer: 1800, showConfirmButton: false });
+        if (!own && window.Swal) Swal.fire({ icon: 'success', title: `นำเข้า ${items.length} จุดตรวจ`, text: (targetName() ? 'ลงเช็คชีต ' + targetName() + ' — ' : '') + 'ตรวจสอบในตาราง แล้วกดบันทึกเช็คชีต', timer: 1800, showConfirmButton: false });
     }
 
     // ข้อผิดพลาดแสดงเป็นแถบในหน้าต่างนี้ — ไม่ใช้ SweetAlert: ถูกหน้าต่างนี้บัง และถ้าเปิดซ้อนบน SweetAlert (pm_import) จะปิดหน้าต่างแก้ไขที่อยู่ด้านล่าง
@@ -829,7 +857,10 @@
             + ' #csi-modal .csi-gut { flex: 0 0 8px; background: #f1f5f9; position: relative; touch-action: none; } #csi-modal .csi-gut:hover, #csi-modal .csi-gut.drag { background: #a7f3d0; }'
             + ' #csi-modal .csi-gut::after { content: ""; position: absolute; inset: 0; margin: auto; border-radius: 2px; background: #94a3b8; }'
             + ' #csi-modal .csi-gut-h { cursor: row-resize; } #csi-modal .csi-gut-h::after { width: 40px; height: 3px; } #csi-modal .csi-gut-v { cursor: col-resize; } #csi-modal .csi-gut-v::after { width: 3px; height: 40px; }'
-            + ' #csi-modal .csi-on { background: #ecfdf5; color: #047857; }</style>');
+            + ' #csi-modal .csi-on { background: #ecfdf5; color: #047857; }'
+            + ' #csi-modal .csi-tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; white-space: nowrap; color: #475569; border-radius: 0 0 6px 6px; } #csi-modal .csi-tab:hover { background: #e2e8f0; }'
+            + ' #csi-modal .csi-tab.csi-cur { background: #fff; color: #047857; font-weight: 600; box-shadow: inset 0 -3px 0 #10b981, 0 1px 2px rgba(15,23,42,.12); }'
+            + ' #csi-modal .csi-last { font-size: 10px; font-weight: 500; line-height: 1; padding: 3px 6px; border-radius: 999px; background: #fef3c7; color: #b45309; }</style>');
         document.body.insertAdjacentHTML('beforeend', modalHtml());
         setFs(true);
         applyLayout();
@@ -865,6 +896,8 @@
                 else setZoom(1);
                 return;
             }
+            const tb = e.target.closest('[data-sheet]');
+            if (tb) { const n = sheetList[+tb.dataset.sheet]; if (n != null && n !== sheetName) loadSheet(n); return; }
             const th = e.target.closest('.csi-colh');
             if (th) { openMenu(+th.dataset.col, th); return; }
             const tg = e.target.closest('[data-toggle]');
@@ -895,7 +928,6 @@
             if (f) readFile(f).catch(err => showErr('อ่านไฟล์ไม่ได้: ' + f.name, err && err.message ? err.message : String(err)));
             e.target.value = '';   // เลือกไฟล์เดิมซ้ำได้ (หลังแก้ไฟล์)
         });
-        $('csi-sheet').addEventListener('change', loadSheet);
         // Ctrl + ล้อเมาส์ = ซูมตารางไฟล์
         $('csi-left').addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); zoomStep(e.deltaY < 0 ? 1 : -1); }, { passive: false });
         // ลากเส้นแบ่งเพื่อปรับขนาดสองฝั่ง (15–85%) · ดับเบิลคลิก = ครึ่งต่อครึ่ง

@@ -623,6 +623,8 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
                 if ($('imp-it-xls')) {
                     lucide.createIcons();
                     $('imp-it-xls').addEventListener('click', () => openChecksheetImport({
+                        target: { mode: 'กำลังแก้ไข', name: (Swal.getTitle() || {}).textContent || '',
+                            count: readItemRows(body).filter(it => ITEM_COLS.some(c => !c.opts && c.f !== 'section_name' && it[c.f] !== '')).length },
                         apply: (rows, mode) => {
                             const optId = (list, label, def) => (list.find(o => o.label === label) || { id: def }).id;
                             const add = rows.map(v => ({ ...blankItem(), section_name: v[10] || '', check_point: v[0], standard_text: v[1], method_text: v[2], action_abnormal: v[3],
