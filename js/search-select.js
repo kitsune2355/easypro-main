@@ -12,7 +12,7 @@
 
     const css = `
         .ss-native { position: absolute !important; opacity: 0 !important; pointer-events: none !important; width: 1px !important; height: 1px !important; margin: 0 !important; padding: 0 !important; border: 0 !important; }
-        .ss-btn { display: inline-flex; align-items: center; gap: .4rem; text-align: left; cursor: pointer; background-color: #fff; min-width: 0; font: inherit; }
+        .ss-btn { display: inline-flex; align-items: center; gap: .4rem; text-align: left; cursor: pointer; background-color: #fff; min-width: 0; font-family: inherit; }   /* ไม่ใช้ font: inherit — จะทับขนาด text-sm ที่คัดลอกมาจาก select เดิม (ตัวอักษรใหญ่กว่าหน้าอื่น) */
         .ss-btn[disabled] { cursor: not-allowed; opacity: .6; background-color: #f8fafc; }
         .ss-btn .ss-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .ss-btn .ss-text.ss-ph { color: #94a3b8; }
