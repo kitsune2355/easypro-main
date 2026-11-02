@@ -692,7 +692,8 @@ async function initAgencyModalOnce() {
                 '<tr class="agency-row hover:bg-easy-primary/5 cursor-pointer transition-colors group border-b border-gray-50 ' + 
                 (selectedId === item.ag_id ? 'bg-easy-primary/10' : '') + '" data-id="' + item.ag_id + '">' +
                     '<td class="px-6 py-[13.5px] text-sm font-semibold text-gray-700">' + escapeHtml(item.code) + '</td>' +
-                    '<td class="px-6 py-[13.5px] text-sm text-gray-600 group-hover:text-easy-primary">' + escapeHtml(item.name) + '</td>' +
+                    '<td class="px-6 py-[13.5px] text-sm text-gray-600 group-hover:text-easy-primary">' + escapeHtml(item.name) +
+                        (item.ended ? ' <span class="inline-flex items-center ml-1.5 px-2 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-600 text-xs font-medium whitespace-nowrap align-middle">' + escapeHtml(item.ended) + '</span>' : '') + '</td>' +
                 '</tr>';
             }).join('');
         }
@@ -747,7 +748,8 @@ async function initAgencyModalOnce() {
             return {
                 ag_id: parseInt(x.ag_id, 10),
                 code: String(x.code || ''),
-                name: String(x.name || '')
+                name: String(x.name || ''),
+                ended: String(x.ended || '')   // หมดสัญญา … (เฉพาะ super_admin เห็น) => ป้ายสีแดง
             };
         });
 

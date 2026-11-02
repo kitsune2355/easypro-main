@@ -48,8 +48,9 @@ while ($r = mysqli_fetch_assoc($q)) {
   $data[] = [
     'ag_id' => (int)$r['ag_id'],
     'code'  => $r['ag_job'],
-    'name'  => $r['ag_contract'] . ($expired ? ' (หมดสัญญา ' . agc_thai_date($r['ag_end_date']) . ')' : ''),
+    'name'  => $r['ag_contract'],
     'expired' => $expired,
+    'ended' => $expired ? 'หมดสัญญา ' . agc_thai_date($r['ag_end_date']) : '',   // ป้ายสีแดงท้ายชื่อ (main.php / main2.php)
   ];
 }
 
