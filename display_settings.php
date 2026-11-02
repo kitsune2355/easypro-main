@@ -74,7 +74,8 @@ include_once "config_ctrl/checksession.php";
             <div class="mt-6 rounded-xl bg-slate-50 border border-slate-200 p-4 flex-1 flex flex-col min-h-[8rem]">
                 <div class="text-[12px] font-semibold uppercase tracking-wide text-slate-400 mb-2">ตัวอย่าง</div>
                 <!-- หน้าจอจำลองแบบหน้า งาน PM ที่ต้องทำ — ทั้งกล่องขยายตามขนาดที่เลือก (zoom) -->
-                <div class="flex-1 min-h-0 overflow-hidden flex justify-center items-start pt-1">
+                <!-- ชั้น absolute: หน้าจอจำลองไม่ดันความสูงหน้า => หน้าพอดีจอ ส่วนที่เกินกล่องถูกตัด -->
+                <div class="relative flex-1 min-h-0"><div class="absolute inset-0 overflow-hidden flex justify-center items-start pt-1">
                 <div id="fsPreview" class="w-full max-w-3xl rounded-xl border border-slate-200 bg-[#f0f4f8] shadow-sm overflow-hidden pointer-events-none select-none" aria-hidden="true">
                     <div class="flex items-center gap-3 bg-white px-4 py-3 border-b border-slate-200">
                         <div class="p-2 bg-[#006b9f] rounded-lg text-white"><i data-lucide="notebook-pen" class="w-5 h-5"></i></div>
@@ -111,7 +112,7 @@ include_once "config_ctrl/checksession.php";
                         </div>
                     </div>
                 </div>
-                </div>
+                </div></div>
             </div>
         </section>
 
