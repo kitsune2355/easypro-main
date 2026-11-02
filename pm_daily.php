@@ -255,9 +255,10 @@
         if (!summary.groups.length) {
             const searching = $('pmd-q').value.trim() || $('pmd-type').value;
             const msg = !c.all && !searching ? 'ไม่มีงาน PM ในช่วงนี้' : (filter === 'todo' && !searching ? 'ไม่มีงานค้าง ทำครบแล้ว' : 'ไม่พบรายการตามเงื่อนไข');
-            $('pmd-list').innerHTML = `<div class="bg-white rounded-xl border border-slate-200 py-14 text-center text-slate-400 text-sm">
+            $('pmd-list').innerHTML = `<div data-fit-empty class="bg-white rounded-xl border border-slate-200 py-14 flex flex-col items-center justify-center text-center text-slate-400 text-sm">
                 <i data-lucide="calendar-check" class="w-9 h-9 mx-auto mb-2"></i>${msg}</div>`;
             lucide.createIcons({ root: $('pmd-list') });
+            if (window.pmFitEmpty) pmFitEmpty($('pmd-list').firstElementChild);   // สูงพอดีจอ ข้อความอยู่กลาง
             return;
         }
         const more500 = summary.groups.length >= 500 ? `<div class="text-center text-xs text-slate-400 py-2">แสดง 500 กลุ่มแรก — ค้นหาหรือกรองเพื่อดูกลุ่มอื่น</div>` : '';

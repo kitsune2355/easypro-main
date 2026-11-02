@@ -28,7 +28,7 @@ include_once "config_ctrl/checksession.php";
         .fs-chip.is-active { background: #0284c7; color: #fff; border-color: #0284c7; }
     </style>
 </head>
-<body class="overflow-y-auto">
+<body class="overflow-y-auto flex flex-col">
     <!-- Header (รูปแบบเดียวกับหน้าอื่น เช่น ข้อมูลแจ้งซ่อม) -->
     <nav class="flex-none px-3 py-4 flex items-center justify-between border-b border-slate-200 bg-white">
         <div class="flex items-center gap-3">
@@ -42,8 +42,9 @@ include_once "config_ctrl/checksession.php";
         </div>
     </nav>
 
-    <main class="p-4">
-        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+    <!-- สูงพอดีจอ: กล่องตัวอย่างยืดเต็มที่ว่าง ข้อความตัวอย่างอยู่กลาง (จอเตี้ย => เลื่อนหน้าแทน) -->
+    <main class="p-4 flex-1 flex flex-col">
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex-1 flex flex-col">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h2 class="font-semibold text-slate-800 flex items-center gap-2"><i data-lucide="a-large-small" class="w-5 h-5 text-sky-700"></i>ขนาดตัวอักษร</h2>
@@ -70,10 +71,47 @@ include_once "config_ctrl/checksession.php";
                 <span class="text-[12px] text-slate-400 mr-1">ขนาดที่ใช้บ่อย:</span>
             </div>
 
-            <div class="mt-6 rounded-xl bg-slate-50 border border-slate-200 p-4">
+            <div class="mt-6 rounded-xl bg-slate-50 border border-slate-200 p-4 flex-1 flex flex-col min-h-[8rem]">
                 <div class="text-[12px] font-semibold uppercase tracking-wide text-slate-400 mb-2">ตัวอย่าง</div>
-                <p id="fsSample" class="text-[15px] text-slate-700 leading-relaxed">แจ้งซ่อม: แอร์ห้องประชุมชั้น 3 เปิดไม่ติด มีน้ำหยด — กรุณาเข้าตรวจสอบภายในวันนี้</p>
-                <p id="fsSample2" class="mt-1 text-[12px] text-slate-500">ข้อความขนาดเล็ก เช่น วันที่ เวลา และสถานะ · 9 ต.ค. 2569 · 10:30 น.</p>
+                <!-- หน้าจอจำลองแบบหน้า งาน PM ที่ต้องทำ — ทั้งกล่องขยายตามขนาดที่เลือก (zoom) -->
+                <div class="flex-1 min-h-0 overflow-hidden flex justify-center items-start pt-1">
+                <div id="fsPreview" class="w-full max-w-3xl rounded-xl border border-slate-200 bg-[#f0f4f8] shadow-sm overflow-hidden pointer-events-none select-none" aria-hidden="true">
+                    <div class="flex items-center gap-3 bg-white px-4 py-3 border-b border-slate-200">
+                        <div class="p-2 bg-[#006b9f] rounded-lg text-white"><i data-lucide="notebook-pen" class="w-5 h-5"></i></div>
+                        <div class="min-w-0">
+                            <div class="text-[15px] font-bold text-slate-900 leading-tight">Preventive Maintenance</div>
+                            <div class="text-[12px] text-slate-500">งาน PM ที่ต้องทำ และบันทึกผลการปฏิบัติงาน</div>
+                        </div>
+                    </div>
+                    <div class="p-3 space-y-3">
+                        <div class="bg-white rounded-xl border border-slate-200 p-3 space-y-2.5">
+                            <div class="flex flex-wrap items-center gap-2 text-[13px] font-semibold">
+                                <span class="px-3 py-1 rounded-full border-2 border-amber-600 text-amber-700">ต้องทำ 12</span>
+                                <span class="px-3 py-1 rounded-full bg-red-50 text-red-600">เลยกำหนด 3</span>
+                                <span class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700">ทำแล้ว 5</span>
+                                <span class="ml-auto text-[12px] font-normal text-slate-500">วันพุธที่ 9 ตุลาคม 2569</span>
+                            </div>
+                            <div class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-[13px] text-slate-400"><i data-lucide="search" class="w-4 h-4"></i>ค้นหาเครื่อง / รหัส / สถานที่ / เช็คชีต</div>
+                        </div>
+                        <div class="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+                            <div class="flex items-center gap-3 px-4 py-2.5">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-2"><b class="text-[14px] text-slate-800">เครื่องปรับอากาศ ห้องประชุม</b><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-600 text-[11px] font-semibold"><i data-lucide="triangle-alert" class="w-3 h-3"></i>เลยกำหนด · อ. 8 ต.ค.</span></div>
+                                    <div class="text-[12px] text-slate-500 flex flex-wrap items-center gap-x-1.5"><span>AC-301</span>·<span>เครื่องปรับอากาศ</span>·<i data-lucide="map-pin" class="w-3 h-3"></i><span>อาคาร A / ชั้น 3</span></div>
+                                </div>
+                                <span class="flex-none inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-sky-200 text-[#006b9f] text-[13px] font-semibold"><i data-lucide="external-link" class="w-4 h-4"></i>เปิดใบงาน</span>
+                            </div>
+                            <div class="flex items-center gap-3 px-4 py-2.5">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-2"><b class="text-[14px] text-slate-800">ปั๊มน้ำดี No.1</b><span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold">ทำแล้ว 10:30 น.</span></div>
+                                    <div class="text-[12px] text-slate-500 flex flex-wrap items-center gap-x-1.5"><span>PU-B101</span>·<span>ปั๊มน้ำ</span>·<i data-lucide="map-pin" class="w-3 h-3"></i><span>อาคาร B / ห้องปั๊ม</span></div>
+                                </div>
+                                <span class="flex-none inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#006b9f] text-white text-[13px] font-semibold"><i data-lucide="file-check" class="w-4 h-4"></i>ดูผล</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
             </div>
         </section>
 
@@ -112,8 +150,7 @@ function show(z, applied) {
     $('fsName').textContent = nameOf(z);
     // ตัวอย่าง: ขนาดเทียบกับขนาดที่ใช้อยู่ (หน้านี้ถูกขยายด้วยค่าที่ใช้อยู่แล้ว)
     const rel = z / (applied || current());
-    $('fsSample').style.fontSize = (15 * rel) + 'px';
-    $('fsSample2').style.fontSize = (12 * rel) + 'px';
+    $('fsPreview').style.zoom = rel;
     document.querySelectorAll('.fs-chip').forEach(c => c.classList.toggle('is-active', Math.abs(parseFloat(c.dataset.z) - z) < 0.001));
 }
 function apply(z) {

@@ -135,7 +135,8 @@
     function render() {
         if (!groups.length) {
             selKey = null; lockMain();
-            $('ev-list').innerHTML = `<div class="py-12 text-center text-slate-400 text-sm"><i class="fas fa-clipboard-check text-3xl text-slate-300 block mb-2"></i>${status === 'pending' ? 'ไม่มีใบงานที่รอประเมินในช่วงนี้' : 'ไม่พบรายการ'}</div>`;
+            $('ev-list').innerHTML = `<div data-fit-empty class="py-12 flex flex-col items-center justify-center text-center text-slate-400 text-sm"><i class="fas fa-clipboard-check text-3xl text-slate-300 block mb-2"></i>${status === 'pending' ? 'ไม่มีใบงานที่รอประเมินในช่วงนี้' : 'ไม่พบรายการ'}</div>`;
+            if (window.pmFitEmpty) pmFitEmpty($('ev-list').firstElementChild);   // สูงพอดีจอ ข้อความอยู่กลาง
             return;
         }
         if (!groups.some(g => keyOf(g) === selKey)) selKey = WIDE.matches ? keyOf(groups[0]) : null;

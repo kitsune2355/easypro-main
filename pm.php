@@ -579,6 +579,17 @@ $pmCanApprove = $pmApproveOn
             window.switchTab(last && pmModeOf(last) === mode ? last : PM_MODE_DEFAULT[mode]);
         };
 
+        // กล่อง "ไม่มีข้อมูล" (data-fit-empty) สูงพอดีจอ — ยืดลงถึงขอบล่างของพื้นที่เลื่อน ข้อความอยู่กลางกล่อง (แท็บงานที่ต้องทำ / ประเมิน PM)
+        window.pmFitEmpty = function (el) {
+            const main = el && el.closest('main'), tab = el && el.closest('.tab-content');
+            if (!main || !tab || !el.offsetParent) return;   // แท็บซ่อนอยู่ => วัดตอนเปิดแท็บ
+            el.style.minHeight = '';
+            const mr = main.getBoundingClientRect();
+            const free = mr.top + main.clientHeight - parseFloat(getComputedStyle(main).paddingBottom) - (tab.getBoundingClientRect().bottom + main.scrollTop);
+            el.style.minHeight = Math.max(160, el.offsetHeight + free) + 'px';
+        };
+        window.addEventListener('resize', () => document.querySelectorAll('[data-fit-empty]').forEach(window.pmFitEmpty));
+
         window.switchTab = function(tabId, opts) {
             if (!document.getElementById('tab-' + tabId)) tabId = PM_MODE_DEFAULT.field;
             if (!PM_CAN_MANAGE && PM_MANAGE_TABS.includes(tabId)) tabId = PM_MODE_DEFAULT.field;
@@ -605,6 +616,7 @@ $pmCanApprove = $pmApproveOn
             }
 
             localStorage.setItem('activePMTab', tabId);
+            if (targetTab) targetTab.querySelectorAll('[data-fit-empty]').forEach(window.pmFitEmpty);   // วาดไว้ตอนแท็บซ่อน => วัดใหม่
 
             // เปิดครั้งแรก => โค้ดเริ่มต้นของแท็บโหลดข้อมูลเอง ไม่ต้องรีเฟรชซ้ำด้านล่าง
             if (window.pmRunLazy(tabId) && ['dashboard', 'postpone'].includes(tabId)) return;
