@@ -311,17 +311,17 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
   </div>
 
   <div class="flex gap-2 w-full max-w-xl">
-    <button onClick="switchTab('agency')" id="tab-agency-btn" class="tab-btn active flex-1 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
+    <?php if ($amIsSuper) { /* Monitor = แท็บแรกและเปิดเป็นค่าเริ่มต้น (super admin) */ ?>
+    <button onClick="switchTab('monitor')" id="tab-monitor-btn" class="tab-btn active flex-1 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
+      <i data-lucide="activity" class="w-3.5 h-3.5 hidden sm:block"></i> <span class="whitespace-nowrap">Monitor</span>
+    </button>
+    <?php } ?>
+    <button onClick="switchTab('agency')" id="tab-agency-btn" class="tab-btn <?= $amIsSuper ? '' : 'active' ?> flex-1 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
       <i data-lucide="building-2" class="w-3.5 h-3.5 hidden sm:block"></i> <span class="whitespace-nowrap">จัดการหน่วยงาน</span>
     </button>
     <button onClick="switchTab('users')" id="tab-users-btn" class="tab-btn flex-1 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
       <i data-lucide="users" class="w-3.5 h-3.5 hidden sm:block"></i> <span class="whitespace-nowrap">ข้อมูลผู้ใช้</span>
     </button>
-    <?php if ($amIsSuper) { ?>
-    <button onClick="switchTab('monitor')" id="tab-monitor-btn" class="tab-btn flex-1 py-2 px-2 sm:px-4 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
-      <i data-lucide="activity" class="w-3.5 h-3.5 hidden sm:block"></i> <span class="whitespace-nowrap">Monitor</span>
-    </button>
-    <?php } ?>
   </div>
 </div>
 
@@ -331,7 +331,7 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
 <div class="flex-1 flex flex-col relative w-full lg:min-h-0">
 
   <!-- Tab 1: Agency Management -->
-  <div id="view-agency" data-sub="list" class="flex flex-col lg:flex-row gap-4 flex-1 lg:min-h-0 w-full transition-opacity duration-300">
+  <div id="view-agency" data-sub="list" class="<?= $amIsSuper ? 'hidden opacity-0' : 'flex' ?> flex-col lg:flex-row gap-4 flex-1 lg:min-h-0 w-full transition-opacity duration-300">
     <div class="sub-tabs" data-view="agency">
       <button type="button" class="sub-btn on" data-sub="list"><i data-lucide="list" class="w-3.5 h-3.5"></i>รายการหน่วยงาน</button>
       <button type="button" class="sub-btn" data-sub="form"><i data-lucide="square-pen" class="w-3.5 h-3.5"></i><span data-sub-lbl>เพิ่มหน่วยงาน</span></button>
@@ -689,7 +689,7 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
 
   <?php if ($amIsSuper) { ?>
   <!-- Tab 3: Monitor ความเคลื่อนไหวของแต่ละหน่วยงาน (Super Admin) — handle_agency_monitor.php -->
-  <div id="view-monitor" class="hidden flex-col gap-4 flex-1 lg:min-h-0 w-full opacity-0 transition-opacity duration-300">
+  <div id="view-monitor" class="<?= $amIsSuper ? 'flex' : 'hidden opacity-0' ?> flex-col gap-4 flex-1 lg:min-h-0 w-full transition-opacity duration-300">
     <div class="app-card border border-slate-200 flex flex-col flex-1 lg:min-h-0 overflow-hidden">
       <div class="px-5 py-3.5 border-b border-slate-100 flex flex-wrap items-center gap-3">
         <div class="mr-auto">
@@ -1026,6 +1026,7 @@ renderPermissions(json.data);
   }
 
   window.addEventListener('DOMContentLoaded', async () => {
+    if (document.getElementById('tab-monitor-btn') && window.amOpen) window.amOpen();   // Monitor เปิดเป็นค่าเริ่มต้น (super admin)
     try {
       await fetchUsers();
       await fetchSuperAdmins();

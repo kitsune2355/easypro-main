@@ -208,7 +208,7 @@ if ($action === 'detail') {
         JOIN tb_user u ON u.user_id = x.user_id
         LEFT JOIN tb_time_login l ON l.tl_name = u.user_id
         GROUP BY u.user_id, u.user_name, u.user_fname, u.user_level, u.user_position
-        ORDER BY n DESC, last DESC LIMIT 200");
+        ORDER BY MAX(l.tl_time) IS NULL, MAX(l.tl_time) DESC, n DESC LIMIT 200");   // เข้าล่าสุดก่อน · ไม่เคยเข้าไว้ท้าย
     foreach ($users as &$u) $u['n'] = (int)$u['n'];
     unset($u);
 
