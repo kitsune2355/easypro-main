@@ -24,6 +24,9 @@ $response = ['success' => false, 'message' => ''];
 
 // รับข้อมูลจาก JSON Body (สำหรับ POST/PUT)
 $input = json_decode(file_get_contents('php://input'), true);
+// ผู้บันทึก = ผู้ใช้ที่ล็อกอิน (หน้าอะไหล่ไม่ได้ส่ง user_id => เดิมบันทึกเป็น 'system')
+@session_start();
+if (is_array($input) && !empty($_SESSION['sess_user_id_es'])) $input['user_id'] = $input['pd_user_upd'] = (string)$_SESSION['sess_user_id_es'];
 
 if (!$action) {
     http_response_code(400);

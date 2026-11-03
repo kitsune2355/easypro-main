@@ -17,9 +17,16 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, GET, OPTIONS"); 
 header("Access-Control-Allow-Headers: Content-Type"); 
 
-date_default_timezone_set('Asia/Bangkok'); 
+date_default_timezone_set('Asia/Bangkok');
 
-$action = isset($_GET['action']) ? $_GET['action'] : null; 
+// ผู้บันทึก = ผู้ใช้ที่ล็อกอิน (สำรอง: user_id ที่หน้าเว็บส่งมา)
+@session_start();
+function ha_user($input) {
+    if (!empty($_SESSION['sess_user_id_es'])) return (string)$_SESSION['sess_user_id_es'];
+    return isset($input['user_id']) ? (string)$input['user_id'] : '';
+}
+
+$action = isset($_GET['action']) ? $_GET['action'] : null;
 $response = ['success' => false, 'data' => []];
 
 if (!$action) {
@@ -163,7 +170,7 @@ if ($action === 'get_all') {
 elseif ($action === 'add_building') {
     $ag_id = isset($input['ag_id']) ? intval($input['ag_id']) : 1;
     $area_name = $input['area_name'] ?? '';
-    $user_id = $input['user_id'] ?? 1; // ควรดึงจาก $_SESSION['user_id']
+    $user_id = ha_user($input);
     $date_now = date('Y-m-d H:i:s');
 
     if (empty($area_name)) {
@@ -171,7 +178,7 @@ elseif ($action === 'add_building') {
     }
 
     $stmt = mysqli_prepare($connect, "INSERT INTO tb_area (area_name, ag_id, area_status, area_user_ins, area_ins) VALUES (?, ?, 1, ?, ?)");
-    mysqli_stmt_bind_param($stmt, "siis", $area_name, $ag_id, $user_id, $date_now);
+    mysqli_stmt_bind_param($stmt, "siss", $area_name, $ag_id, $user_id, $date_now);   // ผู้สร้าง = s (เดิม i => 0)
     
     if (mysqli_stmt_execute($stmt)) {
         $response['success'] = true;
@@ -187,7 +194,7 @@ elseif ($action === 'add_building') {
 elseif ($action === 'save') {
     $area_id = isset($input['area_id']) ? intval($input['area_id']) : null;
     $rooms = $input['rooms'] ?? [];
-    $user_id = isset($input['user_id']) ? (string)$input['user_id'] : 'admin'; // รับค่าเป็น String
+    $user_id = ha_user($input);
     $date_now = date('Y-m-d H:i:s');
 
     if (!$area_id) {
@@ -303,8 +310,6 @@ elseif ($action === 'save') {
     $area_id = isset($input['area_id']) ? intval($input['area_id']) : null;
     $area_name = $input['area_name'] ?? null;
     $area_status = isset($input['area_status']) ? intval($input['area_status']) : null;
-    $user_id = $input['user_id'] ?? 1;
-
     if (!$area_id) {
         echo json_encode(['success' => false, 'error' => 'ไม่พบรหัสอาคาร']); exit;
     }
@@ -321,12 +326,10 @@ elseif ($action === 'save') {
         $types .= "i"; 
     }
     
-    // ใช้คอลัมน์ area_user_ins แทน area_upd_ins ตามโครงสร้างที่คุณมี
-    $fields[] = "area_user_ins = ?"; 
-    $params[] = $user_id; 
-    $types .= "i"; 
+    // ไม่เขียนทับ area_user_ins (ผู้สร้าง) ตอนแก้ไข — tb_area ไม่มีคอลัมน์ผู้แก้ไข (เดิมเขียนทับเป็น 0)
+    if (!$fields) { echo json_encode(['success' => true]); exit; }
 
-    $params[] = $area_id; 
+    $params[] = $area_id;
     $types .= "i"; 
 
     // สร้าง SQL อัปเดต (ตัด area_upd ออกเพราะไม่มีคอลัมน์นี้)

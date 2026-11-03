@@ -132,7 +132,9 @@ elseif ($action === 'save') {
     $changes = isset($input['data']) ? $input['data'] : [];
     $deleted_ids = isset($input['deleted_ids']) ? $input['deleted_ids'] : [];
     $ag_id = isset($input['ag_id']) ? $input['ag_id'] : '';
-    $user_id = isset($input['user_id']) ? $input['user_id'] : '';
+    // ผู้บันทึก = ผู้ใช้ที่ล็อกอิน (สำรอง: user_id ที่หน้าเว็บส่งมา)
+    @session_start();
+    $user_id = !empty($_SESSION['sess_user_id_es']) ? (string)$_SESSION['sess_user_id_es'] : (isset($input['user_id']) ? (string)$input['user_id'] : '');
     $now = date('Y-m-d H:i:s');
 
     if ((!empty($changes) && is_array($changes)) || (!empty($deleted_ids) && is_array($deleted_ids))) {
@@ -181,9 +183,8 @@ elseif ($action === 'save') {
                     $db_id = isset($row['id']) ? intval($row['id']) : 0;
 
                     if ($db_id > 0) {
-                        // อัปเดตข้อมูล: ตรวจสอบให้แน่ใจว่ามี 10 ตัวแปร
-                        // "ssiiiiidii" คือ 10 ตัวอักษร
-                        mysqli_stmt_bind_param($stmt_update, "ssiiiiidii", 
+                        // อัปเดตข้อมูล 10 ตัวแปร — limit_percent = d, ผู้แก้ไข = s (เดิม "ssiiiiidii" => % ถูกปัดเป็นจำนวนเต็ม และผู้แก้ไขกลายเป็น 0)
+                        mysqli_stmt_bind_param($stmt_update, "ssiiiidisi",
                             $mt_name, $mt_type, $area_id, $ac_id, $ar_id, 
                             $max_val, $limit_percent, $status, $user_id, $db_id
                         );
@@ -191,8 +192,8 @@ elseif ($action === 'save') {
                             throw new Exception("Update Error: " . mysqli_stmt_error($stmt_update)); 
                         }
                     } else {
-                        // เพิ่มข้อมูล: ตรวจสอบให้แน่ใจว่ามี 10 ตัวแปร
-                        mysqli_stmt_bind_param($stmt_insert, "ssiiisidiii", 
+                        // เพิ่มข้อมูล 11 ตัวแปร — ผู้สร้าง/ผู้แก้ไข = s (เดิม i => บันทึกเป็น 0)
+                        mysqli_stmt_bind_param($stmt_insert, "ssiiisidiss",
                             $mt_name, $mt_type, $area_id, $ac_id, $ar_id, 
                             $ag_id, $max_val, $limit_percent, $status, $user_id, $user_id
                         );

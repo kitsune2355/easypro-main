@@ -42,6 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && json_last_error() !== JSON_ERROR_NO
 if (!is_array($input)) {
     $input = [];
 }
+// ผู้บันทึก = ผู้ใช้ที่ล็อกอิน (ไม่ใช้ค่าที่หน้าเว็บส่งมา / 'system')
+@session_start();
+if (!empty($_SESSION['sess_user_id_es'])) $input['user_id'] = $input['pd_user_upd'] = (string)$_SESSION['sess_user_id_es'];
 
 
 if (!$action) {
