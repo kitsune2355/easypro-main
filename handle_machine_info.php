@@ -4,7 +4,8 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-include 'config_ctrl/connect.php'; 
+@session_start();   // ใช้ผู้ใช้ที่ล็อกอินเป็นผู้บันทึกเครื่องจักร (created_by / updated_by)
+include 'config_ctrl/connect.php';
 
 if (mysqli_connect_errno()) {
     http_response_code(500); 
@@ -588,7 +589,8 @@ elseif ($action === 'save') {
     $area_id        = !empty($_POST['area_id']) ? intval($_POST['area_id']) : null;
     $ac_id          = !empty($_POST['ac_id']) ? intval($_POST['ac_id']) : null;
     $ar_id          = !empty($_POST['ar_id']) ? intval($_POST['ar_id']) : null;
-    $current_user   = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 'System'; 
+    // ผู้บันทึก = ผู้ใช้ที่ล็อกอิน (คีย์ session ของระบบคือ sess_user_id_es — เดิมอ่าน user_id ซึ่งไม่มี => บันทึกเป็น System ทุกครั้ง)
+    $current_user   = !empty($_SESSION['sess_user_id_es']) ? $_SESSION['sess_user_id_es'] : 'System';
     $dep_id         = isset($_POST['dep_id']) ? intval($_POST['dep_id']) : 0;
     
     $now            = date('Y-m-d H:i:s');

@@ -64,7 +64,9 @@ $METER_SRC = [
 // ข้อมูลตั้งค่า (สร้าง / แก้ไข): ตาราง, คอลัมน์หน่วยงาน (หรือ join), สร้าง, แก้ไข, ชื่อรายการ, ป้าย, join, ผู้ทำ
 $SETTING_SRC = [
     ['pm_checksheets', 't.ag_id', 't.created_at', 't.updated_at', 't.name', 'เช็คชีต', '', 'COALESCE(t.updated_by, t.created_by)'],
-    ['pm_plans', 't.ag_id', 't.created_at', 't.updated_at', "CONCAT('แผน PM #', t.id)", 'แผน PM', '', 't.created_by'],
+    // แผน PM: บอกเครื่องจักร (รหัส ชื่อ) + เช็คชีต
+    ['pm_plans', 't.ag_id', 't.created_at', 't.updated_at', "CONCAT('แผน PM #', t.id, IF(m.ass_id IS NULL, '', CONCAT(' · ', IFNULL(m.ass_code, ''), ' ', IFNULL(m.asset_name, ''))), IF(c.name IS NULL, '', CONCAT(' — ', c.name)))", 'แผน PM',
+        'LEFT JOIN tb_ass_list m ON m.ass_id = t.machine_id LEFT JOIN pm_checksheets c ON c.id = t.checksheet_id', 't.created_by'],
     ['tb_meter', 't.mr_ag_id', 't.mt_ins', 't.mt_upd', 't.mt_name', 'มิเตอร์', '', 'COALESCE(t.mt_user_id_upd, t.mt_user_ins)'],
     ['tb_area', 't.ag_id', 't.area_ins', 'NULL', 't.area_name', 'อาคาร', '', 't.area_user_ins'],
     ['tb_area_class', 'a.ag_id', 't.ac_ins', 't.ac_upd', 't.ac_name', 'ชั้น', 'JOIN tb_area a ON a.area_id = t.ac_area_id', 't.ac_user_ins'],
@@ -267,11 +269,19 @@ if ($action === 'list') {
         $rows = am_rows($connect, "SELECT created_at AS t, user_id AS user, CONCAT(IFNULL(snap_pd_name, ''), ' ', ABS(qty_change), ' ', IFNULL(snap_unit, '')) AS title,
                 CONCAT(IFNULL(doc_no, ''), IF(snap_wh_name IS NULL, '', CONCAT(' · ', snap_wh_name))) AS sub, trans_type AS status
             FROM product_stock_transactions WHERE ag_id = $agS AND created_at BETWEEN '$fromTs' AND '$toTs' ORDER BY created_at DESC LIMIT $LIM");
-    } elseif ($type === 'data') {   // เครื่องจักร + ข้อมูลตั้งค่า ที่เพิ่ม/แก้ไขในช่วงนี้
-        $parts = ["(SELECT GREATEST(COALESCE(asset_ins, 0), COALESCE(updated_at, 0)) AS t, " . am_t("COALESCE(updated_by, created_by)") . " AS user,
-                " . am_t("CONCAT(IFNULL(ass_code, ''), ' ', IFNULL(asset_name, ''))") . " AS title, " . am_t("'เครื่องจักร'") . " AS sub,
-                " . am_t("IF(updated_at IS NOT NULL AND updated_at > asset_ins, 'edit', 'add')") . " AS status
-            FROM tb_ass_list WHERE ass_ag_id = $agS AND GREATEST(COALESCE(asset_ins, 0), COALESCE(updated_at, 0)) BETWEEN '$fromTs' AND '$toTs')"];
+    } elseif ($type === 'machine') {   // อุปกรณ์เครื่องจักร ที่เพิ่ม/แก้ไขในช่วงนี้ (ประเภท · ที่ตั้ง)
+        $rows = am_rows($connect, "SELECT GREATEST(COALESCE(a.asset_ins, 0), COALESCE(a.updated_at, 0)) AS t, COALESCE(a.updated_by, a.created_by) AS user,
+                CONCAT(IFNULL(a.ass_code, ''), ' ', IFNULL(a.asset_name, '')) AS title,
+                CONCAT_WS(' · ', NULLIF(g.TGroupName, ''), NULLIF(CONCAT_WS(' ', NULLIF(ar.area_name, ''), NULLIF(ac.ac_name, ''), NULLIF(rm.ar_name, '')), '')) AS sub,
+                IF(a.updated_at IS NOT NULL AND a.updated_at > a.asset_ins, 'edit', 'add') AS status
+            FROM tb_ass_list a
+            LEFT JOIN tb_asset_group g ON g.GroupId = a.asset_type
+            LEFT JOIN tb_area ar ON ar.area_id = a.asset_rp_area_id
+            LEFT JOIN tb_area_class ac ON ac.ac_id = a.asset_rp_ac_id
+            LEFT JOIN tb_area_room rm ON rm.ar_id = a.asset_rp_ar_id
+            WHERE a.ass_ag_id = $agS AND GREATEST(COALESCE(a.asset_ins, 0), COALESCE(a.updated_at, 0)) BETWEEN '$fromTs' AND '$toTs' ORDER BY t DESC LIMIT $LIM");
+    } elseif ($type === 'data') {   // ข้อมูลตั้งค่า ที่สร้าง/แก้ไขในช่วงนี้ (เครื่องจักรแยกไปแท็บ machine)
+        $parts = [];
         foreach ($SETTING_SRC as $st) $parts[] = "(SELECT GREATEST(COALESCE($st[2], 0), COALESCE($st[3], 0)) AS t, " . am_t($st[7]) . " AS user, " . am_t("IFNULL($st[4], '')") . " AS title, " . am_t("'$st[5]'") . " AS sub,
                 " . am_t("IF($st[3] IS NOT NULL AND $st[3] > $st[2], 'edit', 'add')") . " AS status
             FROM $st[0] t $st[6] WHERE $st[1] = $agS AND GREATEST(COALESCE($st[2], 0), COALESCE($st[3], 0)) BETWEEN '$fromTs' AND '$toTs')";
