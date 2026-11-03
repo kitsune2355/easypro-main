@@ -1,5 +1,5 @@
 <?php
-// รอบ PM ของเครื่องจักรที่สแกน QR (machine_history_view.php) — ปุ่ม "ทำ PM" เฉพาะ ช่าง (ตำแหน่งขึ้นต้นด้วย "ช่าง") / super admin
+// รอบ PM ของเครื่องจักรที่สแกน QR (machine_history_view.php) — ปุ่ม "ทำ PM" ทุกคนที่เข้าสู่ระบบหน่วยงานเดียวกับเครื่อง (ไม่จำกัดตำแหน่ง)
 //  GET ?asset_code=รหัสเครื่อง&ag_id=หน่วยงานบน QR
 //  => can: แสดงปุ่มได้ไหม · due: รอบที่ถึงกำหนดแล้ว (วันนี้ + เลยกำหนด ยังไม่ทำ) · next: รอบถัดไป
 //  GET ?action=history&asset_code=&ag_id=  ประวัติแผน PM ของเครื่อง (สาธารณะ — ดูด้านล่าง)
@@ -78,15 +78,9 @@ if (($_GET['action'] ?? '') === 'history') {
 }
 
 $me    = (string)($_SESSION['sess_user_id_es'] ?? '');
-$level = (string)($_SESSION['sess_user_level_es'] ?? '');
 $ag    = (string)($_SESSION['sess_user_agency'] ?? '');
 if ($me === '') mp_out(['success' => true, 'can' => false, 'reason' => 'login']);   // ไม่ได้ล็อกอิน (คนทั่วไปสแกนแจ้งซ่อม)
-
-// ตำแหน่งอ่านจากฐานข้อมูล (แก้ตำแหน่งแล้วมีผลทันที) — เกณฑ์เดียวกับ pm.php
-$meEsc = mysqli_real_escape_string($connect, $me);
-$r = mysqli_query($connect, "SELECT user_position FROM tb_user WHERE user_id = '$meEsc' LIMIT 1");
-$pos = ($r && ($row = mysqli_fetch_assoc($r))) ? trim((string)$row['user_position']) : '';
-if ($level !== 'super_admin' && mb_strpos($pos, 'ช่าง') !== 0) mp_out(['success' => true, 'can' => false, 'reason' => 'role']);
+// ทุกตำแหน่ง/ระดับผู้ใช้ทำ PM ได้ (เดิมเฉพาะตำแหน่งขึ้นต้น "ช่าง" / super admin — ช่างที่ตั้งตำแหน่งอื่นทำแผนไม่ได้)
 
 $code = trim((string)($_GET['asset_code'] ?? ''));
 $qrAg = trim((string)($_GET['ag_id'] ?? ''));

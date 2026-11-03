@@ -194,7 +194,7 @@
             </div>
 
             <div id="pm-sub-due" class="space-y-5">
-            <!-- งาน PM ของเครื่องนี้ (เฉพาะช่าง / super admin ที่ล็อกอินหน่วยงานเดียวกัน — handle_machine_pm.php) -->
+            <!-- งาน PM ของเครื่องนี้ (ทุกคนที่ล็อกอินหน่วยงานเดียวกับเครื่อง — handle_machine_pm.php) -->
             <section id="pm-section" class="hidden bg-white rounded-3xl border border-emerald-200 shadow-sm p-5">
                 <h3 class="font-bold text-slate-800 flex items-center gap-2 mb-3">
                     <i data-lucide="clipboard-check" class="w-4.5 h-4.5 text-emerald-600"></i>
@@ -203,7 +203,7 @@
                 <div id="pm-list" class="space-y-2"></div>
             </section>
 
-            <!-- รอบที่ค้าง (คนทั่วไป: ดูอย่างเดียว — ช่างใช้การ์ดด้านบน) + รอบถัดไป -->
+            <!-- รอบที่ค้าง (คนทั่วไป: ดูอย่างเดียว — ผู้ที่ล็อกอินใช้การ์ดด้านบน) + รอบถัดไป -->
             <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 space-y-4">
                 <div id="pmd-due" class="hidden"></div>
                 <div id="pmh-upcoming"></div>
@@ -266,7 +266,7 @@
 
     <!-- Sticky Bottom Repair Bar (มือถือ) -->
     <div id="repair-bar" class="hidden fixed bottom-0 left-0 right-0 z-40 p-3 bg-gradient-to-t from-white via-white/95 to-white/0 pt-6 sm:hidden flex gap-2">
-        <!-- ทำ PM (มีรอบถึงกำหนด + สิทธิ์ช่าง/super admin) -->
+        <!-- ทำ PM (มีรอบถึงกำหนด + ล็อกอินหน่วยงานเดียวกัน) -->
         <a id="btn-pm-bottom" href="#" class="hidden flex-1 items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white bg-emerald-600 shadow-2xl shadow-emerald-200 active:scale-95 transition-all">
             <i data-lucide="clipboard-check" class="w-5 h-5"></i>
             <span>ทำ PM</span>
@@ -373,7 +373,7 @@ function showPmSub(name) {
     document.getElementById('pm-sub-hist').classList.toggle('hidden', name !== 'hist');
 }
 document.querySelectorAll('.pm-sub').forEach(b => b.addEventListener('click', () => showPmSub(b.dataset.sub)));
-let pmCanDo = false;   // ช่าง / super admin (มีการ์ดทำ PM แล้ว ไม่ต้องแสดงรายการรอบค้างซ้ำ)
+let pmCanDo = false;   // ทำ PM ได้ (มีการ์ดทำ PM แล้ว ไม่ต้องแสดงรายการรอบค้างซ้ำ)
 
 // ===== ประวัติแผน PM: รอบถัดไป + รอบที่ถึงกำหนดแล้ว (ใหม่สุดก่อน) =====
 const PMH_STATE = {
@@ -385,7 +385,7 @@ const PMH_STATE = {
 };
 let pmhPage = 0, pmhLoading = false;
 const thShortDate = d => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '-';
-// รอบที่ถึงกำหนดแล้วยังไม่ทำ (ทุกคนเห็น) — ช่าง/super admin มีการ์ดทำ PM ด้านบนแทน
+// รอบที่ถึงกำหนดแล้วยังไม่ทำ (ทุกคนเห็น) — ผู้ที่ทำ PM ได้มีการ์ดด้านบนแทน
 let pmDue = [];
 function renderPmDue() {
     const box = document.getElementById('pmd-due');
@@ -449,7 +449,7 @@ async function loadPmHistory(more) {
     lucide.createIcons();
 }
 
-// ===== ทำ PM ตามรอบแผน (ช่าง / super admin) =====
+// ===== ทำ PM ตามรอบแผน (ทุกคนที่ล็อกอินหน่วยงานเดียวกัน) =====
 //  แสดงรอบที่ถึงกำหนด (วันนี้ + เลยกำหนด) => เปิดใบงานบันทึกผล PM · ไม่มีรอบ = บอกรอบถัดไป · คนทั่วไป/ไม่ได้ล็อกอิน = ไม่แสดง
 async function loadPm() {
     let r;
