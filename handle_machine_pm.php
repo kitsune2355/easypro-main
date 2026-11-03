@@ -1,7 +1,7 @@
 <?php
 // รอบ PM ของเครื่องจักรที่สแกน QR (machine_history_view.php) — ปุ่ม "ทำ PM" ทุกคนที่เข้าสู่ระบบหน่วยงานเดียวกับเครื่อง (ไม่จำกัดตำแหน่ง)
 //  GET ?asset_code=รหัสเครื่อง&ag_id=หน่วยงานบน QR
-//  => can: แสดงปุ่มได้ไหม · due: รอบที่ถึงกำหนดแล้ว (วันนี้ + เลยกำหนด ยังไม่ทำ) · next: รอบถัดไป
+//  => can: แสดงปุ่มได้ไหม · due: รอบที่ถึงกำหนดแล้ว (วันนี้ + เลยกำหนด ยังไม่ทำ) · next: รอบถัดไป · last_date: รอบสุดท้าย (เมื่อไม่มี next)
 //  GET ?action=history&asset_code=&ag_id=  ประวัติแผน PM ของเครื่อง (สาธารณะ — ดูด้านล่าง)
 //  ทำ PM ได้เฉพาะตามรอบแผน (กำหนดการของแผนที่เปิดใช้) — ไม่มีรอบถึงกำหนด = ไม่มีปุ่ม
 @session_start();
@@ -11,6 +11,13 @@ include 'config_ctrl/connect.php';
 mysqli_set_charset($connect, 'utf8mb4');
 
 function mp_out($a) { echo json_encode($a, JSON_UNESCAPED_UNICODE); exit; }
+// รอบสุดท้ายในแผนที่เปิดใช้ของเครื่อง (ใช้บอก "แผนสิ้นสุดแล้ว" เมื่อไม่มีรอบถัดไป) — ไม่มีแผน => null
+function mp_last_date($connect, $agEsc, $mid) {
+    $r = mysqli_query($connect, "SELECT MAX(e.event_date) AS d FROM pm_plan_events e JOIN pm_plans p ON p.id = e.plan_id AND p.status = 1
+        WHERE e.ag_id = '$agEsc' AND e.machine_id = '$mid'");
+    $x = $r ? mysqli_fetch_assoc($r) : null;
+    return $x && $x['d'] ? $x['d'] : null;
+}
 
 // สแกน QR นอกหน้า main.php: session หายแต่ยังมี token จดจำการเข้าสู่ระบบ => ใช้ต่อได้ (ช่างเห็นปุ่มทำ PM)
 require_once __DIR__ . '/config_ctrl/remember_login.php';
@@ -45,8 +52,11 @@ if (($_GET['action'] ?? '') === 'history') {
             SUM(e.status = 0 AND e.event_date < '$today') AS missed, SUM(" . pmap_wait_sql($connect, 'e') . ") AS waiting
         $base AND e.event_date <= '$today'"));
     $upcoming = [];
-    $r = mysqli_query($connect, "SELECT e.event_date, c.name AS checksheet $base AND e.status = 0 AND e.event_date > '$today' ORDER BY e.event_date, e.id LIMIT 3");
+    // เฉพาะแผนที่เปิดใช้ — ตรงกับการ์ดทำ PM
+    $r = mysqli_query($connect, "SELECT e.event_date, c.name AS checksheet FROM pm_plan_events e JOIN pm_plans p ON p.id = e.plan_id AND p.status = 1
+        LEFT JOIN pm_checksheets c ON c.id = e.checksheet_id WHERE e.ag_id = '$agEsc' AND e.machine_id = '$mid' AND e.status = 0 AND e.event_date > '$today' ORDER BY e.event_date, e.id LIMIT 3");
     if ($r) while ($x = mysqli_fetch_assoc($r)) $upcoming[] = $x;
+    $last = $upcoming ? null : mp_last_date($connect, $agEsc, $mid);
     // รอบที่ถึงกำหนดแล้วยังไม่ทำ (วันนี้ + เลยกำหนด) ของแผนที่เปิดใช้ — แท็บ งาน PM ตามรอบแผน (คนทั่วไปดูอย่างเดียว)
     $due = [];
     $r = mysqli_query($connect, "SELECT e.event_date, c.name AS checksheet FROM pm_plan_events e JOIN pm_plans p ON p.id = e.plan_id AND p.status = 1
@@ -74,7 +84,7 @@ if (($_GET['action'] ?? '') === 'history') {
     if ($more) array_pop($items);
     mp_out(['success' => true, 'today' => $today, 'logged_in' => !empty($_SESSION['sess_user_id_es']),
         'stats' => ['total' => (int)$st['total'], 'done' => (int)$st['done'], 'missed' => (int)$st['missed'], 'waiting' => (int)$st['waiting']],
-        'upcoming' => $upcoming, 'due' => $due, 'items' => $items, 'has_more' => $more]);
+        'upcoming' => $upcoming, 'last_date' => $last, 'due' => $due, 'items' => $items, 'has_more' => $more]);
 }
 
 $me    = (string)($_SESSION['sess_user_id_es'] ?? '');
@@ -113,4 +123,6 @@ if ($r) while ($x = mysqli_fetch_assoc($r)) {
 $r = mysqli_query($connect, "SELECT e.event_date, c.name AS checksheet $base AND e.event_date > '$today' ORDER BY e.event_date, e.id LIMIT 1");
 $next = ($r && ($x = mysqli_fetch_assoc($r))) ? ['event_date' => $x['event_date'], 'checksheet' => (string)$x['checksheet']] : null;
 
-mp_out(['success' => true, 'can' => true, 'today' => $today, 'due' => $due, 'next' => $next]);
+$last = $next ? null : mp_last_date($connect, $agEsc, $mid);
+
+mp_out(['success' => true, 'can' => true, 'today' => $today, 'due' => $due, 'next' => $next, 'last_date' => $last]);

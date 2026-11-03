@@ -423,7 +423,7 @@ async function loadPmHistory(more) {
         pmDue = r.due; renderPmDue();
         const up = document.getElementById('pmh-upcoming');
         up.innerHTML = '<p class="text-[11px] font-bold text-sky-700 uppercase tracking-wider flex items-center gap-1 mb-1.5"><i data-lucide="calendar-clock" class="w-3.5 h-3.5"></i>รอบถัดไป</p>'
-            + (r.upcoming.length ? '' : '<p class="text-sm text-slate-400">ไม่มีรอบถัดไปในแผน</p>')
+            + (r.upcoming.length ? '' : '<p class="text-sm ' + (r.last_date ? 'text-amber-600">แผนสิ้นสุดแล้ว (รอบสุดท้าย ' + thShortDate(r.last_date) + ')' : 'text-slate-400">ไม่มีรอบถัดไปในแผน') + '</p>')
             + r.upcoming.map(u => '<div class="flex items-center justify-between gap-2 text-sm py-0.5"><span class="text-slate-700 truncate">' + esc(u.checksheet || 'ใบงาน PM') + '</span><span class="flex-shrink-0 font-semibold text-sky-700">' + thShortDate(u.event_date) + '</span></div>').join('');
     }
     const html = r.items.map(it => {
@@ -470,14 +470,16 @@ async function loadPm() {
     pmCanDo = true; renderPmDue();
     const th = d => new Date(d + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
     const wsUrl = id => 'pm_worksheet.php?plan_id=' + encodeURIComponent(id);
+    // รอบถัดไป แสดงเสมอ (มีรอบค้างก็แสดง) · ไม่มีรอบในอนาคตแล้ว => แผนสิ้นสุดแล้ว
+    const nextHtml = r.next ? '<p class="text-xs text-slate-400 mt-1">รอบถัดไป ' + th(r.next.event_date) + ' · ' + esc(r.next.checksheet) + '</p>'
+        : (r.last_date ? '<p class="text-xs text-amber-600 mt-1">แผนสิ้นสุดแล้ว (รอบสุดท้าย ' + th(r.last_date) + ')</p>' : '');
     if (!r.due.length) {
-        list.innerHTML = '<p class="text-sm text-slate-500 flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>ไม่มีรอบ PM ที่ต้องทำตอนนี้</p>'
-            + (r.next ? '<p class="text-xs text-slate-400 mt-1">รอบถัดไป ' + th(r.next.event_date) + ' · ' + esc(r.next.checksheet) + '</p>' : '');
+        list.innerHTML = '<p class="text-sm text-slate-500 flex items-center gap-2"><i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>ไม่มีรอบ PM ที่ต้องทำตอนนี้</p>' + nextHtml;
     } else {
         list.innerHTML = r.due.map(d => '<a href="' + wsUrl(d.event_id) + '" class="flex items-center gap-3 p-3 rounded-2xl border ' + (d.overdue ? 'border-rose-200 bg-rose-50/50' : 'border-emerald-200 bg-emerald-50/50') + ' active:scale-[.99] transition-all">'
             + '<div class="min-w-0 flex-1"><p class="font-semibold text-slate-800 text-sm truncate">' + esc(d.checksheet || 'ใบงาน PM') + '</p>'
             + '<p class="text-xs mt-0.5 ' + (d.overdue ? 'text-rose-600 font-semibold' : 'text-slate-500') + '">กำหนด ' + th(d.event_date) + (d.overdue ? ' · เลยกำหนด' : ' · วันนี้') + '</p></div>'
-            + '<span class="flex-shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold"><i data-lucide="clipboard-check" class="w-4 h-4"></i>ทำ PM</span></a>').join('');
+            + '<span class="flex-shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold"><i data-lucide="clipboard-check" class="w-4 h-4"></i>ทำ PM</span></a>').join('') + nextHtml;
         // แถบล่าง (มือถือ): ทำ PM รอบที่ค้างนานสุดก่อน
         const b = document.getElementById('btn-pm-bottom');
         b.href = wsUrl(r.due[0].event_id);
