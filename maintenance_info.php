@@ -399,6 +399,9 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
       <div id="row-count-wrap" class="flex items-center gap-2 text-xs font-bold text-slate-500">
         <!-- ปุ่มส่งออก Excel (เดิมมีแค่คลิกขวาที่ตาราง ผู้ใช้หาไม่เจอ) -->
         <div class="flex items-center gap-2">
+            <button type="button" onclick="openRepairReportPrint()" title="เปิดหน้าพิมพ์รายงานตามตัวกรองที่แสดงอยู่" aria-label="พิมพ์รายงาน" class="inline-flex items-center justify-center gap-1.5 p-3 sm:px-3 sm:py-2 rounded-xl border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 text-xs font-bold shadow-sm transition-colors whitespace-nowrap">
+                <i data-lucide="printer" class="w-4 h-4"></i><span class="hidden sm:inline">พิมพ์รายงาน</span>
+            </button>
             <button type="button" onclick="exportToExcelFull()" title="ส่งออกข้อมูลในตารางเป็นไฟล์ Excel" aria-label="ส่งออก Excel" class="inline-flex items-center justify-center gap-1.5 p-3 sm:px-3 sm:py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold shadow-sm transition-colors whitespace-nowrap">
                 <i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span class="hidden sm:inline">ส่งออก Excel</span>
             </button>
@@ -1070,6 +1073,17 @@ function getCurrentSortModelForExport() {
   }
 
   return [];
+}
+
+// เปิดหน้าพิมพ์รายงาน ด้วยตัวกรอง/คำค้น/การเรียงเดียวกับตาราง
+function openRepairReportPrint() {
+  if (!gridApi) return;
+  const url = new URL('repair_report_print.php', window.location.href);
+  url.searchParams.set('search', document.getElementById('grid-search')?.value || '');
+  url.searchParams.set('filterModel', JSON.stringify(gridApi.getFilterModel ? gridApi.getFilterModel() : {}));
+  const sortModel = getCurrentSortModelForExport();
+  if (sortModel && sortModel.length) url.searchParams.set('sortModel', JSON.stringify(sortModel));
+  window.open(url.toString(), '_blank');
 }
 
 async function fetchAllFilteredRowsForExport() {
