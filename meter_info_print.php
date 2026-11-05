@@ -2,6 +2,7 @@
 @session_start();
 include 'config_ctrl/connect.php';
 require_once __DIR__ . '/config_ctrl/agency_logo.php';
+require_once __DIR__ . '/config_ctrl/meter_usage.php';
 
 // รับค่าจาก URL
 $meter_id = $_GET['meter_id'] ?? '';
@@ -53,6 +54,7 @@ if (isset($simple_tables[$category])) {
                 td.{$prefix}_mt as curr_val,
                 td.{$prefix}_rm as note,
                 td.{$prefix}_is_rollover as is_rollover,
+                " . meter_start_sel($connect, "td.{$prefix}_start_val") . " as start_val,
                 u.user_name as recorder,
                 mr.round_time as time
               FROM {$table_name} td
@@ -75,7 +77,9 @@ if (isset($simple_tables[$category])) {
                 td.toudt_071 as on_peak_reactive,
                 td.toudt_072 as off_peak_reactive,
                 td.toudt_note as note,
-                td.toudt_is_rollover as is_rollover
+                td.toudt_is_rollover as is_rollover,
+                " . meter_start_sel($connect, 'td.toudt_start_on') . " as start_on,
+                " . meter_start_sel($connect, 'td.toudt_start_off') . " as start_off
               FROM tb_tou_detail td
               LEFT JOIN tb_meter_round mr ON td.toudt_round_id = mr.round_id
               LEFT JOIN tb_user u ON td.toudt_user_ins = u.user_id
@@ -200,13 +204,8 @@ $res_h = mysqli_query($connect, $sql_h);
                     <?php if($category !== 'tou'): 
                         $curr_val = floatval($row['curr_val']);
                         
-                        // 🌟 คำนวณ Usage: ติ๊ก "เริ่มนับใหม่" => นับจาก 0 (เหมือน calc_usage ใน handle_meter_info.php)
-                        if (!empty($row['is_rollover'])) {
-                            $usage = max(0, $curr_val);
-                        } else {
-                            // กรณีปกติ (รวมถึงกรณีค่าเท่าเดิม 12450 - 12450 = 0)
-                            $usage = max(0, $curr_val - $prev_val);
-                        }
+                        // 🌟 คำนวณ Usage: สูตรเดียวกับหน้าบันทึกมิเตอร์ (config_ctrl/meter_usage.php)
+                        $usage = meter_usage($curr_val, $prev_val, $row['is_rollover'], $mt_max_val, (float)$row['start_val']);
 
                         // คำนวณ % Diff
                         $percent_diff = null;
@@ -233,10 +232,9 @@ $res_h = mysqli_query($connect, $sql_h);
                         $c_on  = floatval($row['on_val']);
                         $c_off = floatval($row['off_val']);
                         
-                        // 🌟 คำนวณ On/Off: ติ๊ก "เริ่มนับใหม่" => นับจาก 0
-                        $restart = !empty($row['is_rollover']);
-                        $u_on = $restart ? max(0, $c_on) : max(0, $c_on - $prev_on);
-                        $u_off = $restart ? max(0, $c_off) : max(0, $c_off - $prev_off);
+                        // 🌟 คำนวณ On/Off: สูตรเดียวกับหน้าบันทึกมิเตอร์ (config_ctrl/meter_usage.php)
+                        $u_on = meter_usage($c_on, $prev_on, $row['is_rollover'], $mt_max_val, (float)$row['start_on']);
+                        $u_off = meter_usage($c_off, $prev_off, $row['is_rollover'], $mt_max_val, (float)$row['start_off']);
                         $u_tot = $u_on + $u_off;
 
                         // คำนวณ % Diff สำหรับ TOU

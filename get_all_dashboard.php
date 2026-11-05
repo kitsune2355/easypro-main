@@ -395,13 +395,19 @@ if ($ag_id) {
 
 // ปริมาณการใช้มิเตอร์รายวัน — คำนวณแบบเดียวกับหน้าข้อมูลมิเตอร์ (handle_meter_info.php calc_usage)
 //  - ทุกครั้งที่จด: ใช้ = เลขที่อ่านได้ - เลขครั้งก่อนหน้า (ข้ามวันที่ไม่ได้จดได้ ไม่ถือว่าเป็น 0), ติดลบ = 0
-//  - ติ๊ก "เริ่มนับใหม่" (is_rollover = 1): ใช้ = เลขที่อ่านได้
+//  - โหมดเริ่มนับใหม่ (เปลี่ยนมิเตอร์ / หน้าปัดวนรอบ): สูตรอยู่ที่ config_ctrl/meter_usage.php
 //  - ฐานของครั้งแรกในช่วง = เลขครั้งล่าสุดก่อนช่วงวันที่ (ไม่มี = 0)
 //  - ปริมาณรายวัน = ผลรวมของทุกครั้งที่จดในวันนั้น
-function meter_calc_usage($curr, $prev, $is_roll) {
-    if ((int)$is_roll === 1) return $curr < 0 ? 0.0 : $curr;
-    $u = $curr - $prev;
-    return $u < 0 ? 0.0 : $u;
+require_once __DIR__ . '/config_ctrl/meter_usage.php';
+
+// ค่าสูงสุดหน้าปัดของแต่ละมิเตอร์ — [mt_id] => max (ไม่ได้ตั้ง = 1,000,000 เหมือนหน้าบันทึกมิเตอร์)
+function meter_max_vals($connect, $meterIds) {
+    $map = array();
+    if (!$meterIds) return $map;
+    $in = implode(',', array_map('intval', $meterIds));
+    $r = mysqli_query($connect, "SELECT mt_id, mt_max_val FROM tb_meter WHERE mt_id IN ($in)");
+    if ($r) while ($x = mysqli_fetch_assoc($r)) $map[(int)$x['mt_id']] = (float)$x['mt_max_val'] > 0 ? (float)$x['mt_max_val'] : 1000000.0;
+    return $map;
 }
 
 // เลขครั้งล่าสุดก่อนช่วงวันที่ ของแต่ละมิเตอร์ — [mt_id] => array(col => value)
@@ -435,10 +441,11 @@ function meter_baseline($connect, $table, $idCol, $timeCol, $pkCol, $cols, $star
 }
 
 // ทุกครั้งที่จดในช่วงวันที่ เรียงตามเวลา — [mt_id] => list of array(d, is_roll, col => value)
-function meter_readings($connect, $table, $idCol, $timeCol, $pkCol, $rollCol, $cols, $startDT, $endDT, $meterIds) {
+//  $extra: array(นิพจน์ SELECT => ชื่อคีย์) ค่าเพิ่มเติม เช่น เลขเริ่มต้นมิเตอร์ใหม่
+function meter_readings($connect, $table, $idCol, $timeCol, $pkCol, $rollCol, $cols, $startDT, $endDT, $meterIds, $extra = array()) {
     if (!$meterIds) return array();
     $in = implode(',', array_map('intval', $meterIds));
-    $sel = implode(', ', $cols);
+    $sel = implode(', ', array_merge($cols, array_keys($extra)));
     $sql = "
         SELECT $idCol AS mt_id, DATE($timeCol) AS d, $rollCol AS is_roll, $sel
         FROM $table
@@ -454,6 +461,7 @@ function meter_readings($connect, $table, $idCol, $timeCol, $pkCol, $rollCol, $c
     foreach ($rows as $r) {
         $v = array("d" => $r['d'], "is_roll" => (int)$r['is_roll']);
         foreach ($cols as $c) $v[$c] = (float)$r[$c];
+        foreach ($extra as $k) $v[$k] = (float)$r[$k];
         $map[(int)$r['mt_id']][] = $v;
     }
     return $map;
@@ -463,7 +471,9 @@ function meter_readings($connect, $table, $idCol, $timeCol, $pkCol, $rollCol, $c
 function meter_daily_simple($connect, $kind, $startDT, $endDT, $meterIds) {
     $table = "tb_toum_detail_$kind"; $p = "toumdt_{$kind}";
     $base = meter_baseline($connect, $table, "{$p}_toum_id", "{$p}_time", "{$p}_id", array("{$p}_mt"), $startDT, $meterIds);
-    $reads = meter_readings($connect, $table, "{$p}_toum_id", "{$p}_time", "{$p}_id", "{$p}_is_rollover", array("{$p}_mt"), $startDT, $endDT, $meterIds);
+    $startSel = meter_start_sel($connect, "{$p}_start_val") . " AS start_val";
+    $reads = meter_readings($connect, $table, "{$p}_toum_id", "{$p}_time", "{$p}_id", "{$p}_is_rollover", array("{$p}_mt"), $startDT, $endDT, $meterIds, array($startSel => 'start_val'));
+    $maxVals = meter_max_vals($connect, $meterIds);
     $out = array();
     foreach ($meterIds as $mid) {
         $mid = (int)$mid;
@@ -471,7 +481,7 @@ function meter_daily_simple($connect, $kind, $startDT, $endDT, $meterIds) {
         $out[$mid] = array("_base" => $prev);
         foreach (isset($reads[$mid]) ? $reads[$mid] : array() as $r) {
             $curr = $r["{$p}_mt"];
-            $u = meter_calc_usage($curr, $prev, $r['is_roll']);
+            $u = meter_usage($curr, $prev, $r['is_roll'], isset($maxVals[$mid]) ? $maxVals[$mid] : 1000000.0, $r['start_val']);
             if (!isset($out[$mid][$r['d']])) $out[$mid][$r['d']] = array("value" => 0.0, "usage" => 0.0);
             $out[$mid][$r['d']]['usage'] += $u;
             $out[$mid][$r['d']]['value'] = $curr;
@@ -485,15 +495,18 @@ function meter_daily_simple($connect, $kind, $startDT, $endDT, $meterIds) {
 function meter_daily_tou($connect, $startDT, $endDT, $meterIds) {
     $cols = array('toudt_010', 'toudt_011', 'toudt_012');
     $base = meter_baseline($connect, 'tb_tou_detail', 'toudt_tou_id', 'toudt_time', 'toudt_id', $cols, $startDT, $meterIds);
-    $reads = meter_readings($connect, 'tb_tou_detail', 'toudt_tou_id', 'toudt_time', 'toudt_id', 'toudt_is_rollover', $cols, $startDT, $endDT, $meterIds);
+    $reads = meter_readings($connect, 'tb_tou_detail', 'toudt_tou_id', 'toudt_time', 'toudt_id', 'toudt_is_rollover', $cols, $startDT, $endDT, $meterIds,
+        array(meter_start_sel($connect, 'toudt_start_on') . ' AS start_on' => 'start_on', meter_start_sel($connect, 'toudt_start_off') . ' AS start_off' => 'start_off'));
+    $maxVals = meter_max_vals($connect, $meterIds);
     $out = array();
     foreach ($meterIds as $mid) {
         $mid = (int)$mid;
         $prev = isset($base[$mid]) ? $base[$mid] : array('toudt_010' => 0.0, 'toudt_011' => 0.0, 'toudt_012' => 0.0);
         $out[$mid] = array("_base" => $prev);
         foreach (isset($reads[$mid]) ? $reads[$mid] : array() as $r) {
-            $on  = meter_calc_usage($r['toudt_011'], $prev['toudt_011'], $r['is_roll']);
-            $off = meter_calc_usage($r['toudt_012'], $prev['toudt_012'], $r['is_roll']);
+            $max = isset($maxVals[$mid]) ? $maxVals[$mid] : 1000000.0;
+            $on  = meter_usage($r['toudt_011'], $prev['toudt_011'], $r['is_roll'], $max, $r['start_on']);
+            $off = meter_usage($r['toudt_012'], $prev['toudt_012'], $r['is_roll'], $max, $r['start_off']);
             if (!isset($out[$mid][$r['d']])) $out[$mid][$r['d']] = array("on_unit" => 0.0, "off_unit" => 0.0);
             $out[$mid][$r['d']]['on_unit'] += $on;
             $out[$mid][$r['d']]['off_unit'] += $off;

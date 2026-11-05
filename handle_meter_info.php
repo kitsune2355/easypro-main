@@ -14,6 +14,7 @@ ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
 include 'config_ctrl/connect.php';
+require_once __DIR__ . '/config_ctrl/meter_usage.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -59,16 +60,11 @@ function meter_prefix($tab) {
 }
 
 /**
- * คำนวณปริมาณการใช้ (usage)
- * ติ๊ก "เริ่มนับใหม่" (is_rollover = 1) => มิเตอร์วนรอบ/เปลี่ยนมิเตอร์ เริ่มนับจาก 0 ใหม่ ปริมาณการใช้ = เลขที่อ่านได้
- * ใช้ร่วมกันทั้งตอนดึงประวัติและตอนเช็คแจ้งเตือน (ลดโค้ดซ้ำ) — $max เก็บไว้เพื่อความเข้ากันได้ (ไม่ใช้แล้ว)
+ * คำนวณปริมาณการใช้ (usage) — สูตรอยู่ที่ config_ctrl/meter_usage.php
+ * โหมด is_rollover: 0 ปกติ · 1 เปลี่ยนมิเตอร์ (ใช้ $start) · 2 หน้าปัดวนรอบ (ใช้ $max)
  */
-function calc_usage($curr, $prev, $is_roll, $max) {
-    if ($is_roll == 1) {
-        return $curr < 0 ? 0 : $curr;
-    }
-    $u = $curr - $prev;
-    return $u < 0 ? 0 : $u;
+function calc_usage($curr, $prev, $is_roll, $max, $start = 0) {
+    return meter_usage($curr, $prev, $is_roll, $max, $start);
 }
 
 /** SELECT ด้วย prepared statement -> คืน array ของ row (หรือ [] ถ้าไม่มี/พลาด) */
@@ -178,6 +174,7 @@ function build_simple_history($connect, $meter_obj, $tab, $meter_id, $ag_id, $mo
             td.{$prefix}_mt as val,
             td.{$prefix}_rm as note,
             td.{$prefix}_is_rollover as is_rollover,
+            " . meter_start_sel($connect, "td.{$prefix}_start_val") . " as start_val,
             td.{$prefix}_round_id as round_id,
             td.{$prefix}_img as img_path,
             u.user_name as recorder_name,
@@ -216,7 +213,8 @@ function build_simple_history($connect, $meter_obj, $tab, $meter_id, $ag_id, $mo
         $formatted_date = $date_parts[2] . '/' . $date_parts[1] . '/' . $date_parts[0];
         $time_display = substr($row_h['round_time'], 0, 5);
 
-        $usage = calc_usage($curr_val, $prev_val, $is_roll, $max_meter_val);
+        $start_val = isset($row_h['start_val']) ? floatval($row_h['start_val']) : 0;
+        $usage = calc_usage($curr_val, $prev_val, $is_roll, $max_meter_val, $start_val);
 
         $percent_diff = 0;
         $is_exceeded = false;
@@ -238,6 +236,7 @@ function build_simple_history($connect, $meter_obj, $tab, $meter_id, $ag_id, $mo
             'is_exceeded' => $is_exceeded,
             'note' => $row_h['note'],
             'is_rollover' => $is_roll,
+            'start_val' => $start_val,
             'images' => $row_h['img_path'] ? [$row_h['img_path']] : [],
             'recorder' => $row_h['recorder_name']
         ];
@@ -306,8 +305,10 @@ function build_tou_history($connect, $meter_obj, $meter_id, $ag_id, $month, $yea
         $prev_011 = $prev_data['toudt_011'] ?? 0;
         $prev_012 = $prev_data['toudt_012'] ?? 0;
 
-        $unit_011 = calc_usage($val_011, $prev_011, $is_roll, $max_tou_val);
-        $unit_012 = calc_usage($val_012, $prev_012, $is_roll, $max_tou_val);
+        $start_on  = isset($row_t['toudt_start_on']) ? floatval($row_t['toudt_start_on']) : 0;
+        $start_off = isset($row_t['toudt_start_off']) ? floatval($row_t['toudt_start_off']) : 0;
+        $unit_011 = calc_usage($val_011, $prev_011, $is_roll, $max_tou_val, $start_on);
+        $unit_012 = calc_usage($val_012, $prev_012, $is_roll, $max_tou_val, $start_off);
         $unit_total = $unit_011 + $unit_012;
 
         $percent_diff = 0;
@@ -337,6 +338,8 @@ function build_tou_history($connect, $meter_obj, $meter_id, $ag_id, $month, $yea
             'off_reactive' => floatval($row_t['toudt_072']),
             'note' => $row_t['toudt_note'],
             'is_rollover' => $is_roll,
+            'start_on' => $start_on,
+            'start_off' => $start_off,
             'images' => $row_t['toudt_img'] ? [$row_t['toudt_img']] : [],
             'recorder' => $row_t['recorder_name']
         ];
@@ -364,7 +367,8 @@ function action_save($connect) {
     $log_date  = $_POST['date']      ?? '';
     $note      = $_POST['note']      ?? '';
     $user_id   = $_POST['user_ins']  ?? '';
-    $is_rollover = (isset($_POST['is_rollover']) && $_POST['is_rollover'] === '1') ? 1 : 0;
+    // 0 ปกติ · 1 เปลี่ยนมิเตอร์ · 2 หน้าปัดวนรอบ
+    $is_rollover = (isset($_POST['is_rollover']) && in_array($_POST['is_rollover'], ['1', '2'], true)) ? (int)$_POST['is_rollover'] : 0;
 
     if ($mt_id === '' || $tab === '' || $round_id === '' || $log_date === '') {
         send_error('ข้อมูลไม่ครบถ้วน', 400);
@@ -392,6 +396,20 @@ function action_save($connect) {
     foreach ($values_to_check as $label => $val) {
         if ($val > $max_val) {
             send_error("ข้อมูล $label ที่กรอก ($val) เกินค่าสูงสุดหน้าปัด ($max_val)", 200);
+        }
+    }
+
+    // เปลี่ยนมิเตอร์: เลขเริ่มต้นของมิเตอร์ใหม่ ต้องไม่เกินเลขที่อ่านได้
+    if ($is_rollover === 1) {
+        if (!meter_start_ensure($connect)) send_error('ระบบยังไม่พร้อมบันทึกเลขเริ่มต้น กรุณาแจ้งผู้ดูแลระบบให้รัน sql/2026-11-05_meter_start_val.sql', 200);
+        $start_checks = meter_is_simple($tab)
+            ? ['เลขเริ่มต้นมิเตอร์ใหม่' => ['start_val', 'curr']]
+            : ['เลขเริ่มต้น On Peak 011' => ['start_on', 'on_val'], 'เลขเริ่มต้น Off Peak 012' => ['start_off', 'off_val']];
+        foreach ($start_checks as $label => $f) {
+            $start = (float)($_POST[$f[0]] ?? 0);
+            $read  = (float)($_POST[$f[1]] ?? 0);
+            if ($start < 0) send_error("$label ต้องไม่ติดลบ", 200);
+            if ($start > $read) send_error("$label ($start) ต้องไม่เกินเลขที่อ่านได้ ($read)", 200);
         }
     }
 
@@ -455,25 +473,24 @@ function validate_simple_rollback($connect, $tab, $mt_id, $ag_id, $log_date, $ro
     if (empty($rows)) return;
 
     $prev_val = (float)$rows[0]['val'];
-    // ติ๊ก "เริ่มนับใหม่" ได้ทุกกรณี (มิเตอร์ใหม่อาจเริ่มที่เลขใดก็ได้)
+    // เปลี่ยนมิเตอร์: เลขใหม่เป็นเลขใดก็ได้
     if (!$is_rollover && $curr_val < $prev_val) {
-        send_error('ค่ามิเตอร์น้อยกว่ารอบก่อนหน้า (' . $prev_val . ') หากมิเตอร์วนรอบหรือเปลี่ยนมิเตอร์ กรุณาติ๊ก "เริ่มนับใหม่"', 200);
+        send_error('ค่ามิเตอร์น้อยกว่ารอบก่อนหน้า (' . $prev_val . ') หากหน้าปัดวนรอบหรือเปลี่ยนมิเตอร์ กรุณาเลือกในหัวข้อ "เริ่มนับใหม่"', 200);
+    }
+    if ($is_rollover === 2 && $curr_val >= $prev_val) {
+        send_error('เลือก "หน้าปัดวนรอบ" แต่เลขไม่ได้ลดลงจากรอบก่อนหน้า (' . $prev_val . ') กรุณาตรวจเลขอีกครั้ง หรือเลือก "ปกติ"', 200);
     }
 }
 
-/** ตรวจค่ามิเตอร์ TOU เทียบข้อมูลก่อนหน้า */
+/** ตรวจค่ามิเตอร์ TOU เทียบข้อมูลก่อนหน้า — เฉพาะเลขสะสม 010/011/012 (Demand 031/032 และ Reactive 071/072 ลดลงได้ตามปกติ) */
 function validate_tou_rollback($connect, $mt_id, $ag_id, $log_datetime, $is_rollover, $is_insert, $old_data) {
     $v = [
         'Total 010'   => (float)($_POST['total_val'] ?? 0),
         'On Peak 011' => (float)($_POST['on_val'] ?? 0),
         'Off Peak 012'=> (float)($_POST['off_val'] ?? 0),
-        'On Peak 031' => (float)($_POST['on_peak_demand'] ?? 0),
-        'Off Peak 032'=> (float)($_POST['off_peak_demand'] ?? 0),
-        'On Peak 071' => (float)($_POST['on_reactive'] ?? 0),
-        'Off Peak 072'=> (float)($_POST['off_reactive'] ?? 0),
     ];
 
-    $sql = "SELECT toudt_010, toudt_011, toudt_012, toudt_031, toudt_032, toudt_071, toudt_072
+    $sql = "SELECT toudt_010, toudt_011, toudt_012
             FROM tb_tou_detail
             WHERE toudt_tou_id = ? AND toudt_ag_id = ? AND toudt_time < ?";
     $params = [$mt_id, $ag_id, $log_datetime];
@@ -484,16 +501,17 @@ function validate_tou_rollback($connect, $mt_id, $ag_id, $log_datetime, $is_roll
     if (empty($rows)) return;
     $p = $rows[0];
 
-    $map = [
-        'Total 010' => 'toudt_010', 'On Peak 011' => 'toudt_011', 'Off Peak 012' => 'toudt_012',
-        'On Peak 031' => 'toudt_031', 'Off Peak 032' => 'toudt_032',
-        'On Peak 071' => 'toudt_071', 'Off Peak 072' => 'toudt_072',
-    ];
+    $map = ['Total 010' => 'toudt_010', 'On Peak 011' => 'toudt_011', 'Off Peak 012' => 'toudt_012'];
+    $any_lower = false;
     foreach ($map as $label => $col) {
         $prev = (float)$p[$col];
+        if ($v[$label] < $prev) $any_lower = true;
         if (!$is_rollover && $v[$label] < $prev) {
-            send_error("ค่า $label ต่ำกว่าข้อมูลก่อนหน้า [ $prev ] หากมิเตอร์วนรอบหรือเปลี่ยนมิเตอร์ กรุณาติ๊ก \"เริ่มนับใหม่\"", 200);
+            send_error("ค่า $label ต่ำกว่าข้อมูลก่อนหน้า [ $prev ] หากหน้าปัดวนรอบหรือเปลี่ยนมิเตอร์ กรุณาเลือกในหัวข้อ \"เริ่มนับใหม่\"", 200);
         }
+    }
+    if ($is_rollover === 2 && !$any_lower) {
+        send_error('เลือก "หน้าปัดวนรอบ" แต่เลข 010, 011 และ 012 ไม่ได้ลดลงจากข้อมูลก่อนหน้า กรุณาตรวจเลขอีกครั้ง หรือเลือก "ปกติ"', 200);
     }
 }
 
@@ -525,23 +543,30 @@ function save_simple($connect, $tab, $mt_id, $ag_id, $round_id, $log_datetime, $
     $table  = meter_table($tab);
     $prefix = meter_prefix($tab);
     $val = $_POST['curr'] ?? '0';
+    // เลขเริ่มต้นเก็บเฉพาะโหมดเปลี่ยนมิเตอร์
+    $has_start = meter_start_ensure($connect);
+    $start = ($is_rollover === 1 && isset($_POST['start_val']) && $_POST['start_val'] !== '') ? $_POST['start_val'] : null;
 
     if (!$is_insert) {
         $final_img = ($img_path !== null) ? $img_path : $old_data["{$prefix}_img"];
         $row_id = $old_data["{$prefix}_id"];
         $sql = "UPDATE {$table} SET
                     {$prefix}_mt = ?, {$prefix}_rm = ?, {$prefix}_is_rollover = ?,
+                    " . ($has_start ? "{$prefix}_start_val = ?," : '') . "
                     {$prefix}_img = ?, {$prefix}_user_upd = ?, {$prefix}_upd = NOW()
                 WHERE {$prefix}_id = ?";
-        return db_exec($connect, $sql, [$val, $note, $is_rollover, $final_img, $user_id, $row_id]);
+        $params = $has_start ? [$val, $note, $is_rollover, $start, $final_img, $user_id, $row_id] : [$val, $note, $is_rollover, $final_img, $user_id, $row_id];
+        return db_exec($connect, $sql, $params);
     }
     $save_img = ($img_path === null) ? '' : $img_path;
     $sql = "INSERT INTO {$table}
                 ({$prefix}_toum_id, {$prefix}_ag_id, {$prefix}_round_id, {$prefix}_time, {$prefix}_mt,
                  {$prefix}_rm, {$prefix}_is_rollover, {$prefix}_img, {$prefix}_user_ins, {$prefix}_ins,
-                 {$prefix}_user_upd, {$prefix}_upd)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())";
-    return db_exec($connect, $sql, [$mt_id, $ag_id, $round_id, $log_datetime, $val, $note, $is_rollover, $save_img, $user_id, $user_id]);
+                 {$prefix}_user_upd, {$prefix}_upd" . ($has_start ? ", {$prefix}_start_val" : '') . ")
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW()" . ($has_start ? ', ?' : '') . ")";
+    $params = [$mt_id, $ag_id, $round_id, $log_datetime, $val, $note, $is_rollover, $save_img, $user_id, $user_id];
+    if ($has_start) $params[] = $start;
+    return db_exec($connect, $sql, $params);
 }
 
 /** บันทึกมิเตอร์ TOU */
@@ -550,23 +575,32 @@ function save_tou($connect, $mt_id, $ag_id, $round_id, $log_datetime, $note, $us
     $v010 = $g('total_val'); $v011 = $g('on_val'); $v012 = $g('off_val');
     $v031 = $g('on_peak_demand'); $v032 = $g('off_peak_demand');
     $v071 = $g('on_reactive'); $v072 = $g('off_reactive');
+    // เลขเริ่มต้นเก็บเฉพาะโหมดเปลี่ยนมิเตอร์
+    $has_start = meter_start_ensure($connect);
+    $start_on  = ($is_rollover === 1 && isset($_POST['start_on']) && $_POST['start_on'] !== '') ? $_POST['start_on'] : null;
+    $start_off = ($is_rollover === 1 && isset($_POST['start_off']) && $_POST['start_off'] !== '') ? $_POST['start_off'] : null;
 
     if (!$is_insert) {
         $final_img = ($img_path !== null) ? $img_path : $old_data['toudt_img'];
         $row_id = $old_data['toudt_id'];
         $sql = "UPDATE tb_tou_detail SET
                     toudt_010=?, toudt_011=?, toudt_012=?, toudt_031=?, toudt_032=?, toudt_071=?, toudt_072=?,
-                    toudt_note=?, toudt_is_rollover=?, toudt_img=?, toudt_user_upd=?, toudt_upd=NOW()
+                    toudt_note=?, toudt_is_rollover=?, " . ($has_start ? 'toudt_start_on=?, toudt_start_off=?, ' : '') . "toudt_img=?, toudt_user_upd=?, toudt_upd=NOW()
                 WHERE toudt_id=?";
-        return db_exec($connect, $sql, [$v010, $v011, $v012, $v031, $v032, $v071, $v072, $note, $is_rollover, $final_img, $user_id, $row_id]);
+        $params = [$v010, $v011, $v012, $v031, $v032, $v071, $v072, $note, $is_rollover];
+        if ($has_start) { $params[] = $start_on; $params[] = $start_off; }
+        array_push($params, $final_img, $user_id, $row_id);
+        return db_exec($connect, $sql, $params);
     }
     $save_img = ($img_path === null) ? '' : $img_path;
     $sql = "INSERT INTO tb_tou_detail
                 (toudt_tou_id, toudt_ag_id, toudt_round_id, toudt_time,
                  toudt_010, toudt_011, toudt_012, toudt_031, toudt_032, toudt_071, toudt_072,
-                 toudt_note, toudt_is_rollover, toudt_img, toudt_user_ins, toudt_ins, toudt_user_upd, toudt_upd)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())";
-    return db_exec($connect, $sql, [$mt_id, $ag_id, $round_id, $log_datetime, $v010, $v011, $v012, $v031, $v032, $v071, $v072, $note, $is_rollover, $save_img, $user_id, $user_id]);
+                 toudt_note, toudt_is_rollover, toudt_img, toudt_user_ins, toudt_ins, toudt_user_upd, toudt_upd" . ($has_start ? ', toudt_start_on, toudt_start_off' : '') . ")
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW()" . ($has_start ? ', ?, ?' : '') . ")";
+    $params = [$mt_id, $ag_id, $round_id, $log_datetime, $v010, $v011, $v012, $v031, $v032, $v071, $v072, $note, $is_rollover, $save_img, $user_id, $user_id];
+    if ($has_start) { $params[] = $start_on; $params[] = $start_off; }
+    return db_exec($connect, $sql, $params);
 }
 
 /** เช็ค usage เทียบรอบก่อน ถ้าเกิน limit ให้บันทึกการแจ้งเตือน */
@@ -586,7 +620,7 @@ function check_and_notify($connect, $tab, $mt_id, $ag_id, $log_date, $round_id, 
         $prefix = meter_prefix($tab);
         $curr_val = (float)($_POST['curr'] ?? 0);
 
-        $sql = "SELECT {$prefix}_mt as val, {$prefix}_is_rollover as is_roll
+        $sql = "SELECT {$prefix}_mt as val, {$prefix}_is_rollover as is_roll, " . meter_start_sel($connect, "{$prefix}_start_val") . " as start_val
                 FROM {$table}
                 WHERE {$prefix}_toum_id = ? AND {$prefix}_ag_id = ?
                   AND (DATE({$prefix}_time) < ? OR (DATE({$prefix}_time) = ? AND {$prefix}_round_id < ?))
@@ -595,12 +629,12 @@ function check_and_notify($connect, $tab, $mt_id, $ag_id, $log_date, $round_id, 
 
         if (count($history) >= 1) {
             $val_prev1 = (float)$history[0]['val'];
-            $curr_usage = calc_usage($curr_val, $val_prev1, $is_rollover, $max_meter_val);
+            $curr_usage = calc_usage($curr_val, $val_prev1, $is_rollover, $max_meter_val, (float)($_POST['start_val'] ?? 0));
 
             if (count($history) === 2) {
                 $val_prev2 = (float)$history[1]['val'];
                 $roll_prev1 = (int)$history[0]['is_roll'];
-                $prev_usage = calc_usage($val_prev1, $val_prev2, $roll_prev1, $max_meter_val);
+                $prev_usage = calc_usage($val_prev1, $val_prev2, $roll_prev1, $max_meter_val, (float)$history[0]['start_val']);
                 if ($prev_usage > 0) {
                     $percent_diff = (($curr_usage - $prev_usage) / $prev_usage) * 100;
                     if ($percent_diff > $limit_percent) $is_exceeded = true;
@@ -611,7 +645,8 @@ function check_and_notify($connect, $tab, $mt_id, $ag_id, $log_date, $round_id, 
         $curr_011 = (float)($_POST['on_val'] ?? 0);
         $curr_012 = (float)($_POST['off_val'] ?? 0);
 
-        $sql = "SELECT toudt_011, toudt_012, toudt_is_rollover as is_roll
+        $sql = "SELECT toudt_011, toudt_012, toudt_is_rollover as is_roll,
+                       " . meter_start_sel($connect, 'toudt_start_on') . " as start_on, " . meter_start_sel($connect, 'toudt_start_off') . " as start_off
                 FROM tb_tou_detail
                 WHERE toudt_tou_id = ? AND toudt_ag_id = ?
                   AND (DATE(toudt_time) < ? OR (DATE(toudt_time) = ? AND toudt_round_id < ?))
@@ -621,15 +656,15 @@ function check_and_notify($connect, $tab, $mt_id, $ag_id, $log_date, $round_id, 
         if (count($history) >= 1) {
             $prev1_011 = (float)$history[0]['toudt_011'];
             $prev1_012 = (float)$history[0]['toudt_012'];
-            $curr_total_unit = calc_usage($curr_011, $prev1_011, $is_rollover, $max_meter_val)
-                             + calc_usage($curr_012, $prev1_012, $is_rollover, $max_meter_val);
+            $curr_total_unit = calc_usage($curr_011, $prev1_011, $is_rollover, $max_meter_val, (float)($_POST['start_on'] ?? 0))
+                             + calc_usage($curr_012, $prev1_012, $is_rollover, $max_meter_val, (float)($_POST['start_off'] ?? 0));
 
             if (count($history) === 2) {
                 $prev2_011 = (float)$history[1]['toudt_011'];
                 $prev2_012 = (float)$history[1]['toudt_012'];
                 $roll_prev1 = (int)$history[0]['is_roll'];
-                $prev_total_unit = calc_usage($prev1_011, $prev2_011, $roll_prev1, $max_meter_val)
-                                 + calc_usage($prev1_012, $prev2_012, $roll_prev1, $max_meter_val);
+                $prev_total_unit = calc_usage($prev1_011, $prev2_011, $roll_prev1, $max_meter_val, (float)$history[0]['start_on'])
+                                 + calc_usage($prev1_012, $prev2_012, $roll_prev1, $max_meter_val, (float)$history[0]['start_off']);
                 if ($prev_total_unit > 0) {
                     $percent_diff = (($curr_total_unit - $prev_total_unit) / $prev_total_unit) * 100;
                     if ($percent_diff > $limit_percent) $is_exceeded = true;

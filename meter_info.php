@@ -1226,6 +1226,46 @@ include "config_ctrl/checksession.php";
             });
             return { set(c, data) { cat = c; rows = data || []; render(); } };
         })();
+        // หัวข้อ "เริ่มนับใหม่": 0 ปกติ · 2 หน้าปัดวนรอบ · 1 เปลี่ยนมิเตอร์ (กรอกเลขเริ่มต้นของมิเตอร์ใหม่)
+        function meterResetField(data, isTou) {
+            const mode = Number(data?.is_rollover) || 0;
+            const opt = (v, title, desc, example) => `
+                <label class="flex items-start gap-2.5 p-2.5 rounded-xl border border-orange-100 bg-white cursor-pointer has-[:checked]:border-orange-400 has-[:checked]:bg-orange-50">
+                    <input type="radio" name="reset_mode" value="${v}" ${mode === v ? 'checked' : ''} onchange="meterResetToggle()" class="mt-0.5 w-4 h-4 text-orange-600 border-orange-300 focus:ring-orange-500">
+                    <span class="min-w-0"><span class="block text-xs font-bold text-slate-700">${title}</span><span class="block text-[11px] text-slate-500 mt-0.5 leading-relaxed">${desc}</span><span class="block text-[11px] text-orange-700 mt-1 leading-relaxed">${example}</span></span>
+                </label>`;
+            const startInput = (id, label, val) => `
+                <div>
+                    <label for="${id}" class="text-[11px] text-slate-500 mb-1 block">${label}</label>
+                    <input id="${id}" type="number" step="0.01" min="0" value="${val || '0'}" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500/20">
+                </div>`;
+            const starts = isTou
+                ? `<div class="grid grid-cols-2 gap-3">${startInput('start_on', 'เลขเริ่มต้น On Peak 011', data?.start_on)}${startInput('start_off', 'เลขเริ่มต้น Off Peak 012', data?.start_off)}</div>`
+                : startInput('start_val', 'เลขเริ่มต้นของมิเตอร์ใหม่', data?.start_val);
+            return `
+                <div class="bg-orange-50/50 p-4 rounded-2xl border border-orange-100">
+                    <h4 class="text-[11px] font-bold text-orange-600 uppercase mb-3 flex items-center gap-2">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> เริ่มนับใหม่
+                    </h4>
+                    <div class="space-y-2">
+                        ${opt(0, 'ปกติ', 'จดเลขตามปกติ เลขเพิ่มขึ้นจากครั้งก่อน',
+                            'ตัวอย่าง: ครั้งก่อน 1,200 อ่านได้ 1,250 → ใช้ไป 50')}
+                        ${opt(2, 'หน้าปัดวนรอบ', 'มิเตอร์ตัวเดิม เลขวิ่งจนสุดหน้าปัดแล้วกลับมาเริ่มใหม่',
+                            isTou ? 'ตัวอย่าง: ค่าสูงสุดหน้าปัด 1,000,000<br>On: ครั้งก่อน 999,900 อ่านได้ 120 → ใช้ไป 100 + 120 = 220<br>Off: เลขไม่ลดลง ครั้งก่อน 50,000 อ่านได้ 50,300 → ใช้ไป 300'
+                                  : 'ตัวอย่าง: ค่าสูงสุดหน้าปัด 1,000,000 ครั้งก่อน 999,900 อ่านได้ 120 → ใช้ไป 100 + 120 = 220')}
+                        ${opt(1, 'เปลี่ยนมิเตอร์', 'ถอดตัวเก่าออก ติดมิเตอร์ตัวใหม่ แล้วกรอกเลขบนหน้าปัดตอนเริ่มติดตั้ง',
+                            isTou ? 'ตัวอย่าง: On เริ่มที่ 500 อ่านได้ 520 → ใช้ไป 20<br>Off เริ่มที่ 100 อ่านได้ 130 → ใช้ไป 30'
+                                  : 'ตัวอย่าง: มิเตอร์ใหม่เริ่มที่ 500 อ่านได้ 520 → ใช้ไป 20')}
+                    </div>
+                    <div id="meter-start-box" class="mt-3 ${mode === 1 ? '' : 'hidden'}">${starts}</div>
+                </div>`;
+        }
+        window.meterResetToggle = () => {
+            const box = document.getElementById('meter-start-box');
+            const m = document.querySelector('input[name="reset_mode"]:checked');
+            if (box) box.classList.toggle('hidden', !m || m.value !== '1');
+        };
+
         function openDrawer(data = null) {
             isPhotoDeleted = false;
             editingRecordId = data ? data.id : null;
@@ -1344,23 +1384,7 @@ include "config_ctrl/checksession.php";
                             </div>
                         </div>
 
-                        <div class="bg-orange-50/50 p-4 rounded-2xl border border-orange-100">
-                            <div class="flex items-start">
-                                <div class="flex items-center h-5 mt-0.5">
-                                    <input id="is_rollover" name="is_rollover" type="checkbox" value="1" 
-                                        ${data?.is_rollover == 1 ? 'checked' : ''} 
-                                        class="w-4 h-4 text-orange-600 bg-white border-orange-300 rounded focus:ring-orange-500 cursor-pointer">
-                                </div>
-                                <div class="ml-3 text-sm">
-                                    <label for="is_rollover" class="text-[11px] font-bold text-orange-600 uppercase flex items-center gap-2 cursor-pointer">
-                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> เริ่มนับใหม่ (มิเตอร์วนรอบ / เปลี่ยนมิเตอร์)
-                                    </label>
-                                    <p class="text-orange-600/80 text-[11px] mt-1 leading-relaxed">
-                                        * ติ๊กเมื่อหน้าปัดวนกลับมาเริ่มใหม่ หรือเปลี่ยนมิเตอร์ใหม่ — ระบบจะนับปริมาณการใช้ของรอบนี้ตั้งแต่ 0 (เท่ากับเลขที่อ่านได้)
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                        ${meterResetField(data, true)}
 
                     </div>
                 `;
@@ -1373,21 +1397,7 @@ include "config_ctrl/checksession.php";
                             <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">${METER_CONFIGS[currentCat]?.unit || 'kW/h'}</span>
                         </div>
                     </div>
-                    <div class="bg-orange-50/50 p-4 rounded-2xl border border-orange-100">
-                            <div class="flex items-start">
-                                <div class="flex items-center h-5 mt-0.5">
-                                    <input id="is_rollover" name="is_rollover" type="checkbox" value="1" ${data?.is_rollover == '1' ? 'checked' : ''} class="w-4 h-4 text-orange-600 bg-white border-orange-300 rounded focus:ring-orange-500 cursor-pointer">
-                                </div>
-                                <div class="ml-3 text-sm">
-                                    <label for="is_rollover" class="text-[11px] font-bold text-orange-600 uppercase flex items-center gap-2 cursor-pointer">
-                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> เริ่มนับใหม่ (มิเตอร์วนรอบ / เปลี่ยนมิเตอร์)
-                                    </label>
-                                    <p class="text-orange-600/80 text-[11px] mt-1 leading-relaxed">
-                                        * ติ๊กเมื่อหน้าปัดวนกลับมาเริ่มใหม่ หรือเปลี่ยนมิเตอร์ใหม่ — ระบบจะนับปริมาณการใช้ของรอบนี้ตั้งแต่ 0 (เท่ากับเลขที่อ่านได้)
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                    ${meterResetField(data, false)}
                 `;
             }
 
@@ -1633,10 +1643,15 @@ include "config_ctrl/checksession.php";
                 });
             }
 
-            // ตรวจสอบและดึงค่า Checkbox is_rollover ตรงนี้ (หลังจากมี formData แล้ว)
-            const isRolloverCheckbox = document.getElementById('is_rollover');
-            if (isRolloverCheckbox) {
-                formData.append('is_rollover', isRolloverCheckbox.checked ? '1' : '0'); 
+            // โหมดเริ่มนับใหม่ + เลขเริ่มต้น (เฉพาะเปลี่ยนมิเตอร์)
+            const resetMode = drawer.querySelector('input[name="reset_mode"]:checked');
+            const resetValue = resetMode ? resetMode.value : '0';
+            formData.append('is_rollover', resetValue);
+            if (resetValue === '1') {
+                ['start_val', 'start_on', 'start_off'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) formData.append(id, el.value.trim() === '' ? '0' : el.value);
+                });
             }
 
             if (fileInput && fileInput.files[0]) {
