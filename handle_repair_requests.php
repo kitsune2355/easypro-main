@@ -1014,7 +1014,7 @@ if ($action === 'get_all') {
 		rg.rpg_name AS service_type_name,
 		rs.rps_name AS job_type_name,
       GROUP_CONCAT(
-        DISTINCT COALESCE(NULLIF(rrr.user_name, ''), NULLIF(rrr.user_fname, ''), rrr.user_id)
+        DISTINCT COALESCE(NULLIF(TRIM(CONCAT(TRIM(COALESCE(rrr.user_name, '')), ' ', TRIM(COALESCE(rrr.user_fname, '')))), ''), rrr.user_id)   -- ช่าง: ชื่อ นามสกุล
         ORDER BY rrr.id ASC
         SEPARATOR '
 '
