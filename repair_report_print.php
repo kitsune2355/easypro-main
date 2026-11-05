@@ -37,7 +37,7 @@ $query = [
   .bar .grow { flex: 1 1 auto; min-width: 140px; color: var(--muted); }
   .bar label { display: inline-flex; align-items: center; gap: 6px; }
   .bar select { height: 36px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
-  .btn { height: 36px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--brand); color: #fff; font-weight: 600; cursor: pointer; }
+  .btn { margin-left: auto; height: 36px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--brand); color: #fff; font-weight: 600; cursor: pointer; }
   .btn:disabled { background: #94a3b8; cursor: wait; }
 
   /* แผ่นกระดาษบนจอ */
@@ -94,13 +94,10 @@ $query = [
   .side { margin-top: 7px; min-width: 0; }
   .side-t { margin-bottom: 3px; font-size: 11.5px; font-weight: 700; }
   .side-t.before { color: #b45309; } .side-t.after { color: #047857; }
-  .photos { display: grid; gap: 5px; }
-  .photo-m .photos { grid-template-columns: repeat(3, 1fr); }
-  .photo-l .photos { grid-template-columns: repeat(2, 1fr); }
-  .ph { display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 4px; background: #f8fafc; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
-  .photo-m .ph { height: 46mm; }
-  .photo-l .ph { height: 70mm; }
-  .ph img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+  /* ขนาดรูป: --photo-w ตั้งจาก JS ตามตัวเลือก เล็ก / กลาง / ใหญ่ · กรอบรูป 4:3 รูปคงสัดส่วนเดิม */
+  .photos { display: grid; gap: 5px; grid-template-columns: repeat(auto-fill, minmax(min(var(--photo-w, 60mm), 100%), var(--photo-w, 60mm))); }
+  .ph { position: relative; width: 100%; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 4px; background: #f8fafc; overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+  .ph img { position: absolute; top: 0; left: 0; display: block; width: 100%; height: 100%; object-fit: contain; }
   .ph.bad { color: #dc2626; font-size: 11px; }
   .photo-none .side { display: none; }
   .note { margin-top: 5px; color: var(--muted); font-size: 11px; }
@@ -110,19 +107,11 @@ $query = [
   .ori-l .stats { grid-template-columns: repeat(6, 1fr); }
   .ori-l .sum-grid { grid-template-columns: repeat(3, 1fr); }
   .ori-l .sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
-  .ori-l.photo-m .photos { grid-template-columns: repeat(2, 1fr); }
-  .ori-l.photo-m .ph { height: 44mm; }
-  .ori-l.photo-l .photos { grid-template-columns: 1fr; }
-  .ori-l.photo-l .ph { height: 84mm; }
   @media screen and (min-width: 641px) { .ori-l .sheet { width: 297mm; } }
 
   /* รูปแบบตาราง: งานละ 1 แถว รูปก่อน/หลังซ่อมอยู่ข้างกัน · ความกว้างคอลัมน์ตามแนวกระดาษและขนาดรูป */
   .rt-wrap { width: 100%; }
-  .rt { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11.5px; line-height: 1.35;
-        --c1: 12%; --c2: 15%; --c3: 22%; --c4: 11%; --c5: 20%; --c6: 20%; }
-  .ori-l.photo-l .rt { --c1: 10%; --c2: 12%; --c3: 16%; --c4: 8%; --c5: 27%; --c6: 27%; }
-  .ori-p.photo-m .rt { --c1: 14%; --c2: 17%; --c3: 22%; --c4: 11%; --c5: 18%; --c6: 18%; }
-  .ori-p.photo-l .rt { --c1: 12%; --c2: 14%; --c3: 18%; --c4: 8%; --c5: 24%; --c6: 24%; }
+  .rt { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11.5px; line-height: 1.35; }
   .photo-none .rt { --c1: 14%; --c2: 22%; --c3: 46%; --c4: 18%; }
   .rt col.c1 { width: var(--c1); } .rt col.c2 { width: var(--c2); } .rt col.c3 { width: var(--c3); }
   .rt col.c4 { width: var(--c4); } .rt col.c5 { width: var(--c5); } .rt col.c6 { width: var(--c6); }
@@ -138,9 +127,8 @@ $query = [
   .rt .it small { display: block; color: var(--muted); font-size: 10px; line-height: 1.2; }
   .rt .crit { color: #dc2626; font-weight: 700; }
   .rt .ph-col { padding: 3px; }
-  body .rt .ph.rtph { position: relative; width: 100%; height: auto; aspect-ratio: 4 / 3; margin-bottom: 3px; }
+  .rt .ph.rtph { margin-bottom: 3px; }
   .rt .rtph:last-child { margin-bottom: 0; }
-  .rt .rtph img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: contain; }
   .rt .no-ph { padding: 8px 0; color: var(--muted); font-size: 11px; text-align: center; }
 
   .msg { padding: 40px 10px; text-align: center; color: var(--muted); }
@@ -153,7 +141,6 @@ $query = [
     .stats, .ori-l .stats { grid-template-columns: repeat(2, 1fr); }
     .grid, .ori-l .grid { grid-template-columns: 1fr 1fr; }
     .sum-grid, .ori-l .sum-grid, .ori-l .sides { grid-template-columns: 1fr; }
-    .photo-m .ph, .photo-l .ph, .ori-l.photo-m .ph, .ori-l.photo-l .ph { height: 40vw; }
   }
   @media print {
     body { background: #fff; }
@@ -164,9 +151,8 @@ $query = [
 </style>
 <style id="pageStyle">@page { size: A4 landscape; margin: 10mm; }</style>
 </head>
-<body class="photo-m ori-l">
+<body class="photo-on ori-l">
   <div class="bar">
-    <button type="button" id="btnPrint" class="btn" disabled>กำลังเตรียม...</button>
     <label>รูปแบบ
       <select id="reportFormat" aria-label="รูปแบบรายละเอียดงาน">
         <option value="table" selected>ตาราง</option>
@@ -181,12 +167,14 @@ $query = [
     </label>
     <label>รูปประกอบ
       <select id="photoSize" aria-label="ขนาดรูปประกอบ">
+        <option value="s">เล็ก</option>
         <option value="m" selected>กลาง</option>
         <option value="l">ใหญ่</option>
         <option value="none">ไม่แสดงรูป</option>
       </select>
     </label>
     <span id="barInfo" class="grow"></span>
+    <button type="button" id="btnPrint" class="btn" disabled>กำลังเตรียม...</button>
   </div>
 
   <div class="sheet">
@@ -382,13 +370,32 @@ $query = [
     waitImages();
   }
   $('btnPrint').addEventListener('click', () => window.print());
+  // ความกว้างรูป (มม.) ของ เล็ก / กลาง / ใหญ่ ตามรูปแบบ + แนวกระดาษ
+  const PHOTO_SIZES = {
+    'table-l': { s: 35, m: 55, l: 75 },
+    'table-p': { s: 22, m: 34, l: 46 },
+    'card-l': { s: 45, m: 65, l: 130 },
+    'card-p': { s: 45, m: 60, l: 90 },
+  };
+  const PAGE_WIDTH = { l: 277, p: 190 };   // ความกว้างพื้นที่พิมพ์ A4 (มม.) หลังหักขอบกระดาษ
+  const TEXT_COLS = [0.2, 0.25, 0.37, 0.18];   // สัดส่วนคอลัมน์ข้อความในตาราง
   const applyLayout = () => {
-    const ori = $('orientation').value;
-    document.body.className = `photo-${$('photoSize').value} ori-${ori}`;
+    const ori = $('orientation').value, size = $('photoSize').value, hidden = size === 'none';
+    const cfg = PHOTO_SIZES[$('reportFormat').value + '-' + ori];
+    const w = hidden ? cfg.m : cfg[size];
+    document.body.className = `photo-${hidden ? 'none' : 'on'} ori-${ori}`;
+    // คอลัมน์รูปกว้างเท่ารูป + ขอบช่อง 2 มม. ที่เหลือแบ่งให้คอลัมน์ข้อความ
+    const photoPct = (w + 2) * 100 / PAGE_WIDTH[ori], textPct = 100 - photoPct * 2, st = document.body.style;
+    st.setProperty('--photo-w', w + 'mm');
+    TEXT_COLS.forEach((c, i) => st.setProperty('--c' + (i + 1), (textPct * c).toFixed(2) + '%'));
+    st.setProperty('--c5', photoPct.toFixed(2) + '%');
+    st.setProperty('--c6', photoPct.toFixed(2) + '%');
     $('pageStyle').textContent = `@page { size: A4 ${ori === 'l' ? 'landscape' : 'portrait'}; margin: 10mm; }`;
   };
   $('photoSize').addEventListener('change', applyLayout);
   $('orientation').addEventListener('change', applyLayout);
+  $('reportFormat').addEventListener('change', applyLayout);
+  applyLayout();
   $('reportFormat').addEventListener('change', () => { if (allRows.length) renderList(); });
 
   (async () => {
