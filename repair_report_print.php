@@ -149,7 +149,7 @@ $query = [
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
-<style id="pageStyle">@page { size: A4 landscape; margin: 10mm; }</style>
+<style id="pageStyle">@page { size: A4 landscape; margin: 10mm; @bottom-right { content: "หน้า " counter(page) " / " counter(pages); font-family: Sarabun, Tahoma, sans-serif; font-size: 10px; color: #64748b; } }</style>
 </head>
 <body class="photo-on ori-l">
   <div class="bar">
@@ -390,7 +390,8 @@ $query = [
     TEXT_COLS.forEach((c, i) => st.setProperty('--c' + (i + 1), (textPct * c).toFixed(2) + '%'));
     st.setProperty('--c5', photoPct.toFixed(2) + '%');
     st.setProperty('--c6', photoPct.toFixed(2) + '%');
-    $('pageStyle').textContent = `@page { size: A4 ${ori === 'l' ? 'landscape' : 'portrait'}; margin: 10mm; }`;
+    // เลขหน้ามุมขวาล่างของกระดาษ
+    $('pageStyle').textContent = `@page { size: A4 ${ori === 'l' ? 'landscape' : 'portrait'}; margin: 10mm; @bottom-right { content: "หน้า " counter(page) " / " counter(pages); font-family: Sarabun, Tahoma, sans-serif; font-size: 10px; color: #64748b; } }`;
   };
   $('photoSize').addEventListener('change', applyLayout);
   $('orientation').addEventListener('change', applyLayout);
