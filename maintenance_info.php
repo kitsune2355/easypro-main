@@ -1048,6 +1048,27 @@ async function getBase64FromUrl(url) {
 }
 
 
+// รูปสำหรับใส่ใน Excel: base64 + ขนาดจริง + ชนิดไฟล์ (JPEG/PNG/GIF ใช้ไฟล์เดิม ชนิดอื่นแปลงเป็น PNG) · โหลดไม่ได้ = null
+async function getExcelImage(url) {
+  const base64 = await getBase64FromUrl(url);
+  if (!base64) return null;
+  const img = await new Promise((resolve) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => resolve(null);
+    i.src = base64;
+  });
+  if (!img || !img.naturalWidth || !img.naturalHeight) return null;
+  const type = (base64.match(/^data:image\/([a-z0-9.+-]+)/i) || [])[1];
+  const ext = { jpeg: 'jpeg', jpg: 'jpeg', png: 'png', gif: 'gif' }[String(type).toLowerCase()];
+  if (ext) return { base64, extension: ext, width: img.naturalWidth, height: img.naturalHeight };
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  c.getContext('2d').drawImage(img, 0, 0);
+  return { base64: c.toDataURL('image/png'), extension: 'png', width: img.naturalWidth, height: img.naturalHeight };
+}
+
 function getCurrentSortModelForExport() {
   if (!gridApi) return [];
 
@@ -1176,13 +1197,33 @@ async function exportToExcelFull() {
 
     sheet.columns = cols;
 
-    // รูปยึดกับช่องของแถว (twoCell) — กรองแถวใน Excel แล้วรูปของแถวที่ถูกซ่อนจะหายไปด้วย ไม่ลอยทับแถวอื่น
-    //  ช่องรูปกว้าง ~145px × สูง 160px => กรอบรูปประมาณ 100×100px
-    const imgAnchor = (colIndex, excelRowIndex) => ({
-      tl: { col: colIndex + 0.15, row: excelRowIndex - 1 + 0.15 },
-      br: { col: colIndex + 0.85, row: excelRowIndex - 1 + 0.75 },
+    // รูปยึดกับขอบช่อง (twoCell) กว้างเต็มคอลัมน์พอดี สูงตามสัดส่วนรูป — กรองแถวใน Excel แล้วรูปของแถวที่ถูกซ่อนจะหายไปด้วย
+    //  ใช้ตำแหน่งแบบ native: ค่าทศนิยมของ col/row ใน ExcelJS ไม่ได้คิดจากขนาดคอลัมน์จริง
+    const IMG_COL_PX = 152;       // คอลัมน์รูปกว้าง 20 หน่วย: จริง 145-160px ตามการตั้งค่าจอของแต่ละเครื่อง (ใช้ค่ากลาง)
+    const MIN_ROW_PT = 120;       // ความสูงแถวปกติ
+    const MAX_ROW_PT = 409;       // ความสูงแถวสูงสุดที่ Excel รองรับ
+    const PX_TO_PT = 0.75, PX_TO_EMU = 9525;
+    const imgAnchor = (colIndex, excelRowIndex, heightPx) => ({
+      tl: { nativeCol: colIndex, nativeColOff: 0, nativeRow: excelRowIndex - 1, nativeRowOff: 0 },
+      br: { nativeCol: colIndex + 1, nativeColOff: 0, nativeRow: excelRowIndex - 1, nativeRowOff: Math.round(heightPx * PX_TO_EMU) },
       editAs: 'twoCell'
     });
+    // ใส่รูปของงาน 1 ชุด (ก่อน/หลังซ่อม) · คืนความสูงรูปที่สูงสุด (px) เพื่อกำหนดความสูงแถว
+    const placeImages = async (urls, keyPrefix, excelRowIndex) => {
+      let tallest = 0;
+      if (!Array.isArray(urls)) return tallest;
+      for (let i = 0; i < Math.min(urls.length, 5); i++) {
+        if (!urls[i]) continue;
+        const pic = await getExcelImage(urls[i]);
+        if (!pic) continue;
+        const heightPx = Math.min(IMG_COL_PX * pic.height / pic.width, MAX_ROW_PT / PX_TO_PT);
+        const imgId = workbook.addImage({ base64: pic.base64, extension: pic.extension });
+        const colIndex = sheet.getColumn(`${keyPrefix}_${i + 1}`).number - 1;
+        sheet.addImage(imgId, imgAnchor(colIndex, excelRowIndex, heightPx));
+        tallest = Math.max(tallest, heightPx);
+      }
+      return tallest;
+    };
 
     // ✅ จุดสำคัญ: ดึงข้อมูลทั้งหมดตาม filter/search/sort จาก API
     const rows = await fetchAllFilteredRowsForExport();
@@ -1211,52 +1252,16 @@ async function exportToExcelFull() {
       }
 
       const row = sheet.addRow(rowData);
-      row.height = 120;
       row.alignment = { vertical: "middle", wrapText: true };
 
       const excelRowIndex = rowIndex;
 
-      // รูปแจ้งซ่อม
-      if (Array.isArray(data.images)) {
-        for (let i = 0; i < Math.min(data.images.length, 5); i++) {
-          const url = data.images[i];
-          if (!url) continue;
-
-          const base64 = await getBase64FromUrl(url);
-          if (!base64) continue;
-
-          const imgId = workbook.addImage({
-            base64,
-            extension: "png"
-          });
-
-          const colKey = `before_img_${i + 1}`;
-          const colIndex = sheet.getColumn(colKey).number - 1;
-
-          sheet.addImage(imgId, imgAnchor(colIndex, excelRowIndex));
-        }
-      }
-
-      // รูปปิดงาน
-      if (Array.isArray(data.completed_images)) {
-        for (let i = 0; i < Math.min(data.completed_images.length, 5); i++) {
-          const url = data.completed_images[i];
-          if (!url) continue;
-
-          const base64 = await getBase64FromUrl(url);
-          if (!base64) continue;
-
-          const imgId = workbook.addImage({
-            base64,
-            extension: "png"
-          });
-
-          const colKey = `after_img_${i + 1}`;
-          const colIndex = sheet.getColumn(colKey).number - 1;
-
-          sheet.addImage(imgId, imgAnchor(colIndex, excelRowIndex));
-        }
-      }
+      // รูปแจ้งซ่อม / รูปปิดงาน — แถวสูงพอดีรูปที่สูงสุด ไม่ให้รูปล้นออกนอกแถว
+      const tallestPx = Math.max(
+        await placeImages(data.images, 'before_img', excelRowIndex),
+        await placeImages(data.completed_images, 'after_img', excelRowIndex)
+      );
+      row.height = Math.max(MIN_ROW_PT, tallestPx * PX_TO_PT);
 
       rowIndex++;
     }
