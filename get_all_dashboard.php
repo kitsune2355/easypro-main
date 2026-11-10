@@ -636,6 +636,34 @@ if ($ag_id) {
 }
 
 /* --------------------------
+   6.6) งานกำลังดำเนินการ แยกหมวดตามการพักงานที่ยังไม่จบ (config_ctrl/repair_hold.php)
+        parts / supplier / access / other = เหตุผลพักงานตาม rh_reasons() · team = ทีมช่างอาคาร (ไม่ได้พัก)
+-------------------------- */
+$backlog['inprogress_groups'] = array("parts" => 0, "supplier" => 0, "access" => 0, "other" => 0, "team" => 0);
+if ($ag_id) {
+    require_once __DIR__ . '/config_ctrl/repair_hold.php';
+    rh_ensure($connect);
+    $sql = "
+        SELECT COALESCE((SELECT h.reason FROM repair_holds h WHERE h.rp_id = r.id AND h.ended_at IS NULL ORDER BY h.id DESC LIMIT 1), '') AS reason,
+               COUNT(*) AS n
+        FROM repair_requests r
+        WHERE r.ag_id = ? AND r.status = 'inprogress' " . str_replace('building', 'r.building', $buildingFilterSQL) . "
+        GROUP BY reason
+    ";
+    $stmt = $connect->prepare($sql);
+    if ($stmt) {
+        if ($buildingParam !== null) $stmt->bind_param("ss", $ag_id, $buildingParam);
+        else $stmt->bind_param("s", $ag_id);
+        $stmt->execute();
+        foreach (fetch_all_assoc($stmt) as $g) {
+            $k = $g['reason'] === '' ? 'team' : (in_array($g['reason'], array('parts', 'supplier', 'access'), true) ? $g['reason'] : 'other');
+            $backlog['inprogress_groups'][$k] += (int)$g['n'];
+        }
+        $stmt->close();
+    }
+}
+
+/* --------------------------
    7) Output (same structure)
 -------------------------- */
 $dailyData = array();

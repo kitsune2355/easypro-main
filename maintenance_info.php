@@ -490,12 +490,22 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
 				})
 				.sort((a, b) => statusOrder.indexOf(a) - statusOrder.indexOf(b));
 
+			  // แทรกตัวกรองย่อยของ "กำลังดำเนินการ" ไว้ใต้สถานะนั้น
+			  const ip = normalized.indexOf('inprogress');
+			  normalized.splice(ip === -1 ? normalized.length : ip + 1, 0, ...Object.keys(HOLD_FILTER_VALUES));
+
 			  params.success(normalized);
 			})
 			.catch(() => params.success([]));
 		},
 		refreshValuesOnOpen: true,
 		valueFormatter: (p) => statusToThai(p.value),
+		// คงลำดับตามสถานะงาน (ตัวกรองย่อยอยู่ใต้ "กำลังดำเนินการ") — ค่าเริ่มต้นของ AG Grid เรียงตามตัวอักษรของรหัส
+		comparator: (a, b) => {
+		  const order = ['pending', 'inprogress', ...Object.keys(HOLD_FILTER_VALUES), 'completed', 'feedback', 'cancel'];
+		  const ia = order.indexOf(a), ib = order.indexOf(b);
+		  return (ia === -1 ? order.length : ia) - (ib === -1 ? order.length : ib);
+		},
 	  };
 	}
 
@@ -592,7 +602,17 @@ $ag_id = (int)($sess_user_agency_es ?? 0); // ✅ กันว่างแล้
       return key;
     };
 
-    const statusToThai = (v) => STATUS_META[normalizeStatus(v)]?.th || (v ?? '');
+    // ค่าเสมือนในตัวกรองสถานะ (กรองฝั่ง server: handle_repair_requests.php) — งานกำลังดำเนินการแยกตามการพักงาน
+    const HOLD_FILTER_VALUES = {
+      inhouse:       '└ ทีมช่างดำเนินการ (ไม่พักงาน)',
+      onhold:        '└ พักงาน (ทุกเหตุผล)',
+      hold_parts:    '└ พักงาน · รออะไหล่',
+      hold_supplier: '└ พักงาน · ส่งต่อผู้รับเหมา/ซัพ',
+      hold_access:   '└ พักงาน · รอเข้าพื้นที่/รอผู้แจ้ง',
+      hold_other:    '└ พักงาน · อื่นๆ',
+    };
+
+    const statusToThai = (v) => HOLD_FILTER_VALUES[v] || STATUS_META[normalizeStatus(v)]?.th || (v ?? '');
 
     // ป้ายพักงาน (row.hold จาก get_all): เหตุผล · พักมากี่วัน + อะไหล่เข้าแล้ว / วันที่คาดว่ากลับมาทำ (เลยกำหนด = แดง)
     const holdSubText = (h) => {

@@ -824,16 +824,36 @@ if ($action === 'get_all') {
       $col = $filterMap[$field];
 
       // set filter
-      if (($info['filterType'] ?? '') === 'set' && $field === 'status' && in_array('onhold', (array)($info['values'] ?? []), true)) {
-        // "พักงาน" ไม่ใช่ค่าในคอลัมน์ status — คือ inprogress ที่มีรอบพักงานค้างอยู่ (เลือกร่วมกับสถานะอื่นได้)
-        $others = array_values(array_filter((array)$info['values'], function ($v) { return $v !== 'onhold'; }));
-        $cond = "EXISTS (SELECT 1 FROM repair_holds rh WHERE rh.rp_id = r.id AND rh.ended_at IS NULL)";
-        if ($others) {
-          $cond = "($col IN (" . implode(',', array_fill(0, count($others), '?')) . ") OR $cond)";
-          foreach ($others as $v) { $params[] = $v; $types .= "s"; }
+      if (($info['filterType'] ?? '') === 'set' && $field === 'status') {
+        // ค่าเสมือน (ไม่ใช่ค่าในคอลัมน์ status) — ทั้งหมดคือ inprogress แยกตามรอบพักงานที่ค้างอยู่ (เลือกร่วมกับสถานะอื่นได้ / OR กัน)
+        //   onhold      = พักงานอยู่ (ทุกเหตุผล)
+        //   hold_<key>  = พักงานอยู่ด้วยเหตุผล <key> ตาม rh_reasons() เช่น hold_parts, hold_supplier, hold_access, hold_other
+        //   inhouse     = กำลังดำเนินการโดยทีมช่าง (ไม่ได้พักงาน)
+        $activeHold = "SELECT 1 FROM repair_holds rh WHERE rh.rp_id = r.id AND rh.ended_at IS NULL";
+        $virtual = []; $plain = []; $vParams = [];
+        foreach ((array)($info['values'] ?? []) as $v) {
+          $v = (string)$v;
+          if ($v === 'onhold') {
+            $virtual[] = "EXISTS ($activeHold)";
+          } elseif ($v === 'inhouse') {
+            $virtual[] = "(LOWER(TRIM(r.status)) = 'inprogress' AND NOT EXISTS ($activeHold))";
+          } elseif (strpos($v, 'hold_') === 0 && isset(rh_reasons()[substr($v, 5)])) {
+            $virtual[] = "EXISTS ($activeHold AND rh.reason = ?)";
+            $vParams[] = substr($v, 5);
+          } else {
+            $plain[] = $v;
+          }
         }
-        $whereSql .= " AND $cond ";
-        continue;
+        if ($virtual) {
+          $conds = $virtual;
+          if ($plain) {
+            array_unshift($conds, "$col IN (" . implode(',', array_fill(0, count($plain), '?')) . ")");
+            foreach ($plain as $v) { $params[] = $v; $types .= "s"; }
+          }
+          foreach ($vParams as $v) { $params[] = $v; $types .= "s"; }
+          $whereSql .= " AND (" . implode(' OR ', $conds) . ") ";
+          continue;
+        }
       }
       if (($info['filterType'] ?? '') === 'set') {
         $values = $info['values'] ?? [];

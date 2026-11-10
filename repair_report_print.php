@@ -195,6 +195,8 @@ $query = [
   const AG_ID = <?php echo $ag_id; ?>;
   const AGENCY = <?php echo json_encode($agency, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
   const QUERY = <?php echo json_encode($query, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+  // ค้างมาแล้วกี่วัน (นับจากวันที่แจ้งถึงวันนี้)
+  const ageDays = (r) => { const m = ymd(r.report_date); return m ? Math.max(0, Math.floor((Date.now() - new Date(+m[1], +m[2] - 1, +m[3]).getTime()) / 86400000)) : null; };
   const STATUS = { pending: 'รอดำเนินการ', inprogress: 'กำลังดำเนินการ', completed: 'เสร็จสิ้น', feedback: 'ประเมินแล้ว', cancel: 'ยกเลิก', canceled: 'ยกเลิก', cancelled: 'ยกเลิก' };
   const URGENCY = { low: 'ต่ำ', medium: 'ปานกลาง', high: 'สูง', critical: 'เร่งด่วนมาก' };
   const MONTHS = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -229,13 +231,20 @@ $query = [
       <div class="photos">${urls.map((u) => `<div class="ph"><img src="${esc(u)}" alt="${title}"></div>`).join('')}</div>
     </div>`;
 
+  function holdText(r) {
+    if (!r.hold || r.status !== 'inprogress') return '';
+    return [r.hold.label || '', thDate(r.hold.since) ? 'ตั้งแต่ ' + thDate(r.hold.since) : '', thDate(r.hold.eta) ? 'กำหนดกลับมาทำ ' + thDate(r.hold.eta) : '',
+      r.hold.parts ? `อะไหล่มาแล้ว ${r.hold.arrived}/${r.hold.parts} รายการ` : ''].filter(Boolean).join(' · ');
+  }
+
   function jobHtml(r) {
     const stCls = ['cancel', 'canceled', 'cancelled'].includes(r.status) ? 'st-cancel' : 'st-' + esc(r.status);
     const urgency = URGENCY[r.urgency] || 'ไม่ระบุ';
     const place = [r.building_name, r.floor_name, r.room_name].filter(Boolean).join(' / ');
     const tech = String(r.responsible_names || r.tech_name || r.completed_by || '').replace(/\n/g, ', ');
     const equip = [r.asset_code, r.asset_name].filter(Boolean).join(' ');
-    const hold = r.hold && r.status === 'inprogress' ? `พักงาน: ${r.hold.label || ''}${r.hold.eta ? ' (กลับมาทำ ' + thDate(r.hold.eta) + ')' : ''}` : '';
+    const hold = holdText(r) ? 'พักงาน: ' + holdText(r) : '';
+    const age = r.status === 'inprogress' || r.status === 'pending' ? ageDays(r) : null;
     const parts = r.parts || [];
     const partsHtml = !parts.length ? '' : `<table class="parts"><thead><tr><th>อะไหล่</th><th class="num">จำนวน</th><th class="num">รวม (บาท)</th></tr></thead><tbody>
       ${parts.map((p) => `<tr><td>${esc([p.pd_gen_code, p.rpd_details_head].filter(Boolean).join(' '))}</td><td class="num">${esc(p.rpd_qty)} ${esc(p.pd_unit)}</td><td class="num">${num(p.rpd_sum_money, 2)}</td></tr>`).join('')}
@@ -253,6 +262,7 @@ $query = [
           ${field('แจ้งถึงเสร็จ', durationText(hoursToFinish(r)))}
           ${field('ผู้แจ้ง', [r.name, r.phone].filter(Boolean).join(' โทร '))}
           ${field('ช่างผู้ดำเนินงาน', tech)}
+          ${age !== null ? field('ค้างมาแล้ว', num(age) + ' วัน') : ''}
           ${field('อุปกรณ์', equip)}
         </div>
         <div class="text"><small>ปัญหา</small>${esc(r.problem_detail || '-')}</div>
@@ -277,7 +287,7 @@ $query = [
     const stCls = ['cancel', 'canceled', 'cancelled'].includes(r.status) ? 'st-cancel' : 'st-' + esc(r.status);
     const place = [r.building_name, r.floor_name, r.room_name].filter(Boolean).join(' / ');
     const tech = String(r.responsible_names || r.tech_name || r.completed_by || '').replace(/\n/g, '\n');
-    const hold = r.hold && r.status === 'inprogress' ? `${r.hold.label || ''}${r.hold.eta ? ' (กลับมาทำ ' + thDate(r.hold.eta) + ')' : ''}` : '';
+    const hold = holdText(r);
     const parts = (r.parts || []).map((p) => `${[p.pd_gen_code, p.rpd_details_head].filter(Boolean).join(' ')} ${p.rpd_qty || ''} ${p.pd_unit || ''}`.trim()).join('\n');
     const h = hoursToFinish(r), cost = partsTotal(r);
     return `<tr>
@@ -288,7 +298,7 @@ $query = [
         ${thDate(r.completed_date) ? item('ซ่อมเสร็จ', when(r.completed_date, r.completed_time)) : ''}</td>
       <td class="c2">${item('สถานที่', place || '-')}${item('ประเภทงาน', [r.service_type_name, r.job_type_name].filter(Boolean).join(' / '))}${item('ผู้แจ้ง', [r.name, r.phone].filter(Boolean).join(' โทร '))}${item('อุปกรณ์', [r.asset_code, r.asset_name].filter(Boolean).join(' '))}</td>
       <td class="c3">${item('ปัญหา', r.problem_detail || '-')}${item('การแก้ไข', r.completed_solution)}${item('อะไหล่', parts)}${item('พักงาน', hold)}${r.video_url ? '<div class="it note">มีวิดีโอประกอบ ดูได้ในระบบ</div>' : ''}</td>
-      <td class="c4">${item('ช่าง', tech || '-')}${h !== null ? item('แจ้งถึงเสร็จ', durationText(h)) : ''}${cost ? item('ค่าอะไหล่ (บาท)', num(cost, 2)) : ''}</td>
+      <td class="c4">${item('ช่าง', tech || '-')}${(r.status === 'inprogress' || r.status === 'pending') && ageDays(r) !== null ? item('ค้างมาแล้ว', num(ageDays(r)) + ' วัน') : ''}${h !== null ? item('แจ้งถึงเสร็จ', durationText(h)) : ''}${cost ? item('ค่าอะไหล่ (บาท)', num(cost, 2)) : ''}</td>
       ${photoCell((r.images || []).filter(Boolean), 'รูปก่อนซ่อม')}
       ${photoCell((r.completed_images || []).filter(Boolean), 'รูปหลังซ่อม')}
     </tr>`;

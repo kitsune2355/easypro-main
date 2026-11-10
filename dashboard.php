@@ -76,6 +76,26 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
             overflow: hidden;
         }
 
+        /* การ์ดสรุป: ข้อความ/ตัวเลขยาวไม่ล้นการ์ด — ตัวเลขย่อขนาดเองด้วย fitKpiNumbers() (เล็กสุดแล้วยังยาว => ตัดด้วย … และดูเต็มได้ที่ title) */
+        .kpi-row > .kpi-card { display: flex; flex-direction: column; justify-content: center; }   /* แถวสูงขึ้น (ตัวเลขยาว) => เนื้อหาการ์ดอื่นอยู่กึ่งกลาง */
+        .kpi-row > .kpi-card > .flex { gap: 12px; }
+        .kpi-row > .kpi-card > .flex > div:first-child { flex: 1 1 auto; min-width: 0; }
+        .kpi-row .kpi-icon-wrapper { flex: none; }
+        .kpi-row h3 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .kpi-row .kpi-card p { overflow-wrap: anywhere; }
+
+        /* การ์ด "กำลังดำเนินการ" (กว้าง 2 ช่อง): ตัวเลขด้านซ้าย การ์ดย่อยเหตุผลพักงานด้านขวา
+           ที่ไม่พอ (ตัวเลขยาว / การ์ดแคบ) => การ์ดย่อยขึ้นบรรทัดใหม่ใต้ตัวเลข · การ์ดย่อยเรียง 4 / 2 ช่องตามความกว้างที่เหลือ */
+        .ip-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+        .ip-main { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+        .ip-subs { flex: 1 1 170px; min-width: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+        .ip-subs.cols-4 { grid-template-columns: repeat(4, 1fr); }
+        .ip-sub { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; min-width: 0; padding: 3px 16px 3px 8px; border: 1px solid #e0f2fe; border-radius: 10px; background: #f8fbfe; text-align: left; transition: background-color .15s, border-color .15s; }
+        .ip-sub:hover { background: #e0f2fe; border-color: #7dd3fc; }
+        .ip-sub b { display: block; width: 100%; font-size: 17px; font-weight: 800; line-height: 1.15; color: #0f172a; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ip-sub span { max-width: 100%; font-size: 11px; line-height: 1.3; color: #64748b; overflow-wrap: anywhere; }
+        .ip-sub svg { position: absolute; top: 50%; right: 5px; width: 13px; height: 13px; margin-top: -6.5px; color: #7dd3fc; }
+        .ip-sub:hover svg { color: #0284c7; }
         .kpi-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
@@ -309,7 +329,7 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
                 ดูรายการ <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </button>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div class="kpi-row grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4 mb-8">
             <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('')" title="คลิกเพื่อดูรายการ">
                 <div id="loader-stat-1" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
                 <div class="flex justify-between items-center">
@@ -338,16 +358,20 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
                 </div>
             </div>
 
-            <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('inprogress', true)" title="คลิกเพื่อดูรายการ">
+            <div class="kpi-card ip-card group cursor-pointer sm:col-span-2" onClick="goToMaintenanceInfo('inprogress', true)" title="คลิกเพื่อดูรายการทั้งหมด">
                 <div id="loader-stat-3" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
-                <div class="flex justify-between items-center">
-                    <div>
+                <div class="ip-wrap">
+                    <div class="ip-main">
                         <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">กำลังดำเนินการ</p>
                         <h3 id="stat-doing" class="text-4xl font-black text-sky-500 tracking-tight">0</h3>
                         <p class="text-xs text-slate-400 mt-2">รวมทุกช่วงเวลา</p>
                     </div>
-                    <div class="kpi-icon-wrapper bg-sky-50 text-sky-500 group-hover:bg-sky-500 group-hover:text-white transition-colors duration-300">
-                        <i data-lucide="hammer" class="w-6 h-6"></i>
+                    <!-- การ์ดย่อย: งานพักตามเหตุผล · กดเพื่อไปหน้าข้อมูลแจ้งซ่อมที่กรองหมวดนั้นไว้ (สถานะ hold_<เหตุผล>) -->
+                    <div class="ip-subs" onclick="event.stopPropagation()">
+                        <button type="button" class="ip-sub" onclick="goToMaintenanceInfo('hold_parts', true)" title="พักงาน · รออะไหล่ · กดเพื่อดูรายการ"><b id="ip-n-parts">0</b><span>รออะไหล่</span><i data-lucide="chevron-right"></i></button>
+                        <button type="button" class="ip-sub" onclick="goToMaintenanceInfo('hold_supplier', true)" title="พักงาน · ส่งต่อผู้รับเหมา/ซัพ · กดเพื่อดูรายการ"><b id="ip-n-supplier">0</b><span>ส่งต่อผู้รับเหมา/ซัพ</span><i data-lucide="chevron-right"></i></button>
+                        <button type="button" class="ip-sub" onclick="goToMaintenanceInfo('hold_access', true)" title="พักงาน · รอเข้าพื้นที่/รอผู้แจ้ง · กดเพื่อดูรายการ"><b id="ip-n-access">0</b><span>รอเข้าพื้นที่/รอผู้แจ้ง</span><i data-lucide="chevron-right"></i></button>
+                        <button type="button" class="ip-sub" onclick="goToMaintenanceInfo('hold_other', true)" title="พักงาน · อื่นๆ · กดเพื่อดูรายการ"><b id="ip-n-other">0</b><span>อื่นๆ</span><i data-lucide="chevron-right"></i></button>
                     </div>
                 </div>
             </div>
@@ -604,6 +628,55 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
     let ag_id = <?php echo $sess_user_agency_es ?>;
 
     const formatNum = (num) => new Intl.NumberFormat().format(num);
+
+    // ตัวเลขในการ์ดสรุป: ย่อขนาดตัวอักษรจนพอดีความกว้าง (ไม่เล็กกว่า min) · title = ค่าเต็ม
+    function fitKpiNumbers() {
+        // การ์ดย่อย: 4 ช่องเมื่อกว้างพอ (ช่องละ 80px) ไม่งั้น 2×2 — ไม่ให้เหลือ 3+1
+        document.querySelectorAll('.ip-subs').forEach(g => {
+            g.classList.remove('cols-4');
+            if (g.clientWidth >= 80 * 4 + 6 * 3) g.classList.add('cols-4');
+        });
+        document.querySelectorAll('.kpi-row h3, .kpi-row .ip-sub b').forEach(el => {
+            const isSub = el.tagName === 'B';
+            const max = isSub ? 17 : 36, min = isSub ? 13 : 20;
+            // ค่าเต็มเก็บไว้ใน data-full (ข้อความอาจถูกเปลี่ยนเป็นแบบย่อในรอบก่อน)
+            if (!el.dataset.full || el.textContent !== el.dataset.short) el.dataset.full = el.textContent.trim();
+            el.textContent = el.dataset.full;
+            el.title = el.dataset.full;
+            el.style.fontSize = '';
+            // วัดความกว้างข้อความจริงแบบทศนิยม (scrollWidth ปัดเป็นจำนวนเต็ม — ล้นไม่ถึง 1px ก็ขึ้น … ได้)
+            const range = document.createRange();
+            const tooWide = () => { range.selectNodeContents(el); return range.getBoundingClientRect().width > el.getBoundingClientRect().width - 0.5 || el.scrollWidth > el.clientWidth; };
+            let size = max;
+            while (tooWide() && size > min) { size -= 1; el.style.fontSize = size + 'px'; }
+            const n = Number(el.dataset.full.replace(/[^0-9.-]/g, ''));
+            if (tooWide() && isFinite(n)) {
+                el.style.fontSize = '';
+                el.textContent = el.dataset.short = new Intl.NumberFormat('th-TH', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+                size = max;
+                while (tooWide() && size > min) { size -= 1; el.style.fontSize = size + 'px'; }
+            } else {
+                el.dataset.short = '';
+            }
+        });
+        // ตัวเลขในการ์ดย่อยใช้ขนาดเดียวกันทุกช่อง (ขนาดของช่องที่ต้องย่อมากที่สุด) ให้แถวสมมาตร
+        document.querySelectorAll('.ip-subs').forEach(g => {
+            const nums = [...g.querySelectorAll('.ip-sub b')];
+            const size = Math.min(...nums.map(b => parseFloat(getComputedStyle(b).fontSize)));
+            nums.forEach(b => { b.style.fontSize = size + 'px'; });
+        });
+    }
+    // ฟอนต์โหลดเสร็จ (ตัวอักษรกว้างขึ้น) => คำนวณใหม่
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => fitKpiNumbers());
+        document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', () => fitKpiNumbers());
+    }
+    // ความกว้างการ์ดเปลี่ยน (ย่อหน้าต่าง / พับเมนูด้านข้าง) => คำนวณใหม่
+    if (window.ResizeObserver) {
+        let fitTimer = null;
+        new ResizeObserver(() => { clearTimeout(fitTimer); fitTimer = setTimeout(fitKpiNumbers, 60); })
+            .observe(document.querySelector('.kpi-row') || document.body);
+    }
 
     // แถบเตือน: งานที่ยังไม่ปิดแต่แจ้งก่อนช่วงวันที่ที่กรอง
     function renderBacklogAlert(b) {
@@ -1497,7 +1570,10 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
                 $('#stat-pending').text(formatNum(backlog ? backlog.pending : data.reduce((s, i) => s + Number(i.pending || 0), 0)));
                 $('#stat-doing').text(formatNum(backlog ? backlog.inprogress : data.reduce((s, i) => s + Number(i.inprogress || 0), 0)));
                 renderBacklogAlert(backlog);
+                const ipg = (backlog && backlog.inprogress_groups) || {};
+                ['parts', 'supplier', 'access', 'other'].forEach(k => $('#ip-n-' + k).text(formatNum(Number(ipg[k] || 0))));
                 $('#stat-cancel').text(formatNum(data.reduce((s, i) => s + Number(i.canceled || 0), 0)));
+                requestAnimationFrame(fitKpiNumbers);
 
                 const jobDates = data.map(i => {
                     const m = moment(i.date).locale('th');
