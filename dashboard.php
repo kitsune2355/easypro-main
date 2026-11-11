@@ -76,30 +76,22 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
             overflow: hidden;
         }
 
-        /* การ์ดสรุป: ข้อความ/ตัวเลขยาวไม่ล้นการ์ด — ตัวเลขย่อขนาดเองด้วย fitKpiNumbers() (เล็กสุดแล้วยังยาว => ตัดด้วย … และดูเต็มได้ที่ title) */
-        .kpi-row > .kpi-card { display: flex; flex-direction: column; justify-content: center; }   /* แถวสูงขึ้น (ตัวเลขยาว) => เนื้อหาการ์ดอื่นอยู่กึ่งกลาง */
+        /* การ์ดสรุป: ตัวเลขยาวไม่ล้นการ์ด (ย่อขนาดด้วย fitKpiNumbers) · การ์ดแคบ => ซ่อนไอคอน ให้ชื่อการ์ดไม่ถูกตัดกลางคำ */
+        .kpi-row > .kpi-card { container-type: inline-size; }
         .kpi-row > .kpi-card > .flex { gap: 12px; }
         .kpi-row > .kpi-card > .flex > div:first-child { flex: 1 1 auto; min-width: 0; }
         .kpi-row .kpi-icon-wrapper { flex: none; }
         .kpi-row h3 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .kpi-row .kpi-card p { overflow-wrap: anywhere; }
-
-        /* การ์ด "กำลังดำเนินการ" (กว้าง 2 ช่อง): ตัวเลขด้านซ้าย การ์ดย่อยเหตุผลพักงานด้านขวา
-           ที่ไม่พอ (ตัวเลขยาว / การ์ดแคบ) => การ์ดย่อยขึ้นบรรทัดใหม่ใต้ตัวเลข · การ์ดย่อยเรียง 4 / 2 ช่องตามความกว้างที่เหลือ */
-        .ip-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
-        .ip-main { flex: 0 1 auto; min-width: 0; max-width: 100%; }
-        .ip-subs { flex: 1 1 170px; min-width: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
-        .ip-subs.cols-4 { grid-template-columns: repeat(4, 1fr); }
-        .ip-sub { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; min-width: 0; padding: 3px 16px 3px 8px; border: 1px solid #e0f2fe; border-radius: 10px; background: #f8fbfe; text-align: left; transition: background-color .15s, border-color .15s; }
-        .ip-sub:hover { background: #e0f2fe; border-color: #7dd3fc; }
-        .ip-sub b { display: block; width: 100%; font-size: 17px; font-weight: 800; line-height: 1.15; color: #0f172a; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ip-sub span { max-width: 100%; font-size: 11px; line-height: 1.3; color: #64748b; overflow-wrap: anywhere; }
-        .ip-sub svg { position: absolute; top: 50%; right: 5px; width: 13px; height: 13px; margin-top: -6.5px; color: #7dd3fc; }
-        .ip-sub:hover svg { color: #0284c7; }
-        .kpi-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        }
+        @container (max-width: 172px) { .kpi-row .kpi-icon-wrapper { display: none; } }
+        /* การ์ดที่กดได้ (มี onClick): ชี้แล้วยกขึ้น ขอบฟ้า เงาเข้ม + "ดูรายการ ›" — การ์ดที่กดไม่ได้ (สรุป PM) ไม่มีเอฟเฟกต์ */
+        .kpi-card[onclick] { cursor: pointer; }
+        .kpi-card[onclick]:hover { transform: translateY(-3px); border-color: #7dd3fc; box-shadow: 0 14px 28px -10px rgba(2, 132, 199, .35); }
+        .kpi-card[onclick]:active { transform: translateY(-1px); }
+        .kpi-card[onclick]:focus-visible { outline: 3px solid #38bdf8; outline-offset: 2px; }
+        .kpi-go { position: absolute; right: 16px; bottom: 10px; display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 700; color: #0284c7; opacity: 0; transform: translateX(-4px); transition: opacity .2s, transform .2s; pointer-events: none; }
+        .kpi-go svg { width: 14px; height: 14px; }
+        .kpi-card[onclick]:hover .kpi-go, .kpi-card[onclick]:focus-visible .kpi-go { opacity: 1; transform: none; }
+        @media (hover: none) { .kpi-go { opacity: .85; transform: none; } }   /* จอสัมผัส: แสดงตลอด */
 
         .kpi-icon-wrapper {
             display: flex;
@@ -329,7 +321,7 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
                 ดูรายการ <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </button>
         </div>
-        <div class="kpi-row grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4 mb-8">
+        <div class="kpi-row grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('')" title="คลิกเพื่อดูรายการ">
                 <div id="loader-stat-1" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
                 <div class="flex justify-between items-center">
@@ -358,20 +350,16 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
                 </div>
             </div>
 
-            <div class="kpi-card ip-card group cursor-pointer sm:col-span-2" onClick="goToMaintenanceInfo('inprogress', true)" title="คลิกเพื่อดูรายการทั้งหมด">
+            <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('inprogress', true)" title="คลิกเพื่อดูรายการ">
                 <div id="loader-stat-3" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
-                <div class="ip-wrap">
-                    <div class="ip-main">
+                <div class="flex justify-between items-center">
+                    <div>
                         <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">กำลังดำเนินการ</p>
                         <h3 id="stat-doing" class="text-4xl font-black text-sky-500 tracking-tight">0</h3>
                         <p class="text-xs text-slate-400 mt-2">รวมทุกช่วงเวลา</p>
                     </div>
-                    <!-- การ์ดย่อย: งานพักตามเหตุผล · กดเพื่อไปหน้าข้อมูลแจ้งซ่อมที่กรองหมวดนั้นไว้ (สถานะ hold_<เหตุผล>) -->
-                    <div class="ip-subs" onclick="event.stopPropagation()">
-                        <button type="button" class="ip-sub" onclick="goToMaintenanceInfo('hold_parts', true)" title="พักงาน · รออะไหล่ · กดเพื่อดูรายการ"><b id="ip-n-parts">0</b><span>รออะไหล่</span><i data-lucide="chevron-right"></i></button>
-                        <button type="button" class="ip-sub" onclick="goToMaintenanceInfo('hold_supplier', true)" title="พักงาน · ส่งต่อผู้รับเหมา/ซัพ · กดเพื่อดูรายการ"><b id="ip-n-supplier">0</b><span>ส่งต่อผู้รับเหมา/ซัพ</span><i data-lucide="chevron-right"></i></button>
-                        <button type="button" class="ip-sub" onclick="goToMaintenanceInfo('hold_access', true)" title="พักงาน · รอเข้าพื้นที่/รอผู้แจ้ง · กดเพื่อดูรายการ"><b id="ip-n-access">0</b><span>รอเข้าพื้นที่/รอผู้แจ้ง</span><i data-lucide="chevron-right"></i></button>
-                        <button type="button" class="ip-sub" onclick="goToMaintenanceInfo('hold_other', true)" title="พักงาน · อื่นๆ · กดเพื่อดูรายการ"><b id="ip-n-other">0</b><span>อื่นๆ</span><i data-lucide="chevron-right"></i></button>
+                    <div class="kpi-icon-wrapper bg-sky-50 text-sky-500 group-hover:bg-sky-500 group-hover:text-white transition-colors duration-300">
+                        <i data-lucide="hammer" class="w-6 h-6"></i>
                     </div>
                 </div>
             </div>
@@ -629,17 +617,10 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
 
     const formatNum = (num) => new Intl.NumberFormat().format(num);
 
-    // ตัวเลขในการ์ดสรุป: ย่อขนาดตัวอักษรจนพอดีความกว้าง (ไม่เล็กกว่า min) · title = ค่าเต็ม
+    // ตัวเลขในการ์ดสรุป: ย่อขนาดตัวอักษรจนพอดีความกว้าง · เล็กสุดแล้วยังไม่พอ => แสดงแบบย่อ (เช่น 16.7B) · title = ค่าเต็ม
     function fitKpiNumbers() {
-        // การ์ดย่อย: 4 ช่องเมื่อกว้างพอ (ช่องละ 80px) ไม่งั้น 2×2 — ไม่ให้เหลือ 3+1
-        document.querySelectorAll('.ip-subs').forEach(g => {
-            g.classList.remove('cols-4');
-            if (g.clientWidth >= 80 * 4 + 6 * 3) g.classList.add('cols-4');
-        });
-        document.querySelectorAll('.kpi-row h3, .kpi-row .ip-sub b').forEach(el => {
-            const isSub = el.tagName === 'B';
-            const max = isSub ? 17 : 36, min = isSub ? 13 : 20;
-            // ค่าเต็มเก็บไว้ใน data-full (ข้อความอาจถูกเปลี่ยนเป็นแบบย่อในรอบก่อน)
+        document.querySelectorAll('.kpi-row h3').forEach(el => {
+            const max = 36, min = 20;
             if (!el.dataset.full || el.textContent !== el.dataset.short) el.dataset.full = el.textContent.trim();
             el.textContent = el.dataset.full;
             el.title = el.dataset.full;
@@ -659,19 +640,12 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
                 el.dataset.short = '';
             }
         });
-        // ตัวเลขในการ์ดย่อยใช้ขนาดเดียวกันทุกช่อง (ขนาดของช่องที่ต้องย่อมากที่สุด) ให้แถวสมมาตร
-        document.querySelectorAll('.ip-subs').forEach(g => {
-            const nums = [...g.querySelectorAll('.ip-sub b')];
-            const size = Math.min(...nums.map(b => parseFloat(getComputedStyle(b).fontSize)));
-            nums.forEach(b => { b.style.fontSize = size + 'px'; });
-        });
     }
-    // ฟอนต์โหลดเสร็จ (ตัวอักษรกว้างขึ้น) => คำนวณใหม่
+    // ฟอนต์โหลดเสร็จ / ความกว้างการ์ดเปลี่ยน => คำนวณใหม่
     if (document.fonts && document.fonts.ready) {
         document.fonts.ready.then(() => fitKpiNumbers());
         document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', () => fitKpiNumbers());
     }
-    // ความกว้างการ์ดเปลี่ยน (ย่อหน้าต่าง / พับเมนูด้านข้าง) => คำนวณใหม่
     if (window.ResizeObserver) {
         let fitTimer = null;
         new ResizeObserver(() => { clearTimeout(fitTimer); fitTimer = setTimeout(fitKpiNumbers, 60); })
@@ -693,6 +667,30 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
     }
 
     // ✅ กดที่การ์ด KPI แล้วไปหน้า maintenance_info พร้อม filter ช่วงวันที่ + สถานะ
+    // การ์ดสรุปที่กดได้: ป้าย "ดูรายการ ›" + กดด้วยคีย์บอร์ด (Enter / Space) ได้ · เรียกซ้ำได้ (ข้ามการ์ดที่ทำแล้ว)
+    function enhanceKpiCards(root) {
+        root.querySelectorAll('.kpi-card[onclick]:not([data-go])').forEach(card => {
+            card.dataset.go = '1';
+            card.setAttribute('role', 'button');
+            card.setAttribute('tabindex', '0');
+            const label = card.querySelector('p');
+            if (label) card.setAttribute('aria-label', 'ดูรายการ' + label.textContent.trim());
+            card.insertAdjacentHTML('beforeend', '<span class="kpi-go" aria-hidden="true">ดูรายการ<i data-lucide="chevron-right"></i></span>');
+            card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.click(); } });
+        });
+        if (window.lucide) lucide.createIcons();
+    }
+    enhanceKpiCards(document.querySelector('.kpi-row') || document);
+
+    // การ์ด PM => เปิดหน้า PM ที่แท็บนั้น (opts ส่งให้ switchTab ของ pm.php เช่น กรองงานเลยกำหนด)
+    function openPmTab(tab, opts) {
+        try {
+            localStorage.setItem('activePMTab', tab);
+            if (opts) localStorage.setItem('pmTabOpts', JSON.stringify(opts)); else localStorage.removeItem('pmTabOpts');
+        } catch (e) { /* โหมดส่วนตัว: เปิดแท็บเริ่มต้น */ }
+        window.location.href = 'pm.php';
+    }
+
     function goToMaintenanceInfo(status, allDates) {
         if (allDates) {
             // งานค้าง: ไม่จำกัดช่วงวันที่ เพื่อให้เห็นงานที่แจ้งก่อนช่วงที่กรองด้วย
@@ -1456,7 +1454,7 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
     const pmEmpty = (text) => ({ title: { text, left: 'center', top: 'middle', textStyle: { color: '#94a3b8', fontSize: 14, fontWeight: 'normal' } }, series: [], xAxis: { show: false }, yAxis: { show: false } });
     function renderPmKpis(k) {
         // การ์ดแบบเดียวกับการ์ดแจ้งซ่อมด้านบน (kpi-card)
-        const card = (label, value, sub, color, icon, tone) => `<div class="kpi-card group">
+        const card = (label, value, sub, color, icon, tone, go) => `<div class="kpi-card group" onclick="${go}" title="คลิกเพื่อดูรายการ">
             <div class="flex justify-between items-center gap-3">
                 <div class="min-w-0">
                     <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">${label}</p>
@@ -1466,12 +1464,12 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
                 <div class="kpi-icon-wrapper bg-${tone}-50 text-${tone}-500 group-hover:bg-${tone}-500 group-hover:text-white transition-colors duration-300 shrink-0"><i data-lucide="${icon}" class="w-6 h-6"></i></div>
             </div></div>`;
         $('#pmKpis').html(
-            card('แผน PM', formatNum(k.planned), 'รอบตามแผนในช่วงนี้', 'text-slate-800', 'calendar-check', 'blue') +
-            card('ดำเนินการแล้ว', formatNum(k.done), k.rate + '% ของแผน' + (k.waiting ? ' · รอตรวจรับ ' + formatNum(k.waiting) : ''), 'text-emerald-500', 'check-circle-2', 'emerald') +
-            card('ค้าง / เกินกำหนด', formatNum(k.overdue), 'ยังไม่ได้ทำ เลยวันตามแผน', 'text-rose-500', 'alarm-clock', 'rose') +
-            card('ทำตรงตามแผน', k.ontime_rate + '%', formatNum(k.ontime) + ' จาก ' + formatNum(k.done) + ' รอบที่ทำแล้ว', 'text-sky-500', 'timer', 'sky')
+            card('แผน PM', formatNum(k.planned), 'รอบตามแผนในช่วงนี้', 'text-slate-800', 'calendar-check', 'blue', "openPmTab('schedule')") +
+            card('ดำเนินการแล้ว', formatNum(k.done), k.rate + '% ของแผน' + (k.waiting ? ' · รอตรวจรับ ' + formatNum(k.waiting) : ''), 'text-emerald-500', 'check-circle-2', 'emerald', "openPmTab('report')") +
+            card('ค้าง / เกินกำหนด', formatNum(k.overdue), 'ยังไม่ได้ทำ เลยวันตามแผน', 'text-rose-500', 'alarm-clock', 'rose', "openPmTab('daily', { filter: 'overdue' })") +
+            card('ทำตรงตามแผน', k.ontime_rate + '%', formatNum(k.ontime) + ' จาก ' + formatNum(k.done) + ' รอบที่ทำแล้ว', 'text-sky-500', 'timer', 'sky', "openPmTab('report')")
         );
-        if (window.lucide) lucide.createIcons();
+        enhanceKpiCards(document.getElementById('pmKpis'));
     }
     function loadPmDashboard(s, e) {
         const pmCharts = [charts.pmStatus, charts.pmType];
@@ -1570,8 +1568,6 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
                 $('#stat-pending').text(formatNum(backlog ? backlog.pending : data.reduce((s, i) => s + Number(i.pending || 0), 0)));
                 $('#stat-doing').text(formatNum(backlog ? backlog.inprogress : data.reduce((s, i) => s + Number(i.inprogress || 0), 0)));
                 renderBacklogAlert(backlog);
-                const ipg = (backlog && backlog.inprogress_groups) || {};
-                ['parts', 'supplier', 'access', 'other'].forEach(k => $('#ip-n-' + k).text(formatNum(Number(ipg[k] || 0))));
                 $('#stat-cancel').text(formatNum(data.reduce((s, i) => s + Number(i.canceled || 0), 0)));
                 requestAnimationFrame(fitKpiNumbers);
 

@@ -692,8 +692,12 @@ $pmCanApprove = $pmApproveOn
             // เข้าเมนูใหม่ (หรือจากการแจ้งเตือน) => หน้างาน > งานที่ต้องทำ, ลิงก์จากคู่มือกำหนด activePMTab ไว้
             const savedTab = localStorage.getItem('activePMTab') || PM_MODE_DEFAULT.field;
             
+            // ตัวเลือกจากการ์ดหน้าหลัก (เช่น { filter: 'overdue' }) ใช้ครั้งเดียว
+            let tabOpts;
+            try { tabOpts = JSON.parse(localStorage.getItem('pmTabOpts') || 'null') || undefined; localStorage.removeItem('pmTabOpts'); } catch (e) { tabOpts = undefined; }
+
             // สลับไปยังแท็บที่เคยเปิดไว้
-            window.switchTab(savedTab);
+            window.switchTab(savedTab, tabOpts);
         });
 
         window.openPlanDrawer = function() {
