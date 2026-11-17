@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 date_default_timezone_set('Asia/Bangkok');
 
 include 'config_ctrl/connect.php';
+require_once __DIR__ . '/config_ctrl/image_shrink.php';   // ย่อรูปที่อัปโหลดก่อนเก็บ
 if (mysqli_connect_errno()) {
   http_response_code(500);
   echo json_encode(['success' => false, 'error' => 'DB connect failed: ' . mysqli_connect_error()], JSON_UNESCAPED_UNICODE);
@@ -1738,7 +1739,7 @@ if ($action === 'update') {
           $file_name   = uniqid('img_', true) . '_' . $originalName;
           $target_file = $target_dir_full_path . $file_name;
 
-          if (!move_uploaded_file($newFiles['tmp_name'][$i], $target_file)) {
+          if (!img_move_uploaded($newFiles['tmp_name'][$i], $target_file)) {
             throw new Exception('Error uploading image: ' . $originalName . ' - Check permissions.');
           }
 
@@ -1867,7 +1868,7 @@ if ($doUpdateCompletedImages) {
             $file_name   = uniqid('done_', true) . '_' . $originalName;
             $target_file = $target_dir_full_path2 . $file_name;
 
-            if (!move_uploaded_file($completedFiles['tmp_name'][$i], $target_file)) {
+            if (!img_move_uploaded($completedFiles['tmp_name'][$i], $target_file)) {
                 throw new Exception('Error uploading completed image: ' . $originalName . ' - Check permissions.');
             }
 

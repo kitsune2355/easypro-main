@@ -1,6 +1,7 @@
 <?php
 @session_start();
 include __DIR__ . "/config_ctrl/connect.php";
+require_once __DIR__ . '/config_ctrl/image_shrink.php';   // ย่อรูปที่อัปโหลดก่อนเก็บ
 
 /**
  * ✅ ป้องกัน Warning/Notice ไปปน JSON (แนะนำให้ปิดใน production)
@@ -206,7 +207,7 @@ $debugInfo = [
   'target_file' => $target_dir_full_path . $file_name
 ];
 
-       if (!move_uploaded_file($files['tmp_name'][$i], $target_file)) {
+       if (!img_move_uploaded($files['tmp_name'][$i], $target_file)) {
     respond_and_exit($connect, 500, [
         'status' => 'error',
         'message' => 'Error uploading image: ' . $originalName . ' - Check permissions.',

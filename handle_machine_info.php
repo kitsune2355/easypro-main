@@ -6,6 +6,7 @@ error_reporting(E_ALL);
 
 @session_start();   // ใช้ผู้ใช้ที่ล็อกอินเป็นผู้บันทึกเครื่องจักร (created_by / updated_by)
 include 'config_ctrl/connect.php';
+require_once __DIR__ . '/config_ctrl/image_shrink.php';   // ย่อรูปที่อัปโหลดก่อนเก็บ
 
 if (mysqli_connect_errno()) {
     http_response_code(500); 
@@ -97,7 +98,7 @@ function uploadMachineImages($id, $asset_id, $connect) {
                             $new_name = "img_" . $clean_id . "_" . time() . "_" . $i . "." . $extension;
                             $full_path = $base_path . $new_name;
 
-                            if (move_uploaded_file($tmp_name, $full_path)) {
+                            if (img_move_uploaded($tmp_name, $full_path)) {
                                 $file_names[$idx] = $full_path;
                             }
                         }

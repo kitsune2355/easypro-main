@@ -14,6 +14,7 @@ ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
 include 'config_ctrl/connect.php';
+require_once __DIR__ . '/config_ctrl/image_shrink.php';   // ย่อรูปที่อัปโหลดก่อนเก็บ
 require_once __DIR__ . '/config_ctrl/meter_usage.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -532,7 +533,7 @@ function handle_photo_upload($ag_id, $mt_id, $log_date) {
 
     $file_name = 'img-' . date('Ymd-His') . '.' . $file_ext;
     $target_file = $upload_dir . $file_name;
-    if (move_uploaded_file($_FILES['meter_photo']['tmp_name'], $target_file)) {
+    if (img_move_uploaded($_FILES['meter_photo']['tmp_name'], $target_file)) {
         return $target_file;
     }
     return null;

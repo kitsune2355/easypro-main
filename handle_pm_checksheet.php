@@ -5,6 +5,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 include 'config_ctrl/connect.php';
+require_once __DIR__ . '/config_ctrl/image_shrink.php';   // ย่อรูปที่อัปโหลดก่อนเก็บ
 include_once 'config_ctrl/pm_cs_section.php';   // หมวดของจุดตรวจ
 pmcs_ensure($connect);   // ยังไม่มีคอลัมน์หมวด => เพิ่มให้ (ก่อนเปิดทรานแซกชัน)
 $pmcs_dropped = false;   // มีหมวดแต่บันทึกไม่ได้ (เพิ่มคอลัมน์ไม่สำเร็จ) 
@@ -43,7 +44,7 @@ function uploadFile($file, $base_folder) {
     $new_filename = uniqid() . '_' . time() . '.' . $ext;
     $target_file = $target_dir . $new_filename;
 
-    if (move_uploaded_file($file['tmp_name'], $target_file)) {
+    if (img_move_uploaded($file['tmp_name'], $target_file)) {
         return ['name' => $file['name'], 'path' => $target_file];
     }
     return false;
@@ -76,7 +77,7 @@ function saveBase64Image($base64_string, $base_folder) {
     $new_filename = uniqid('ill_') . '_' . time() . '.' . $extension;
     $target_file = $target_dir . $new_filename;
 
-    if (file_put_contents($target_file, $data)) {
+    if (img_put_contents($target_file, $data)) {
         return $target_file;
     }
     return null;
