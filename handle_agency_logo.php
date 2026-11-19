@@ -3,7 +3,7 @@
 //  GET  ?action=get
 //  POST ?action=upload  (multipart: logo)  — admin / super_admin
 //  POST ?action=delete                      — admin / super_admin
-//  POST ?action=settings (pos=left|right, size=50–250) — admin / super_admin
+//  POST ?action=settings (pos=left|right, size=50–250, align=top|center|bottom, gap=0–60) — admin / super_admin
 @session_start();
 date_default_timezone_set('Asia/Bangkok');
 header('Content-Type: application/json; charset=utf-8');
@@ -28,11 +28,11 @@ function agl_current($connect, $ag) {
     if ($p === '') return null;
     $abs = __DIR__ . '/' . $p;
     $size = @getimagesize($abs);
-    return ['url' => $p . '?v=' . @filemtime($abs), 'pos' => $i['pos'], 'size' => $i['size'], 'width' => $size ? $size[0] : null, 'height' => $size ? $size[1] : null, 'bytes' => @filesize($abs)];
+    return ['url' => $p . '?v=' . @filemtime($abs), 'pos' => $i['pos'], 'size' => $i['size'], 'align' => $i['align'], 'gap' => $i['gap'], 'width' => $size ? $size[0] : null, 'height' => $size ? $size[1] : null, 'bytes' => @filesize($abs)];
 }
 
 if ($action === 'get') {
-    agl_out(['success' => true, 'logo' => agl_current($connect, $ag), 'size_min' => AGL_SIZE_MIN, 'size_max' => AGL_SIZE_MAX, 'can_edit' => in_array($level, ['admin', 'super_admin'], true)]);
+    agl_out(['success' => true, 'logo' => agl_current($connect, $ag), 'size_min' => AGL_SIZE_MIN, 'size_max' => AGL_SIZE_MAX, 'gap_max' => AGL_GAP_MAX, 'can_edit' => in_array($level, ['admin', 'super_admin'], true)]);
 }
 
 if (!in_array($level, ['admin', 'super_admin'], true)) agl_out(['success' => false, 'error' => 'เฉพาะผู้ดูแลระบบ'], 403);
@@ -65,13 +65,13 @@ if ($action === 'upload') {
     if ($old !== '' && $old !== $rel && strpos($old, $dirRel . '/') === 0) @unlink($root . '/' . $old);
     $abs = $root . '/' . $rel;
     // ตำแหน่ง/ขนาดเดิมคงไว้ (ON DUPLICATE KEY ไม่แตะคอลัมน์ตั้งค่า)
-    $st = mysqli_prepare($connect, "SELECT logo_pos, logo_size FROM tb_agency_logo WHERE ag_id = ?");
+    $st = mysqli_prepare($connect, "SELECT logo_pos, logo_size, logo_align, logo_gap FROM tb_agency_logo WHERE ag_id = ?");
     mysqli_stmt_bind_param($st, 'i', $ag);
     mysqli_stmt_execute($st);
-    mysqli_stmt_bind_result($st, $pos, $size);
-    if (!mysqli_stmt_fetch($st)) { $pos = 'right'; $size = 100; }
+    mysqli_stmt_bind_result($st, $pos, $size, $align, $gap);
+    if (!mysqli_stmt_fetch($st)) { $pos = 'right'; $size = 100; $align = 'center'; $gap = 10; }
     mysqli_stmt_close($st);
-    agl_out(['success' => true, 'logo' => ['url' => $rel . '?v=' . filemtime($abs), 'pos' => agl_norm_pos((string)$pos), 'size' => agl_norm_size($size), 'width' => $info[0], 'height' => $info[1], 'bytes' => filesize($abs)]]);
+    agl_out(['success' => true, 'logo' => ['url' => $rel . '?v=' . filemtime($abs), 'pos' => agl_norm_pos((string)$pos), 'size' => agl_norm_size($size), 'align' => agl_norm_align((string)$align), 'gap' => agl_norm_gap($gap), 'width' => $info[0], 'height' => $info[1], 'bytes' => filesize($abs)]]);
 }
 
 if ($action === 'delete') {
@@ -87,15 +87,17 @@ if ($action === 'delete') {
 if ($action === 'settings') {
     $pos  = agl_norm_pos((string)($_POST['pos'] ?? 'right'));
     $size = agl_norm_size($_POST['size'] ?? 100);
+    $align = agl_norm_align((string)($_POST['align'] ?? 'center'));
+    $gap  = agl_norm_gap($_POST['gap'] ?? 10);
     $now  = date('Y-m-d H:i:s');
-    $st = mysqli_prepare($connect, "UPDATE tb_agency_logo SET logo_pos = ?, logo_size = ?, updated_at = ?, updated_by = ? WHERE ag_id = ?");
-    mysqli_stmt_bind_param($st, 'sissi', $pos, $size, $now, $me, $ag);
+    $st = mysqli_prepare($connect, "UPDATE tb_agency_logo SET logo_pos = ?, logo_size = ?, logo_align = ?, logo_gap = ?, updated_at = ?, updated_by = ? WHERE ag_id = ?");
+    mysqli_stmt_bind_param($st, 'sisissi', $pos, $size, $align, $gap, $now, $me, $ag);
     $ok = mysqli_stmt_execute($st);
     $n = mysqli_stmt_affected_rows($st);
     mysqli_stmt_close($st);
     if (!$ok) agl_out(['success' => false, 'error' => 'บันทึกข้อมูลไม่สำเร็จ'], 500);
     if ($n === 0 && agl_path($connect, $ag) === '') agl_out(['success' => false, 'error' => 'กรุณาอัปโหลดโลโก้ก่อน']);
-    agl_out(['success' => true, 'pos' => $pos, 'size' => $size]);
+    agl_out(['success' => true, 'pos' => $pos, 'size' => $size, 'align' => $align, 'gap' => $gap]);
 }
 
 agl_out(['success' => false, 'error' => 'unknown action'], 400);

@@ -179,7 +179,7 @@ $query = [
 
   <div class="sheet">
     <div class="rp-head">
-      <?php echo agl_logos($connect, $ag_id, '<img src="../es/Logo_โปร.png" class="logo" alt="" onerror="this.style.display=\'none\'">', 40, 130, 12); ?>
+      <?php echo agl_logos($connect, $ag_id, '<img src="../es/Logo_โปร.png" class="logo" alt="" onerror="this.style.display=\'none\'">', 40, 130); ?>
       <div class="txt">
         <h1>รายงานสรุปผลงานแจ้งซ่อม</h1>
         <div class="sub" id="rpSub"><?php echo htmlspecialchars($agency['name'], ENT_QUOTES, 'UTF-8'); ?></div>

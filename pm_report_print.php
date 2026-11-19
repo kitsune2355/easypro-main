@@ -65,7 +65,7 @@ $stateCls = ['done' => 'st-done', 'late' => 'st-late', 'overdue' => 'st-over', '
 
 function pmr_header($agency, $title, $f, $sub = '') { ?>
     <header class="rp-head">
-        <div class="rp-logos"><?php global $connect; echo agl_logos($connect, isset($agency['ag_id']) ? $agency['ag_id'] : 0, '<img src="Logo_โปร.png" alt="" class="rp-logo">', 34, 120, 8); ?></div>
+        <div class="rp-logos"><?php global $connect; echo agl_logos($connect, isset($agency['ag_id']) ? $agency['ag_id'] : 0, '<img src="Logo_โปร.png" alt="" class="rp-logo">', 34, 120); ?></div>
         <div class="rp-head-main">
             <div class="rp-title"><?php echo pmr_h($title); ?></div>
             <div class="rp-agency"><?php echo pmr_h($agency['ag_contract']); ?><?php if ($agency['ag_job']): ?> <span class="muted">(<?php echo pmr_h($agency['ag_job']); ?>)</span><?php endif; ?></div>
