@@ -689,9 +689,8 @@ $page_counter = 0;
                 <?php $empty_rows = max(0, $rows_per_page - count($chunk_rows)); ?>
                 <div class="w-[297mm] bg-white mx-auto mb-3 p-[6mm] border border-gray-300 shadow-sm [page-break-after:always] last:page-break-after-auto print:w-full print:m-0 print:border-0 print:p-0 print:shadow-none flex flex-col justify-between">
             <div class="relative">
-                <div class="absolute left-0 top-0 h-[28px] flex items-center gap-2">
-                    <img src="Logo_โปร.png" class="h-[28px] w-auto max-w-[110px] object-contain" alt="PROACTIVE">
-                    <?php echo agl_img($connect, $ag_id, 'class="h-[28px] w-auto max-w-[110px] object-contain"'); ?>
+                <div class="absolute left-0 top-0 min-h-[28px] flex items-center gap-2">
+                    <?php echo agl_logos($connect, $ag_id, '<img src="Logo_โปร.png" class="h-[28px] w-auto max-w-[110px] object-contain" alt="PROACTIVE">', 28, 110, 8); ?>
                 </div>
                 <div class="text-center font-bold text-[13px] leading-snug mb-1.5">
                     แบบรายงานผลการบำรุงรักษาเชิงป้องกันรายเดือน

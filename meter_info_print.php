@@ -114,8 +114,7 @@ $res_h = mysqli_query($connect, $sql_h);
 <body>
 
     <div class="report-header">
-        <img src="../es/Logo_โปร.png" class="logo" onerror="this.style.display='none'">
-        <?php echo agl_img($connect, $ag_id !== '' ? $ag_id : ($_SESSION['sess_user_agency'] ?? 0), 'class="logo-ag"'); ?>
+        <?php echo agl_logos($connect, $ag_id !== '' ? $ag_id : ($_SESSION['sess_user_agency'] ?? 0), '<img src="../es/Logo_โปร.png" class="logo" onerror="this.style.display=\'none\'">', 40, 140, 10); ?>
         <div class="title-text" style="flex-grow:1;">
             <h2>สรุปการจดบันทึกมิเตอร์<?php echo $type_title; ?></h2>
             <h2>ประจำเดือน <?php echo $display_date; ?></h2>

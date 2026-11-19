@@ -175,7 +175,7 @@ if ($num_rows >= 1) {
 </head>
 <body class="thsarabunnew24b" style="font-size:7px;">
 
-<div style="display:flex;align-items:center;gap:10px;"><img src="Logo_โปร.png" alt="ระบบ EasyPro" width="147" height="35"><?php echo agl_img($connect, $rs['ag_id'], 'style="height:35px;width:auto;max-width:160px;object-fit:contain;"'); ?></div>
+<div style="display:flex;align-items:center;gap:10px;"><?php echo agl_logos($connect, $rs['ag_id'], '<img src="Logo_โปร.png" alt="ระบบ EasyPro" width="147" height="35">', 35, 160, 10); ?></div>
 <div align="right" style="margin-top: -15px;">SM - SR - 001</div>
 <center style="font-size:7px;">
   <table width="100%" style="border-collapse:collapse; font-size:7px;" border="1">

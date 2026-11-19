@@ -127,8 +127,7 @@ $multiMonth = count($monthCount) > 1;
 </div>
 <div class="sheet">
     <header class="head">
-        <img src="Logo_โปร.png" alt="">
-        <?php echo agl_img($connect, $ag, 'class="ag-logo"'); ?>
+        <?php echo agl_logos($connect, $ag, '<img src="Logo_โปร.png" alt="">', 34, 120, 12); ?>
         <div class="main">
             <h1>ประวัติการบำรุงรักษา (PM History) <small>· รายงานใบงาน PM ที่ดำเนินการแล้ว</small></h1>
             <div class="ag"><?php echo pmr_h($agency['ag_contract']); ?><?php if ($agency['ag_job']): ?> <span class="muted">(<?php echo pmr_h($agency['ag_job']); ?>)</span><?php endif; ?></div>

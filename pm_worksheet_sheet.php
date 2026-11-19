@@ -147,8 +147,7 @@ $evaluation = !empty($record['plan_event_id']) ? pmap_latest_evaluation($connect
         <div class="h-[25px] text-center text-[11px] font-bold relative border border-black border-b-0 leading-[24px]">
             MAINTENANCE TASKS REPORT
             <div class="absolute right-[6px] top-[2px] h-[20px] flex items-center gap-[6px]">
-                <img src="Logo_โปร.png" class="w-full h-[20px]  object-contain" alt="PROACTIVE">
-                <?php if (!function_exists('agl_img')) require_once __DIR__ . '/config_ctrl/agency_logo.php'; echo agl_img($connect, isset($record['ag_id']) ? $record['ag_id'] : 0, 'class="h-[20px] w-auto max-w-[90px] object-contain"'); ?>
+                <?php if (!function_exists('agl_logos')) require_once __DIR__ . '/config_ctrl/agency_logo.php'; echo agl_logos($connect, isset($record['ag_id']) ? $record['ag_id'] : 0, '<img src="Logo_โปร.png" class="w-auto h-[20px] object-contain" alt="PROACTIVE">', 20, 90, 6); ?>
             </div>
         </div>
 
