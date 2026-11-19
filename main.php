@@ -775,6 +775,18 @@ document.getElementById('ms-change-password').addEventListener('click', function
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - last > 60 * 1000) ping(); });
 })();
 
+// หน้าที่แสดงอยู่ใน iframe จริง (ชื่อไฟล์ / ชื่อไฟล์+query) — หน้าในกรอบอาจเปลี่ยนเองได้
+//  (เช่น กดการ์ดใน dashboard แล้วไปหน้าข้อมูลแจ้งซ่อม) โดยที่ iframe.src ยังเป็นค่าเดิม
+function frameLocation() {
+    try {
+        const l = iframe.contentWindow && iframe.contentWindow.location;
+        if (l && l.href && l.href !== 'about:blank') return { file: l.pathname.split('/').pop() || '', full: (l.pathname.split('/').pop() || '') + l.search };
+    } catch (e) { /* ต่าง origin */ }
+    const src = iframe.getAttribute('src') || '';
+    return { file: src.split('?')[0].split('#')[0].split('/').pop() || '', full: src.split('#')[0].split('/').pop() || '' };
+}
+function frameFile() { return frameLocation().file || (menuItems[0] ? menuItems[0].href : ''); }
+
 window.navigate = function(href, queryString) {
     if (!href) return;
     if (href !== 'pm.php') {
@@ -797,8 +809,9 @@ window.navigate = function(href, queryString) {
     // จะไม่เห็นค่าที่ใช้สำหรับเลือกเครื่องจักร/สถานที่ให้อัตโนมัติ
     const targetSrc = href + (queryString || '');
     // เทียบชื่อไฟล์ตรงตัว (เดิมใช้ indexOf => display_settings.php ถูกนับว่าเป็น settings.php แล้วไม่เปลี่ยนหน้า)
-    const curFile = (iframe.src.split('?')[0].split('#')[0].split('/').pop()) || '';
-    if (curFile !== href || (queryString && iframe.src.indexOf(queryString) === -1)) {
+    // ใช้หน้าที่แสดงอยู่จริงใน iframe — ไม่ใช่ iframe.src ซึ่งไม่เปลี่ยนเมื่อหน้าในกรอบเปิดหน้าอื่นต่อเอง
+    const cur = frameLocation();
+    if (cur.file !== href || (queryString && cur.full.indexOf(queryString.replace(/^\?/, '')) === -1)) {
         loader.classList.remove('hidden');
         iframe.src = targetSrc;
     }
@@ -820,7 +833,7 @@ if (toggleBtn) {
             toggleIcon.textContent = 'chevron_left';
             localStorage.setItem('easypro_sidebar_state', 'expanded');
         }
-        renderMenu((iframe.src.split('/').pop()) || (menuItems[0] ? menuItems[0].href : ''));
+        renderMenu(frameFile());
     });
 }
 
@@ -832,7 +845,7 @@ function openMobileSidebar() {
         backdrop.classList.add('opacity-100');
     }, 10);
     document.body.style.overflow = 'hidden';
-    renderMenu((iframe.src.split('/').pop()) || (menuItems[0] ? menuItems[0].href : ''));
+    renderMenu(frameFile());
 }
 
 function closeMobileSidebar() {
@@ -850,7 +863,7 @@ if (mobileCloseBtn) mobileCloseBtn.addEventListener('click', closeMobileSidebar)
 if (backdrop) backdrop.addEventListener('click', closeMobileSidebar);
 
 window.addEventListener('resize', function() {
-    const currentPath = (iframe.src.split('/').pop()) || (menuItems[0] ? menuItems[0].href : '');
+    const currentPath = frameFile();
     
     if (window.innerWidth > 768) {
         backdrop.classList.add('hidden');
@@ -877,6 +890,13 @@ window.addEventListener('resize', function() {
 
 iframe.onload = function() {
     loader.classList.add('hidden');
+    // หน้าในกรอบเปิดหน้าเมนูอื่นเอง (เช่น การ์ด dashboard => ข้อมูลแจ้งซ่อม) หรือกดย้อนกลับ => ไฮไลต์เมนู/ชื่อหน้า/hash ให้ตรงหน้าจริง
+    const file = frameLocation().file;
+    const item = menuItems.find(function(m) { return m.href === file; });
+    if (!item) return;
+    renderMenu(file);
+    if (pageTitle && pageTitle.textContent !== item.label) pageTitle.textContent = item.label;
+    if (window.location.hash.replace('#', '') !== file) history.replaceState(null, '', '#' + file);
 };
 
 window.onload = function() {

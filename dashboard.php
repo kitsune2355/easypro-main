@@ -272,7 +272,7 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
             <div id="dashFilters" class="is-closed flex flex-wrap items-end gap-2 sm:gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
                 <div class="px-1 sm:px-2">
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">ช่วงเวลา</label>
-                    <select id="filterType" class="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block w-32 p-2 custom-select outline-none">
+                    <select id="filterType" autocomplete="off" class="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block w-32 p-2 custom-select outline-none">
                         <option value="daily">รายวัน</option>
                         <option value="monthly" selected>รายเดือน</option>
                         <option value="yearly">รายปี</option>
@@ -283,7 +283,7 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
 
                 <div class="px-1 sm:px-2 xl:border-l border-slate-200 xl:pl-4 xl:ml-2">
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">สถานที่</label>
-                    <select id="buildingFilter" class="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block w-48 max-w-full p-2 custom-select outline-none">
+                    <select id="buildingFilter" autocomplete="off" class="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block w-48 max-w-full p-2 custom-select outline-none">
                         <option value="">ทั้งหมด</option>
                     </select>
                 </div>
@@ -697,25 +697,10 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
             window.location.href = 'maintenance_info.php?status=' + encodeURIComponent(status);
             return;
         }
-        const type = $('#filterType').val();
-        let s, e;
-
-        if (type === 'daily') {
-            s = moment($('#dateStart').val());
-            e = moment($('#dateEnd').val());
-        } else if (type === 'monthly') {
-            s = moment($('#monthStart').val(), 'YYYY-MM').startOf('month');
-            e = moment($('#monthEnd').val(), 'YYYY-MM').endOf('month');
-        } else if (type === 'yearly') {
-            s = moment($('#yearStart').val(), 'YYYY').startOf('year');
-            e = moment($('#yearEnd').val(), 'YYYY').endOf('year');
-        }
-
+        // ช่วงวันที่ที่ข้อมูลบนการ์ดใช้อยู่จริง (currentStart/currentEnd) — ไม่อ่านจากช่องกรอกที่อาจแก้แล้วยังไม่กดค้นหา
         const params = new URLSearchParams();
-        
-        // หากดึงค่าได้ถูกต้อง ให้ส่งไป ถ้าไม่ได้ให้ใช้ currentStart ตัวเดิมเป็น fallback
-        params.set('dateFrom', (s && s.isValid()) ? s.format('YYYY-MM-DD') : currentStart.format('YYYY-MM-DD'));
-        params.set('dateTo', (e && e.isValid()) ? e.format('YYYY-MM-DD') : currentEnd.format('YYYY-MM-DD'));
+        params.set('dateFrom', currentStart.format('YYYY-MM-DD'));
+        params.set('dateTo', currentEnd.format('YYYY-MM-DD'));
         
         if (status) params.set('status', status);
         window.location.href = 'maintenance_info.php?' + params.toString();
@@ -1210,6 +1195,13 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
                     $b.find('option:not(:first)').remove();
                     response.building.forEach(b => $b.append('<option value="' + b.area_id + '">' + b.area_name + '</option>'));
                     isBuildingPopulated = true;
+                    if (pendingArea) {
+                        const found = $b.find('option[value="' + pendingArea + '"]').length > 0;
+                        $b.val(found ? pendingArea : '');
+                        pendingArea = '';
+                        updateFilterSummary();
+                        if (!found) { saveFilterState(); loadDashboardData(currentStart, currentEnd); }   // สถานที่ไม่อยู่ในหน่วยงานนี้แล้ว => ทุกสถานที่
+                    }
                 }
             }
         });
@@ -1426,7 +1418,7 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
     $('#filterType').on('change', function() {
         const type = $(this).val();
         let html = '';
-        const style = 'bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block p-2 outline-none';
+        const style = 'bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 block p-2 outline-none" autocomplete="off';
         if (type === 'daily') {
             html = '<input type="date" id="dateStart" class="' + style + '" value="' + moment().subtract(7, 'days').format('YYYY-MM-DD') + '">' +
                    '<span class="text-slate-400">-</span>' +
@@ -2033,35 +2025,87 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
     $('#filterToggle').on('click', () => setFiltersOpen($('#dashFilters').hasClass('is-closed')));
     $('#dashFilters').on('change', 'select, input', updateFilterSummary);
 
+    function rangeFromInputs() {
+        const type = $('#filterType').val();
+        let s, e;
+        if (type === 'daily') {
+            s = moment($('#dateStart').val(), 'YYYY-MM-DD', true);
+            e = moment($('#dateEnd').val(), 'YYYY-MM-DD', true);
+        } else if (type === 'monthly') {
+            s = moment($('#monthStart').val(), 'YYYY-MM', true).startOf('month');
+            e = moment($('#monthEnd').val(), 'YYYY-MM', true).endOf('month');
+        } else {
+            s = moment($('#yearStart').val(), 'YYYY', true).startOf('year');
+            e = moment($('#yearEnd').val(), 'YYYY', true).endOf('year');
+        }
+        return (s.isValid() && e.isValid()) ? { s, e } : null;
+    }
+
+    // ===== จำตัวกรองไว้ใน URL ของหน้านี้ (?ft=ประเภท&fs=เริ่ม&fe=สิ้นสุด&area=สถานที่) =====
+    //  กดการ์ดไปหน้าข้อมูลแจ้งซ่อม/PM แล้วกดย้อนกลับ => ได้ตัวกรองเดิมและข้อมูลตรงกับตัวกรอง
+    //  เปิดจากเมนู (ไม่มีพารามิเตอร์) => เดือนปัจจุบันตามเดิม
+    const FILTER_FMT = { daily: 'YYYY-MM-DD', monthly: 'YYYY-MM', yearly: 'YYYY' };
+    const FILTER_IDS = { daily: ['#dateStart', '#dateEnd'], monthly: ['#monthStart', '#monthEnd'], yearly: ['#yearStart', '#yearEnd'] };
+    let pendingArea = '';   // สถานที่ที่รอรายชื่ออาคารโหลดเสร็จก่อนจึงเลือกได้
+    function saveFilterState() {
+        try {
+            const type = $('#filterType').val();
+            const ids = FILTER_IDS[type];
+            const p = new URLSearchParams();
+            p.set('ft', type);
+            p.set('fs', $(ids[0]).val() || '');
+            p.set('fe', $(ids[1]).val() || '');
+            const area = $('#buildingFilter').val() || pendingArea;
+            if (area) p.set('area', area);
+            history.replaceState(history.state, '', location.pathname + '?' + p.toString());
+        } catch (e) { /* เบราว์เซอร์ไม่รองรับ: ไม่จำตัวกรอง */ }
+    }
+    function restoreFilterState() {
+        const q = new URLSearchParams(location.search);
+        const type = q.get('ft');
+        if (!FILTER_FMT[type]) return false;
+        const fs = q.get('fs') || '', fe = q.get('fe') || '';
+        const fmt = FILTER_FMT[type];
+        if (!moment(fs, fmt, true).isValid() || !moment(fe, fmt, true).isValid()) return false;
+        $('#filterType').val(type).trigger('change');
+        if (type === 'yearly') {   // ปีที่ไม่อยู่ในรายการ (เก่ากว่า 5 ปี) => เพิ่มตัวเลือก
+            [fs, fe].forEach((y) => ['#yearStart', '#yearEnd'].forEach((id) => { if (!$(id + ' option[value="' + y + '"]').length) $(id).append('<option value="' + y + '">' + y + '</option>'); }));
+        }
+        $(FILTER_IDS[type][0]).val(fs);
+        $(FILTER_IDS[type][1]).val(fe);
+        const r = rangeFromInputs();
+        if (!r) return false;
+        currentStart = r.s;
+        currentEnd = r.e;
+        const area = q.get('area') || '';
+        if (/^\d+$/.test(area)) {
+            pendingArea = area;
+            // เลือกได้ทันทีด้วยตัวเลือกชั่วคราว (ชื่อจริงตามมาเมื่อรายชื่ออาคารโหลดเสร็จ) — ข้อมูลรอบแรกจึงกรองสถานที่ถูกต้อง
+            if (!$('#buildingFilter option[value="' + area + '"]').length) $('#buildingFilter').append('<option value="' + area + '">…</option>');
+            $('#buildingFilter').val(area);
+        }
+        return true;
+    }
+
     $('#searchBtn').on('click', function() {
         updateFilterSummary();
         if (window.innerWidth < 1024) setFiltersOpen(false);   // จอเล็ก: ค้นหาแล้วหุบตัวกรอง
-        const type = $('#filterType').val();
-        let s, e;
-
-        if (type === 'daily') {
-            s = moment($('#dateStart').val());
-            e = moment($('#dateEnd').val());
-        } else if (type === 'monthly') {
-            s = moment($('#monthStart').val(), 'YYYY-MM').startOf('month');
-            e = moment($('#monthEnd').val(), 'YYYY-MM').endOf('month');
-        } else if (type === 'yearly') {
-            s = moment($('#yearStart').val(), 'YYYY').startOf('year');
-            e = moment($('#yearEnd').val(), 'YYYY').endOf('year');
-        }
-
-        if (s.isValid() && e.isValid()) {
-            currentStart = s;
-            currentEnd = e;
-            loadDashboardData(s, e);
+        const r = rangeFromInputs();
+        if (r) {
+            currentStart = r.s;
+            currentEnd = r.e;
+            saveFilterState();
+            loadDashboardData(r.s, r.e);
         }
     });
 
     $('#buildingFilter, #touMeterFilter').on('change', function() {
+        if (this.id === 'buildingFilter') { pendingArea = ''; saveFilterState(); }
         loadDashboardData(currentStart, currentEnd);
     });
 
     $(document).ready(function() {
+        restoreFilterState();
         populateBuildingFilter();
         updateFilterSummary();
         loadDashboardData(currentStart, currentEnd);
