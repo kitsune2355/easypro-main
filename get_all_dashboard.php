@@ -38,6 +38,8 @@ if ($startDate > $endDate) {
 
 $startDT = $startDate . " 00:00:00";
 $endDT   = $endDate   . " 23:59:59";
+// งานแจ้งซ่อมนับตาม "วันที่แจ้งซ่อม" (report_date) ไม่ใช่วันที่บันทึกเข้าระบบ (created_at)
+//  — ผู้ใช้บันทึกย้อนหลังได้ จึงต้องนับตามวันที่แจ้งจริง (ตรงกับตัวกรองวันที่แจ้งของ maintenance_info.php)
 
 function fetch_all_assoc($stmt) {
     $res = $stmt->get_result();
@@ -127,26 +129,26 @@ if ($area_id) {
 }
 
 /* --------------------------
-   4) Aggregate repairs counts (created_at)
+   4) Aggregate repairs counts (report_date = วันที่แจ้งซ่อม)
 -------------------------- */
 if ($ag_id) {
     $sql = "
-		SELECT DATE(created_at) AS d,
+		SELECT report_date AS d,
 			   SUM(CASE WHEN status <> 'canceled' THEN 1 ELSE 0 END) AS repairs_count,
 			   SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
 			   SUM(CASE WHEN status = 'inprogress' THEN 1 ELSE 0 END) AS inprogress_count,
 			   SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_count
 		FROM repair_requests
 		WHERE ag_id = ?
-		  AND created_at BETWEEN ? AND ?
+		  AND report_date BETWEEN ? AND ?
 		  $buildingFilterSQL
-		GROUP BY DATE(created_at)
+		GROUP BY report_date
 	";
     $stmt = $connect->prepare($sql);
     if ($buildingParam !== null) {
-        $stmt->bind_param("ssss", $ag_id, $startDT, $endDT, $buildingParam);
+        $stmt->bind_param("ssss", $ag_id, $startDate, $endDate, $buildingParam);
     } else {
-        $stmt->bind_param("sss", $ag_id, $startDT, $endDT);
+        $stmt->bind_param("sss", $ag_id, $startDate, $endDate);
     }
     $stmt->execute();
     $rows = fetch_all_assoc($stmt);
@@ -173,9 +175,9 @@ if ($ag_id) {
 //    ";
 //    $stmt = $connect->prepare($sql);
 //    if ($buildingParam !== null) {
-//        $stmt->bind_param("ssss", $ag_id, $startDT, $endDT, $buildingParam);
+//        $stmt->bind_param("ssss", $ag_id, $startDate, $endDate, $buildingParam);
 //    } else {
-//        $stmt->bind_param("sss", $ag_id, $startDT, $endDT);
+//        $stmt->bind_param("sss", $ag_id, $startDate, $endDate);
 //    }
 //    $stmt->execute();
 //    $rows = fetch_all_assoc($stmt);
@@ -186,20 +188,21 @@ if ($ag_id) {
 //        $dailyMap[$d]['completed'] = (int)$r['completed_count'];
 //    }
 
-    // canceled by updated_at + status=canceled
+    // canceled — นับรายวันตามวันที่แจ้งซ่อม
     $sql = "
-        SELECT DATE(updated_at) AS d, COUNT(*) AS canceled_count
+        SELECT report_date AS d, COUNT(*) AS canceled_count
         FROM repair_requests
         WHERE ag_id = ?
           AND status = 'cancel'
           AND report_date BETWEEN ? AND ?
           $buildingFilterSQL
+        GROUP BY report_date
     ";
     $stmt = $connect->prepare($sql);
     if ($buildingParam !== null) {
-        $stmt->bind_param("ssss", $ag_id, $startDT, $endDT, $buildingParam);
+        $stmt->bind_param("ssss", $ag_id, $startDate, $endDate, $buildingParam);
     } else {
-        $stmt->bind_param("sss", $ag_id, $startDT, $endDT);
+        $stmt->bind_param("sss", $ag_id, $startDate, $endDate);
     }
     $stmt->execute();
     $rows = fetch_all_assoc($stmt);
@@ -212,7 +215,7 @@ if ($ag_id) {
 }
 
 /* --------------------------
-   5) Aggregate service/type/area counts (created_at)
+   5) Aggregate service/type/area counts (report_date = วันที่แจ้งซ่อม)
 -------------------------- */
 $serviceCountMap = array(); // [date][service_type]=count
 $typeCountMap    = array(); // [date][job_type]=count
@@ -221,18 +224,18 @@ $areaCountMap    = array(); // [date][building]=count
 if ($ag_id) {
     // service_type
     $sql = "
-        SELECT DATE(created_at) AS d, service_type, COUNT(*) AS c
+        SELECT report_date AS d, service_type, COUNT(*) AS c
         FROM repair_requests
         WHERE ag_id = ?
-          AND created_at BETWEEN ? AND ?
+          AND report_date BETWEEN ? AND ?
           $buildingFilterSQL
-        GROUP BY DATE(created_at), service_type
+        GROUP BY report_date, service_type
     ";
     $stmt = $connect->prepare($sql);
     if ($buildingParam !== null) {
-        $stmt->bind_param("ssss", $ag_id, $startDT, $endDT, $buildingParam);
+        $stmt->bind_param("ssss", $ag_id, $startDate, $endDate, $buildingParam);
     } else {
-        $stmt->bind_param("sss", $ag_id, $startDT, $endDT);
+        $stmt->bind_param("sss", $ag_id, $startDate, $endDate);
     }
     $stmt->execute();
     $rows = fetch_all_assoc($stmt);
@@ -246,18 +249,18 @@ if ($ag_id) {
 
     // job_type
     $sql = "
-        SELECT DATE(created_at) AS d, job_type, COUNT(*) AS c
+        SELECT report_date AS d, job_type, COUNT(*) AS c
         FROM repair_requests
         WHERE ag_id = ?
-          AND created_at BETWEEN ? AND ?
+          AND report_date BETWEEN ? AND ?
           $buildingFilterSQL
-        GROUP BY DATE(created_at), job_type
+        GROUP BY report_date, job_type
     ";
     $stmt = $connect->prepare($sql);
     if ($buildingParam !== null) {
-        $stmt->bind_param("ssss", $ag_id, $startDT, $endDT, $buildingParam);
+        $stmt->bind_param("ssss", $ag_id, $startDate, $endDate, $buildingParam);
     } else {
-        $stmt->bind_param("sss", $ag_id, $startDT, $endDT);
+        $stmt->bind_param("sss", $ag_id, $startDate, $endDate);
     }
     $stmt->execute();
     $rows = fetch_all_assoc($stmt);
@@ -271,18 +274,18 @@ if ($ag_id) {
 
     // area/building
     $sql = "
-        SELECT DATE(created_at) AS d, building, COUNT(*) AS c
+        SELECT report_date AS d, building, COUNT(*) AS c
         FROM repair_requests
         WHERE ag_id = ?
-          AND created_at BETWEEN ? AND ?
+          AND report_date BETWEEN ? AND ?
           $buildingFilterSQL
-        GROUP BY DATE(created_at), building
+        GROUP BY report_date, building
     ";
     $stmt = $connect->prepare($sql);
     if ($buildingParam !== null) {
-        $stmt->bind_param("ssss", $ag_id, $startDT, $endDT, $buildingParam);
+        $stmt->bind_param("ssss", $ag_id, $startDate, $endDate, $buildingParam);
     } else {
-        $stmt->bind_param("sss", $ag_id, $startDT, $endDT);
+        $stmt->bind_param("sss", $ag_id, $startDate, $endDate);
     }
     $stmt->execute();
     $rows = fetch_all_assoc($stmt);
@@ -609,8 +612,8 @@ if ($ag_id) {
     $sql = "
 		SELECT SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_all,
 			   SUM(CASE WHEN status = 'inprogress' THEN 1 ELSE 0 END) AS inprogress_all,
-			   SUM(CASE WHEN created_at < ? THEN 1 ELSE 0 END) AS before_range,
-			   MIN(CASE WHEN created_at < ? THEN created_at END) AS oldest_before
+			   SUM(CASE WHEN report_date < ? THEN 1 ELSE 0 END) AS before_range,
+			   MIN(CASE WHEN report_date < ? THEN report_date END) AS oldest_before
 		FROM repair_requests
 		WHERE ag_id = ?
 		  AND status IN ('pending', 'inprogress')
@@ -618,9 +621,9 @@ if ($ag_id) {
 	";
     $stmt = $connect->prepare($sql);
     if ($buildingParam !== null) {
-        $stmt->bind_param("ssss", $startDT, $startDT, $ag_id, $buildingParam);
+        $stmt->bind_param("ssss", $startDate, $startDate, $ag_id, $buildingParam);
     } else {
-        $stmt->bind_param("sss", $startDT, $startDT, $ag_id);
+        $stmt->bind_param("sss", $startDate, $startDate, $ag_id);
     }
     $stmt->execute();
     $row = fetch_one_assoc($stmt);

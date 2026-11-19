@@ -87,8 +87,8 @@ include "config_ctrl/checksession.php";
                         <button id="btn-delete" type="button" class="hidden absolute top-2 right-2 h-8 w-8 rounded-lg bg-white/90 border border-red-200 text-red-600 hover:bg-red-50 shadow-sm" title="ลบโลโก้" aria-label="ลบโลโก้"><i class="fa-solid fa-trash-can text-sm"></i></button>
                     </label>
                     <div class="flex items-center justify-between gap-2 mt-2 min-h-[1rem] text-xs text-slate-400">
-                        <span id="logo-meta"></span>
-                        <span id="drop-hint" class="hidden text-right">คลิกหรือลากไฟล์มาวางบนกรอบเพื่อเปลี่ยน</span>
+                        <span id="logo-meta" class="whitespace-nowrap shrink-0"></span>
+                        <span id="drop-hint" class="hidden text-right min-w-0">คลิกหรือลากไฟล์มาวางบนกรอบเพื่อเปลี่ยน</span>
                     </div>
                     <p id="no-perm" class="hidden mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-2.5"><i class="fa-solid fa-lock mr-1"></i> เปลี่ยนโลโก้และการจัดวางได้เฉพาะผู้ดูแลระบบ</p>
                 </section>
