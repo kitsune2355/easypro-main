@@ -18,8 +18,13 @@ include "config_ctrl/checksession.php";
         body { font-family: 'Prompt', sans-serif; }
         .bg-primary { background-color: var(--color-primary); }
         .hover\:bg-primary-dark:hover { background-color: var(--color-primary-dark); }
-        .drop { border: 2px dashed #cbd5e1; transition: .15s; }
-        .drop.over { border-color: var(--color-primary); background: #f0f9ff; }
+        /* กรอบโลโก้ = dropzone (คลิก/ลากไฟล์มาวาง) */
+        .drop { border: 1px solid #e2e8f0; transition: border-color .15s, background-color .15s; }
+        .drop.can-edit { border: 2px dashed #cbd5e1; cursor: pointer; }
+        .drop.can-edit:hover, .drop.over { border-color: var(--color-primary); }
+        .drop.over { background-color: #f0f9ff; }
+        .drop-ov { opacity: 0; pointer-events: none; transition: opacity .15s; }
+        .drop.can-edit.has:hover .drop-ov, .drop.can-edit.over .drop-ov { opacity: 1; }
         .checker { background-color: #fff; background-image: linear-gradient(45deg, #f1f5f9 25%, transparent 25%), linear-gradient(-45deg, #f1f5f9 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #f1f5f9 75%), linear-gradient(-45deg, transparent 75%, #f1f5f9 75%); background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; }
         /* ตัวอย่างหัวใบพิมพ์ */
         .pv-head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--color-primary); padding-bottom: 8px; }
@@ -66,24 +71,24 @@ include "config_ctrl/checksession.php";
             <div class="flex flex-col gap-4">
                 <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sm:p-5">
                     <h2 class="text-sm font-semibold text-slate-700 mb-3">โลโก้ปัจจุบัน</h2>
-                    <div class="checker rounded-xl border border-slate-200 h-40 flex items-center justify-center overflow-hidden">
-                        <img id="logo-img" class="hidden max-h-32 max-w-[90%] object-contain" alt="โลโก้หน่วยงาน">
-                        <div id="logo-empty" class="text-center text-slate-400 text-sm"><i class="fa-regular fa-image text-3xl mb-2 block"></i>ยังไม่ได้ตั้งโลโก้</div>
-                    </div>
-                    <p id="logo-meta" class="text-xs text-slate-400 mt-2 min-h-[1rem]"></p>
-
-                    <div id="edit-area" class="mt-2 hidden">
-                        <div class="flex gap-2 items-stretch">
-                            <label id="drop" class="drop flex-1 min-w-0 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-slate-50">
-                                <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden">
-                                <i class="fa-solid fa-cloud-arrow-up text-2xl text-sky-600 shrink-0"></i>
-                                <span class="min-w-0">
-                                    <span class="block text-sm font-semibold text-slate-700">คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</span>
-                                    <span class="block text-xs text-slate-400 mt-0.5">PNG, JPG, WEBP หรือ GIF ไม่เกิน 2 MB · แนะนำ PNG พื้นหลังโปร่งใส</span>
-                                </span>
-                            </label>
-                            <button id="btn-delete" type="button" class="hidden shrink-0 w-20 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50 flex flex-col items-center justify-center gap-1" title="ลบโลโก้"><i class="fa-solid fa-trash-can"></i><span class="text-xs">ลบโลโก้</span></button>
+                    <label id="drop" class="drop checker relative rounded-xl h-52 flex items-center justify-center overflow-hidden">
+                        <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" disabled>
+                        <img id="logo-img" class="hidden max-h-40 max-w-[85%] object-contain" alt="โลโก้หน่วยงาน">
+                        <div id="logo-empty" class="text-center text-slate-400 text-sm px-4">
+                            <i id="empty-ico" class="fa-regular fa-image text-3xl mb-2 block"></i>
+                            <span id="empty-text" class="block">ยังไม่ได้ตั้งโลโก้</span>
+                            <span id="empty-hint" class="hidden block text-xs text-slate-400 mt-1">PNG, JPG, WEBP หรือ GIF ไม่เกิน 2 MB · แนะนำ PNG พื้นหลังโปร่งใส</span>
                         </div>
+                        <!-- ชี้/ลากไฟล์มาวางบนโลโก้เดิม => เปลี่ยนโลโก้ -->
+                        <div class="drop-ov absolute inset-0 flex flex-col items-center justify-center gap-1 bg-white/85 text-sky-700 text-sm font-semibold">
+                            <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                            <span>คลิก หรือลากไฟล์มาวาง เพื่อเปลี่ยนโลโก้</span>
+                        </div>
+                        <button id="btn-delete" type="button" class="hidden absolute top-2 right-2 h-8 w-8 rounded-lg bg-white/90 border border-red-200 text-red-600 hover:bg-red-50 shadow-sm" title="ลบโลโก้" aria-label="ลบโลโก้"><i class="fa-solid fa-trash-can text-sm"></i></button>
+                    </label>
+                    <div class="flex items-center justify-between gap-2 mt-2 min-h-[1rem] text-xs text-slate-400">
+                        <span id="logo-meta"></span>
+                        <span id="drop-hint" class="hidden text-right">คลิกหรือลากไฟล์มาวางบนกรอบเพื่อเปลี่ยน</span>
                     </div>
                     <p id="no-perm" class="hidden mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-2.5"><i class="fa-solid fa-lock mr-1"></i> เปลี่ยนโลโก้และการจัดวางได้เฉพาะผู้ดูแลระบบ</p>
                 </section>
@@ -210,7 +215,9 @@ include "config_ctrl/checksession.php";
         $('opt-area').classList.toggle('no-logo', !has);   // ยังไม่มีโลโก้ => ตั้งค่าการจัดวางไม่ได้
         $('opt-empty').classList.toggle('hidden', has);
         $('opt-edit').classList.toggle('hidden', !has || !canEdit);
-        $('btn-delete').classList.toggle('hidden', !has);
+        $('btn-delete').classList.toggle('hidden', !has || !canEdit);
+        $('drop').classList.toggle('has', has);
+        $('drop-hint').classList.toggle('hidden', !has || !canEdit);
         if (has) {
             $('logo-img').src = logo.url; $('pv-logo').src = logo.url;
             saved = { pos: logo.pos === 'left' ? 'left' : 'right', size: clampSize(logo.size || 100), align: AL_CSS[logo.align] ? logo.align : 'center', gap: clampGap(logo.gap == null ? 10 : logo.gap) };
@@ -229,7 +236,11 @@ include "config_ctrl/checksession.php";
         if (r.gap_max) $('gap').max = r.gap_max;
         ['sz', 'sz-dec', 'sz-inc', 'sz-reset', 'gap', 'gap-dec', 'gap-inc', 'gap-reset'].concat(posBtns, alBtns).forEach((el) => { (typeof el === 'string' ? $(el) : el).disabled = !canEdit; });
         show(r.logo);
-        $('edit-area').classList.toggle('hidden', !r.can_edit);
+        $('file').disabled = !canEdit;
+        $('drop').classList.toggle('can-edit', canEdit);
+        $('empty-text').textContent = canEdit ? 'คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่' : 'ยังไม่ได้ตั้งโลโก้';
+        $('empty-ico').className = canEdit ? 'fa-solid fa-cloud-arrow-up text-3xl mb-2 block text-sky-600' : 'fa-regular fa-image text-3xl mb-2 block';
+        $('empty-hint').classList.toggle('hidden', !canEdit);
         $('no-perm').classList.toggle('hidden', !!r.can_edit);
     }
 
@@ -250,11 +261,12 @@ include "config_ctrl/checksession.php";
 
     $('file').addEventListener('change', (e) => upload(e.target.files[0]));
     const drop = $('drop');
-    ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+    ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); if (canEdit) drop.classList.add('over'); }));
     ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
     drop.addEventListener('drop', (e) => upload(e.dataTransfer.files[0]));
 
-    $('btn-delete').addEventListener('click', async () => {
+    $('btn-delete').addEventListener('click', async (e) => {
+        e.preventDefault(); e.stopPropagation();   // ปุ่มอยู่ใน label ของ dropzone — ไม่ให้เปิดหน้าต่างเลือกไฟล์
         const c = await Swal.fire({ title: 'ลบโลโก้หน่วยงาน?', text: 'ใบพิมพ์จะแสดงเฉพาะโลโก้ PROACTIVE', icon: 'warning', showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626' });
         if (!c.isConfirmed) return;
         const r = await (await fetch('handle_agency_logo.php?action=delete', { method: 'POST' })).json();
