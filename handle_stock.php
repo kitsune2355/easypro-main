@@ -112,6 +112,52 @@ function checkAndNotifyLowStock($connect, $pd_id, $wh_id, $qty, $qty_min) {
     }
 }
 
+// ตัวกรองหัวคอลัมน์ของรายงานรับเข้า (PO) / ปรับยอด (AD) — 1 เงื่อนไข => SQL (เฉพาะคอลัมน์ที่อนุญาต) เติมพารามิเตอร์ใน $types / $params
+function stock_report_filter_sql($col, $c, &$types, &$params) {
+    $textCols = ['doc_no' => 't.doc_no', 'details' => 't.details', 'user_id' => 't.user_id'];
+    $ft = (string)($c['filterType'] ?? '');
+    $type = (string)($c['type'] ?? '');
+    if ($ft === 'text' && (isset($textCols[$col]) || $col === 'items')) {
+        if ($type === 'blank' || $type === 'notBlank') {
+            if ($col === 'items') return '';
+            return $type === 'blank' ? "COALESCE({$textCols[$col]}, '') = ''" : "COALESCE({$textCols[$col]}, '') <> ''";
+        }
+        $v = trim((string)($c['filter'] ?? ''));
+        if ($v === '') return '';
+        $map = ['contains' => ['LIKE', "%$v%"], 'notContains' => ['NOT LIKE', "%$v%"], 'equals' => ['=', $v], 'notEqual' => ['<>', $v], 'startsWith' => ['LIKE', "$v%"], 'endsWith' => ['LIKE', "%$v"]];
+        if (!isset($map[$type])) $type = 'contains';
+        list($op, $val) = $map[$type];
+        if ($col === 'items') {
+            // เอกสารเดียวกัน (เลขที่เดียวกัน หรือแถวเดียวกันถ้าไม่มีเลขที่) มีสินค้า/คลังที่ตรงเงื่อนไข
+            $neg = ($type === 'notContains' || $type === 'notEqual');
+            $op2 = $neg ? ($type === 'notEqual' ? '=' : 'LIKE') : $op;
+            array_push($params, $val, $val, $val);
+            $types .= 'sss';
+            return ($neg ? 'NOT ' : '') . "EXISTS (SELECT 1 FROM product_stock_transactions t2
+                    LEFT JOIN tb_repair_product p2 ON p2.pd_id = t2.pd_id
+                    LEFT JOIN tb_wh_stock w2 ON w2.id = t2.wh_id
+                    WHERE t2.trans_type = t.trans_type AND ((COALESCE(t.doc_no, '') <> '' AND t2.doc_no = t.doc_no) OR t2.id = t.id)
+                      AND (COALESCE(t2.snap_pd_code, p2.pd_gen_code) $op2 ? OR COALESCE(t2.snap_pd_name, p2.pd_details_head) $op2 ? OR COALESCE(t2.snap_wh_name, w2.wh_name) $op2 ?))";
+        }
+        $params[] = $val;
+        $types .= 's';
+        return "{$textCols[$col]} $op ?";
+    }
+    if ($ft === 'date' && $col === 'trans_date') {
+        if ($type === 'blank') return 't.trans_date IS NULL';
+        if ($type === 'notBlank') return 't.trans_date IS NOT NULL';
+        $d1 = substr((string)($c['dateFrom'] ?? ''), 0, 10);
+        $d2 = substr((string)($c['dateTo'] ?? ''), 0, 10);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d1)) return '';
+        if ($type === 'inRange' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d2)) { array_push($params, $d1, $d2); $types .= 'ss'; return 't.trans_date BETWEEN ? AND ?'; }
+        $ops = ['equals' => '=', 'notEqual' => '<>', 'lessThan' => '<', 'greaterThan' => '>'];
+        $params[] = $d1;
+        $types .= 's';
+        return 't.trans_date ' . ($ops[$type] ?? '=') . ' ?';
+    }
+    return '';
+}
+
 function generatePONumber($connect, $type, $ag_id) {
     // 1. กำหนด Prefix ตามประเภท: IN -> PO, ADJUST -> AD
     $prefix_code = ($type === 'IN') ? "RC" : "AJ";
@@ -903,7 +949,30 @@ if ($action === 'save_product') {
         $types .= "s";
     }
 
-    $sql .= " ORDER BY t.trans_date DESC, t.id DESC";
+    // 4. ตัวกรองที่หัวคอลัมน์ (ag-Grid filterModel) — รายการสินค้า: แสดงทั้งเอกสารที่มีสินค้าตรงเงื่อนไข
+    $fm = json_decode((string)($_GET['filter'] ?? ''), true);
+    if (is_array($fm)) {
+        foreach ($fm as $col => $f) {
+            if (!is_array($f)) continue;
+            $conds = isset($f['conditions']) && is_array($f['conditions']) ? $f['conditions'] : [$f];
+            $join = (isset($f['operator']) && strtoupper($f['operator']) === 'OR') ? ' OR ' : ' AND ';
+            $parts = [];
+            foreach ($conds as $c) {
+                $part = stock_report_filter_sql((string)$col, $c, $types, $params);
+                if ($part !== '') $parts[] = $part;
+            }
+            if ($parts) $sql .= ' AND (' . implode($join, $parts) . ')';
+        }
+    }
+
+    // 5. เรียงตามหัวคอลัมน์ (ค่าเริ่มต้น: วันที่ล่าสุดก่อน) — เรียงแถวก่อนจัดกลุ่มตามเลขที่เอกสาร ลำดับกลุ่มจึงตามที่เลือก
+    $sortCols = ['doc_no' => 't.doc_no', 'trans_date' => 't.trans_date', 'details' => 't.details', 'user_id' => 't.user_id'];
+    $order = [];
+    foreach ((array)json_decode((string)($_GET['sort'] ?? ''), true) as $so) {
+        $cid = is_array($so) ? (string)($so['colId'] ?? '') : '';
+        if (isset($sortCols[$cid])) $order[] = $sortCols[$cid] . (strtolower((string)($so['sort'] ?? '')) === 'desc' ? ' DESC' : ' ASC');
+    }
+    $sql .= ' ORDER BY ' . ($order ? implode(', ', $order) . ', t.id DESC' : 't.trans_date DESC, t.id DESC');
 
     $stmt = $connect->prepare($sql);
     

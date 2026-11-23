@@ -77,6 +77,7 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
   .docno { flex: none; text-align: right; line-height: 1.2; }
   .docno small { display: block; color: var(--muted); font-size: 10.5px; }
   .docno b { font-size: 17px; color: var(--brand); letter-spacing: .2px; }
+  .void-note { margin: -2px 0 10px; padding: 6px 10px; border: 1px solid #fecaca; border-radius: 6px; background: #fef2f2; color: #b91c1c; font-size: 12px; overflow-wrap: anywhere; }
   .chip-void { display: inline-block; margin-top: 3px; padding: 0 8px; border-radius: 99px; background: #fee2e2; color: #b91c1c; font-size: 11px; font-weight: 700; }
 
   /* กล่องข้อมูล */
@@ -123,7 +124,7 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
     body { background: #fff; }
     .bar, .foot-screen { display: none; }
     .sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
-    .info div, table.items tbody tr:nth-child(even) td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .void-note, .info div, table.items tbody tr:nth-child(even) td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .void { position: fixed; }
   }
 </style>
@@ -158,6 +159,9 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
     <div><small>จำนวนรายการ</small><b><?php echo count($items); ?> รายการ</b></div>
   </div>
 
+  <?php if ($cancelled): ?>
+  <div class="void-note"><b>ยกเลิกแล้ว</b><?php if (!empty($pr['cancelled_at'])): ?> เมื่อ <?php echo h(spr_thai_date(substr($pr['cancelled_at'], 0, 10)) . ' ' . substr($pr['cancelled_at'], 11, 5)); ?><?php endif; ?><?php if (trim((string)($pr['cancel_reason'] ?? '')) !== ''): ?> · เหตุผล: <?php echo h($pr['cancel_reason']); ?><?php endif; ?></div>
+  <?php endif; ?>
   <p class="lead">โปรดดำเนินการจัดซื้อพัสดุตามรายการและจำนวนต่อไปนี้<?php if (!empty($pr['deliver_date'])): ?> โดยจัดส่งภายในวันที่ <?php echo h(spr_thai_date($pr['deliver_date'])); ?><?php endif; ?></p>
 
   <table class="items">

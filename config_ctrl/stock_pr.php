@@ -19,6 +19,9 @@ if (!function_exists('spr_ensure')) {
             remark TEXT NULL COMMENT 'หมายเหตุท้ายเอกสาร',
             req_name VARCHAR(150) NULL COMMENT 'ผู้ขอซื้อ/ขอจ้าง',
             status TINYINT NOT NULL DEFAULT 1 COMMENT '1 = ใช้งาน, 0 = ยกเลิก',
+            cancel_reason VARCHAR(500) NULL COMMENT 'เหตุผลที่ยกเลิก',
+            cancelled_at DATETIME NULL,
+            cancelled_by VARCHAR(50) NULL,
             created_at DATETIME NULL,
             created_by VARCHAR(50) NULL,
             updated_at DATETIME NULL,
@@ -42,6 +45,11 @@ if (!function_exists('spr_ensure')) {
             updated_by VARCHAR(50) NULL,
             KEY idx_pr (pr_id, line_no)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        // ตารางที่สร้างก่อนมีเหตุผลการยกเลิก => เพิ่มคอลัมน์
+        $cols = [];
+        $rs = mysqli_query($connect, "SHOW COLUMNS FROM tb_stock_pr");
+        if ($rs) { while ($c = mysqli_fetch_assoc($rs)) $cols[$c['Field']] = true; mysqli_free_result($rs); }
+        if ($cols && !isset($cols['cancel_reason'])) mysqli_query($connect, "ALTER TABLE tb_stock_pr ADD COLUMN cancel_reason VARCHAR(500) NULL COMMENT 'เหตุผลที่ยกเลิก' AFTER status, ADD COLUMN cancelled_at DATETIME NULL AFTER cancel_reason, ADD COLUMN cancelled_by VARCHAR(50) NULL AFTER cancelled_at");
     }
 
     // คำนำหน้าเลขที่ของวันที่เอกสาร เช่น 2026-11-10 => PR-6911-

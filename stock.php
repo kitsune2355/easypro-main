@@ -601,7 +601,9 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                             ag_id: AG_ID,
                             limit: limit,
                             offset: offset,
-                            search: search
+                            search: search,
+                            filter: JSON.stringify((gridApi && gridApi.getFilterModel()) || {}),   // ตัวกรองที่หัวคอลัมน์
+                            sort: JSON.stringify(gridApi ? gridApi.getColumnState().filter(c => c.sort).sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0)).map(c => ({ colId: c.colId, sort: c.sort })) : [])
                         }
                     });
                     return response.data;
@@ -618,7 +620,11 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
         Object.assign(StockAPI, {
             getPrListAPI: async (limit, offset, search = '') => {
                 try {
-                    const r = await axios.get('handle_stock_pr.php', { params: { action: 'list', limit, offset, q: search } });
+                    const r = await axios.get('handle_stock_pr.php', { params: {
+                        action: 'list', limit, offset, q: search,
+                        filter: JSON.stringify((gridApi && gridApi.getFilterModel()) || {}),   // ตัวกรองที่หัวคอลัมน์
+                        sort: JSON.stringify(gridApi ? gridApi.getColumnState().filter(c => c.sort).sort((a, b) => (a.sortIndex || 0) - (b.sortIndex || 0)).map(c => ({ colId: c.colId, sort: c.sort })) : [])
+                    } });
                     return r.data.success ? { success: true, data: r.data.rows, total: r.data.total } : { success: false, data: [], total: 0 };
                 } catch (e) {
                     console.error('PR list error:', e);
@@ -793,19 +799,19 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                 const qty = n => Number(n).toLocaleString('th-TH', { maximumFractionDigits: 2 });
                 return [
                     {
-                        headerName: 'เลขที่เอกสาร', field: 'pr_no', width: 140, pinned: 'left',
+                        headerName: 'เลขที่เอกสาร', field: 'pr_no', width: 150, pinned: 'left', filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] },
                         cellRenderer: p => p.data ? `
                             <div class="flex flex-col justify-center h-full leading-tight">
                                 <span class="${p.data.status ? 'text-sky-600' : 'text-slate-400 line-through'} font-bold text-[13px] tracking-tight">${esc(p.value)}</span>
-                                <span class="text-[9px] ${p.data.status ? 'text-slate-400' : 'text-rose-500'} uppercase font-semibold">${p.data.status ? 'Purchase Request' : 'ยกเลิกแล้ว'}</span>
+                                <span class="text-[9px] ${p.data.status ? 'text-slate-400' : 'text-rose-500'} uppercase font-semibold" ${p.data.status ? '' : `title="เหตุผล: ${esc(p.data.cancel_reason || '-')}"`}>${p.data.status ? 'Purchase Request' : 'ยกเลิกแล้ว'}</span>
                             </div>` : ''
                     },
                     {
-                        headerName: 'วันที่ขอซื้อ', field: 'pr_date', width: 130, pinned: 'left',
+                        headerName: 'วันที่ขอซื้อ', field: 'pr_date', width: 140, pinned: 'left', filter: 'agDateColumnFilter', filterParams: { filterOptions: ['equals', 'inRange', 'lessThan', 'greaterThan'], maxNumConditions: 1, buttons: ['reset'], inRangeInclusive: true },
                         cellRenderer: p => `<div class="flex flex-col justify-center h-full"><span class="text-slate-600 text-[12px]">${thDate(p.value)}</span></div>`
                     },
                     {
-                        headerName: 'รายการสินค้า', field: 'items', flex: 2, minWidth: 300, autoHeight: true,
+                        headerName: 'รายการสินค้า', field: 'items', flex: 2, minWidth: 300, autoHeight: true, sortable: false, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] },
                         cellRenderer: params => {
                             const items = (params.data && params.data.items) || [];
                             if (items.length === 0) return '<div class="py-2 text-slate-400 italic text-[11px] px-4 text-center">ไม่มีรายการ</div>';
@@ -850,24 +856,36 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                         }
                     },
                     {
-                        headerName: 'ผู้ขอซื้อ', field: 'req_name', width: 150,
+                        headerName: 'ผู้ขอซื้อ', field: 'req_name', width: 160, filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] },
                         cellRenderer: p => `<div class="flex items-center h-full text-[12px] text-slate-700">${esc(p.value)}</div>`
                     },
                     {
-                        headerName: 'จัดส่งภายใน', field: 'deliver_date', width: 115,
+                        headerName: 'จัดส่งภายใน', field: 'deliver_date', width: 135, filter: 'agDateColumnFilter', filterParams: { filterOptions: ['equals', 'inRange', 'lessThan', 'greaterThan'], maxNumConditions: 1, buttons: ['reset'], inRangeInclusive: true },
                         cellRenderer: p => `<div class="flex items-center h-full text-slate-600 text-[12px]">${thDate(p.value)}</div>`
                     },
                     {
-                        headerName: 'หมายเหตุ', field: 'remark', flex: 0.8, minWidth: 140, pinned: 'right',
-                        cellRenderer: p => `
+                        headerName: 'หมายเหตุ', field: 'remark', flex: 0.8, minWidth: 140, pinned: 'right', filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] },
+                        cellRenderer: p => (p.data && !p.data.status) ? `
+                            <div class="flex items-center h-full text-[11px] gap-3">
+                                <p class="text-rose-600 truncate mb-1" title="ยกเลิก: ${esc(p.data.cancel_reason || '-')}">ยกเลิก: ${esc(p.data.cancel_reason || '-')}</p>
+                            </div>` : `
                             <div class="flex items-center h-full text-[11px] gap-3">
                                 <p class="text-slate-500 italic truncate mb-1" title="${esc(p.value)}">${p.value ? esc(p.value) : 'ไม่มีหมายเหตุ'}</p>
                             </div>`
                     },
                     {
-                        headerName: '', field: 'pr_id', width: 120, pinned: 'right', sortable: false, filter: false,
+                        headerName: 'สถานะ', field: 'status', width: 120, pinned: 'right',
+                        filter: 'agSetColumnFilter',
+                        filterParams: { values: ['1', '0'], valueFormatter: p => String(p.value) === '1' ? 'ใช้งาน' : 'ยกเลิก', suppressMiniFilter: true, buttons: ['reset'] },
+                        cellRenderer: p => p.data ? (p.data.status
+                            ? '<div class="flex items-center h-full"><span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">ใช้งาน</span></div>'
+                            : '<div class="flex items-center h-full"><span class="text-[11px] px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 font-bold">ยกเลิก</span></div>') : ''
+                    },
+                    {
+                        headerName: '', field: 'pr_id', width: 120, pinned: 'right', sortable: false, filter: false, suppressMovable: true,
                         cellRenderer: p => p.data ? `<div class="flex items-center justify-end gap-1 h-full">
                                 <button type="button" onclick="PrManager.print(${p.data.pr_id})" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 inline-flex items-center justify-center" title="พิมพ์" aria-label="พิมพ์ ${esc(p.data.pr_no)}"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                                ${p.data.can_edit ? `<button type="button" onclick="PrManager.edit(${p.data.pr_id})" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 inline-flex items-center justify-center" title="แก้ไข" aria-label="แก้ไข ${esc(p.data.pr_no)}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>` : ''}
                                 ${p.data.can_cancel ? `<button type="button" onclick="PrManager.cancel(${p.data.pr_id}, '${esc(p.data.pr_no)}')" class="h-7 w-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 inline-flex items-center justify-center" title="ยกเลิกใบนี้"><i data-lucide="ban" class="w-4 h-4"></i></button>` : ''}
                             </div>` : ''
                     }
@@ -877,7 +895,8 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
             getReportPoCols: () => [
                 { 
                     headerName: 'เลขที่เอกสาร', 
-                    field: 'doc_no', 
+                    field: 'doc_no',
+                    filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] },   // กรองที่หัวคอลัมน์
                     width: 140, 
                     pinned: 'left',
                     cellRenderer: params => `
@@ -889,7 +908,8 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                 },
                 { 
                     headerName: 'วันที่รับเข้า', 
-                    field: 'trans_date', 
+                    field: 'trans_date',
+                    filter: 'agDateColumnFilter', filterParams: { filterOptions: ['equals', 'inRange', 'lessThan', 'greaterThan'], maxNumConditions: 1, buttons: ['reset'], inRangeInclusive: true },   // กรองที่หัวคอลัมน์
                     width: 130,
                     pinned: 'left',
                     cellRenderer: params => `
@@ -900,7 +920,8 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                 },
                 { 
                     headerName: 'รายการสินค้า', 
-                    field: 'items', 
+                    field: 'items',
+                    filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] }, sortable: false,   // กรองที่หัวคอลัมน์
                     flex: 2,
                     minWidth: 300,
                     autoHeight: true, 
@@ -962,7 +983,8 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                 },
                 { 
                     headerName: 'หมายเหตุ', 
-                    field: 'details', 
+                    field: 'details',
+                    filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] },   // กรองที่หัวคอลัมน์
                     flex: 0.8, 
                     pinned: 'right',
                     cellRenderer: params => `
@@ -973,7 +995,8 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                 },
                 { 
                     headerName: 'ผู้ทำรายการ', 
-                    field: 'user_id', 
+                    field: 'user_id',
+                    filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] },   // กรองที่หัวคอลัมน์
                     width: 140,
                     pinned: 'right',
                     cellRenderer: params => `
@@ -992,7 +1015,8 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
             getReportAdjustCols: () => [
                 { 
                     headerName: 'เลขที่เอกสาร', 
-                    field: 'doc_no', 
+                    field: 'doc_no',
+                    filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] },   // กรองที่หัวคอลัมน์
                     width: 140, 
                     pinned: 'left',
                     cellRenderer: params => `
@@ -1004,7 +1028,8 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                 },
                 { 
                     headerName: 'วันที่ตรวจสอบยอด', 
-                    field: 'trans_date', 
+                    field: 'trans_date',
+                    filter: 'agDateColumnFilter', filterParams: { filterOptions: ['equals', 'inRange', 'lessThan', 'greaterThan'], maxNumConditions: 1, buttons: ['reset'], inRangeInclusive: true },   // กรองที่หัวคอลัมน์
                     width: 130,
                     pinned: 'left',
                     cellRenderer: params => `
@@ -1015,7 +1040,8 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                 },
                 { 
                     headerName: 'รายการสินค้าที่ปรับยอด', 
-                    field: 'items', 
+                    field: 'items',
+                    filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] }, sortable: false,   // กรองที่หัวคอลัมน์
                     flex: 2, 
                     minWidth: 350, 
                     autoHeight: true, 
@@ -1096,7 +1122,8 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                 },
                 { 
                     headerName: 'หมายเหตุ', 
-                    field: 'details', 
+                    field: 'details',
+                    filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] },   // กรองที่หัวคอลัมน์
                     flex: 0.8, 
                     pinned: 'right',
                     cellRenderer: params => `
@@ -1107,7 +1134,8 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                 },
                 { 
                     headerName: 'ผู้ทำรายการ', 
-                    field: 'user_id', 
+                    field: 'user_id',
+                    filter: 'agTextColumnFilter', filterParams: { filterOptions: ['contains', 'notContains', 'equals', 'startsWith'], maxNumConditions: 1, buttons: ['reset'] },   // กรองที่หัวคอลัมน์
                     width: 140,
                     pinned: 'right',
                     cellRenderer: params => `
@@ -1168,6 +1196,12 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                 sheetName = 'PO_Report';
                 exportColumns = ['doc_no', 'trans_date', 'items', 'remark', 'user_id', 'details'];
 
+            } else if (State.selectedMenuId === 'report-pr') {
+                // --- คอลัมน์สำหรับตาราง ใบขอซื้อ (PR) ---
+                fileName = `ใบขอซื้อ_PR_${new Date().toISOString().split('T')[0]}.xlsx`;
+                sheetName = 'PR';
+                exportColumns = ['pr_no', 'pr_date', 'items', 'req_name', 'deliver_date', 'remark', 'status'];
+
             } else if (State.selectedMenuId === 'report-adjust') {
                 // --- คอลัมน์สำหรับตาราง รายงานปรับยอด (AD) ---
                 fileName = `รายงานปรับยอด_AD_${new Date().toISOString().split('T')[0]}.xlsx`;
@@ -1205,6 +1239,7 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                     const colDef = params.column.getColDef();
                     if (colDef.field === 'pd_price') return 'ราคา (บาท)';
                     if (colDef.field === 'pd_qty') return 'จำนวนคงเหลือ';
+                    if (State.selectedMenuId === 'report-pr' && colDef.field === 'status') return 'สถานะ';
                     return colDef.headerName || colDef.field;
                 },
 
@@ -1239,6 +1274,9 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                                 // ตัวอย่างผลลัพธ์: "1. [CODE-001] ชื่อสินค้า (ยอดเก่า: 10 -> ยอดใหม่: 15 | ส่วนต่าง: +5 ชิ้น)"
                                 formattedItem += `${name} (ยอดเก่า: ${oldQty} -> ยอดใหม่: ${newQty} | ส่วนต่าง: ${diffDisplay} ${unit})`;
 
+                            } else if (State.selectedMenuId === 'report-pr') {
+                                // ใบขอซื้อ: "1. [CODE] ชื่อ (จำนวน: 3 ชิ้น) - หมายเหตุ"
+                                formattedItem += `${name} (จำนวน: ${Number(item.qty || 0).toLocaleString('th-TH')} ${unit})${item.pd_id ? '' : ' [นอกสต็อก]'}${item.note ? ' - ' + item.note : ''}`;
                             } else {
                                 // กรณีเป็นรายงานรับเข้า (PO) ปกติ
                                 const qty = item.qty || item.qty_change || 0; // จำนวนรับเข้า
@@ -1250,7 +1288,10 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                     }
 
                     // จัดการรูปแบบวันที่ (โค้ดเดิม)
-                    if ((colId === 'trans_date' || colId === 'adj_date') && value) {
+                    if (State.selectedMenuId === 'report-pr' && colId === 'status') {
+                        return Number(value) === 1 ? 'ใช้งาน' : `ยกเลิก${params.node?.data?.cancel_reason ? ' (' + params.node.data.cancel_reason + ')' : ''}`;
+                    }
+                    if ((colId === 'trans_date' || colId === 'adj_date' || colId === 'pr_date' || colId === 'deliver_date') && value) {
                         return new Date(value).toLocaleDateString('th-TH', { 
                             year: 'numeric', month: 'short', day: 'numeric' 
                         });
@@ -1938,10 +1979,14 @@ if (targetPdId) {
 
         // --- DRAWER & FORM MANAGER ---
         // ===== ใบขอซื้อ (PR) =====
-        //  ติ๊กเลือกสินค้าในตารางสต็อก -> แถบด้านล่าง "ขอซื้อ" -> ฟอร์มใน drawer -> บันทึก (ออกเลขที่ PR-YYMM-NNNN) -> พิมพ์จากเมนู "ใบขอซื้อ (PR)"
-        //  รายการใบขอซื้อ: เมนู "ใบขอซื้อ (PR)" (ตารางแบบเดียวกับรายงาน) · API: handle_stock_pr.php · พิมพ์: stock_pr_print.php
+        //  ใบใหม่: ติ๊กเลือกสินค้าในตารางสต็อก -> แถบด้านล่าง "ขอซื้อ" -> ฟอร์มใน drawer -> บันทึก (ออกเลขที่ PR-YYMM-NNNN)
+        //  ในฟอร์ม: ค้นหาเพิ่มสินค้าในสต็อก / เพิ่มรายการนอกสต็อก / เอารายการออก · แก้ไขใบเดิมได้ (เลขที่เดิม) · ยกเลิกต้องระบุเหตุผล
+        //  รายการใบขอซื้อ: เมนู "ใบขอซื้อ (PR)" (ตารางแบบรายงาน กรองที่หัวคอลัมน์) · API: handle_stock_pr.php · พิมพ์: stock_pr_print.php
         const PrManager = {
-            lines: [],
+            lines: [],          // [{ key, pd_id|null, code, name, detail, unit, wh[], stock, min, qty, note, free }]
+            editId: null,       // แก้ไขใบเดิม (null = ใบใหม่)
+            products: null,     // สินค้าในสต็อก (โหลดเมื่อค้นหาครั้งแรก)
+            seq: 0,
             esc: v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
 
             // พิมพ์: เปิดใบพิมพ์ในแท็บใหม่ แล้วขึ้นหน้าต่างสั่งพิมพ์ทันที (stock_pr_print.php?autoprint=1)
@@ -1950,45 +1995,82 @@ if (targetPdId) {
             // ปุ่ม "สร้างใบขอซื้อ" ในเมนูใบขอซื้อ => ไปที่รายการสินค้าเพื่อเลือก
             startNew: () => {
                 AppController.selectMenu('all');
-                Swal.fire({ icon: 'info', title: 'เลือกสินค้าที่จะขอซื้อ', html: 'ติ๊กเลือกสินค้าในตาราง แล้วกดปุ่ม <b>ขอซื้อ</b> ที่แถบด้านล่าง', confirmButtonText: 'เข้าใจแล้ว', confirmButtonColor: '#006B9F' });
+                Swal.fire({ icon: 'info', title: 'เลือกสินค้าที่จะขอซื้อ', html: 'ติ๊กเลือกสินค้าในตาราง แล้วกดปุ่ม <b>ขอซื้อ</b> ที่แถบด้านล่าง<br><span style="font-size:13px;color:#64748b">ในฟอร์มยังค้นหาเพิ่มสินค้า หรือเพิ่มรายการที่ไม่มีในสต็อกได้</span>', confirmButtonText: 'เข้าใจแล้ว', confirmButtonColor: '#006B9F' });
             },
 
+            edit: (id) => DrawerManager.open('pr', id),
+
             cancel: async (id, no) => {
-                const ok = await Swal.fire({ title: `ยกเลิกใบขอซื้อ ${no}?`, text: 'ใบที่ยกเลิกยังดูและพิมพ์ได้ (มีตราว่า "ยกเลิก") แต่เลขที่นี้จะไม่ถูกนำกลับมาใช้', icon: 'warning', showCancelButton: true, confirmButtonText: 'ยกเลิกใบนี้', cancelButtonText: 'ปิด', confirmButtonColor: '#dc2626' });
+                const ok = await Swal.fire({
+                    title: `ยกเลิกใบขอซื้อ ${no}?`,
+                    html: '<div style="font-size:13px;color:#64748b">ใบที่ยกเลิกยังดูและพิมพ์ได้ (มีตราว่า "ยกเลิก") แต่เลขที่นี้จะไม่ถูกนำกลับมาใช้</div>',
+                    input: 'textarea', inputLabel: 'เหตุผลที่ยกเลิก', inputPlaceholder: 'เช่น สั่งซ้ำกับใบ PR-xxxx, ไม่ต้องการสินค้าแล้ว',
+                    inputAttributes: { maxlength: 500 },
+                    inputValidator: v => (!v || !v.trim()) ? 'กรุณาระบุเหตุผลที่ยกเลิก' : undefined,
+                    icon: 'warning', showCancelButton: true, confirmButtonText: 'ยกเลิกใบนี้', cancelButtonText: 'ปิด', confirmButtonColor: '#dc2626'
+                });
                 if (!ok.isConfirmed) return;
                 const fd = new FormData();
                 fd.append('id', id);
+                fd.append('reason', ok.value.trim());
                 try {
                     const r = (await axios.post('handle_stock_pr.php?action=cancel', fd)).data;
                     if (!r.success) throw new Error(r.error || 'ยกเลิกไม่สำเร็จ');
-                    AppController.selectMenu('report-pr');
+                    PrManager.refreshList();
                 } catch (e) {
                     Swal.fire('ข้อผิดพลาด', e.response?.data?.error || e.message, 'error');
                 }
             },
 
-            // ฟอร์มใน drawer — สินค้าเดียวกันที่เลือกจากหลายคลังรวมเป็นบรรทัดเดียว (คงเหลือ/จุดสั่งซื้อรวมกัน)
-            renderForm: async (els) => {
-                const esc = PrManager.esc;
-                const selected = await AppController.getSelectedItemsFull();
-                const map = new Map();
-                selected.forEach(it => {
-                    const id = parseInt(it.pd_id);
-                    if (!id) return;
-                    if (!map.has(id)) map.set(id, { pd_id: id, code: it.pd_gen_code, name: it.pd_details_head, detail: it.pd_details, unit: it.pd_unit, wh: [], qty: 0, min: 0 });
-                    const l = map.get(id);
-                    l.qty += parseInt(it.pd_qty) || 0;
-                    l.min += parseInt(it.pd_qty_min) || 0;
-                    if (it.wh_name && !l.wh.includes(it.wh_name)) l.wh.push(it.wh_name);
-                });
-                PrManager.lines = [...map.values()];
-                const n = PrManager.lines.length;
-                els.title.innerText = 'ใบขอซื้อ (PR)';
-                els.sub.innerText = `รายการที่เลือก ${n} รายการ`;
-                if (!n) {
-                    els.body.innerHTML = '<div class="p-6 text-center text-sm text-slate-400">ยังไม่ได้เลือกสินค้า — ติ๊กเลือกสินค้าในตารางก่อน</div>';
-                    return;
+            refreshList: () => {
+                if (State.selectedMenuId !== 'report-pr') return;
+                if (gridApi && typeof gridApi.refreshServerSide === 'function') gridApi.refreshServerSide({ purge: true });
+                else AppController.selectMenu('report-pr');
+            },
+
+            // ---------- ฟอร์มใน drawer ----------
+            newLine: (o) => Object.assign({ key: 'l' + (++PrManager.seq), pd_id: null, code: '', name: '', detail: '', unit: '', wh: [], stock: null, min: 0, qty: 1, note: '', free: false }, o),
+            suggestQty: (stock, min) => Math.max(1, min > 0 && stock !== null ? min - stock : 1),
+
+            renderForm: async (els, editId = null) => {
+                PrManager.editId = editId ? parseInt(editId) : null;
+                PrManager.products = null;   // โหลดสินค้าใหม่ทุกครั้งที่เปิดฟอร์ม (คงเหลือล่าสุด)
+                PrManager.lines = [];
+                els.title.innerText = PrManager.editId ? 'แก้ไขใบขอซื้อ (PR)' : 'ใบขอซื้อ (PR)';
+                els.sub.innerText = 'กำลังโหลด...';
+                let head = null;
+                if (PrManager.editId) {
+                    try {
+                        const r = (await axios.get('handle_stock_pr.php', { params: { action: 'get', id: PrManager.editId } })).data;
+                        if (!r.success) throw new Error(r.error || 'โหลดใบขอซื้อไม่สำเร็จ');
+                        if (!r.pr.can_edit) throw new Error('ใบนี้แก้ไขไม่ได้ (ยกเลิกแล้ว หรือไม่ใช่ผู้สร้างใบ)');
+                        head = r.pr;
+                        PrManager.lines = r.items.map(it => PrManager.newLine({
+                            pd_id: it.pd_id, code: it.pd_code || '', name: it.pd_name || '', unit: it.pd_unit || '', qty: it.qty, note: it.note || '',
+                            wh: it.wh || [], stock: it.stock ?? null, min: it.min || 0, free: !it.pd_id
+                        }));
+                    } catch (e) {
+                        els.body.innerHTML = `<div class="p-6 text-center text-sm text-rose-600">${PrManager.esc(e.response?.data?.error || e.message)}</div>`;
+                        els.sub.innerText = '';
+                        return;
+                    }
+                } else {
+                    // สินค้าเดียวกันที่เลือกจากหลายคลังรวมเป็นบรรทัดเดียว (คงเหลือ/จุดสั่งซื้อรวมกัน)
+                    const selected = await AppController.getSelectedItemsFull();
+                    const map = new Map();
+                    selected.forEach(it => {
+                        const id = parseInt(it.pd_id);
+                        if (!id) return;
+                        if (!map.has(id)) map.set(id, PrManager.newLine({ pd_id: id, code: it.pd_gen_code, name: it.pd_details_head, detail: it.pd_details, unit: it.pd_unit, stock: 0, min: 0 }));
+                        const l = map.get(id);
+                        l.stock += parseInt(it.pd_qty) || 0;
+                        l.min += parseInt(it.pd_qty_min) || 0;
+                        if (it.wh_name && !l.wh.includes(it.wh_name)) l.wh.push(it.wh_name);
+                    });
+                    PrManager.lines = [...map.values()];
+                    PrManager.lines.forEach(l => { l.qty = PrManager.suggestQty(l.stock, l.min); });
                 }
+
                 const field = (id, label, attrs = '') => `<div><label class="label-xs" for="${id}">${label}</label><input id="${id}" class="input-base" ${attrs}></div>`;
                 els.body.innerHTML = `
                     <div class="space-y-4">
@@ -1996,29 +2078,38 @@ if (targetPdId) {
                             ${field('pr-date', 'วันที่เอกสาร', 'type="date"')}
                             ${field('pr-deliver', 'จัดส่งภายในวันที่', 'type="date"')}
                         </div>
-                        <div class="space-y-2">
-                            ${PrManager.lines.map(l => {
-                                const low = l.min > 0 && l.qty <= l.min;
-                                const suggest = Math.max(1, l.min > 0 ? l.min - l.qty : 1);
-                                return `
-                                <div class="p-3 bg-white border border-slate-100 rounded-xl">
-                                    <div class="flex justify-between items-center gap-2">
-                                        <div class="min-w-0 pr-2">
-                                            <div class="text-xs font-bold text-slate-700 leading-tight">${esc(l.name)}</div>
-                                            <div class="mt-1 flex flex-wrap items-center gap-1">
-                                                <span class="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-500 font-bold rounded">${esc(l.code)}</span>
-                                                ${l.wh.map(w => `<span class="text-[9px] px-1.5 py-0.5 bg-primary/10 text-primary font-bold rounded">${esc(w)}</span>`).join('')}
-                                                <span class="text-[10px] font-semibold ${low ? 'text-rose-600' : 'text-slate-400'}">คงเหลือ ${l.qty.toLocaleString()}${l.min > 0 ? ' / จุดสั่งซื้อ ' + l.min.toLocaleString() : ''}</span>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center gap-2 shrink-0">
-                                            <input type="number" min="0" step="any" value="${suggest}" data-id="${l.pd_id}" class="pr-qty w-20 px-2 py-2 text-center bg-sky-50 border border-sky-100 rounded-xl outline-none font-bold text-sky-700 focus:ring-2 focus:ring-sky-500/20" aria-label="จำนวนที่ขอซื้อ ${esc(l.name)}">
-                                            <span class="text-[10px] font-bold text-slate-400 w-8 truncate" title="${esc(l.unit)}">${esc(l.unit || 'หน่วย')}</span>
-                                        </div>
+                        <div>
+                            <div class="label-xs mb-2">รายการที่ขอซื้อ <span id="pr-n" class="text-sky-600"></span></div>
+                            <div id="pr-lines" class="space-y-2"></div>
+
+                            <!-- เพิ่มรายการ: แท็บ สินค้าในสต็อก / นอกสต็อก -->
+                            <div id="pr-add" class="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-3">
+                                <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                                    <span class="text-xs font-bold text-slate-600 inline-flex items-center gap-1"><i data-lucide="plus-circle" class="w-4 h-4 text-sky-600"></i> เพิ่มรายการ</span>
+                                    <div class="inline-flex p-0.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold" role="tablist" aria-label="ประเภทรายการที่จะเพิ่ม">
+                                        <button type="button" data-add-tab="stock" role="tab" class="pr-tab px-2.5 py-1 rounded-md">สินค้าในสต็อก</button>
+                                        <button type="button" data-add-tab="free" role="tab" class="pr-tab px-2.5 py-1 rounded-md">นอกสต็อก</button>
                                     </div>
-                                    <input type="text" maxlength="255" data-id="${l.pd_id}" class="pr-note mt-2 w-full px-3 py-1.5 text-xs border border-slate-100 rounded-lg outline-none focus:border-sky-300" placeholder="หมายเหตุรายการ (ถ้ามี)">
-                                </div>`;
-                            }).join('')}
+                                </div>
+                                <div id="pr-add-stock">
+                                    <div class="relative">
+                                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                                        <input type="text" id="pr-pd-search" autocomplete="off" placeholder="พิมพ์รหัสหรือชื่อสินค้า แล้วกดเลือก" class="w-full pl-9 pr-3 py-2 text-sm bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-300" aria-label="ค้นหาสินค้าในสต็อกเพื่อเพิ่ม">
+                                        <div id="pr-pd-results" class="hidden absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-y-auto"></div>
+                                    </div>
+                                    <p class="mt-1.5 text-[10.5px] text-slate-400">สินค้าที่มีในระบบสต็อก — เห็นคงเหลือและจุดสั่งซื้อ</p>
+                                </div>
+                                <div id="pr-add-free" class="hidden">
+                                    <input type="text" id="pr-free-name" maxlength="500" class="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:border-sky-300" placeholder="ชื่อรายการ *" aria-label="ชื่อรายการนอกสต็อก">
+                                    <div class="mt-2 flex items-center gap-2">
+                                        <input type="text" id="pr-free-code" maxlength="100" class="flex-1 min-w-0 px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-sky-300" placeholder="รหัส (ถ้ามี)" aria-label="รหัส">
+                                        <input type="text" id="pr-free-unit" maxlength="100" class="w-20 px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-sky-300" placeholder="หน่วย" aria-label="หน่วย">
+                                        <input type="number" id="pr-free-qty" min="0" step="any" value="1" class="w-16 px-2 py-2 text-center text-xs font-bold bg-white border border-slate-200 rounded-lg outline-none focus:border-sky-300" aria-label="จำนวน">
+                                        <button type="button" id="pr-free-add" class="shrink-0 h-8 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold inline-flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i> เพิ่ม</button>
+                                    </div>
+                                    <p class="mt-1.5 text-[10.5px] text-slate-400">ของที่ยังไม่มีในระบบสต็อก — ถ้าจะใช้ประจำ แนะนำให้เพิ่มเป็นสินค้าในสต็อกก่อน</p>
+                                </div>
+                            </div>
                         </div>
                         ${field('pr-req', 'ผู้ขอซื้อ/ขอจ้าง *', 'type="text" maxlength="150"')}
                         <div>
@@ -2026,45 +2117,211 @@ if (targetPdId) {
                             <textarea id="pr-remark" rows="2" maxlength="2000" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-primary/20" placeholder="เช่น สำรองไว้ใช้งานซ่อมบำรุงประจำเดือน, ต้องการด่วนภายในสัปดาห์นี้"></textarea>
                         </div>
                     </div>`;
-                try {
-                    const r = (await axios.get('handle_stock_pr.php', { params: { action: 'defaults' } })).data;
-                    if (!r.success) throw new Error(r.error);
-                    const d = r.defaults;
-                    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
-                    set('pr-date', d.pr_date);
-                    set('pr-req', d.req_name);
-                    // เลขที่โดยประมาณ (เลขจริงออกตอนบันทึก — ถ้ามีคนบันทึกก่อน เลขอาจขยับ)
-                    els.sub.innerText = `เลขที่ ${d.pr_no} · ${n} รายการ`;
-                } catch (e) { /* เลขที่ออกตอนบันทึก */ }
+                PrManager.renderLines();
+                PrManager.bindForm();
+                const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+                if (head) {
+                    set('pr-date', head.pr_date); set('pr-deliver', head.deliver_date); set('pr-req', head.req_name); set('pr-remark', head.remark);
+                    els.sub.innerText = `เลขที่ ${head.pr_no} (เลขเดิม)`;
+                } else {
+                    try {
+                        const r = (await axios.get('handle_stock_pr.php', { params: { action: 'defaults' } })).data;
+                        if (!r.success) throw new Error(r.error);
+                        set('pr-date', r.defaults.pr_date);
+                        set('pr-req', r.defaults.req_name);
+                        PrManager.nextNo = r.defaults.pr_no;   // เลขที่โดยประมาณ (เลขจริงออกตอนบันทึก)
+                    } catch (e) { PrManager.nextNo = ''; }
+                    PrManager.updateSub();
+                }
+            },
+
+            updateSub: () => {
+                const n = PrManager.lines.length;
+                const nEl = document.getElementById('pr-n');
+                if (nEl) nEl.textContent = n ? `(${n})` : '';
+                const sub = document.getElementById('drawerSubtitle');
+                if (sub && !PrManager.editId) sub.innerText = (PrManager.nextNo ? `เลขที่ ${PrManager.nextNo} · ` : '') + `${n} รายการ`;
+            },
+
+            renderLines: () => {
+                const esc = PrManager.esc;
+                const box = document.getElementById('pr-lines');
+                if (!box) return;
+                box.innerHTML = PrManager.lines.length ? PrManager.lines.map(l => {
+                    const del = `<button type="button" data-del="${l.key}" class="h-7 w-7 shrink-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 inline-flex items-center justify-center" title="เอารายการนี้ออก" aria-label="เอารายการนี้ออก"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
+                    const qty = `<input type="number" min="0" step="any" value="${l.qty}" data-k="${l.key}" data-f="qty" class="w-20 px-2 py-2 text-center bg-sky-50 border border-sky-100 rounded-xl outline-none font-bold text-sky-700 focus:ring-2 focus:ring-sky-500/20" aria-label="จำนวนที่ขอซื้อ">`;
+                    const note = `<input type="text" maxlength="255" value="${esc(l.note)}" data-k="${l.key}" data-f="note" class="mt-2 w-full px-3 py-1.5 text-xs border border-slate-100 rounded-lg outline-none focus:border-sky-300" placeholder="หมายเหตุรายการ (ถ้ามี)">`;
+                    if (l.free) {
+                        return `
+                        <div class="p-3 bg-amber-50/40 border border-amber-100 rounded-xl">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-[9px] px-1.5 py-0.5 bg-amber-100 text-amber-700 font-bold rounded">นอกสต็อก</span>
+                                <span class="flex-1"></span>${del}
+                            </div>
+                            <input type="text" maxlength="500" value="${esc(l.name)}" data-k="${l.key}" data-f="name" class="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:border-sky-300" placeholder="ชื่อรายการ *" aria-label="ชื่อรายการนอกสต็อก">
+                            <div class="mt-2 flex items-center gap-2">
+                                <input type="text" maxlength="100" value="${esc(l.code)}" data-k="${l.key}" data-f="code" class="flex-1 min-w-0 px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-sky-300" placeholder="รหัส (ถ้ามี)" aria-label="รหัสสินค้า">
+                                <input type="text" maxlength="100" value="${esc(l.unit)}" data-k="${l.key}" data-f="unit" class="w-20 px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-sky-300" placeholder="หน่วย" aria-label="หน่วย">
+                                ${qty}
+                            </div>
+                            ${note}
+                        </div>`;
+                    }
+                    const low = l.stock !== null && l.min > 0 && l.stock <= l.min;
+                    return `
+                        <div class="p-3 bg-white border border-slate-100 rounded-xl">
+                            <div class="flex justify-between items-center gap-2">
+                                <div class="min-w-0 flex-1">
+                                    <div class="text-xs font-bold text-slate-700 leading-tight">${esc(l.name)}</div>
+                                    <div class="mt-1 flex flex-wrap items-center gap-1">
+                                        <span class="text-[9px] px-1.5 py-0.5 bg-sky-100 text-sky-700 font-bold rounded">ในสต็อก</span>
+                                        <span class="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-500 font-bold rounded">${esc(l.code)}</span>
+                                        ${(l.wh || []).map(w => `<span class="text-[9px] px-1.5 py-0.5 bg-primary/10 text-primary font-bold rounded">${esc(w)}</span>`).join('')}
+                                        ${l.stock !== null ? `<span class="text-[10px] font-semibold ${low ? 'text-rose-600' : 'text-slate-400'}">คงเหลือ ${Number(l.stock).toLocaleString()}${l.min > 0 ? ' / จุดสั่งซื้อ ' + Number(l.min).toLocaleString() : ''}</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    ${qty}
+                                    <span class="text-[10px] font-bold text-slate-400 w-8 truncate" title="${esc(l.unit)}">${esc(l.unit || 'หน่วย')}</span>
+                                    ${del}
+                                </div>
+                            </div>
+                            ${note}
+                        </div>`;
+                }).join('') : '<div class="p-4 text-center text-xs text-slate-400 border border-slate-200 rounded-xl bg-white">ยังไม่มีรายการ — เพิ่มจากกล่อง "เพิ่มรายการ" ด้านล่าง</div>';
+                PrManager.updateSub();
+                lucide.createIcons();
+            },
+
+            // แท็บในกล่องเพิ่มรายการ: stock = สินค้าในสต็อก, free = นอกสต็อก
+            addTab: (tab, focus = true) => {
+                document.querySelectorAll('[data-add-tab]').forEach(b => {
+                    const on = b.dataset.addTab === tab;
+                    b.classList.toggle('bg-sky-600', on && tab === 'stock');
+                    b.classList.toggle('bg-amber-500', on && tab === 'free');
+                    b.classList.toggle('text-white', on);
+                    b.classList.toggle('text-slate-500', !on);
+                    b.setAttribute('aria-selected', on);
+                });
+                document.getElementById('pr-add-stock')?.classList.toggle('hidden', tab !== 'stock');
+                document.getElementById('pr-add-free')?.classList.toggle('hidden', tab !== 'free');
+                if (focus) document.getElementById(tab === 'stock' ? 'pr-pd-search' : 'pr-free-name')?.focus();
+            },
+
+            addFree: () => {
+                const g = id => document.getElementById(id);
+                const name = (g('pr-free-name')?.value || '').trim();
+                if (!name) { g('pr-free-name')?.focus(); g('pr-free-name')?.classList.add('border-rose-300'); return; }
+                const qty = parseFloat(g('pr-free-qty')?.value) || 1;
+                PrManager.lines.push(PrManager.newLine({ free: true, name, code: (g('pr-free-code')?.value || '').trim(), unit: (g('pr-free-unit')?.value || '').trim(), qty }));
+                ['pr-free-name', 'pr-free-code', 'pr-free-unit'].forEach(id => { if (g(id)) g(id).value = ''; });
+                if (g('pr-free-qty')) g('pr-free-qty').value = 1;
+                g('pr-free-name')?.classList.remove('border-rose-300');
+                PrManager.renderLines();
+                g('pr-free-name')?.focus();
+            },
+
+            addProduct: (p) => {
+                const exist = PrManager.lines.find(l => l.pd_id === p.pd_id);
+                if (exist) {   // มีอยู่แล้ว => ไปที่ช่องจำนวน
+                    const el = document.querySelector(`[data-k="${exist.key}"][data-f="qty"]`);
+                    if (el) { el.focus(); el.select(); }
+                    return;
+                }
+                const l = PrManager.newLine({ pd_id: p.pd_id, code: p.code, name: p.name, detail: p.detail, unit: p.unit, wh: p.wh || [], stock: p.stock ?? 0, min: p.min || 0 });
+                l.qty = PrManager.suggestQty(l.stock, l.min);
+                PrManager.lines.push(l);
+                PrManager.renderLines();
+            },
+
+            bindForm: () => {
+                const box = document.getElementById('pr-lines');
+                box.addEventListener('input', e => {
+                    const el = e.target.closest('[data-k]');
+                    if (!el) return;
+                    const l = PrManager.lines.find(x => x.key === el.dataset.k);
+                    if (l) l[el.dataset.f] = el.dataset.f === 'qty' ? (parseFloat(el.value) || 0) : el.value;
+                });
+                box.addEventListener('click', e => {
+                    const b = e.target.closest('[data-del]');
+                    if (!b) return;
+                    PrManager.lines = PrManager.lines.filter(x => x.key !== b.dataset.del);
+                    PrManager.renderLines();
+                });
+                // กล่องเพิ่มรายการ: แท็บ + ฟอร์มนอกสต็อก (Enter = เพิ่ม)
+                document.querySelectorAll('[data-add-tab]').forEach(b => b.addEventListener('click', () => PrManager.addTab(b.dataset.addTab)));
+                document.getElementById('pr-free-add').addEventListener('click', PrManager.addFree);
+                ['pr-free-name', 'pr-free-code', 'pr-free-unit', 'pr-free-qty'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); PrManager.addFree(); } }));
+                PrManager.addTab('stock', false);
+                // ค้นหาสินค้าในสต็อก
+                const inp = document.getElementById('pr-pd-search');
+                const res = document.getElementById('pr-pd-results');
+                let found = [];
+                const show = async () => {
+                    const q = inp.value.trim().toLowerCase();
+                    if (!q) { res.classList.add('hidden'); return; }
+                    if (!PrManager.products) {
+                        try {
+                            const r = (await axios.get('handle_stock_pr.php', { params: { action: 'products' } })).data;
+                            PrManager.products = r.success ? r.items : [];
+                        } catch (e) { PrManager.products = []; }
+                    }
+                    found = PrManager.products.filter(p => `${p.code} ${p.name} ${p.detail}`.toLowerCase().includes(q)).slice(0, 12);
+                    const esc = PrManager.esc;
+                    res.innerHTML = found.length ? found.map((p, i) => {
+                        const added = PrManager.lines.some(l => l.pd_id === p.pd_id);
+                        return `<button type="button" data-i="${i}" class="w-full text-left px-3 py-2 hover:bg-sky-50 border-b border-slate-50 last:border-0 flex items-center gap-2">
+                            <span class="min-w-0 flex-1"><span class="block text-xs font-bold text-slate-700 truncate">${esc(p.name)}</span>
+                            <span class="block text-[10px] text-slate-400">${esc(p.code)} · คงเหลือ ${Number(p.stock || 0).toLocaleString()} ${esc(p.unit)}</span></span>
+                            ${added ? '<span class="text-[10px] text-emerald-600 font-bold">เพิ่มแล้ว</span>' : '<i data-lucide="plus" class="w-4 h-4 text-sky-600"></i>'}
+                        </button>`;
+                    }).join('') : '<div class="px-3 py-3 text-xs text-slate-400">ไม่พบสินค้าในสต็อก — ถ้าเป็นของที่ยังไม่มีในระบบ ใช้แท็บ <b>นอกสต็อก</b></div>';
+                    res.classList.remove('hidden');
+                    lucide.createIcons();
+                };
+                inp.addEventListener('input', show);
+                inp.addEventListener('focus', show);
+                res.addEventListener('mousedown', e => {
+                    const b = e.target.closest('[data-i]');
+                    if (!b) return;
+                    e.preventDefault();
+                    PrManager.addProduct(found[+b.dataset.i]);
+                    inp.value = '';
+                    res.classList.add('hidden');
+                    inp.focus();
+                });
+                inp.addEventListener('blur', () => setTimeout(() => res.classList.add('hidden'), 150));
+                inp.addEventListener('keydown', e => {
+                    if (e.key === 'Enter' && found.length) { e.preventDefault(); PrManager.addProduct(found[0]); inp.value = ''; res.classList.add('hidden'); }
+                    if (e.key === 'Escape') res.classList.add('hidden');
+                });
             },
 
             submit: async () => {
                 const v = id => (document.getElementById(id)?.value || '').trim();
-                if (!PrManager.lines.length) { DrawerManager.close(); return; }
+                if (!PrManager.lines.length) { Swal.fire('ยังไม่มีรายการ', 'กรุณาเพิ่มรายการอย่างน้อย 1 รายการ', 'warning'); return; }
                 if (!v('pr-req')) { Swal.fire('กรุณากรอกชื่อผู้ขอซื้อ', '', 'warning'); document.getElementById('pr-req')?.focus(); return; }
-                const notes = {};
-                document.querySelectorAll('.pr-note').forEach(el => { notes[el.dataset.id] = el.value; });
-                const items = [];
-                let bad = null;
-                document.querySelectorAll('.pr-qty').forEach(el => {
-                    const q = parseFloat(el.value);
-                    if (!(q > 0)) { bad = bad || el; return; }
-                    items.push({ pd_id: +el.dataset.id, qty: q, note: notes[el.dataset.id] || '' });
-                });
-                if (bad) { Swal.fire('จำนวนไม่ถูกต้อง', 'กรุณาระบุจำนวนที่ขอซื้อมากกว่า 0 ทุกรายการ', 'warning'); bad.focus(); return; }
+                const noName = PrManager.lines.find(l => l.free && !String(l.name).trim());
+                if (noName) { Swal.fire('กรอกชื่อรายการไม่ครบ', 'รายการนอกสต็อกต้องมีชื่อรายการ', 'warning'); document.querySelector(`[data-k="${noName.key}"][data-f="name"]`)?.focus(); return; }
+                const badQty = PrManager.lines.find(l => !(parseFloat(l.qty) > 0));
+                if (badQty) { Swal.fire('จำนวนไม่ถูกต้อง', 'กรุณาระบุจำนวนที่ขอซื้อมากกว่า 0 ทุกรายการ', 'warning'); document.querySelector(`[data-k="${badQty.key}"][data-f="qty"]`)?.focus(); return; }
                 const body = {
-                    pr_date: v('pr-date'), deliver_date: v('pr-deliver'),
-                    req_name: v('pr-req'),
-                    remark: document.getElementById('pr-remark')?.value || '', items
+                    pr_date: v('pr-date'), deliver_date: v('pr-deliver'), req_name: v('pr-req'),
+                    remark: document.getElementById('pr-remark')?.value || '',
+                    items: PrManager.lines.map(l => l.free
+                        ? { pd_id: 0, name: String(l.name).trim(), code: String(l.code).trim(), unit: String(l.unit).trim(), qty: parseFloat(l.qty), note: l.note }
+                        : { pd_id: l.pd_id, qty: parseFloat(l.qty), note: l.note })
                 };
                 const btn = document.getElementById('btnSubmit');
                 if (btn) btn.disabled = true;
                 try {
-                    const r = (await axios.post('handle_stock_pr.php?action=save', body)).data;
+                    const url = PrManager.editId ? `handle_stock_pr.php?action=update&id=${PrManager.editId}` : 'handle_stock_pr.php?action=save';
+                    const r = (await axios.post(url, body)).data;
                     if (!r.success) throw new Error(r.error || 'บันทึกไม่สำเร็จ');
-                    AppController.clearSelection();
+                    if (!PrManager.editId) AppController.clearSelection();
                     DrawerManager.close();
-                    Swal.fire({ icon: 'success', title: `บันทึก ${r.pr_no} แล้ว`, text: 'พิมพ์ได้ที่เมนู ใบขอซื้อ (PR)', timer: 2200, showConfirmButton: false });
+                    Swal.fire({ icon: 'success', title: PrManager.editId ? `แก้ไข ${r.pr_no} แล้ว` : `บันทึก ${r.pr_no} แล้ว`, text: 'พิมพ์ได้ที่เมนู ใบขอซื้อ (PR)', timer: 2200, showConfirmButton: false });
+                    PrManager.refreshList();
                 } catch (e) {
                     Swal.fire('ข้อผิดพลาด', e.response?.data?.error || e.message, 'error');
                 } finally {
@@ -2135,7 +2392,7 @@ if (targetPdId) {
                 }
                 else if (mode === 'receive') DrawerManager.renderReceiveForm(els);
                 else if (mode === 'adjust') DrawerManager.renderAdjustForm(els);
-                else if (mode === 'pr') await PrManager.renderForm(els);
+                else if (mode === 'pr') await PrManager.renderForm(els, id);
                 else if (mode === 'wh') DrawerManager.renderWHForm(els);
 
                 lucide.createIcons();
@@ -3338,7 +3595,9 @@ if (targetPdId) {
                             <div class="flex-none text-[13px] font-bold text-sky-600">${Number(it.qty).toLocaleString('th-TH')} <span class="text-[10px] font-normal text-slate-400">${esc(it.pd_unit || '')}</span></div>
                         </div>`).join('') || '<div class="py-2 text-[12px] text-slate-400">ไม่มีรายการ</div>'}</div>
                         ${d.deliver_date ? `<div class="mt-1 text-[11.5px] text-slate-500">จัดส่งภายใน ${thDate(d.deliver_date)}</div>` : ''}
+                        ${!d.status && d.cancel_reason ? `<div class="mt-1 text-[12px] text-rose-600">ยกเลิก: ${esc(d.cancel_reason)}</div>` : ''}
                         <div class="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-end gap-2">
+                            ${d.can_edit ? `<button type="button" onclick="PrManager.edit(${d.pr_id})" class="ms-act border border-slate-200 bg-white text-slate-500" aria-label="แก้ไข" title="แก้ไข"><i data-lucide="pencil" class="w-4 h-4"></i></button>` : ''}
                             ${d.can_cancel ? `<button type="button" onclick="PrManager.cancel(${d.pr_id}, '${esc(d.pr_no)}')" class="ms-act border border-slate-200 bg-white text-slate-400" aria-label="ยกเลิกใบนี้" title="ยกเลิกใบนี้"><i data-lucide="ban" class="w-4 h-4"></i></button>` : ''}
                             <button type="button" onclick="PrManager.print(${d.pr_id})" class="ms-act bg-[#006b9f] text-white" aria-label="พิมพ์" title="พิมพ์"><i data-lucide="printer" class="w-4 h-4"></i></button>
                         </div>
