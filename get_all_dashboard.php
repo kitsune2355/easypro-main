@@ -134,7 +134,7 @@ if ($area_id) {
 if ($ag_id) {
     $sql = "
 		SELECT report_date AS d,
-			   SUM(CASE WHEN status <> 'canceled' THEN 1 ELSE 0 END) AS repairs_count,
+			   SUM(CASE WHEN status <> 'cancel' THEN 1 ELSE 0 END) AS repairs_count,   -- งานทั้งหมด ไม่นับงานที่ยกเลิก (ค่าในฐานข้อมูลคือ 'cancel')
 			   SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
 			   SUM(CASE WHEN status = 'inprogress' THEN 1 ELSE 0 END) AS inprogress_count,
 			   SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_count

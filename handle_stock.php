@@ -56,6 +56,57 @@ if (!is_array($input)) {
 @session_start();
 if (!empty($_SESSION['sess_user_id_es'])) $input['user_id'] = $input['pd_user_upd'] = (string)$_SESSION['sess_user_id_es'];
 
+// ===== ความปลอดภัย: ใช้หน่วยงานที่ล็อกอินอยู่เท่านั้น =====
+//  - ต้องล็อกอิน · ag_id ที่หน้าเว็บส่งมา (GET / POST / JSON) ถูกแทนด้วยหน่วยงานใน session
+//  - id ที่ส่งมา (สินค้า / แถวสต็อก / คลัง) ต้องเป็นของหน่วยงานนี้ — กันการแก้/ดูข้อมูลของหน่วยงานอื่นด้วยการเปลี่ยน id
+$SESS_AG = (int)($_SESSION['sess_user_agency'] ?? 0);
+if (empty($_SESSION['sess_user_id_es']) || $SESS_AG <= 0) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'กรุณาเข้าสู่ระบบใหม่'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+$_GET['ag_id'] = $_REQUEST['ag_id'] = (string)$SESS_AG;
+if (isset($_POST['ag_id'])) $_POST['ag_id'] = (string)$SESS_AG;
+if (array_key_exists('ag_id', $input)) $input['ag_id'] = (string)$SESS_AG;
+
+// id ทั้งหมดเป็นของหน่วยงานนี้หรือไม่ — $table: product = tb_repair_product.pd_id, stock = product_stocks.id, wh = tb_wh_stock.id
+function stock_ids_owned($connect, $ag, $table, $ids) {
+    $ids = array_values(array_unique(array_filter(array_map('intval', (array)$ids))));
+    if (!$ids) return true;
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $sqls = [
+        'product' => "SELECT COUNT(*) FROM tb_repair_product WHERE ag_id = ? AND pd_id IN ($ph)",
+        'stock'   => "SELECT COUNT(*) FROM product_stocks ps INNER JOIN tb_repair_product p ON p.pd_id = ps.pd_id WHERE p.ag_id = ? AND ps.id IN ($ph)",
+        'wh'      => "SELECT COUNT(*) FROM tb_wh_stock WHERE ag_id = ? AND id IN ($ph)",
+    ];
+    $st = mysqli_prepare($connect, $sqls[$table]);
+    if (!$st) return false;
+    $bind = array_merge([$ag], $ids);
+    mysqli_stmt_bind_param($st, 'i' . str_repeat('i', count($ids)), ...$bind);
+    mysqli_stmt_execute($st);
+    mysqli_stmt_bind_result($st, $n);
+    mysqli_stmt_fetch($st);
+    mysqli_stmt_close($st);
+    return (int)$n === count($ids);
+}
+$ownErr = '';
+if ($action === 'get_product_detail' && !stock_ids_owned($connect, $SESS_AG, 'product', [$_GET['pd_id'] ?? 0])) $ownErr = 'สินค้า';
+if (in_array($action, ['save_product', 'update'], true)) {
+    if (!empty($input['pd_id']) && !stock_ids_owned($connect, $SESS_AG, 'product', [$input['pd_id']])) $ownErr = 'สินค้า';
+    $whs = array_merge((array)($input['wh_ids'] ?? []), isset($input['wh_id']) && $input['wh_id'] !== '' ? [$input['wh_id']] : []);
+    if (!stock_ids_owned($connect, $SESS_AG, 'wh', $whs)) $ownErr = 'คลังสินค้า';
+}
+if ($action === 'update_status' && !stock_ids_owned($connect, $SESS_AG, 'stock', [$input['ps_id'] ?? 0])) $ownErr = 'รายการสต็อก';
+if (in_array($action, ['stock_receive', 'stock_adjust'], true)) {
+    $psIds = array_map(function ($it) { return is_array($it) ? ($it['ps_id'] ?? 0) : 0; }, (array)($input['items'] ?? []));
+    if (!stock_ids_owned($connect, $SESS_AG, 'stock', $psIds)) $ownErr = 'รายการสต็อก';
+}
+if ($ownErr !== '') {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => "ไม่พบ{$ownErr}ในหน่วยงานที่เลือกอยู่ กรุณาโหลดหน้าใหม่"], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 
 if (!$action) {
     http_response_code(400);

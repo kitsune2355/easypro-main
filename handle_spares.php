@@ -84,7 +84,7 @@ function checkAndNotifyLowStock($connect, $pd_id, $wh_id, $qty, $qty_min) {
     }
 }
 
-function generatePONumber($connect, $type = 'IN', $ag_id) {
+function generatePONumber($connect, $type, $ag_id) {
     // 1. กำหนด Prefix ตามประเภท: IN -> PO, ADJUST -> AD
     $prefix_code = ($type === 'IN') ? "RC" : "AJ";
     $prefix = $prefix_code . "-" . date('ym') . "-";

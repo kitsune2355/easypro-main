@@ -322,7 +322,7 @@ $dashHide = function ($k) use ($DASH) { return $DASH[$k] ? '' : ' hidden'; };
             </button>
         </div>
         <div class="kpi-row grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-            <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('')" title="คลิกเพื่อดูรายการ">
+            <div class="kpi-card group cursor-pointer" onClick="goToMaintenanceInfo('pending,inprogress,completed,feedback')" title="คลิกเพื่อดูรายการ (ไม่รวมงานที่ยกเลิก)">
                 <div id="loader-stat-1" class="skeleton-loader"><div class="h-full w-full shimmer rounded-lg"></div></div>
                 <div class="flex justify-between items-center">
                     <div>
