@@ -114,6 +114,9 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
     .am-r:hover { background: #f8fafc; }
     .am-r:last-child { border-bottom: 0; }
     .am-name { font-size: 13.5px; font-weight: 600; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* ปุ่มระยะเวลาสัญญาที่เลือก (ชนะสี hover) */
+    #ct-dur .ct-on, #ct-dur .ct-on:hover { background: #005e8e; border-color: #005e8e; color: #fff; box-shadow: 0 1px 2px rgba(0,94,142,.35); }
+    #ct-dur .ct-on::before { content: '✓ '; }
     .am-meta { font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
     .am-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: #475569; white-space: nowrap; }
     .am-ago { font-size: 12px; color: #475569; white-space: nowrap; }
@@ -411,6 +414,25 @@ $amIsSuper = (($_SESSION['sess_user_level_es'] ?? '') === 'super_admin');   // �
 					<label class="block text-[11px] font-medium text-slate-600 mb-1">วันที่สิ้นสุดหน่วยงาน</label>
 					<input type="date" id="agency-end-date" class="input-clean">
 				  </div>
+				</div>
+				<p id="contract-date-hint" class="hidden -mt-1 text-[10.5px] text-slate-400">วันที่ด้านบน = สัญญารอบปัจจุบัน · ต่อสัญญาหรือแก้วันที่ที่ <b>ประวัติสัญญา</b> ด้านล่าง</p>
+
+				<!-- ประวัติสัญญา (แสดงตอนแก้ไขหน่วยงาน) -->
+				<div id="contract-panel" class="hidden rounded-lg border border-slate-200 bg-slate-50/60 p-2.5">
+				  <div class="flex items-center justify-between gap-2 mb-2">
+					<div class="flex items-center gap-1.5 min-w-0">
+					  <i data-lucide="file-clock" class="w-3.5 h-3.5 text-easy-primary shrink-0"></i>
+					  <span class="text-[11px] font-bold text-slate-700 whitespace-nowrap">ประวัติสัญญา</span>
+					  <span id="contract-count" class="whitespace-nowrap text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-100"></span>
+					</div>
+					<button type="button" onclick="contractForm('renew')" class="shrink-0 inline-flex items-center gap-1 text-[10.5px] font-bold px-2 py-1 rounded-md bg-easy-primary text-white hover:opacity-90">
+					  <i data-lucide="refresh-cw" class="w-3 h-3"></i> ต่อสัญญา
+					</button>
+				  </div>
+				  <div id="contract-list" class="space-y-1.5"></div>
+				  <button type="button" onclick="contractForm('add')" class="mt-2 text-[10.5px] font-bold text-easy-primary hover:underline inline-flex items-center gap-1">
+					<i data-lucide="plus" class="w-3 h-3"></i> เพิ่มรอบสัญญา (ย้อนหลัง)
+				  </button>
 				</div>
                 <!-- ag_contract = ชื่อหน่วยงาน -->
                 <div>
@@ -1021,7 +1043,8 @@ renderPermissions(json.data);
 	  end_date: a.ag_end_date || '',
 	  status: Number(a.ag_status ?? 0),
 	  employers: a.employers || [],
-	  permissions: a.permissions || []
+	  permissions: a.permissions || [],
+	  contract_rounds: Number(a.contract_rounds || 0)
 	}));
   }
 
@@ -1258,6 +1281,7 @@ renderPermissions(json.data);
 					  ถึง
 					  ${item.end_date ? escapeHtml(formatThaiDate(item.end_date)) : '-'}
 					</span>
+					${item.contract_rounds > 1 ? `<span class="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-100" title="จำนวนรอบสัญญา ${item.contract_rounds} รอบ">ต่อสัญญา ${item.contract_rounds - 1} ครั้ง</span>` : ''}
 				  </div>` : ''}
 			
 			  ${item.address ? `
@@ -1460,6 +1484,7 @@ document.querySelectorAll(".perm-check:checked")
 		
 		  refreshIcons();
 		  subTab('agency', 'form', 'แก้ไขหน่วยงาน');
+		  loadContracts(a.id);
 		}
 
   function deleteAgency(id) {
@@ -1487,9 +1512,159 @@ document.querySelectorAll(".perm-check:checked")
     });
   }
 
+  /** ==========================================
+   * ประวัติสัญญา (tb_agency_contract) — ต่อสัญญากี่ครั้ง ช่วงไหนบ้าง
+   *  วันเริ่ม/สิ้นสุดของหน่วยงาน = รอบล่าสุด (ระบบซิงก์ให้) · มีประวัติแล้ว ช่องวันที่ในฟอร์มจะแก้ไม่ได้
+   * ========================================== */
+  let contractRows = [];
+  let contractAgId = '';
+
+  const isoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const addDays = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return isoDate(d); };
+  const addYearsMinus1 = (iso) => { const d = new Date(iso + 'T00:00:00'); d.setFullYear(d.getFullYear() + 1); d.setDate(d.getDate() - 1); return isoDate(d); };
+
+  // rows = null => ซ่อน (ฟอร์มเพิ่มหน่วยงานใหม่)
+  function showContracts(rows) {
+    const panel = document.getElementById('contract-panel');
+    const hint = document.getElementById('contract-date-hint');
+    const sd = document.getElementById('agency-start-date');
+    const ed = document.getElementById('agency-end-date');
+    if (!panel) return;
+    if (rows === null) {
+      contractRows = []; contractAgId = '';
+      panel.classList.add('hidden'); hint.classList.add('hidden');
+      [sd, ed].forEach(el => { el.readOnly = false; el.classList.remove('bg-slate-50', 'text-slate-500'); });
+      return;
+    }
+    contractRows = rows;
+    panel.classList.remove('hidden');
+    const has = rows.length > 0;
+    hint.classList.toggle('hidden', !has);
+    // มีประวัติแล้ว => วันที่ในฟอร์ม = รอบล่าสุด แก้ไม่ได้ (แก้ที่ประวัติสัญญา)
+    [sd, ed].forEach(el => { el.readOnly = has; el.classList.toggle('bg-slate-50', has); el.classList.toggle('text-slate-500', has); });
+    const latest = rows.reduce((b, r) => (!b || r.end_date > b.end_date || (r.end_date === b.end_date && r.start_date > b.start_date)) ? r : b, null);
+    if (latest) { sd.value = latest.start_date; ed.value = latest.end_date; }
+    document.getElementById('contract-count').textContent = has ? `${rows.length} รอบ · ต่อ ${rows.length - 1} ครั้ง` : 'ยังไม่มี';
+    const today = isoDate(new Date());
+    document.getElementById('contract-list').innerHTML = has ? rows.slice().reverse().map(r => {
+      const st = r.end_date < today ? ['หมดแล้ว', 'bg-slate-100 text-slate-500 border-slate-200']
+        : (r.start_date > today ? ['ยังไม่เริ่ม', 'bg-amber-50 text-amber-700 border-amber-200'] : ['ปัจจุบัน', 'bg-emerald-50 text-emerald-700 border-emerald-200']);
+      const extra = [r.contract_no ? 'เลขที่ ' + r.contract_no : '', r.note || ''].filter(Boolean).join(' · ');
+      return `<div class="flex items-start gap-2 rounded-md bg-white border border-slate-200 px-2 py-1.5">
+          <span class="shrink-0 mt-0.5 w-12 text-[10px] font-bold text-slate-500">รอบที่ ${r.round}</span>
+          <div class="min-w-0 flex-1">
+            <div class="text-[11px] font-semibold text-slate-700">${escapeHtml(formatThaiDate(r.start_date))} – ${escapeHtml(formatThaiDate(r.end_date))}
+              <span class="ml-1 text-[9.5px] font-bold px-1.5 py-0.5 rounded border ${st[1]}">${st[0]}</span></div>
+            ${extra ? `<div class="text-[10px] text-slate-500 truncate" title="${escapeHtml(extra)}">${escapeHtml(extra)}</div>` : ''}
+          </div>
+          <button type="button" onclick="contractForm('edit', ${r.ac_id})" class="shrink-0 p-1 rounded text-slate-400 hover:text-easy-primary hover:bg-sky-50" title="แก้ไขรอบนี้" aria-label="แก้ไขรอบที่ ${r.round}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+          ${rows.length > 1 ? `<button type="button" onclick="contractDelete(${r.ac_id}, ${r.round})" class="shrink-0 p-1 rounded text-slate-400 hover:text-red-600 hover:bg-red-50" title="ลบรอบนี้" aria-label="ลบรอบที่ ${r.round}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : ''}
+        </div>`;
+    }).join('') : '<div class="text-[10.5px] text-slate-400 px-1">ยังไม่มีประวัติสัญญา — กด <b>ต่อสัญญา</b> หรือ <b>เพิ่มรอบสัญญา</b></div>';
+    refreshIcons();
+  }
+
+  async function loadContracts(agId) {
+    contractAgId = String(agId);
+    try {
+      const r = await apiGet(`${AGENCY_API_URL}?action=contract_list&ag_id=${encodeURIComponent(agId)}`);
+      if (!r.success) throw new Error(r.message || 'โหลดประวัติสัญญาไม่สำเร็จ');
+      if (contractAgId === String(agId)) showContracts(r.data || []);
+    } catch (e) {
+      showToast(e.message, 'error');
+    }
+  }
+
+  // หลังบันทึก/ลบรอบสัญญา: อัปเดตฟอร์ม + รายการหน่วยงาน (จำนวนครั้ง / วันที่)
+  async function afterContractChange(r) {
+    showContracts(r.data || []);
+    try { await fetchAgencies(); renderAgencyTable(); } catch (e) { /* รายการโหลดใหม่ไม่สำเร็จ ไม่กระทบฟอร์ม */ }
+  }
+
+  // mode: renew = ต่อสัญญา (เริ่มต่อจากรอบล่าสุด 1 ปี) · add = เพิ่มรอบ (ย้อนหลัง) · edit = แก้รอบเดิม
+  async function contractForm(mode, acId) {
+    if (!contractAgId) return;
+    const latest = contractRows.reduce((b, r) => (!b || r.end_date > b.end_date) ? r : b, null);
+    let row = { start_date: '', end_date: '', contract_no: '', note: '' };
+    if (mode === 'edit') row = Object.assign({}, contractRows.find(r => r.ac_id === acId) || row);
+    if (mode === 'renew') {
+      const start = latest ? addDays(latest.end_date, 1) : isoDate(new Date());
+      row.start_date = start;
+      row.end_date = addYearsMinus1(start);
+    }
+    const title = mode === 'edit' ? `แก้ไขสัญญารอบที่ ${row.round || ''}` : (mode === 'renew' ? `ต่อสัญญา (รอบที่ ${contractRows.length + 1})` : 'เพิ่มรอบสัญญา');
+    const inp = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-sky-400';
+    const res = await Swal.fire({
+      title,
+      html: `<div class="text-left space-y-2.5 text-sm">
+          ${mode === 'renew' && latest ? `<p class="text-[12px] text-slate-500">รอบล่าสุดสิ้นสุด ${escapeHtml(formatThaiDate(latest.end_date))} — ระบบตั้งวันเริ่มเป็นวันถัดไป และระยะเวลา 1 ปี (แก้ได้)</p>` : ''}
+          ${mode === 'add' ? `<p class="text-[12px] text-slate-500">ใช้บันทึกสัญญารอบเก่าย้อนหลัง — ช่วงวันที่ต้องไม่ทับรอบอื่น</p>` : ''}
+          <div class="grid grid-cols-2 gap-2">
+            <label class="block"><span class="block text-[11px] font-semibold text-slate-600 mb-1">วันเริ่มสัญญา *</span><input type="date" id="ct-start" class="${inp}" value="${escapeHtml(row.start_date)}"></label>
+            <label class="block"><span class="block text-[11px] font-semibold text-slate-600 mb-1">วันสิ้นสุดสัญญา *</span><input type="date" id="ct-end" class="${inp}" value="${escapeHtml(row.end_date)}"></label>
+          </div>
+          <div class="flex flex-wrap gap-1.5" id="ct-dur">
+            ${[['6 เดือน', 6], ['1 ปี', 12], ['2 ปี', 24], ['3 ปี', 36]].map(([l, m]) => `<button type="button" data-m="${m}" class="px-2 py-1 text-[11px] font-semibold rounded-md border border-slate-200 text-slate-600 hover:border-sky-300 hover:text-sky-700">${l}</button>`).join('')}
+          </div>
+          <label class="block"><span class="block text-[11px] font-semibold text-slate-600 mb-1">เลขที่สัญญา</span><input type="text" id="ct-no" maxlength="100" class="${inp}" value="${escapeHtml(row.contract_no || '')}" placeholder="ถ้ามี"></label>
+          <label class="block"><span class="block text-[11px] font-semibold text-slate-600 mb-1">หมายเหตุ</span><input type="text" id="ct-note" maxlength="500" class="${inp}" value="${escapeHtml(row.note || '')}" placeholder="เช่น มูลค่าสัญญา / เงื่อนไขที่เปลี่ยน"></label>
+        </div>`,
+      showCancelButton: true,
+      confirmButtonText: 'บันทึก',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#005e8e',
+      focusConfirm: false,
+      didOpen: () => {
+        // ปุ่มระยะเวลา (toggle): วันสิ้นสุด = วันเริ่ม + n เดือน − 1 วัน · ปุ่มที่ตรงกับช่วงวันที่ปัจจุบันจะไฮไลต์
+        const dur = document.getElementById('ct-dur'), sEl = document.getElementById('ct-start'), eEl = document.getElementById('ct-end');
+        const calc = m => { const d = new Date(sEl.value + 'T00:00:00'); d.setMonth(d.getMonth() + m); d.setDate(d.getDate() - 1); return isoDate(d); };
+        const mark = () => dur.querySelectorAll('[data-m]').forEach(b => {
+          const on = !!sEl.value && !!eEl.value && calc(Number(b.dataset.m)) === eEl.value;
+          b.classList.toggle('ct-on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        dur.addEventListener('click', e => {
+          const b = e.target.closest('[data-m]'); if (!b) return;
+          if (!sEl.value) { Swal.showValidationMessage('กรุณาเลือกวันเริ่มสัญญาก่อน'); sEl.focus(); return; }
+          Swal.resetValidationMessage();
+          eEl.value = calc(Number(b.dataset.m)); mark();
+        });
+        // เปลี่ยนวันเริ่มขณะเลือกระยะเวลาไว้ => คงระยะเวลาเดิม
+        sEl.addEventListener('change', () => { const on = dur.querySelector('.ct-on'); if (on && sEl.value) eEl.value = calc(Number(on.dataset.m)); mark(); });
+        eEl.addEventListener('change', mark);
+        mark();
+      },
+      preConfirm: async () => {
+        const v = id => document.getElementById(id).value.trim();
+        if (!v('ct-start') || !v('ct-end')) { Swal.showValidationMessage('กรุณาระบุวันเริ่มและวันสิ้นสุดสัญญา'); return false; }
+        if (v('ct-start') > v('ct-end')) { Swal.showValidationMessage('วันเริ่มต้องไม่มากกว่าวันสิ้นสุด'); return false; }
+        try {
+          const r = await apiPost(AGENCY_API_URL, { action: 'contract_save', ag_id: contractAgId, ac_id: mode === 'edit' ? acId : '', start_date: v('ct-start'), end_date: v('ct-end'), contract_no: v('ct-no'), note: v('ct-note') });
+          if (!r.success) throw new Error(r.message || 'บันทึกไม่สำเร็จ');
+          return r;
+        } catch (e) { Swal.showValidationMessage(e.message); return false; }
+      }
+    });
+    if (!res.isConfirmed || !res.value) return;
+    await afterContractChange(res.value);
+    showToast(mode === 'renew' ? 'ต่อสัญญาแล้ว' : 'บันทึกรอบสัญญาแล้ว');
+  }
+
+  async function contractDelete(acId, round) {
+    const c = await Swal.fire({ title: `ลบสัญญารอบที่ ${round}?`, text: 'วันเริ่ม/สิ้นสุดของหน่วยงานจะเป็นรอบล่าสุดที่เหลืออยู่', icon: 'warning', showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#ef4444' });
+    if (!c.isConfirmed) return;
+    try {
+      const r = await apiPost(AGENCY_API_URL, { action: 'contract_delete', ag_id: contractAgId, ac_id: acId });
+      if (!r.success) throw new Error(r.message || 'ลบไม่สำเร็จ');
+      await afterContractChange(r);
+      showToast('ลบรอบสัญญาแล้ว');
+    } catch (e) { Swal.fire({ icon: 'error', title: 'ลบไม่สำเร็จ', text: e.message, confirmButtonColor: '#005e8e' }); }
+  }
+
   function resetForm() {
     document.getElementById('agencyForm').reset();
     document.getElementById('edit-id').value = '';
+    showContracts(null);
 	 renderPermissions([]); // ⭐ clear permission
     document.getElementById('form-title').innerHTML =
       `<i data-lucide="plus-square" class="w-4 h-4 text-easy-primary"></i> <span>เพิ่มหน่วยงานใหม่</span>`;
@@ -1790,13 +1965,25 @@ document.querySelectorAll(".perm-check:checked")
     return `<div class="am-n link" data-ag="${a.ag_id}" data-tab="${key}" title="ดู${lbl}"><span class="lbl hidden text-[10px] text-slate-400">${lbl}</span><b>${nf(val)}</b>${sub ? `<span class="x ${subRed ? 'red' : ''}">${sub}</span>` : ''}</div>`;
   }
 
+  // ข้อความสัญญาใต้ชื่อหน่วยงาน: ต่อสัญญากี่ครั้ง · สัญญาถึงวันไหน · เตือนใกล้หมด (≤ 60 วัน และไม่มีรอบถัดไป)
+  function ctrMeta(a) {
+    if (a.expired) return ` · <span style="color:#64748b;font-weight:600">สัญญาหมด ${esc(thD(a.end))}</span>`;
+    const c = a.contract;
+    if (!c) return a.end ? ` · สัญญาถึง ${esc(thD(a.end))}` : '';
+    let s = c.rounds > 1 ? ` · <span style="color:#0369a1;font-weight:600">ต่อสัญญา ${c.rounds - 1} ครั้ง</span>` : '';
+    if (c.cur_end && c.upcoming > 0) s += ` · รอบนี้ถึง ${esc(thD(c.cur_end))} (ต่อแล้วถึง ${esc(thD(c.last_end))})`;
+    else if (c.last_end) s += ` · สัญญาถึง ${esc(thD(c.last_end))}`;
+    if (c.days_left !== null && c.days_left >= 0 && c.days_left <= 60) s += ` · <span style="color:#d97706;font-weight:600">เหลือ ${c.days_left} วัน</span>`;
+    return s;
+  }
+
   function row(a) {
     const st = STATE[a.state];
     const idleDays = a.last ? (Date.now() - new Date(String(a.last).replace(' ', 'T'))) / 86400000 : 999;
     return `<div class="am-grid am-r" data-ag="${a.ag_id}" data-tab="overview">
       <div class="min-w-0">
         <div class="am-name" title="${esc(a.name)}">${esc(a.name)}</div>
-        <div class="am-meta">${esc(a.code || '-')} · ผู้ใช้ ${nf(a.users)} คน${a.expired ? ' · สัญญาหมด ' + esc(thD(a.end)) : ''}${a.enabled ? '' : ' · ปิดใช้งาน'}</div>
+        <div class="am-meta">${esc(a.code || '-')} · ผู้ใช้ ${nf(a.users)} คน${ctrMeta(a)}${a.enabled ? '' : ' · ปิดใช้งาน'}</div>
       </div>
       <div><span class="am-state"><span class="am-dot" style="background:${st[1]}"></span>${st[0]}</span></div>
       <div class="am-col-ago"><div class="am-ago ${idleDays > 14 ? 'old' : ''}" title="${esc(thDT(a.last))}">${esc(ago(a.last))}</div></div>
@@ -2148,10 +2335,10 @@ document.querySelectorAll(".perm-check:checked")
     try {
       await saveXlsx(`monitor-agencies-${periodTag()}-${ymd()}.xlsx`, [{
         name: 'สรุปหน่วยงาน', title: `Monitor หน่วยงาน — ความเคลื่อนไหว ${periodTxt()} (ข้อมูล ณ ${new Date().toLocaleString('th-TH')})`,
-        columns: [['หน่วยงาน', 36], ['รหัส', 16], ['สถานะ', 14], ['เคลื่อนไหวล่าสุด', 18], ['ความเคลื่อนไหวรวม', 12], ['เริ่มสัญญา', 12], ['สิ้นสุดสัญญา', 12], ['สัญญาหมด', 10],
+        columns: [['หน่วยงาน', 36], ['รหัส', 16], ['สถานะ', 14], ['เคลื่อนไหวล่าสุด', 18], ['ความเคลื่อนไหวรวม', 12], ['เริ่มสัญญา', 12], ['สิ้นสุดสัญญา', 12], ['สัญญาหมด', 10], ['รอบสัญญา', 9], ['ต่อสัญญา (ครั้ง)', 11],
           ['ผู้ใช้ทั้งหมด', 10], ['เข้าใช้งาน (ครั้ง)', 12], ['ผู้ใช้ที่เข้า', 10], ['แจ้งซ่อมใหม่', 11], ['ปิดงานซ่อม', 11], ['งานซ่อมค้าง', 11],
           ['PM ทำแล้ว', 10], ['PM ถึงกำหนด', 11], ['PM เลยกำหนดสะสม', 13], ['จดมิเตอร์', 10], ['สต็อก', 9], ['เครื่องจักร เพิ่ม', 12], ['เครื่องจักร แก้ไข', 12], ['เครื่องจักรทั้งหมด', 12], ['ตั้งค่า', 9]],
-        rows: rows.map(a => [a.name, a.code, stName(a.state), dtx(a.last), total(a), a.start || '', a.end || '', a.expired ? 'หมดแล้ว' : '',
+        rows: rows.map(a => [a.name, a.code, stName(a.state), dtx(a.last), total(a), a.start || '', a.end || '', a.expired ? 'หมดแล้ว' : '', a.contract ? a.contract.rounds : '', a.contract ? Math.max(0, a.contract.rounds - 1) : '',
           a.users, a.login.n, a.login.users, a.repair.new, a.repair.closed, a.repair.backlog, a.pm.done, a.pm.due, a.pm.overdue,
           a.meter.n, a.stock.n, a.machine.added, a.machine.updated, a.machine.total, a.setting.n])
       }]);
@@ -2209,7 +2396,7 @@ document.querySelectorAll(".perm-check:checked")
           <div class="flex items-start gap-2 pr-8"><span class="am-dot flex-none mt-[9px]" style="background:${st[1]}"></span>
             <h3 class="min-w-0 flex-1 text-[16px] sm:text-[17px] font-bold text-slate-800 leading-snug [overflow-wrap:anywhere]">${esc(a.name)} <span class="text-[12px] font-semibold whitespace-nowrap align-middle" style="color:${st[1]}">${st[0]}</span></h3>
             <button type="button" id="am-export-ag" class="h-8 px-2.5 sm:px-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-100 flex-none" title="ส่งออกข้อมูลทั้งหมดของหน่วยงานนี้" aria-label="Export Excel">${ico('file-spreadsheet', 'w-3.5 h-3.5')}<span class="hidden sm:inline">Export Excel</span></button></div>
-          <div class="text-[12px] text-slate-500 mt-0.5 pl-4">${esc(a.code || '')} · สัญญา ${esc(thD(a.start))} – ${esc(thD(a.end))}${a.expired ? ' (หมดแล้ว)' : ''} · เคลื่อนไหวล่าสุด ${esc(thDT(a.last))}</div>
+          <div class="text-[12px] text-slate-500 mt-0.5 pl-4">${esc(a.code || '')} · สัญญา ${esc(thD(a.start))} – ${esc(thD(a.end))}${a.expired ? ' (หมดแล้ว)' : ''}${a.contract && a.contract.rounds > 1 ? ` · ${a.contract.rounds} รอบ (ต่อสัญญา ${a.contract.rounds - 1} ครั้ง)` : ''} · เคลื่อนไหวล่าสุด ${esc(thDT(a.last))}</div>
           <div id="am-tabs" class="flex flex-wrap gap-1 mt-4 pb-1">${tabs.map(t => `<button type="button" class="am-tab" data-tab="${t[0]}">${ico(t[2], 'w-3.5 h-3.5')}${t[1]}${t[3] != null ? `<span class="n">${nf(t[3])}</span>` : ''}</button>`).join('')}</div>
         </div>
         <div id="am-tabbody" class="px-4 sm:px-6 pb-5 pt-4 border-t border-slate-100 overflow-y-auto lg:overflow-hidden" style="height: min(580px, calc(100vh - 230px))"></div>

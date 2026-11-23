@@ -75,6 +75,15 @@ $SETTING_SRC = [
 
 if ($action === 'summary') {
     $agencies = am_rows($connect, "SELECT ag_id, ag_job, ag_contract, ag_status, ag_start_date, ag_end_date FROM tb_agency ORDER BY ag_contract");
+    // ประวัติสัญญา: จำนวนรอบ / รอบที่ใช้อยู่วันนี้ / วันสิ้นสุดรอบล่าสุด
+    $ctr = [];
+    require_once __DIR__ . '/config_ctrl/agency_contract_history.php';
+    ach_ensure($connect);
+    foreach (am_rows($connect, "SELECT ag_id AS ag, COUNT(*) AS n, MAX(end_date) AS last_end,
+            MAX(CASE WHEN start_date <= '$today' AND end_date >= '$today' THEN start_date END) AS cur_start,
+            MAX(CASE WHEN start_date <= '$today' AND end_date >= '$today' THEN end_date END) AS cur_end,
+            SUM(start_date > '$today') AS upcoming
+        FROM tb_agency_contract GROUP BY ag_id") as $r) $ctr[(string)$r['ag']] = $r;
     $users = am_by_ag($connect, "SELECT ag, COUNT(DISTINCT user_id) AS n FROM $USER_AG ua GROUP BY ag");
     $login = am_by_ag($connect, "SELECT ua.ag, SUM(l.tl_time BETWEEN '$fromTs' AND '$toTs') AS n, COUNT(DISTINCT CASE WHEN l.tl_time BETWEEN '$fromTs' AND '$toTs' THEN l.tl_name END) AS users, MAX(l.tl_time) AS last
         FROM tb_time_login l JOIN $USER_AG ua ON ua.user_id = l.tl_name GROUP BY ua.ag");
@@ -119,6 +128,9 @@ if ($action === 'summary') {
         $out[] = [
             'ag_id' => (int)$a['ag_id'], 'code' => $a['ag_job'], 'name' => $a['ag_contract'], 'enabled' => (int)$a['ag_status'] === 1,
             'start' => $a['ag_start_date'], 'end' => $a['ag_end_date'], 'expired' => $expired,
+            'contract' => isset($ctr[$k]) ? ['rounds' => (int)$ctr[$k]['n'], 'cur_start' => $ctr[$k]['cur_start'], 'cur_end' => $ctr[$k]['cur_end'],
+                'last_end' => $ctr[$k]['last_end'], 'upcoming' => (int)$ctr[$k]['upcoming'],
+                'days_left' => $ctr[$k]['last_end'] ? (int)floor((strtotime($ctr[$k]['last_end']) - strtotime($today)) / 86400) : null] : null,
             'last' => $last, 'idle_days' => $idleDays, 'state' => $state,
             'users' => (int)$g($users, 'n'),
             'login' => ['n' => (int)$g($login, 'n'), 'users' => (int)$g($login, 'users'), 'last' => $g($login, 'last')],

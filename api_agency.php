@@ -24,6 +24,17 @@ function req($k, $d = ''){
 
 $action = $_REQUEST['action'] ?? 'list';
 
+// สิทธิ์: Super Admin หรือผู้ดูแลหลายหน่วยงาน (sess_user_level_es_check = 1) — เงื่อนไขเดียวกับปุ่มเปิดหน้านี้ใน main.php
+$ME = (string)($_SESSION['sess_user_id_es'] ?? '');
+if ($ME === '' || !(($_SESSION['sess_user_level_es'] ?? '') === 'super_admin' || (string)($_SESSION['sess_user_level_es_check'] ?? '') === '1')) {
+  http_response_code(403);
+  jexit(['success' => false, 'message' => 'ไม่มีสิทธิ์จัดการหน่วยงาน']);
+}
+
+// ประวัติสัญญา (ต่อสัญญากี่ครั้ง ช่วงไหนบ้าง)
+require_once __DIR__ . '/config_ctrl/agency_contract_history.php';
+ach_ensure($connect);
+
 /**
  * Mapping:
  * ag_job        = รหัสหน่วยงาน
@@ -192,6 +203,7 @@ if ($action === 'list') {
   if (!$res) jexit(['success' => false, 'message' => 'query failed']);
 
   $rows = [];
+  $contractCounts = ach_counts($connect);
 
   while ($r = mysqli_fetch_assoc($res)) {
     $agId = (int)$r['ag_id'];
@@ -257,7 +269,8 @@ if ($action === 'list') {
       'ag_end_date' => $r['ag_end_date'],
       'ag_status' => (int)$r['ag_status'],
       'employers' => $emps,
-      'permissions' => $perms
+      'permissions' => $perms,
+      'contract_rounds' => $contractCounts[$agId] ?? 0   // จำนวนรอบสัญญา (ต่อสัญญา = รอบ - 1)
     ];
   }
 
@@ -349,6 +362,7 @@ if ($action === 'create') {
 
   sync_employers($connect, (int)$newId, $employers);
   sync_permissions($connect, (int)$newId, $role, $menus);
+  ach_ensure_first_round($connect, (int)$newId, $ME);   // วันเริ่ม/สิ้นสุดที่กรอก => รอบสัญญาที่ 1
 
   jexit([
     'success' => true,
@@ -396,6 +410,14 @@ if ($action === 'update') {
   }
 
   validate_date_range($ag_start_date, $ag_end_date);
+
+  // มีประวัติสัญญาแล้ว => วันเริ่ม/สิ้นสุด = รอบสัญญาล่าสุด (แก้ที่ส่วน "ประวัติสัญญา" เท่านั้น)
+  $contractRows = ach_list($connect, $ag_id);
+  if ($contractRows) {
+    $latest = ach_latest($contractRows);
+    $ag_start_date = $latest['start_date'];
+    $ag_end_date = $latest['end_date'];
+  }
 
   $stmt = mysqli_prepare($connect, "SELECT 1 FROM tb_agency WHERE ag_job = ? AND ag_id <> ? LIMIT 1");
   if (!$stmt) jexit(['success' => false, 'message' => 'prepare dup-check failed']);
@@ -447,8 +469,69 @@ if ($action === 'update') {
 
   sync_employers($connect, $ag_id, $employers);
   sync_permissions($connect, $ag_id, $role, $menus);
+  if (!$contractRows) ach_ensure_first_round($connect, $ag_id, $ME);   // เพิ่งใส่วันสัญญาครั้งแรก => รอบที่ 1
 
   jexit(['success' => true, 'message' => 'update ok']);
+}
+
+/* =========================================================
+ * ประวัติสัญญา — contract_list / contract_save / contract_delete
+ * ========================================================= */
+if ($action === 'contract_list') {
+  $ag_id = (int)($_REQUEST['ag_id'] ?? 0);
+  if (!agency_exists($connect, $ag_id)) jexit(['success' => false, 'message' => 'ไม่พบหน่วยงาน']);
+  jexit(['success' => true, 'data' => ach_list($connect, $ag_id)]);
+}
+
+if ($action === 'contract_save') {
+  $ag_id = (int)req('ag_id', '0');
+  $ac_id = (int)req('ac_id', '0');
+  $start = req('start_date');
+  $end   = req('end_date');
+  $cut   = function ($v, $n) { return function_exists('mb_substr') ? mb_substr($v, 0, $n, 'UTF-8') : substr($v, 0, $n); };
+  $no    = $cut(req('contract_no'), 100);
+  $note  = $cut(req('note'), 500);
+  if (!agency_exists($connect, $ag_id)) jexit(['success' => false, 'message' => 'ไม่พบหน่วยงาน']);
+  if ($start === '' || $end === '') jexit(['success' => false, 'message' => 'กรุณาระบุวันเริ่มและวันสิ้นสุดสัญญา']);
+  validate_date_range($start, $end);
+  if ($ac_id > 0) {   // แก้ไขรอบเดิม: ต้องเป็นของหน่วยงานนี้
+    $own = false;
+    foreach (ach_list($connect, $ag_id) as $r) if ($r['ac_id'] === $ac_id) $own = true;
+    if (!$own) jexit(['success' => false, 'message' => 'ไม่พบรอบสัญญาที่ต้องการแก้ไข']);
+  }
+  $ov = ach_overlap($connect, $ag_id, $start, $end, $ac_id);
+  if ($ov) jexit(['success' => false, 'message' => 'ช่วงวันที่ทับกับรอบสัญญา ' . $ov['start_date'] . ' ถึง ' . $ov['end_date'] . ' — กรุณาตรวจวันที่อีกครั้ง']);
+  $now = date('Y-m-d H:i:s');
+  if ($ac_id > 0) {
+    $st = mysqli_prepare($connect, "UPDATE tb_agency_contract SET start_date = ?, end_date = ?, contract_no = ?, note = ?, updated_at = ?, updated_by = ? WHERE ac_id = ? AND ag_id = ?");
+    mysqli_stmt_bind_param($st, 'ssssssii', $start, $end, $no, $note, $now, $ME, $ac_id, $ag_id);
+  } else {
+    $st = mysqli_prepare($connect, "INSERT INTO tb_agency_contract (ag_id, start_date, end_date, contract_no, note, created_at, created_by, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    mysqli_stmt_bind_param($st, 'issssssss', $ag_id, $start, $end, $no, $note, $now, $ME, $now, $ME);
+  }
+  $ok = mysqli_stmt_execute($st);
+  mysqli_stmt_close($st);
+  if (!$ok) jexit(['success' => false, 'message' => 'บันทึกไม่สำเร็จ']);
+  ach_sync($connect, $ag_id);
+  $rows = ach_list($connect, $ag_id);
+  jexit(['success' => true, 'data' => $rows, 'latest' => ach_latest($rows)]);
+}
+
+if ($action === 'contract_delete') {
+  $ag_id = (int)req('ag_id', '0');
+  $ac_id = (int)req('ac_id', '0');
+  $rows = ach_list($connect, $ag_id);
+  $own = false;
+  foreach ($rows as $r) if ($r['ac_id'] === $ac_id) $own = true;
+  if (!$own) jexit(['success' => false, 'message' => 'ไม่พบรอบสัญญาที่ต้องการลบ']);
+  if (count($rows) <= 1) jexit(['success' => false, 'message' => 'ต้องมีอย่างน้อย 1 รอบสัญญา — แก้ไขวันที่ของรอบนี้แทนการลบ']);
+  $st = mysqli_prepare($connect, "DELETE FROM tb_agency_contract WHERE ac_id = ? AND ag_id = ?");
+  mysqli_stmt_bind_param($st, 'ii', $ac_id, $ag_id);
+  mysqli_stmt_execute($st);
+  mysqli_stmt_close($st);
+  ach_sync($connect, $ag_id);
+  $rows = ach_list($connect, $ag_id);
+  jexit(['success' => true, 'data' => $rows, 'latest' => ach_latest($rows)]);
 }
 
 /* =========================================================
@@ -473,6 +556,9 @@ if ($action === 'delete') {
     mysqli_stmt_execute($stmt);
     mysqli_stmt_close($stmt);
   }
+
+  $stmt = mysqli_prepare($connect, "DELETE FROM tb_agency_contract WHERE ag_id = ?");
+  if ($stmt) { mysqli_stmt_bind_param($stmt, "i", $ag_id); mysqli_stmt_execute($stmt); mysqli_stmt_close($stmt); }
 
   $stmt = mysqli_prepare($connect, "DELETE FROM tb_agency WHERE ag_id = ? LIMIT 1");
   if (!$stmt) jexit(['success' => false, 'message' => 'prepare failed']);
