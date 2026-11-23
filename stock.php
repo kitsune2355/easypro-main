@@ -1,6 +1,9 @@
 <?php 
 @session_start();
-include "config_ctrl/checksession.php"; 
+include "config_ctrl/checksession.php";
+include_once "config_ctrl/connect.php";
+require_once __DIR__ . '/config_ctrl/stock_perm.php';
+$stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่าง" => ดูได้อย่างเดียว (ไม่มี รับเข้า / ปรับยอด / ขอซื้อ) 
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -191,6 +194,16 @@ include "config_ctrl/checksession.php";
                         <div id="warehouse-menu-list"></div>
                     </div>
 
+                    <div id="sidebar-purchase-group">
+                        <div class="px-4 mt-6 mb-2">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase px-2">จัดซื้อ</p>
+                        </div>
+                        <button onClick="AppController.selectMenu('report-pr')" id="menu-report-pr" class="menu-item w-full flex items-center gap-3 px-6 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all border-r-4 border-transparent">
+                            <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+                            ใบขอซื้อ (PR)
+                        </button>
+                    </div>
+
                     <div id="sidebar-report-group">
                         <div class="px-4 mt-6 mb-2">
                             <p class="text-[10px] font-bold text-slate-400 uppercase px-2">รายงาน & ประวัติ</p>
@@ -261,6 +274,9 @@ include "config_ctrl/checksession.php";
                         </div>
                         <!-- ปุ่มส่งออก Excel (เดิมมีแค่คลิกขวาที่ตาราง ผู้ใช้หาไม่เจอ) -->
                         <div class="flex items-center gap-2">
+                            <button type="button" id="btn-pr-new" onclick="PrManager.startNew()" class="hidden items-center justify-center gap-1.5 p-3 sm:px-3 sm:py-2 rounded-xl border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 text-xs font-bold shadow-sm transition-colors whitespace-nowrap" title="สร้างใบขอซื้อ: เลือกสินค้าจากรายการสินค้า แล้วกด ขอซื้อ">
+                                <i data-lucide="file-plus-2" class="w-4 h-4"></i><span class="hidden sm:inline">สร้างใบขอซื้อ</span>
+                            </button>
                             <button type="button" onclick="exportToExcel()" title="ส่งออกข้อมูลในตารางเป็นไฟล์ Excel" aria-label="ส่งออก Excel" class="inline-flex items-center justify-center gap-1.5 p-3 sm:px-3 sm:py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-xs font-bold shadow-sm transition-colors whitespace-nowrap">
                                 <i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span class="hidden sm:inline">ส่งออก Excel</span>
                             </button>
@@ -303,6 +319,10 @@ include "config_ctrl/checksession.php";
                             <button onClick="DrawerManager.open('adjust')" class="flex-1 md:flex-none px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95">
                                 <i data-lucide="rotate-cw" class="w-4 h-4"></i>
                                 ปรับยอด
+                            </button>
+                            <button onClick="DrawerManager.open('pr')" class="flex-1 md:flex-none px-4 py-2.5 bg-sky-500 hover:bg-sky-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors" title="สร้างใบขออนุมัติจัดซื้อจากสินค้าที่เลือก">
+                                <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+                                ขอซื้อ
                             </button>
                             <button onClick="AppController.clearSelection()" class="hidden md:block px-3 py-2 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">
                                 ยกเลิก
@@ -442,6 +462,7 @@ include "config_ctrl/checksession.php";
         const API_REPAIR_SYSTEM = 'handle_repair_system.php';
         const AG_ID = '<?php echo $sess_user_agency_es ?>';
         const USER_ID = '<?php echo $sess_user_id; ?>';
+        const CAN_MANAGE = <?php echo $stockCanManage ? 'true' : 'false'; ?>;   // รับเข้า / ปรับยอด / ขอซื้อ (ตำแหน่ง "ช่าง" = false)
         
         let gridApi;
 
@@ -572,6 +593,7 @@ include "config_ctrl/checksession.php";
             },
 
             getReportAPI: async (type, limit, offset, search = '') => {
+                if (type === 'PR') return StockAPI.getPrListAPI(limit, offset, search);
                 try {
                     const response = await axios.get(`${API_PRODUCT}?action=get_report`, {
                         params: { 
@@ -592,6 +614,19 @@ include "config_ctrl/checksession.php";
 
 
         // --- GRID CONFIGURATIONS ---
+        // ===== ใบขอซื้อ (PR) — handle_stock_pr.php =====
+        Object.assign(StockAPI, {
+            getPrListAPI: async (limit, offset, search = '') => {
+                try {
+                    const r = await axios.get('handle_stock_pr.php', { params: { action: 'list', limit, offset, q: search } });
+                    return r.data.success ? { success: true, data: r.data.rows, total: r.data.total } : { success: false, data: [], total: 0 };
+                } catch (e) {
+                    console.error('PR list error:', e);
+                    return { success: false, data: [], total: 0 };
+                }
+            }
+        });
+
         const GridConfig = {
             // โหมดสต็อกสินค้า
             getStockCols: () => [
@@ -599,7 +634,7 @@ include "config_ctrl/checksession.php";
                 { headerName: 'ชื่อสินค้า', field: 'pd_details_head', hide: true },
                 { 
                     headerName: 'รายการสินค้า', field: 'items', 
-                    checkboxSelection: true, headerCheckboxSelection: true,
+                    checkboxSelection: CAN_MANAGE, headerCheckboxSelection: CAN_MANAGE,
                     flex: 1, minWidth: 250,
                     getQuickFilterText: params => {
                         return `${params.data.pd_details_head} ${params.data.pd_gen_code}`;
@@ -752,6 +787,93 @@ include "config_ctrl/checksession.php";
                 }
             ],
             // โหมดรายงาน PO
+            getPrCols: () => {
+                const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+                const thDate = v => v ? new Date(v).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) : '-';
+                const qty = n => Number(n).toLocaleString('th-TH', { maximumFractionDigits: 2 });
+                return [
+                    {
+                        headerName: 'เลขที่เอกสาร', field: 'pr_no', width: 140, pinned: 'left',
+                        cellRenderer: p => p.data ? `
+                            <div class="flex flex-col justify-center h-full leading-tight">
+                                <span class="${p.data.status ? 'text-sky-600' : 'text-slate-400 line-through'} font-bold text-[13px] tracking-tight">${esc(p.value)}</span>
+                                <span class="text-[9px] ${p.data.status ? 'text-slate-400' : 'text-rose-500'} uppercase font-semibold">${p.data.status ? 'Purchase Request' : 'ยกเลิกแล้ว'}</span>
+                            </div>` : ''
+                    },
+                    {
+                        headerName: 'วันที่ขอซื้อ', field: 'pr_date', width: 130, pinned: 'left',
+                        cellRenderer: p => `<div class="flex flex-col justify-center h-full"><span class="text-slate-600 text-[12px]">${thDate(p.value)}</span></div>`
+                    },
+                    {
+                        headerName: 'รายการสินค้า', field: 'items', flex: 2, minWidth: 300, autoHeight: true,
+                        cellRenderer: params => {
+                            const items = (params.data && params.data.items) || [];
+                            if (items.length === 0) return '<div class="py-2 text-slate-400 italic text-[11px] px-4 text-center">ไม่มีรายการ</div>';
+                            const rowId = 'pr-sm-' + params.node.id;
+                            const searchInput = document.getElementById('grid-search');
+                            const isSearching = searchInput && searchInput.value.trim() !== '';
+                            const itemsHtml = items.map(item => `
+                                <div class="flex items-center justify-between px-3 border-b border-slate-50 last:border-0 hover:bg-sky-50 transition-colors text-[11px]">
+                                    <div class="flex flex-1 gap-2 min-w-0">
+                                        <span class="font-medium text-slate-700 truncate">${esc(item.pd_name)}</span>
+                                        <span class="text-[9px] text-purple-600 shrink-0">${esc(item.pd_code)}</span>
+                                        ${item.note ? `<span class="text-[9px] text-amber-600 truncate">${esc(item.note)}</span>` : ''}
+                                    </div>
+                                    <div class="flex items-center gap-1 shrink-0 font-bold">
+                                        <span class="text-sky-600">${qty(item.qty)}</span>
+                                        <span class="text-slate-400 text-[9px] font-normal">${esc(item.pd_unit || '')}</span>
+                                    </div>
+                                </div>`).join('');
+                            return `
+                                <div class="py-1 w-full px-1">
+                                    <div class="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm transition-all hover:border-sky-300">
+                                        <button type="button"
+                                            onclick="const el = document.getElementById('${rowId}'); el.classList.toggle('hidden'); this.querySelector('.arrow').classList.toggle('rotate-180');"
+                                            class="w-full flex items-center justify-between p-1.5 bg-slate-50/50 hover:bg-sky-50/50 transition-colors">
+                                            <div class="flex items-center gap-2">
+                                                <div class="w-6 h-6 bg-sky-500 rounded flex items-center justify-center shadow-sm">
+                                                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5" stroke-width="2"></circle><circle cx="18" cy="20" r="1.5" stroke-width="2"></circle><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 3h3l2.6 12.4a1 1 0 001 .8h9.8a1 1 0 001-.8L21 7H6"></path></svg>
+                                                </div>
+                                                <span class="text-[11px] font-bold text-slate-700 uppercase">Purchase Request (${items.length})</span>
+                                            </div>
+                                            <svg class="arrow ${isSearching ? 'rotate-180' : ''} w-3.5 h-3.5 text-slate-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </button>
+                                        <div id="${rowId}" class="${isSearching ? '' : 'hidden'} border-t border-slate-100 bg-white max-h-64 overflow-y-auto">
+                                            <div class="flex items-center gap-3 px-3 bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 tracking-wider">
+                                                <div class="flex-1">รายละเอียดสินค้า</div>
+                                                <div class="w-20 text-right">จำนวนที่ขอ</div>
+                                            </div>
+                                            ${itemsHtml}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        }
+                    },
+                    {
+                        headerName: 'ผู้ขอซื้อ', field: 'req_name', width: 150,
+                        cellRenderer: p => `<div class="flex items-center h-full text-[12px] text-slate-700">${esc(p.value)}</div>`
+                    },
+                    {
+                        headerName: 'จัดส่งภายใน', field: 'deliver_date', width: 115,
+                        cellRenderer: p => `<div class="flex items-center h-full text-slate-600 text-[12px]">${thDate(p.value)}</div>`
+                    },
+                    {
+                        headerName: 'หมายเหตุ', field: 'remark', flex: 0.8, minWidth: 140, pinned: 'right',
+                        cellRenderer: p => `
+                            <div class="flex items-center h-full text-[11px] gap-3">
+                                <p class="text-slate-500 italic truncate mb-1" title="${esc(p.value)}">${p.value ? esc(p.value) : 'ไม่มีหมายเหตุ'}</p>
+                            </div>`
+                    },
+                    {
+                        headerName: '', field: 'pr_id', width: 120, pinned: 'right', sortable: false, filter: false,
+                        cellRenderer: p => p.data ? `<div class="flex items-center justify-end gap-1 h-full">
+                                <button type="button" onclick="PrManager.print(${p.data.pr_id})" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 inline-flex items-center justify-center" title="พิมพ์" aria-label="พิมพ์ ${esc(p.data.pr_no)}"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                                ${p.data.can_cancel ? `<button type="button" onclick="PrManager.cancel(${p.data.pr_id}, '${esc(p.data.pr_no)}')" class="h-7 w-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 inline-flex items-center justify-center" title="ยกเลิกใบนี้"><i data-lucide="ban" class="w-4 h-4"></i></button>` : ''}
+                            </div>` : ''
+                    }
+                ];
+            },
+
             getReportPoCols: () => [
                 { 
                     headerName: 'เลขที่เอกสาร', 
@@ -1322,7 +1444,7 @@ if (targetPdId) {
 
                             // 2. Use the string version for the check
                             if (menuIdStr.startsWith('report-')) {
-                                const reportType = menuIdStr === 'report-po' ? 'IN' : 'ADJUST';
+                                const reportType = menuIdStr === 'report-po' ? 'IN' : (menuIdStr === 'report-pr' ? 'PR' : 'ADJUST');
                                 response = await StockAPI.getReportAPI(reportType, limit, startRow, search);
                             } else {
                                 // Use the original menuId for the API logic if it needs the raw number
@@ -1464,8 +1586,13 @@ if (targetPdId) {
                 // --- ส่วนที่ 3: จัดการกลุ่มรายงาน ---
                 const isPoActive = State.selectedMenuId === 'report-po';
                 const isAdjActive = State.selectedMenuId === 'report-adjust';
+                const isPrActive = State.selectedMenuId === 'report-pr';
 
                 mobileReportGroup.innerHTML = `
+                    <button onclick="AppController.selectMenu('report-pr'); AppController.toggleMobileDropdown();"
+                        class="w-full text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors ${isPrActive ? 'bg-blue-50 text-primary font-bold' : 'text-slate-700 font-semibold'}">
+                        <i data-lucide="shopping-cart" class="w-4 h-4"></i> ใบขอซื้อ (PR)
+                    </button>
                     <button onclick="AppController.selectMenu('report-po'); AppController.toggleMobileDropdown();" 
                         class="w-full text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors ${isPoActive ? 'bg-blue-50 text-primary font-bold' : 'text-slate-700 font-semibold'}">
                         <i data-lucide="file-text" class="w-4 h-4"></i> รายงานรับเข้า (PO)
@@ -1564,11 +1691,15 @@ if (targetPdId) {
                 if (gridApi) gridApi.deselectAll();
 
                 // --- จัดการเงื่อนไขแยกตาม ID ---
-                if (id === 'report-po' || id === 'report-adjust') {
+                if (id === 'report-po' || id === 'report-adjust' || id === 'report-pr') {
                     const isPo = id === 'report-po';
-                    const reportType = isPo ? 'IN' : 'ADJUST'; // กำหนด type ไว้ใช้ใน datasource
+                    const reportType = isPo ? 'IN' : (id === 'report-pr' ? 'PR' : 'ADJUST'); // กำหนด type ไว้ใช้ใน datasource
 
-                    if (isPo) {
+                    if (id === 'report-pr') {
+                        document.getElementById('menu-report-pr').classList.add('sidebar-item-active');
+                        titleText = 'ใบขอซื้อ (PR)';
+                        newCols = GridConfig.getPrCols();
+                    } else if (isPo) {
                         document.getElementById('menu-report-po').classList.add('sidebar-item-active');
                         titleText = 'รายงานการรับเข้า (PO)';
                         newCols = GridConfig.getReportPoCols();
@@ -1658,6 +1789,10 @@ if (targetPdId) {
 
                 document.getElementById('current-view-title').innerText = titleText;
                 document.getElementById('desktop-view-title').innerText = titleText;
+                const prBtn = document.getElementById('btn-pr-new');
+                if (prBtn) { const showPr = id === 'report-pr' && CAN_MANAGE; prBtn.classList.toggle('hidden', !showPr); prBtn.classList.toggle('inline-flex', showPr); }
+                const gs = document.getElementById('grid-search');
+                if (gs) gs.placeholder = id === 'report-pr' ? 'ค้นหาเลขที่ ผู้ขอ หรือชื่อสินค้า...' : 'ค้นหารหัส หรือ ชื่อสินค้า...';
                 document.getElementById('items-count-badge').innerText = rowData.length;
                 setTimeout(() => lucide.createIcons(), 50);
             },
@@ -1718,7 +1853,7 @@ if (targetPdId) {
             },
 
            onSelectionChanged: () => {
-                if (!gridApi) return;
+                if (!gridApi || !CAN_MANAGE) return;
 
                 // 1. ดึงสถานะการเลือกจาก Server-side Selection API
                 const selectionState = gridApi.getServerSideSelectionState();
@@ -1802,6 +1937,142 @@ if (targetPdId) {
         };
 
         // --- DRAWER & FORM MANAGER ---
+        // ===== ใบขอซื้อ (PR) =====
+        //  ติ๊กเลือกสินค้าในตารางสต็อก -> แถบด้านล่าง "ขอซื้อ" -> ฟอร์มใน drawer -> บันทึก (ออกเลขที่ PR-YYMM-NNNN) -> พิมพ์จากเมนู "ใบขอซื้อ (PR)"
+        //  รายการใบขอซื้อ: เมนู "ใบขอซื้อ (PR)" (ตารางแบบเดียวกับรายงาน) · API: handle_stock_pr.php · พิมพ์: stock_pr_print.php
+        const PrManager = {
+            lines: [],
+            esc: v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
+
+            // พิมพ์: เปิดใบพิมพ์ในแท็บใหม่ แล้วขึ้นหน้าต่างสั่งพิมพ์ทันที (stock_pr_print.php?autoprint=1)
+            print: (id) => window.open('stock_pr_print.php?id=' + encodeURIComponent(id) + '&autoprint=1', '_blank'),
+
+            // ปุ่ม "สร้างใบขอซื้อ" ในเมนูใบขอซื้อ => ไปที่รายการสินค้าเพื่อเลือก
+            startNew: () => {
+                AppController.selectMenu('all');
+                Swal.fire({ icon: 'info', title: 'เลือกสินค้าที่จะขอซื้อ', html: 'ติ๊กเลือกสินค้าในตาราง แล้วกดปุ่ม <b>ขอซื้อ</b> ที่แถบด้านล่าง', confirmButtonText: 'เข้าใจแล้ว', confirmButtonColor: '#006B9F' });
+            },
+
+            cancel: async (id, no) => {
+                const ok = await Swal.fire({ title: `ยกเลิกใบขอซื้อ ${no}?`, text: 'ใบที่ยกเลิกยังดูและพิมพ์ได้ (มีตราว่า "ยกเลิก") แต่เลขที่นี้จะไม่ถูกนำกลับมาใช้', icon: 'warning', showCancelButton: true, confirmButtonText: 'ยกเลิกใบนี้', cancelButtonText: 'ปิด', confirmButtonColor: '#dc2626' });
+                if (!ok.isConfirmed) return;
+                const fd = new FormData();
+                fd.append('id', id);
+                try {
+                    const r = (await axios.post('handle_stock_pr.php?action=cancel', fd)).data;
+                    if (!r.success) throw new Error(r.error || 'ยกเลิกไม่สำเร็จ');
+                    AppController.selectMenu('report-pr');
+                } catch (e) {
+                    Swal.fire('ข้อผิดพลาด', e.response?.data?.error || e.message, 'error');
+                }
+            },
+
+            // ฟอร์มใน drawer — สินค้าเดียวกันที่เลือกจากหลายคลังรวมเป็นบรรทัดเดียว (คงเหลือ/จุดสั่งซื้อรวมกัน)
+            renderForm: async (els) => {
+                const esc = PrManager.esc;
+                const selected = await AppController.getSelectedItemsFull();
+                const map = new Map();
+                selected.forEach(it => {
+                    const id = parseInt(it.pd_id);
+                    if (!id) return;
+                    if (!map.has(id)) map.set(id, { pd_id: id, code: it.pd_gen_code, name: it.pd_details_head, detail: it.pd_details, unit: it.pd_unit, wh: [], qty: 0, min: 0 });
+                    const l = map.get(id);
+                    l.qty += parseInt(it.pd_qty) || 0;
+                    l.min += parseInt(it.pd_qty_min) || 0;
+                    if (it.wh_name && !l.wh.includes(it.wh_name)) l.wh.push(it.wh_name);
+                });
+                PrManager.lines = [...map.values()];
+                const n = PrManager.lines.length;
+                els.title.innerText = 'ใบขอซื้อ (PR)';
+                els.sub.innerText = `รายการที่เลือก ${n} รายการ`;
+                if (!n) {
+                    els.body.innerHTML = '<div class="p-6 text-center text-sm text-slate-400">ยังไม่ได้เลือกสินค้า — ติ๊กเลือกสินค้าในตารางก่อน</div>';
+                    return;
+                }
+                const field = (id, label, attrs = '') => `<div><label class="label-xs" for="${id}">${label}</label><input id="${id}" class="input-base" ${attrs}></div>`;
+                els.body.innerHTML = `
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-3">
+                            ${field('pr-date', 'วันที่เอกสาร', 'type="date"')}
+                            ${field('pr-deliver', 'จัดส่งภายในวันที่', 'type="date"')}
+                        </div>
+                        <div class="space-y-2">
+                            ${PrManager.lines.map(l => {
+                                const low = l.min > 0 && l.qty <= l.min;
+                                const suggest = Math.max(1, l.min > 0 ? l.min - l.qty : 1);
+                                return `
+                                <div class="p-3 bg-white border border-slate-100 rounded-xl">
+                                    <div class="flex justify-between items-center gap-2">
+                                        <div class="min-w-0 pr-2">
+                                            <div class="text-xs font-bold text-slate-700 leading-tight">${esc(l.name)}</div>
+                                            <div class="mt-1 flex flex-wrap items-center gap-1">
+                                                <span class="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-500 font-bold rounded">${esc(l.code)}</span>
+                                                ${l.wh.map(w => `<span class="text-[9px] px-1.5 py-0.5 bg-primary/10 text-primary font-bold rounded">${esc(w)}</span>`).join('')}
+                                                <span class="text-[10px] font-semibold ${low ? 'text-rose-600' : 'text-slate-400'}">คงเหลือ ${l.qty.toLocaleString()}${l.min > 0 ? ' / จุดสั่งซื้อ ' + l.min.toLocaleString() : ''}</span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-2 shrink-0">
+                                            <input type="number" min="0" step="any" value="${suggest}" data-id="${l.pd_id}" class="pr-qty w-20 px-2 py-2 text-center bg-sky-50 border border-sky-100 rounded-xl outline-none font-bold text-sky-700 focus:ring-2 focus:ring-sky-500/20" aria-label="จำนวนที่ขอซื้อ ${esc(l.name)}">
+                                            <span class="text-[10px] font-bold text-slate-400 w-8 truncate" title="${esc(l.unit)}">${esc(l.unit || 'หน่วย')}</span>
+                                        </div>
+                                    </div>
+                                    <input type="text" maxlength="255" data-id="${l.pd_id}" class="pr-note mt-2 w-full px-3 py-1.5 text-xs border border-slate-100 rounded-lg outline-none focus:border-sky-300" placeholder="หมายเหตุรายการ (ถ้ามี)">
+                                </div>`;
+                            }).join('')}
+                        </div>
+                        ${field('pr-req', 'ผู้ขอซื้อ/ขอจ้าง *', 'type="text" maxlength="150"')}
+                        <div>
+                            <label class="label-xs" for="pr-remark">หมายเหตุ</label>
+                            <textarea id="pr-remark" rows="2" maxlength="2000" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-primary/20" placeholder="เช่น สำรองไว้ใช้งานซ่อมบำรุงประจำเดือน, ต้องการด่วนภายในสัปดาห์นี้"></textarea>
+                        </div>
+                    </div>`;
+                try {
+                    const r = (await axios.get('handle_stock_pr.php', { params: { action: 'defaults' } })).data;
+                    if (!r.success) throw new Error(r.error);
+                    const d = r.defaults;
+                    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+                    set('pr-date', d.pr_date);
+                    set('pr-req', d.req_name);
+                    // เลขที่โดยประมาณ (เลขจริงออกตอนบันทึก — ถ้ามีคนบันทึกก่อน เลขอาจขยับ)
+                    els.sub.innerText = `เลขที่ ${d.pr_no} · ${n} รายการ`;
+                } catch (e) { /* เลขที่ออกตอนบันทึก */ }
+            },
+
+            submit: async () => {
+                const v = id => (document.getElementById(id)?.value || '').trim();
+                if (!PrManager.lines.length) { DrawerManager.close(); return; }
+                if (!v('pr-req')) { Swal.fire('กรุณากรอกชื่อผู้ขอซื้อ', '', 'warning'); document.getElementById('pr-req')?.focus(); return; }
+                const notes = {};
+                document.querySelectorAll('.pr-note').forEach(el => { notes[el.dataset.id] = el.value; });
+                const items = [];
+                let bad = null;
+                document.querySelectorAll('.pr-qty').forEach(el => {
+                    const q = parseFloat(el.value);
+                    if (!(q > 0)) { bad = bad || el; return; }
+                    items.push({ pd_id: +el.dataset.id, qty: q, note: notes[el.dataset.id] || '' });
+                });
+                if (bad) { Swal.fire('จำนวนไม่ถูกต้อง', 'กรุณาระบุจำนวนที่ขอซื้อมากกว่า 0 ทุกรายการ', 'warning'); bad.focus(); return; }
+                const body = {
+                    pr_date: v('pr-date'), deliver_date: v('pr-deliver'),
+                    req_name: v('pr-req'),
+                    remark: document.getElementById('pr-remark')?.value || '', items
+                };
+                const btn = document.getElementById('btnSubmit');
+                if (btn) btn.disabled = true;
+                try {
+                    const r = (await axios.post('handle_stock_pr.php?action=save', body)).data;
+                    if (!r.success) throw new Error(r.error || 'บันทึกไม่สำเร็จ');
+                    AppController.clearSelection();
+                    DrawerManager.close();
+                    Swal.fire({ icon: 'success', title: `บันทึก ${r.pr_no} แล้ว`, text: 'พิมพ์ได้ที่เมนู ใบขอซื้อ (PR)', timer: 2200, showConfirmButton: false });
+                } catch (e) {
+                    Swal.fire('ข้อผิดพลาด', e.response?.data?.error || e.message, 'error');
+                } finally {
+                    if (btn) btn.disabled = false;
+                }
+            }
+        };
+
         const DrawerManager = {
             mode: null,
             editingId: null,
@@ -1809,6 +2080,10 @@ if (targetPdId) {
             searchTimer: null,
             
             open: async (mode, id = null, specificWhId = null) => {
+                if (!CAN_MANAGE && (mode === 'receive' || mode === 'adjust' || mode === 'pr')) {
+                    Swal.fire('ไม่มีสิทธิ์', 'ตำแหน่งช่างดูข้อมูลสต็อกได้อย่างเดียว — รับเข้า / ปรับยอด / ขอซื้อ ให้ผู้ที่มีสิทธิ์ดำเนินการ', 'info');
+                    return;
+                }
                 DrawerManager.mode = mode;
                 DrawerManager.editingId = id;
                 DrawerManager.whId = parseInt(specificWhId);
@@ -1827,7 +2102,10 @@ if (targetPdId) {
                 els.drawer.classList.remove('drawer-hidden');
 
                 // Set Icon Color
-                const colors = { receive: 'bg-emerald-500', adjust: 'bg-amber-500', stock: 'bg-primary', wh: 'bg-primary' };
+                const colors = { receive: 'bg-emerald-500', adjust: 'bg-amber-500', stock: 'bg-primary', wh: 'bg-primary', pr: 'bg-sky-500' };
+                // ปุ่มบันทึก: ใบขอซื้อ = "บันทึก" (พิมพ์ทีหลังจากเมนู ใบขอซื้อ (PR))
+                const submitBtn = document.getElementById('btnSubmit');
+                if (submitBtn) submitBtn.innerHTML = mode === 'pr' ? '<i data-lucide="save" class="w-4 h-4"></i><span>บันทึก</span>' : '<i data-lucide="save" class="w-4 h-4"></i><span>บันทึกข้อมูล</span>';
                 els.icon.className = `w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg ${colors[mode] || 'bg-primary'}`;
 
                 let currentWhIds = []; // เก็บค่า wh_ids ที่ดึงจาก DB
@@ -1857,6 +2135,7 @@ if (targetPdId) {
                 }
                 else if (mode === 'receive') DrawerManager.renderReceiveForm(els);
                 else if (mode === 'adjust') DrawerManager.renderAdjustForm(els);
+                else if (mode === 'pr') await PrManager.renderForm(els);
                 else if (mode === 'wh') DrawerManager.renderWHForm(els);
 
                 lucide.createIcons();
@@ -2348,6 +2627,7 @@ if (targetPdId) {
             submit: async () => {
                 const { mode, editingId, whId } = DrawerManager;
                 let success = false;
+                if (mode === 'pr') { await PrManager.submit(); return; }
 
                 if (mode === 'stock') {
                     const id = document.getElementById('editingId')?.value;
@@ -2984,7 +3264,7 @@ if (targetPdId) {
                 return `
                     <article class="ms-card p-3 ${sel ? 'is-selected' : ''}">
                         <div class="flex items-start gap-3">
-                            <button type="button" data-act="select" data-i="${i}" class="flex-none mt-0.5 w-6 h-6 rounded-full border-2 ${sel ? 'bg-sky-600 border-sky-600 text-white' : 'border-slate-300 bg-white'} flex items-center justify-center" aria-label="เลือกสินค้า">${sel ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}</button>
+                            ${CAN_MANAGE ? '' : '<!--'}<button type="button" data-act="select" data-i="${i}" class="flex-none mt-0.5 w-6 h-6 rounded-full border-2 ${sel ? 'bg-sky-600 border-sky-600 text-white' : 'border-slate-300 bg-white'} flex items-center justify-center" aria-label="เลือกสินค้า">${sel ? '<i data-lucide="check" class="w-3.5 h-3.5"></i>' : ''}</button>${CAN_MANAGE ? '' : '-->'}
                             <div class="min-w-0 flex-1">
                                 <div class="text-[14px] font-bold text-slate-800 leading-snug">${esc(d.pd_details_head)}</div>
                                 <div class="mt-1 flex flex-wrap gap-1">
@@ -3043,6 +3323,28 @@ if (targetPdId) {
                     </article>`;
             }
 
+            function prCard(d) {
+                return `
+                    <article class="ms-card p-3 ${d.status ? '' : 'opacity-70'}">
+                        <div class="flex items-start justify-between gap-2">
+                            <div><div class="text-[14px] font-bold ${d.status ? 'text-sky-700' : 'text-slate-400 line-through'}">${esc(d.pr_no)}</div>
+                                <div class="text-[11.5px] text-slate-500">${thDate(d.pr_date)} · ${esc(d.req_name || '-')}</div></div>
+                            <span class="flex-none rounded-full px-2 py-0.5 text-[11px] font-bold ${d.status ? 'bg-sky-50 text-sky-700' : 'bg-rose-50 text-rose-600'}">${d.status ? d.n_items + ' รายการ' : 'ยกเลิก'}</span>
+                        </div>
+                        ${d.remark ? `<div class="mt-1.5 text-[12.5px] text-slate-600">${esc(d.remark)}</div>` : ''}
+                        <div class="mt-2 rounded-xl border border-slate-100 px-2.5">${(d.items || []).map(it => `<div class="flex items-start justify-between gap-2 py-1.5 border-b border-slate-100 last:border-0">
+                            <div class="min-w-0"><div class="text-[12.5px] font-medium text-slate-700 truncate">${esc(it.pd_name)}</div>
+                                <div class="text-[10.5px] text-slate-400">${esc(it.pd_code)}${it.note ? ' · ' + esc(it.note) : ''}</div></div>
+                            <div class="flex-none text-[13px] font-bold text-sky-600">${Number(it.qty).toLocaleString('th-TH')} <span class="text-[10px] font-normal text-slate-400">${esc(it.pd_unit || '')}</span></div>
+                        </div>`).join('') || '<div class="py-2 text-[12px] text-slate-400">ไม่มีรายการ</div>'}</div>
+                        ${d.deliver_date ? `<div class="mt-1 text-[11.5px] text-slate-500">จัดส่งภายใน ${thDate(d.deliver_date)}</div>` : ''}
+                        <div class="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-end gap-2">
+                            ${d.can_cancel ? `<button type="button" onclick="PrManager.cancel(${d.pr_id}, '${esc(d.pr_no)}')" class="ms-act border border-slate-200 bg-white text-slate-400" aria-label="ยกเลิกใบนี้" title="ยกเลิกใบนี้"><i data-lucide="ban" class="w-4 h-4"></i></button>` : ''}
+                            <button type="button" onclick="PrManager.print(${d.pr_id})" class="ms-act bg-[#006b9f] text-white" aria-label="พิมพ์" title="พิมพ์"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                        </div>
+                    </article>`;
+            }
+
             function render() {
                 if (!isMobile() || !gridApi) return;
                 const size = gridApi.paginationGetPageSize();
@@ -3050,14 +3352,14 @@ if (targetPdId) {
                 const pages = gridApi.paginationGetTotalPages();
                 const totalRows = gridApi.paginationGetRowCount();
                 const menu = State.selectedMenuId;
-                const isReport = menu === 'report-po' || menu === 'report-adjust';
+                const isReport = menu === 'report-po' || menu === 'report-adjust' || menu === 'report-pr';
                 nodes = [];
                 for (let i = page * size; i < Math.min((page + 1) * size, totalRows); i++) {
                     const n = gridApi.getDisplayedRowAtIndex(i);
                     if (n && n.data) nodes.push(n);
                 }
                 $('msCards').innerHTML = nodes.length
-                    ? nodes.map((n, i) => isReport ? reportCard(n.data, menu === 'report-po') : stockCard(n.data, i, n)).join('')
+                    ? nodes.map((n, i) => menu === 'report-pr' ? prCard(n.data) : (isReport ? reportCard(n.data, menu === 'report-po') : stockCard(n.data, i, n))).join('')
                     : `<div class="py-12 flex flex-col items-center gap-2 text-slate-400 text-[13px]"><i data-lucide="${totalRows ? 'loader-2' : 'inbox'}" class="w-8 h-8 ${totalRows ? 'animate-spin' : ''}"></i>${totalRows ? 'กำลังโหลด...' : 'ไม่พบรายการ'}</div>`;
                 $('msPage').innerHTML = totalRows ? `หน้า <b>${page + 1}</b> / ${Math.max(pages, 1)} · ${totalRows.toLocaleString()} รายการ` : '-';
                 $('msPrev').disabled = page <= 0;
@@ -3071,7 +3373,7 @@ if (targetPdId) {
                 const n = nodes[+el.dataset.i];
                 if (!n) return;
                 const d = n.data;
-                if (el.dataset.act === 'select') n.setSelected(!n.isSelected());
+                if (el.dataset.act === 'select') { if (CAN_MANAGE) n.setSelected(!n.isSelected()); }
                 else if (el.dataset.act === 'history') HistoryManager.open(d.pd_id, d.wh_id, d.pd_details_head || '', d.pd_gen_code || '');
                 else if (el.dataset.act === 'edit') DrawerManager.open('stock', d.pd_id, d.wh_id);
             }

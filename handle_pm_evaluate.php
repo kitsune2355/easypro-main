@@ -74,9 +74,10 @@ if ($AG <= 0) fail('ไม่พบหน่วยงานของผู้ใ
 if ($action === 'setting_list') {
     if (!in_array($LEVEL, ['super_admin', 'admin'], true)) fail('เฉพาะผู้ดูแลระบบ', 403);
     $st = $connect->prepare("
-        SELECT u.user_id, TRIM(CONCAT(u.user_name, ' ', u.user_fname)) AS name, u.user_position, u.user_level,
+        SELECT u.user_id, TRIM(CONCAT(u.user_name, ' ', u.user_fname)) AS name, COALESCE(d.dep_name, '') AS user_position, u.user_level,
                (ev.id IS NOT NULL) AS is_evaluator
         FROM tb_user u
+        LEFT JOIN tb_department2 d ON d.dep_id = u.user_department AND d.dep_status = 0   -- ตำแหน่ง: แหล่งเดียวกับหน้าตั้งค่าผู้ใช้ (settings_user.php)
         LEFT JOIN pm_evaluators ev ON ev.ag_id = ? AND ev.user_id = u.user_id
         WHERE u.user_agency = ? OR u.user_id IN (SELECT age_user_id FROM tb_agency_employer WHERE age_ag_id = ?) OR ev.id IS NOT NULL
         ORDER BY is_evaluator DESC, u.user_name ASC");

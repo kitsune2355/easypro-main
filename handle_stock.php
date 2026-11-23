@@ -25,6 +25,16 @@ date_default_timezone_set('Asia/Bangkok');
 $action = isset($_GET['action']) ? $_GET['action'] : null; 
 $response = ['success' => false, 'message' => ''];
 
+// รับเข้า / ปรับยอด: ต้องล็อกอิน และตำแหน่งไม่ใช่ "ช่าง" (config_ctrl/stock_perm.php)
+if ($action === 'stock_receive' || $action === 'stock_adjust') {
+    require_once __DIR__ . '/config_ctrl/stock_perm.php';
+    if (!stock_can_manage($connect)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'ไม่มีสิทธิ์: ตำแหน่งช่างดูข้อมูลสต็อกได้อย่างเดียว'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
 // รับข้อมูลจาก JSON Body (สำหรับ POST/PUT)
 $rawInput = file_get_contents('php://input');
 $input = json_decode($rawInput, true);

@@ -45,9 +45,10 @@ function ap_my_name($connect, $me) {
 // =========================================
 if ($action === 'setting_list') {
     if (!in_array($LEVEL, ['super_admin', 'admin'], true)) ap_fail('เฉพาะผู้ดูแลระบบ', 403);
-    $rows = ap_all($connect, "SELECT u.user_id, TRIM(CONCAT(u.user_name, ' ', u.user_fname)) AS name, u.user_position, u.user_level,
+    $rows = ap_all($connect, "SELECT u.user_id, TRIM(CONCAT(u.user_name, ' ', u.user_fname)) AS name, COALESCE(d.dep_name, '') AS user_position, u.user_level,
                 (ap.id IS NOT NULL) AS is_approver
             FROM tb_user u
+            LEFT JOIN tb_department2 d ON d.dep_id = u.user_department AND d.dep_status = 0   -- ตำแหน่ง: แหล่งเดียวกับหน้าตั้งค่าผู้ใช้ (settings_user.php)
             LEFT JOIN pm_approvers ap ON ap.ag_id = $AG AND ap.user_id = u.user_id
             WHERE u.user_agency = '$agEsc' OR u.user_id IN (SELECT age_user_id FROM tb_agency_employer WHERE age_ag_id = $AG) OR ap.id IS NOT NULL
             ORDER BY is_approver DESC, u.user_name ASC");
