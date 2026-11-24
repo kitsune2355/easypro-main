@@ -6,6 +6,9 @@
 //  GET  ?action=get&id=                        ใบขอซื้อ + รายการ (ใช้ตอนแก้ไข)
 //  POST ?action=save   (JSON)                  บันทึกใบใหม่ => ออกเลขที่
 //  POST ?action=update (JSON, pr_id)           แก้ไขใบ (เลขที่เดิม) — ผู้สร้าง / admin / super_admin, เฉพาะใบที่ยังไม่ยกเลิก
+//  POST ?action=sign   (JSON: id, slot req|ap, sign = PNG data URL, ver = updated_at ตอนเปิดใบ)   ลงลายเซ็น (spr_sign_rights)
+//  POST ?action=unsign (JSON: id, slot)        ลบลายเซ็น — ผู้ที่เซ็นเอง / super_admin
+//       แก้ไขใบ (update) = ล้างลายเซ็นทั้งสองช่อง เพราะเนื้อหาไม่ใช่ที่เซ็นไว้แล้ว
 //  POST ?action=cancel (id, reason)            ยกเลิกใบ (ต้องระบุเหตุผล) — ผู้สร้าง / admin / super_admin
 //  รายการในใบ: สินค้าในสต็อก { pd_id, qty, note } หรือสินค้านอกสต็อก { pd_id: 0, name, code, unit, qty, note }
 //  ตำแหน่ง "ช่าง" ดูและพิมพ์ได้ แต่ บันทึก / แก้ไข / ยกเลิก ไม่ได้ (config_ctrl/stock_perm.php)
@@ -265,11 +268,71 @@ if ($action === 'get') {
     unset($i);
     $h['can_edit'] = spr_can_change($h, $canManage, $isAdmin, $me);
     $approvers = spra_list($connect, $ag);
+    $h['signed'] = !empty($h['req_signed_at']) || !empty($h['ap_signed_at']);
+    unset($h['req_sign'], $h['ap_sign']);   // รูปลายเซ็นใหญ่ ฟอร์มไม่ใช้
     if ($h['approver_id'] === null) $h['approver_id'] = count($approvers) === 1 ? $approvers[0]['id'] : '';   // ใบเก่า: ใช้ค่าเดียวกับที่ใบพิมพ์แสดง
     spr_out(['success' => true, 'pr' => $h, 'items' => $items, 'approvers' => $approvers]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') spr_out(['success' => false, 'error' => 'method not allowed'], 405);
+
+// ---------- ลงลายเซ็น / ลบลายเซ็น (ใบพิมพ์) — ก่อนตรวจตำแหน่งช่าง เพราะผู้อนุมัติดูสิทธิ์จากรายชื่อผู้อนุมัติ ----------
+if ($action === 'sign' || $action === 'unsign') {
+    $in = json_decode(file_get_contents('php://input'), true);
+    // รับเฉพาะ JSON => ฟอร์มจากเว็บอื่นส่งข้ามมาไม่ได้
+    if (!is_array($in) || stripos((string)($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json') !== 0) spr_out(['success' => false, 'error' => 'ข้อมูลไม่ถูกต้อง'], 400);
+    if (!spr_has_sign($connect)) spr_out(['success' => false, 'error' => 'ฐานข้อมูลยังไม่รองรับลายเซ็น — ให้ผู้ดูแลรัน sql/2026-11-24_stock_pr_sign.sql']);
+    $id = (int)($in['id'] ?? 0);
+    $slot = ($in['slot'] ?? '') === 'ap' ? 'ap' : 'req';
+    $st = mysqli_prepare($connect, "SELECT pr_id, status, created_by, updated_at, approver_id, approver_name, req_signed_by, ap_signed_by FROM tb_stock_pr WHERE pr_id = ? AND ag_id = ? LIMIT 1");
+    mysqli_stmt_bind_param($st, 'ii', $id, $ag);
+    mysqli_stmt_execute($st);
+    $pr = mysqli_fetch_assoc(mysqli_stmt_get_result($st));
+    mysqli_stmt_close($st);
+    if (!$pr) spr_out(['success' => false, 'error' => 'ไม่พบใบขอซื้อ'], 404);
+    if ((int)$pr['status'] !== 1) spr_out(['success' => false, 'error' => 'ใบนี้ถูกยกเลิกแล้ว']);
+    $signedBy = (string)$pr[$slot . '_signed_by'];
+
+    if ($action === 'unsign') {
+        if ($signedBy === '') spr_out(['success' => false, 'error' => 'ช่องนี้ยังไม่มีลายเซ็น']);
+        if ($level !== 'super_admin' && $signedBy !== $me) spr_out(['success' => false, 'error' => 'ลบได้เฉพาะลายเซ็นของตัวเอง'], 403);
+        $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET {$slot}_sign = NULL, {$slot}_signed_at = NULL, {$slot}_signed_by = NULL WHERE pr_id = ? AND ag_id = ? AND status = 1 AND {$slot}_signed_by = ?");
+        mysqli_stmt_bind_param($st, 'iis', $id, $ag, $signedBy);
+        mysqli_stmt_execute($st);
+        $n = mysqli_stmt_affected_rows($st);
+        mysqli_stmt_close($st);
+        spr_out($n > 0 ? ['success' => true] : ['success' => false, 'error' => 'ลบไม่สำเร็จ กรุณารีเฟรชหน้า']);
+    }
+
+    $rights = spr_sign_rights($connect, $ag, $pr, $me, $level);
+    if (!$rights[$slot]) spr_out(['success' => false, 'error' => $slot === 'ap' ? 'ลงนามได้เฉพาะผู้อนุมัติของใบนี้' : 'ลงนามได้เฉพาะผู้สร้างใบ หรือผู้ดูแลระบบ'], 403);
+    if ($signedBy !== '') spr_out(['success' => false, 'error' => 'ช่องนี้ลงนามแล้ว กรุณารีเฟรชหน้า']);
+    $ver = (string)($in['ver'] ?? '');
+    if ($ver !== (string)$pr['updated_at']) spr_out(['success' => false, 'error' => 'ใบนี้ถูกแก้ไขหลังจากที่เปิดหน้านี้ กรุณารีเฟรชเพื่อตรวจรายการก่อนลงนาม']);
+    // รูปลายเซ็น: PNG จริง ไม่เกิน 300 KB
+    $sign = (string)($in['sign'] ?? '');
+    $bin = preg_match('#^data:image/png;base64,[A-Za-z0-9+/]+=*$#', $sign) ? base64_decode(substr($sign, 22), true) : false;
+    $info = $bin !== false && strlen($bin) <= 307200 ? @getimagesizefromstring($bin) : false;
+    if (!$info || $info[2] !== IMAGETYPE_PNG || $info[0] > 3000 || $info[1] > 3000) spr_out(['success' => false, 'error' => 'ลายเซ็นไม่ถูกต้อง กรุณาเซ็นใหม่']);
+
+    $now = date('Y-m-d H:i:s');
+    if ($slot === 'ap') {
+        // ชื่อผู้อนุมัติ = ผู้ที่เซ็นจริง (คนเดิมของใบ => คงชื่อที่เก็บไว้)
+        $name = (string)$pr['approver_id'] === $me && trim((string)$pr['approver_name']) !== '' ? (string)$pr['approver_name'] : spr_user_name($connect, $me);
+        $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET ap_sign = ?, ap_signed_at = ?, ap_signed_by = ?, approver_id = ?, approver_name = ?
+            WHERE pr_id = ? AND ag_id = ? AND status = 1 AND ap_signed_by IS NULL AND COALESCE(updated_at, '') = ?");
+        mysqli_stmt_bind_param($st, 'sssssiis', $sign, $now, $me, $me, $name, $id, $ag, $ver);
+    } else {
+        $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET req_sign = ?, req_signed_at = ?, req_signed_by = ?
+            WHERE pr_id = ? AND ag_id = ? AND status = 1 AND req_signed_by IS NULL AND COALESCE(updated_at, '') = ?");
+        mysqli_stmt_bind_param($st, 'sssiis', $sign, $now, $me, $id, $ag, $ver);
+    }
+    mysqli_stmt_execute($st);
+    $n = mysqli_stmt_affected_rows($st);
+    mysqli_stmt_close($st);
+    spr_out($n > 0 ? ['success' => true] : ['success' => false, 'error' => 'ใบนี้เพิ่งถูกเปลี่ยน กรุณารีเฟรชหน้า']);
+}
+
 if (!$canManage) spr_out(['success' => false, 'error' => 'ไม่มีสิทธิ์: ตำแหน่งช่างสร้าง แก้ไข หรือยกเลิกใบขอซื้อไม่ได้'], 403);
 
 // ผู้อนุมัติที่เลือก => [id, ชื่อ] · ต้องอยู่ในรายชื่อที่ตั้งไว้ (หรือเป็นคนเดิมของใบที่แก้ไข) · ไม่ได้ส่งมา (หน้าเว็บเวอร์ชันเก่า) = คงค่าเดิม
@@ -418,6 +481,8 @@ if ($action === 'update') {
         mysqli_stmt_close($st);
     }
     if ($ok) $ok = spr_insert_lines($connect, $id, $lines, $now, $me);
+    // เนื้อหาเปลี่ยน => ลายเซ็นเดิมใช้ไม่ได้ ต้องเซ็นใหม่
+    if ($ok && spr_has_sign($connect)) $ok = (bool)mysqli_query($connect, "UPDATE tb_stock_pr SET req_sign = NULL, req_signed_at = NULL, req_signed_by = NULL, ap_sign = NULL, ap_signed_at = NULL, ap_signed_by = NULL WHERE pr_id = " . (int)$id);
     if (!$ok) { mysqli_rollback($connect); spr_out(['success' => false, 'error' => 'บันทึกการแก้ไขไม่สำเร็จ'], 500); }
     mysqli_commit($connect);
     spr_out(['success' => true, 'pr_id' => $id, 'pr_no' => $row['pr_no']]);

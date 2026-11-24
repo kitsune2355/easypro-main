@@ -884,7 +884,7 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                     {
                         headerName: '', field: 'pr_id', width: 120, pinned: 'right', sortable: false, filter: false, suppressMovable: true,
                         cellRenderer: p => p.data ? `<div class="flex items-center justify-end gap-1 h-full">
-                                <button type="button" onclick="PrManager.print(${p.data.pr_id})" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 inline-flex items-center justify-center" title="พิมพ์" aria-label="พิมพ์ ${esc(p.data.pr_no)}"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                                <button type="button" onclick="PrManager.print(${p.data.pr_id})" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 inline-flex items-center justify-center" title="เปิดใบ — พิมพ์ / ลงนาม" aria-label="เปิดใบ ${esc(p.data.pr_no)} เพื่อพิมพ์หรือลงนาม"><i data-lucide="printer" class="w-4 h-4"></i></button>
                                 ${p.data.can_edit ? `<button type="button" onclick="PrManager.edit(${p.data.pr_id})" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-600 hover:bg-sky-50 hover:border-sky-300 hover:text-sky-700 inline-flex items-center justify-center" title="แก้ไข" aria-label="แก้ไข ${esc(p.data.pr_no)}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>` : ''}
                                 ${p.data.can_cancel ? `<button type="button" onclick="PrManager.cancel(${p.data.pr_id}, '${esc(p.data.pr_no)}')" class="h-7 w-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 inline-flex items-center justify-center" title="ยกเลิกใบนี้"><i data-lucide="ban" class="w-4 h-4"></i></button>` : ''}
                             </div>` : ''
@@ -1989,8 +1989,8 @@ if (targetPdId) {
             seq: 0,
             esc: v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
 
-            // พิมพ์: เปิดใบพิมพ์ในแท็บใหม่ แล้วขึ้นหน้าต่างสั่งพิมพ์ทันที (stock_pr_print.php?autoprint=1)
-            print: (id) => window.open('stock_pr_print.php?id=' + encodeURIComponent(id) + '&autoprint=1', '_blank'),
+            // พิมพ์ / ลงนาม: เปิดใบในแท็บใหม่ ให้ผู้ใช้เลือกเองว่าจะเซ็นหรือพิมพ์ (stock_pr_print.php)
+            print: (id) => window.open('stock_pr_print.php?id=' + encodeURIComponent(id), '_blank'),
 
             // ปุ่ม "สร้างใบขอซื้อ" ในเมนูใบขอซื้อ => ไปที่รายการสินค้าเพื่อเลือก
             startNew: () => {
@@ -2134,10 +2134,12 @@ if (targetPdId) {
                     if (el) { el.innerHTML = '<option value="">ไม่ระบุ</option>' + opts.map(a => `<option value="${PrManager.esc(a.id)}">${PrManager.esc(a.name)}</option>`).join(''); el.value = id || ''; }
                 };
                 PrManager.hasApprover = false;
+                PrManager.signed = false;
                 if (head) {
                     setApprovers(approvers, head.approver_id, head.approver_name);
                     set('pr-date', head.pr_date); set('pr-deliver', head.deliver_date); set('pr-req', head.req_name); set('pr-remark', head.remark);
                     els.sub.innerText = `เลขที่ ${head.pr_no} (เลขเดิม)`;
+                    PrManager.signed = !!head.signed;
                 } else {
                     try {
                         const r = (await axios.get('handle_stock_pr.php', { params: { action: 'defaults' } })).data;
@@ -2329,6 +2331,11 @@ if (targetPdId) {
                         : { pd_id: l.pd_id, qty: parseFloat(l.qty), note: l.note })
                 };
                 if (PrManager.hasApprover) body.approver_id = v('pr-approver');
+                // ใบที่ลงนามแล้ว: แก้ไข = ต้องเซ็นใหม่
+                if (PrManager.editId && PrManager.signed) {
+                    const c = await Swal.fire({ icon: 'warning', title: 'ใบนี้ลงนามแล้ว', text: 'บันทึกการแก้ไขจะล้างลายเซ็นเดิมทั้งหมด และต้องลงนามใหม่', showCancelButton: true, confirmButtonText: 'บันทึกและล้างลายเซ็น', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626', reverseButtons: true });
+                    if (!c.isConfirmed) return;
+                }
                 const btn = document.getElementById('btnSubmit');
                 if (btn) btn.disabled = true;
                 try {
@@ -3616,7 +3623,7 @@ if (targetPdId) {
                         <div class="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-end gap-2">
                             ${d.can_edit ? `<button type="button" onclick="PrManager.edit(${d.pr_id})" class="ms-act border border-slate-200 bg-white text-slate-500" aria-label="แก้ไข" title="แก้ไข"><i data-lucide="pencil" class="w-4 h-4"></i></button>` : ''}
                             ${d.can_cancel ? `<button type="button" onclick="PrManager.cancel(${d.pr_id}, '${esc(d.pr_no)}')" class="ms-act border border-slate-200 bg-white text-slate-400" aria-label="ยกเลิกใบนี้" title="ยกเลิกใบนี้"><i data-lucide="ban" class="w-4 h-4"></i></button>` : ''}
-                            <button type="button" onclick="PrManager.print(${d.pr_id})" class="ms-act bg-[#006b9f] text-white" aria-label="พิมพ์" title="พิมพ์"><i data-lucide="printer" class="w-4 h-4"></i></button>
+                            <button type="button" onclick="PrManager.print(${d.pr_id})" class="ms-act bg-[#006b9f] text-white" aria-label="เปิดใบเพื่อพิมพ์หรือลงนาม" title="พิมพ์ / ลงนาม"><i data-lucide="printer" class="w-4 h-4"></i></button>
                         </div>
                     </article>`;
             }
