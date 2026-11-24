@@ -161,6 +161,10 @@
                             <p class="font-semibold text-slate-700 mt-1 break-words" id="m-location">-</p>
                         </div>
                         <div class="bg-slate-50 rounded-2xl p-3">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><i data-lucide="calendar-check" class="w-3 h-3"></i>วันที่ติดตั้ง</p>
+                            <p class="font-semibold text-slate-700 mt-1 break-words" id="m-install">-</p>
+                        </div>
+                        <div class="bg-slate-50 rounded-2xl p-3">
                             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><i data-lucide="calendar-clock" class="w-3 h-3"></i>รับประกันถึง</p>
                             <p class="font-semibold text-slate-700 mt-1 break-words" id="m-warranty">-</p>
                         </div>
@@ -168,7 +172,7 @@
                             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><i data-lucide="building-2" class="w-3 h-3"></i>ผู้จำหน่าย / บริษัท</p>
                             <p class="font-semibold text-slate-700 mt-1 break-words" id="m-company">-</p>
                         </div>
-                        <div class="bg-slate-50 rounded-2xl p-3">
+                        <div class="bg-slate-50 rounded-2xl p-3 col-span-2">
                             <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><i data-lucide="briefcase" class="w-3 h-3"></i>หน่วยงาน</p>
                             <p class="font-semibold text-slate-700 mt-1 break-words" id="m-agency">-</p>
                         </div>
@@ -561,6 +565,7 @@ function renderMachine(machine) {
     const loc = [machine.location, machine.floor, machine.room].filter(v => v && v !== '-' && v !== 'ไม่ระบุ').join(' / ');
     document.getElementById('m-location').innerText = loc || 'ไม่ระบุ';
 
+    document.getElementById('m-install').innerText = machine.install_date ? formatDate(machine.install_date).split(' ')[0] : '-';
     document.getElementById('m-warranty').innerText = machine.warranty ? formatDate(machine.warranty).split(' ')[0] : '-';
     document.getElementById('m-company').innerText = machine.company || '-';
     document.getElementById('m-agency').innerText = machine.ag_contract || '-';

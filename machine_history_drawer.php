@@ -42,13 +42,20 @@
                     </div>
                     
                     <div>
+                        <p class="text-[10px] text-slate-400 mb-0.5">วันที่ติดตั้งเครื่อง</p>
+                        <p id="hist-install" class="text-slate-700 font-semibold flex items-center gap-1">
+                            <i data-lucide="calendar-check" class="w-3 h-3 text-sky-500"></i>
+                            <span>-</span>
+                        </p>
+                    </div>
+                    <div>
                         <p class="text-[10px] text-slate-400 mb-0.5">วันหมดรับประกัน</p>
                         <p id="hist-warranty" class="text-slate-700 font-semibold flex items-center gap-1">
                             <i data-lucide="shield-alert" class="w-3 h-3 text-emerald-500"></i>
                             <span>-</span>
                         </p>
                     </div>
-                    <div>
+                    <div class="col-span-2">
                         <p class="text-[10px] text-slate-400 mb-0.5">บริษัทผู้ดูแล (Vendor)</p>
                         <p id="hist-vendor" class="text-slate-700 font-semibold truncate flex items-center gap-1">
                             <i data-lucide="building-2" class="w-3 h-3 text-sky-500"></i>
@@ -66,6 +73,9 @@
                  </div>
              </div>
         </div>
+
+        <!-- เอกสารแนบ (js/machine_docs.js) -->
+        <div id="hist-docs"></div>
 
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-[13px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
@@ -123,6 +133,7 @@
 
             if (result.success) {
                 const { machine, history } = result.data;
+                MachineDocs.renderHistory(dbId);
 
                 // 1. ข้อมูลอุปกรณ์พื้นฐาน
                 document.getElementById('hist-machine-name').innerText = machine.asset_name || 'ไม่ระบุชื่ออุปกรณ์';
@@ -132,6 +143,7 @@
                 
                 // 2. ข้อมูลใหม่: วันหมดประกัน และ บริษัทผู้ดูแล
                 // ** หมายเหตุ: กรุณาเปลี่ยน warranty_date และ vendor_name ให้ตรงกับชื่อฟิลด์จริงในฐานข้อมูล tb_ass_list ของคุณ **
+                document.querySelector('#hist-install span').innerText = machine.asset_install_date ? window.formatDate(machine.asset_install_date, false) : 'ไม่มีข้อมูล';
                 document.querySelector('#hist-warranty span').innerText = (machine.warranty_date || machine.asset_warranty) 
                     ? window.formatDate(machine.warranty_date || machine.asset_warranty, false) 
                     : 'ไม่มีข้อมูล';

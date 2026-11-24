@@ -360,11 +360,15 @@ include "config_ctrl/checksession.php";
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
-                        <div>
+                        <div class="col-span-2 sm:col-span-1">
+                            <label for="install_date" class="text-[11px] font-bold text-slate-400 uppercase mb-2 block">วันที่ติดตั้งเครื่อง</label>
+                            <input id="install_date" type="date" class="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3 text-sm focus:border-sky-500 outline-none transition-all">
+                        </div>
+                        <div class="col-span-2 sm:col-span-1">
                             <label class="text-[11px] font-bold text-slate-400 uppercase mb-2 block">วันหมดรับประกัน</label>
                             <input id="warranty_date" type="date" class="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3 text-sm focus:border-sky-500 outline-none transition-all">
                         </div>
-                        <div>
+                        <div class="col-span-2">
                             <label class="text-[11px] font-bold text-slate-400 uppercase mb-2 block">บริษัทที่ดูแลอุปกรณ์ (Vendor/Service)</label>
                             <input id="vendor_company" type="text" class="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3 text-sm focus:border-sky-500 outline-none transition-all" placeholder="ชื่อบริษัทและเบอร์โทรติดต่อ">
                         </div>
@@ -424,6 +428,24 @@ include "config_ctrl/checksession.php";
                         <label class="text-[11px] font-bold text-slate-400 uppercase mb-2 block">หมายเหตุ</label>
                         <textarea id="remark_input" rows="3" class="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3 text-sm focus:border-sky-500 outline-none transition-all" placeholder="ข้อมูลเพิ่มเติม..."></textarea>
                     </div>
+
+                    <!-- เอกสารแนบ (js/machine_docs.js) -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] font-bold text-slate-400 uppercase">เอกสารแนบเพิ่มเติม</span>
+                            <span id="doc-count" class="text-[11px] font-bold text-slate-400">0/10</span>
+                        </div>
+                        <div id="doc-list" class="space-y-2 mb-2"></div>
+                        <p id="doc-note" class="hidden text-[11px] font-semibold text-rose-600 mb-2"></p>
+                        <button type="button" id="doc-drop" class="w-full bg-white border-2 border-dashed border-slate-200 rounded-2xl px-5 py-4 flex items-center gap-3 text-left hover:border-sky-300 transition-all">
+                            <i data-lucide="paperclip" class="w-5 h-5 text-sky-600 shrink-0"></i>
+                            <span class="min-w-0">
+                                <span class="block text-xs font-bold text-slate-700">เลือกไฟล์ หรือลากไฟล์มาวาง</span>
+                                <span class="block text-[10px] text-slate-400">เช่น คู่มือการใช้งาน ใบรับประกัน · PDF, Word, Excel, PowerPoint, JPG/PNG, TXT · ไม่เกิน 20 MB ต่อไฟล์</span>
+                            </span>
+                        </button>
+                        <input type="file" id="doc-input" multiple class="hidden">
+                    </div>
                 </div>
             </form>
         </div>
@@ -438,6 +460,7 @@ include "config_ctrl/checksession.php";
 
     <?php include 'machine_history_drawer.php'; ?>
 
+    <script src="js/machine_docs.js?v=<?= @filemtime(__DIR__ . '/js/machine_docs.js') ?>"></script>
     <script src="js/location-selector.js"></script>
     <script>
         let gridApi;
@@ -701,7 +724,15 @@ include "config_ctrl/checksession.php";
                 filter: 'agSetColumnFilter',
                 filterParams: getFilterParams('room')
             },
-            { 
+            {
+                headerName: 'วันที่ติดตั้ง',
+                field: 'install_date',
+                filter: DateRangeFilter,
+                valueFormatter: params => params.value ? window.formatDate(params.value, false) : '-',
+                sortable: true,
+                width: 150
+            },
+            {
                 headerName: 'วันที่สร้าง', 
                 field: 'asset_ins', 
                 filter: DateRangeFilter,
@@ -922,6 +953,8 @@ include "config_ctrl/checksession.php";
 
         function openDrawer(mode = 'edit') {
             if (mode === 'add') {
+                MachineDocs.reset();
+                window.currentEditId = null;   // เปิดแก้ไขค้างไว้แล้วกดลงทะเบียน => ต้องไม่ทับเครื่องเดิม
                 document.getElementById('machineForm').reset();
                 document.querySelector('#drawer-panel h2').innerText = "ลงทะเบียนเครื่องจักร";
                 
@@ -1063,6 +1096,7 @@ include "config_ctrl/checksession.php";
                     { header: 'ห้อง', key: 'room', width: 15 },
                     { header: 'วันที่สร้าง', key: 'asset_ins', width: 15 },
                     { header: 'สถานะ', key: 'status', width: 15 },
+                    { header: 'วันที่ติดตั้ง', key: 'install_date', width: 15 },
                     { header: 'วันหมดประกัน', key: 'warranty', width: 15 },
                     { header: 'บริษัทที่ดูแล/Vendor', key: 'company', width: 25 },
                     { header: 'หมายเหตุ', key: 'remark', width: 30 }
@@ -1085,6 +1119,7 @@ include "config_ctrl/checksession.php";
                         floor: data.floor,
                         room: data.room,
                         status: data.status,
+                        install_date: data.install_date || '',
                         warranty: data.warranty,
                         company: data.company,
                         remark: data.remark
@@ -1238,6 +1273,7 @@ include "config_ctrl/checksession.php";
                     document.getElementById('serial_number').value = data.serial || '';
                     document.getElementById('brand_input').value = data.brand || '';
                     document.getElementById('model_input').value = data.model || '';
+                    document.getElementById('install_date').value = data.install_date || '';
                     document.getElementById('warranty_date').value = data.warranty || '';
                     document.getElementById('vendor_company').value = data.company || '';
                     document.getElementById('remark_input').value = data.remark || '';
@@ -1281,6 +1317,7 @@ include "config_ctrl/checksession.php";
                         }
                     }
 
+                    MachineDocs.load(id);
                     openDrawer('edit');
                 } else {
                     Swal.fire('ผิดพลาด', result.error, 'error');
@@ -1354,6 +1391,7 @@ include "config_ctrl/checksession.php";
             formData.append('brand', document.getElementById('brand_input').value);
             formData.append('model', document.getElementById('model_input').value);
             formData.append('status', document.getElementById('machine_status').value);
+            formData.append('install_date', document.getElementById('install_date').value);
             formData.append('warranty', document.getElementById('warranty_date').value);
             formData.append('vendor', document.getElementById('vendor_company').value);
             formData.append('remark', document.getElementById('remark_input').value);
@@ -1393,6 +1431,17 @@ include "config_ctrl/checksession.php";
                 const result = await response.json();
 
                 if (result.success) {
+                    // บันทึกเครื่องแล้ว => อัปโหลด/ลบเอกสาร · ไม่สำเร็จ: เปิดฟอร์มค้างไว้ให้ลองใหม่ (โหมดแก้ไข ไม่สร้างเครื่องซ้ำ)
+                    const docErrors = await MachineDocs.commit(result.id, (i, n) => Swal.update({ title: `กำลังอัปโหลดเอกสาร ${i}/${n}...` }));
+                    if (docErrors.length) {
+                        window.currentEditId = result.id;
+                        document.querySelector('#drawer-panel h2').innerText = "แก้ไขข้อมูลเครื่องจักร";
+                        if (typeof loadGridData === "function") loadGridData();
+                        const msg = document.createElement('div');
+                        docErrors.forEach(t => { const d = document.createElement('div'); d.textContent = t; msg.appendChild(d); });
+                        Swal.fire({ icon: 'warning', title: 'บันทึกเครื่องแล้ว แต่เอกสารบางไฟล์ไม่สำเร็จ', html: msg });
+                        return;
+                    }
                     Swal.fire({ icon: 'success', title: result.message, timer: 1500 });
                     closeDrawer();
                     if (typeof loadGridData === "function") loadGridData();

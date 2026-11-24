@@ -6,6 +6,8 @@ error_reporting(E_ALL);
 
 @session_start();   // ใช้ผู้ใช้ที่ล็อกอินเป็นผู้บันทึกเครื่องจักร (created_by / updated_by)
 include 'config_ctrl/connect.php';
+require_once __DIR__ . '/config_ctrl/machine_docs.php';      // เอกสารแนบ (ลบเครื่อง = ลบเอกสาร)
+require_once __DIR__ . '/config_ctrl/machine_install.php';   // วันที่ติดตั้งเครื่อง (asset_install_date)
 require_once __DIR__ . '/config_ctrl/image_shrink.php';   // ย่อรูปที่อัปโหลดก่อนเก็บ
 
 if (mysqli_connect_errno()) {
@@ -250,6 +252,7 @@ if ($action === 'get_public_history') {
         'serial'       => $row['asset_sn'],
         'brand'        => $row['brn_id'],
         'model'        => $row['asset_model'],
+        'install_date' => mi_value($row),
         'warranty'     => $row['asset_warranty'],
         'company'      => $row['asset_company'],
         'remark'       => $row['asset_remark'],
@@ -349,6 +352,7 @@ if ($action === 'get_by_id') {
                     'serial'       => $row['asset_sn'],
                     'brand'        => $row['brn_id'],
                     'model'        => $row['asset_model'],
+                    'install_date' => mi_value($row),
                     'warranty'     => $row['asset_warranty'],
                     'company'      => $row['asset_company'],
                     'remark'       => $row['asset_remark'],
@@ -421,6 +425,8 @@ elseif ($action === 'get_all') {
                 'asset_ins'    => 'a.asset_ins' 
             );
 
+            if (mi_ensure($connect)) $filterMapping['install_date'] = 'a.asset_install_date';
+
             foreach ($filterModel as $key => $info) {
                 if (isset($filterMapping[$key])) {
                     $dbCol = $filterMapping[$key];
@@ -476,6 +482,7 @@ elseif ($action === 'get_all') {
                 'type_name' => 'g.TGroupName',
                 'asset_ins' => 'a.asset_ins' 
             );
+            if (mi_ensure($connect)) $allowedSort['install_date'] = 'a.asset_install_date';
             if (isset($allowedSort[$col])) {
                 $orderBy = " ORDER BY {$allowedSort[$col]} {$dir} ";
             }
@@ -552,6 +559,7 @@ elseif ($action === 'get_all') {
                 'remark' => $row['asset_remark'],
                 'brand' => isset($row['brn_id']) ? $row['brn_id'] : '-',  
                 'model' => isset($row['asset_model']) ? $row['asset_model'] : '-', 
+                'install_date' => mi_value($row),
                 'warranty' => isset($row['asset_warranty']) ? $row['asset_warranty'] : '-',
                 'company' => isset($row['asset_company']) ? $row['asset_company'] : '-',
                 'asset_ins' => isset($row['asset_ins']) ? $row['asset_ins'] : '-' ,
@@ -594,6 +602,21 @@ elseif ($action === 'save') {
     $current_user   = !empty($_SESSION['sess_user_id_es']) ? $_SESSION['sess_user_id_es'] : 'System';
     $dep_id         = isset($_POST['dep_id']) ? intval($_POST['dep_id']) : 0;
     
+    // วันที่ติดตั้ง: หน้าที่ไม่ได้ส่งช่องนี้มา (เช่น ตั้งค่าอุปกรณ์) = ไม่แตะค่าเดิม
+    $has_install    = isset($_POST['install_date']);
+    $install_date   = $has_install ? mi_date($_POST['install_date']) : null;
+    if ($install_date === false) {
+        echo json_encode(array('success' => false, 'error' => 'วันที่ติดตั้งเครื่องไม่ถูกต้อง'), JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if ($has_install && !mi_ensure($connect)) {
+        if ($install_date !== null) {
+            echo json_encode(array('success' => false, 'error' => 'ฐานข้อมูลยังไม่มีคอลัมน์วันที่ติดตั้งเครื่อง กรุณาแจ้งผู้ดูแลระบบ'), JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $has_install = false;
+    }
+
     $now            = date('Y-m-d H:i:s');
     $asset_state    = 1; 
     $asset_ins      = $now;
@@ -694,7 +717,14 @@ elseif ($action === 'save') {
     }
 
     if ($stmt->execute()) {
-        echo json_encode(array('success' => true, 'message' => 'บันทึกข้อมูลเรียบร้อยแล้ว'));
+        $save_id = $id ? $id : (int)$connect->insert_id;
+        if ($has_install) {
+            $stmt_ins = $connect->prepare("UPDATE tb_ass_list SET asset_install_date = ? WHERE ass_id = ?");
+            $stmt_ins->bind_param("si", $install_date, $save_id);
+            $stmt_ins->execute();
+            $stmt_ins->close();
+        }
+        echo json_encode(array('success' => true, 'message' => 'บันทึกข้อมูลเรียบร้อยแล้ว', 'id' => $save_id));
         exit;
     } else {
         echo json_encode(array('success' => false, 'error' => 'Database Error: ' . $stmt->error));
@@ -767,6 +797,7 @@ if ($action === 'delete') {
             call_user_func_array(array($stmt, 'bind_param'), $bind_delete_params);
             
             if ($stmt->execute()) {
+                md_delete_machines($connect, $deleted_ids);
                 echo json_encode(array('success' => true));
             } else {
                 echo json_encode(array('success' => false, 'error' => 'Database Error: ' . $connect->error));
