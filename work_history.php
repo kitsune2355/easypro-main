@@ -427,6 +427,31 @@ include "config_ctrl/checksession.php";
         .timeline-container { max-height: calc(100vh - 290px); }
       }
 
+      /* ไทม์ไลน์แบบสลับแกน: เวลา/วันที่อยู่ด้านซ้าย — วันที่/ช่างเป็นหัวคอลัมน์ */
+      .tlv { width: max-content; min-width: 100%; flex: none; }
+      .tlv-row { display: flex; }
+      .tlv-head { position: sticky; top: 0; z-index: 20; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+      .tlv-axis { flex: none; width: var(--axis); position: sticky; left: 0; z-index: 10; background: #fff; border-right: 1px solid #e2e8f0; font-size: .7rem; font-weight: 500; color: #64748b; }
+      .tlv-head .tlv-axis { z-index: 30; background: #f8fafc; padding: .6rem .5rem; font-size: .75rem; font-weight: 600; color: #334155; display: flex; align-items: center; justify-content: center; text-align: center; }
+      .tlv-tick { border-top: 1px solid #f1f5f9; padding: 2px 6px; text-align: right; white-space: nowrap; overflow: hidden; line-height: 1.2; box-sizing: border-box; }
+      .tlv-tick:first-child { border-top: 0; }
+      .tlv-tick.is-weekend { color: #e11d48; }
+      .tlv-tick.is-today { background: #e0f2fe; color: var(--color-primary); font-weight: 700; }
+      .tlv-col { flex: 1 0 var(--w); min-width: var(--w); border-right: 1px solid #e2e8f0; box-sizing: border-box; }
+      .tlv-col:last-child { border-right: 0; }
+      .tlv-head .tlv-col { padding: .45rem .5rem; font-size: .75rem; font-weight: 600; color: #334155; }
+      .tlv-head .tlv-col.is-today { background: #e0f2fe; color: var(--color-primary); box-shadow: inset 0 3px 0 var(--color-primary); }
+      .tlv-col-name { position: sticky; left: calc(var(--axis) + .5rem); display: inline-flex; align-items: center; gap: 6px; max-width: calc(var(--w) - 1rem); min-width: 0; }
+      .tlv-body .tlv-col.is-today { background-color: #f8fcff; }
+      .tlv-grid { position: relative; background-image: linear-gradient(to bottom, #f1f5f9 1px, transparent 1px); }
+      .tlv .timeline-bar { height: auto; align-items: flex-start; white-space: normal; padding: 4px 6px; overflow: hidden; overflow: clip; box-sizing: border-box; }
+      .tlv .timeline-bar:hover { transform: translateX(2px); }
+      .tlv .timeline-bar > .tl-label { position: sticky; top: 62px; z-index: 3; background: inherit; max-height: 2.5em; line-height: 1.3; word-break: break-word; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+      .tlv .tl-hold { left: 0; right: 0; bottom: auto; padding: 1px 4px; align-items: flex-end; box-shadow: inset 0 2px 0 #0369a1, inset 0 -2px 0 #0369a1; }
+      .tlv .timeline-now { left: 0; right: 0; bottom: auto; width: auto; height: 2px; }
+      .tlv .tl-day-col { top: auto; bottom: auto; left: 0; right: 0; }
+      .tl-swap-btn[aria-pressed="true"] { background: #e0f2fe; border-color: #7dd3fc; color: var(--color-primary); }
+
       /* Zoom controls */
       .timeline-zoom-controls {
         display: flex;
@@ -640,7 +665,10 @@ include "config_ctrl/checksession.php";
                     <h2 class="text-base xs:text-lg font-bold text-slate-950">ไทม์ไลน์งานรายวัน (Timeline)</h2>
                     <p class="text-[11px] text-slate-500 mt-1">แสดงงานในแต่ละวันตามช่วงเวลา 24 ชั่วโมง · <span class="tl-legend-hold"></span> ช่วงพักงาน</p>
                   </div>
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <button id="btnSwapDaily" type="button" data-swap="daily" aria-pressed="false" title="สลับแกน: วันที่ ⇄ เวลา" class="tl-swap-btn inline-flex h-8 items-center gap-1.5 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold shadow-sm hover:bg-slate-50">
+                      <i data-lucide="arrow-left-right" class="h-4 w-4"></i> สลับแกน
+                    </button>
                     <div class="timeline-zoom-controls" title="กด Ctrl/⌘ + เลื่อนล้อเมาส์เพื่อซูมได้เช่นกัน">
                       <button id="btnZoomOutDaily" type="button" title="ซูมออก" class="timeline-zoom-btn">
                         <i data-lucide="zoom-out" class="h-3.5 w-3.5"></i>
@@ -675,7 +703,10 @@ include "config_ctrl/checksession.php";
                     <h2 class="text-base xs:text-lg font-bold text-slate-950">ไทม์ไลน์ทีม (Team Timeline)</h2>
                     <p class="text-[11px] text-slate-500 mt-1">แสดงงานแยกตามช่างในช่วงเวลาที่เลือก · <span class="tl-legend-hold"></span> ช่วงพักงาน</p>
                   </div>
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <button id="btnSwapTeam" type="button" data-swap="team" aria-pressed="false" title="สลับแกน: ช่าง ⇄ วันที่" class="tl-swap-btn inline-flex h-8 items-center gap-1.5 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold shadow-sm hover:bg-slate-50">
+                      <i data-lucide="arrow-left-right" class="h-4 w-4"></i> สลับแกน
+                    </button>
                     <div class="timeline-zoom-controls" title="กด Ctrl/⌘ + เลื่อนล้อเมาส์เพื่อซูมได้เช่นกัน">
                       <button id="btnZoomOutTeam" type="button" title="ซูมออก" class="timeline-zoom-btn">
                         <i data-lucide="zoom-out" class="h-3.5 w-3.5"></i>
@@ -756,6 +787,11 @@ include "config_ctrl/checksession.php";
       const ZOOM_STEPS = [0.5, 0.75, 1, 1.5, 2, 3, 4];
       const BASE_HOUR_WIDTH = 55; // px ต่อ 1 ชั่วโมง ที่ซูม 100% (ไทม์ไลน์รายวัน)
       const BASE_DAY_WIDTH = 90; // px ต่อ 1 วัน ที่ซูม 100% (ไทม์ไลน์ทีม)
+      // สลับแกน (เวลาอยู่ด้านซ้าย): ความสูงต่อชั่วโมง/วัน, ความกว้างของงาน 1 เลน, ความสูงขั้นต่ำของแถบงาน
+      const SWAP_HOUR_HEIGHT = 44, SWAP_DAY_HEIGHT = 48, SWAP_LANE_WIDTH = 140, SWAP_MIN_BAR = 38;
+      const SWAP_KEY = (type) => "easypro_wh_swap_" + type;   // จำไว้ในเครื่องของผู้ใช้
+      const swapped = { daily: false, team: false };
+      Object.keys(swapped).forEach((t) => { try { swapped[t] = localStorage.getItem(SWAP_KEY(t)) === "1"; } catch (e) {} });
 
       const els = {
         technicianSelect: byId("technicianSelect"),
@@ -1179,7 +1215,7 @@ include "config_ctrl/checksession.php";
         return `${h.label || "พักงาน"}: ${fmtDate(h.start, { time: true })} – ${end}`;
       }
       // แถบลายทางช่วงพักงานภายในแถบงาน (ใช้พิกัด % เดียวกับไทม์ไลน์)
-      function holdOverlayHtml(job, calcLeft) {
+      function holdOverlayHtml(job, calcLeft, vertical) {
         if (!jobHolds(job).length || !job.renderWidth || !job.renderStart) return "";
         // ตัดตามช่วงที่แสดง แล้วรวมรอบพักที่ติดกัน (ห่างกันไม่เกิน 10 นาที) เป็นแถบเดียว
         const segs = [];
@@ -1195,6 +1231,7 @@ include "config_ctrl/checksession.php";
           const l = Math.min(100, Math.max(0, (calcLeft(new Date(g.s)) - job.renderLeft) / job.renderWidth * 100));
           const w = Math.min(100 - l, (calcLeft(new Date(g.e)) - calcLeft(new Date(g.s))) / job.renderWidth * 100);
           const text = `⏸ พักงาน${g.n > 1 ? ` ${g.n} ครั้ง` : ""} · ${escapeHtmlLite(g.labels.filter(Boolean).join(", "))}`;
+          if (vertical) return `<span class="tl-hold" style="top:min(${l}%, calc(100% - 18px));height:max(18px, ${w}%)"><b class="tl-hold-tag">${text}</b></span>`;
           // ช่วงสั้นมาก (ไม่กี่นาที) ยังต้องมองเห็น: กว้างอย่างน้อย 28px และไม่ล้นท้ายแถบ
           return `<span class="tl-hold" style="left:min(${l}%, calc(100% - 28px));width:max(28px, ${w}%)"><b class="tl-hold-tag">${text}</b></span>`;
         }).join("");
@@ -1278,15 +1315,16 @@ include "config_ctrl/checksession.php";
         cencel: "bg-rose-500"
       };
 
-      function calculateTimelineLanes(jobs, startBound, endBound, calcLeftPct, calcWidthPct, totalPx, openToNow) {
+      function calculateTimelineLanes(jobs, startBound, endBound, calcLeftPct, calcWidthPct, totalPx, openToNow, minPx) {
         const sorted = [...jobs].filter(j => j.workStart).sort((a, b) => new Date(a.workStart) - new Date(b.workStart));
         const lanes = []; // เก็บตำแหน่ง % ฝั่งขวาสุดของแต่ละเลน (เพื่อกันภาพทับกัน)
         
         // กำหนดความกว้างขั้นต่ำประมาณ 160px เพื่อให้เห็นรหัสงานและชื่องานครบถ้วน
-        const MIN_PX = 160; 
+        const MIN_PX = minPx || 160; 
         const minWidthPct = totalPx ? (MIN_PX / totalPx) * 100 : 0;
         
         sorted.forEach(job => {
+            job.renderWidth = undefined;   // ล้างค่าจากการวาดครั้งก่อน
             let start = new Date(job.workStart);
             let end = jobEndDate(job, openToNow);
             
@@ -1338,8 +1376,122 @@ include "config_ctrl/checksession.php";
         return dates;
       }
 
+      // วาดไทม์ไลน์แบบสลับแกน — cols: [{ head, cls, jobs, calcLeft, calcWidth, start, end, now, timeText }] · ticks: [{ label, cls }]
+      function renderSwapped(container, { corner, axisW, ticks, totalPx, cols, openToNow, emptyW, bands, emptyText }) {
+        let overflowPx = 0;
+        const built = cols.map((c) => {
+          const { processedJobs, totalLanes } = calculateTimelineLanes(c.jobs, c.start, c.end, c.calcLeft, c.calcWidth, totalPx, openToNow, SWAP_MIN_BAR);
+          const bars = processedJobs.map((job) => {
+            if (job.renderWidth === undefined) return "";
+            overflowPx = Math.max(overflowPx, Math.ceil((job.renderLeft + job.renderWidth - 100) / 100 * totalPx));
+            return `<div class="timeline-bar ${statusColors[job.status] || "bg-slate-500"}"
+                style="top:${job.renderLeft}%; height:${job.renderWidth}%; left:${6 + job.lane * SWAP_LANE_WIDTH}px; width:${SWAP_LANE_WIDTH - 6}px;"
+                onclick="openJobDetail('${job.id}')" title="${barTitle(job, c.timeText(job))}">
+                ${holdOverlayHtml(job, c.calcLeft, true)}<span class="tl-label">${job.onHold ? "⏸ " : ""}${job.id} ${job.title}</span></div>`;
+          }).join("");
+          return { c, bars, w: Math.max(emptyW, totalLanes * SWAP_LANE_WIDTH + 8) };
+        });
+        const keep = [container.scrollLeft, container.scrollTop];
+        const tickH = totalPx / ticks.length;
+        container.innerHTML = !cols.length ? `<div class="p-8 text-center text-slate-400 text-sm">${emptyText || "ไม่พบข้อมูล"}</div>` : `
+          <div class="tlv" style="--axis:${axisW}px">
+            <div class="tlv-row tlv-head"><div class="tlv-axis">${corner}</div>${built.map((b) => `<div class="tlv-col ${b.c.cls || ""}" style="--w:${b.w}px"><div class="tlv-col-name">${b.c.head}</div></div>`).join("")}</div>
+            <div class="tlv-row tlv-body" style="padding-bottom:${overflowPx ? overflowPx + 6 : 0}px"><div class="tlv-axis">${ticks.map((t) => `<div class="tlv-tick ${t.cls || ""}" style="height:${tickH}px">${t.label}</div>`).join("")}</div>${built.map((b) => `<div class="tlv-col ${b.c.cls || ""}" style="--w:${b.w}px"><div class="tlv-grid" style="height:${totalPx}px;background-size:100% ${tickH}px">${bands || ""}${b.bars}${b.c.now === undefined ? "" : `<div class="timeline-now" style="top:${b.c.now}%" title="ตอนนี้ ${fmtTime(new Date())}"></div>`}</div></div>`).join("")}</div>
+          </div>`;
+        container.scrollLeft = keep[0]; container.scrollTop = keep[1];
+      }
+      // เลื่อนให้เห็นคอลัมน์ที่ i (เว้นคอลัมน์ก่อนหน้า 1 คอลัมน์)
+      function scrollToSwapCol(container, i) {
+        const col = container.querySelectorAll(".tlv-head .tlv-col")[Math.max(0, i - 1)];
+        container.scrollLeft = col ? col.offsetLeft - col.parentElement.firstElementChild.offsetWidth : 0;
+      }
+      function updateSwapUI(type) {
+        const btn = document.querySelector(`[data-swap="${type}"]`);
+        if (btn) btn.setAttribute("aria-pressed", swapped[type] ? "true" : "false");
+      }
+      function initSwapControls() {
+        document.querySelectorAll("[data-swap]").forEach((btn) => {
+          const type = btn.dataset.swap;
+          updateSwapUI(type);
+          btn.addEventListener("click", () => {
+            swapped[type] = !swapped[type];
+            try { localStorage.setItem(SWAP_KEY(type), swapped[type] ? "1" : "0"); } catch (e) {}
+            updateSwapUI(type);
+            const c = type === "daily" ? els.timelineDailyContainer : els.timelineTeamContainer;
+            c.scrollLeft = c.scrollTop = 0;
+            if (type === "daily") { dailyScrollKey = ""; renderTimelineDaily(); } else { teamScrollKey = ""; renderTimelineTeam(); }
+          });
+        });
+      }
+      const dailyTimeText = (job) => `${fmtTime(job.workStart)} - ${job.workEnd ? fmtTime(job.workEnd) : (job.status === "in_progress" ? "ยังไม่เสร็จ" : "N/A")}`;
+      const teamTimeText = (job) => `${fmtDate(job.workStart, {time:true})} - ${job.workEnd ? fmtDate(job.workEnd, {time:true}) : (job.status === "in_progress" ? "ยังไม่เสร็จ" : "-")}`;
+
+      // รายวันแบบสลับแกน: หัวคอลัมน์ = วันที่, ด้านซ้าย = เวลา 24 ชม.
+      function renderTimelineDailySwapped() {
+        const jobs = getFilteredJobs(false, "hold");
+        const box = els.timelineDailyContainer, todayYMD = toYMD(new Date());
+        const totalPx = Math.round(SWAP_HOUR_HEIGHT * ZOOM_STEPS[state.zoomDailyIdx] * 24);
+        const dates = getDatesInRange(state.startDate, state.endDate);
+        const calcLeft = (t) => ((t.getHours() * 60 + t.getMinutes()) / 1440) * 100;
+        const calcWidth = (s, e) => ((e - s) / 60000) / 1440 * 100;
+        let firstHour = 99, firstCol = -1;
+        const cols = dates.map((day, i) => {
+          const start = new Date(day), end = new Date(day);
+          start.setHours(0, 0, 0, 0); end.setHours(23, 59, 59, 999);
+          const dayJobs = jobs.filter((j) => new Date(j.workStart) <= end && jobEndDate(j, "hold") >= start);
+          const isToday = toYMD(day) === todayYMD, isWeekend = day.getDay() === 0 || day.getDay() === 6;
+          dayJobs.forEach((j) => { const s = new Date(j.workStart); if (s >= start) firstHour = Math.min(firstHour, s.getHours()); });
+          if (firstCol < 0 && dayJobs.length) firstCol = i;
+          return { jobs: dayJobs, start, end, calcLeft, calcWidth, timeText: dailyTimeText, cls: isToday ? "is-today" : "", now: isToday ? calcLeft(new Date()) : undefined,
+            head: `<span class="min-w-0"><span class="block whitespace-nowrap ${isWeekend && !isToday ? "text-rose-600" : ""}">${new Intl.DateTimeFormat("th-TH", { weekday: "short" }).format(day)} ${fmtShortDate(day)}</span><span class="block text-[10px] text-slate-400 font-normal whitespace-nowrap">${dayJobs.length} งาน${isToday ? " · วันนี้" : ""}</span></span>` };
+        });
+        renderSwapped(box, { corner: "เวลา", axisW: 60, totalPx, cols, openToNow: "hold", emptyW: 104, ticks: Array.from({ length: 24 }, (_, h) => ({ label: pad(h) + ":00" })) });
+        const rangeKey = toYMD(state.startDate) + toYMD(state.endDate) + state.technicianId;
+        if (dailyScrollKey !== rangeKey && box.offsetParent) {
+          dailyScrollKey = rangeKey;
+          box.scrollTop = (totalPx / 24) * (firstHour === 99 ? 7 : Math.max(0, firstHour - 1));
+          const t = dates.findIndex((d) => toYMD(d) === todayYMD);
+          scrollToSwapCol(box, t >= 0 ? t : Math.max(0, firstCol));
+        }
+        updateZoomUI("daily");
+      }
+
+      // ทีมแบบสลับแกน: หัวคอลัมน์ = ช่าง, ด้านซ้าย = วันที่
+      function renderTimelineTeamSwapped() {
+        const jobs = getFilteredJobs(false, true);
+        const box = els.timelineTeamContainer, todayYMD = toYMD(new Date());
+        const dates = getDatesInRange(state.startDate, state.endDate), n = dates.length;
+        const totalPx = Math.round(SWAP_DAY_HEIGHT * ZOOM_STEPS[state.zoomTeamIdx] * n);
+        const start = new Date(state.startDate), end = new Date(state.endDate);
+        start.setHours(0, 0, 0, 0); end.setHours(23, 59, 59, 999);
+        const calcLeft = (t) => ((t - start) / (end - start)) * 100;
+        const calcWidth = (s, e) => ((e - s) / (end - start)) * 100;
+        let bands = "";
+        const ticks = dates.map((day, i) => {
+          const isToday = toYMD(day) === todayYMD, isWeekend = day.getDay() === 0 || day.getDay() === 6;
+          if (isToday || isWeekend) bands += `<div class="tl-day-col ${isToday ? "is-today" : "is-weekend"}" style="top:${(i / n) * 100}%; height:${100 / n}%"></div>`;
+          return { label: `${new Intl.DateTimeFormat("th-TH", { weekday: "narrow" }).format(day)} ${fmtShortDate(day)}`, cls: `${isToday ? "is-today" : ""} ${isWeekend ? "is-weekend" : ""}` };
+        });
+        const cols = mockData.technicians.filter((t) => t.id !== "all" && (state.technicianId === "all" || t.id === state.technicianId)).map((tech) => {
+          const techJobs = jobs.filter((j) => j.technicianId === tech.id);
+          return { jobs: techJobs, start, end, calcLeft, calcWidth, timeText: teamTimeText,
+            head: `${renderAvatarLabel(tech, "h-7 w-7 rounded-lg text-[11px] flex-none")}<span class="min-w-0"><span class="block text-[11px] leading-tight truncate" title="${tech.name}">${tech.name}</span><span class="block text-[10px] text-slate-400 font-normal">${techJobs.length} งาน</span></span>` };
+        });
+        renderSwapped(box, { corner: "วันที่", axisW: 84, totalPx, cols, ticks, bands, openToNow: true, emptyW: 150, emptyText: "ไม่พบข้อมูลช่าง" });
+        const rangeKey = toYMD(state.startDate) + toYMD(state.endDate) + state.technicianId;
+        if (teamScrollKey !== rangeKey && box.offsetParent) {
+          teamScrollKey = rangeKey;
+          let idx = dates.findIndex((d) => toYMD(d) === todayYMD);
+          if (idx < 0) { const first = jobs.filter((j) => j.workStart).map((j) => new Date(j.workStart)).sort((a, b) => a - b)[0];
+            idx = first ? Math.max(0, Math.floor((first - start) / 864e5)) : 0; }
+          box.scrollTop = Math.max(0, (idx - 1) * (totalPx / n));
+        }
+        updateZoomUI("team");
+      }
+
       let dailyScrollKey = "";   // ช่วงเวลาที่เลื่อนอัตโนมัติไปแล้ว (เลื่อนเองแล้วไม่ดึงกลับ)
       function renderTimelineDaily() {
+        if (swapped.daily) return renderTimelineDailySwapped();
         const jobs = getFilteredJobs(false, "hold");
         let firstHour = 99;
         const dates = getDatesInRange(state.startDate, state.endDate);
@@ -1429,6 +1581,7 @@ include "config_ctrl/checksession.php";
 
       let teamScrollKey = "";   // ช่วงเวลาที่เลื่อนอัตโนมัติไปแล้ว
       function renderTimelineTeam() {
+        if (swapped.team) return renderTimelineTeamSwapped();
         const jobs = getFilteredJobs(false, true);
         const dates = getDatesInRange(state.startDate, state.endDate);
         const totalDays = dates.length;
@@ -1827,10 +1980,21 @@ include "config_ctrl/checksession.php";
         if (btnOut) btnOut.disabled = idx <= 0;
       }
 
-      function setZoom(type, newIdx, container, anchorClientX) {
+      function setZoom(type, newIdx, container, anchorClientX, anchorClientY) {
         const clampedIdx = Math.max(0, Math.min(ZOOM_STEPS.length - 1, newIdx));
         const key = type === "daily" ? "zoomDailyIdx" : "zoomTeamIdx";
         if (state[key] === clampedIdx) return;
+
+        // สลับแกน: เวลาอยู่แนวตั้ง => คงตำแหน่งแนวตั้ง
+        if (swapped[type] && container) {
+          const y = anchorClientY !== undefined ? anchorClientY - container.getBoundingClientRect().top : container.clientHeight / 2;
+          const headH = () => { const h = container.querySelector(".tlv-head"); return h ? h.offsetHeight : 0; };
+          const k = ZOOM_STEPS[clampedIdx] / ZOOM_STEPS[state[key]], at = container.scrollTop + y - headH();
+          state[key] = clampedIdx;
+          if (type === "daily") renderTimelineDaily(); else renderTimelineTeam();
+          container.scrollTop = at * k + headH() - y;
+          return;
+        }
 
         // จำตำแหน่งสัดส่วนการเลื่อนสกอลล์ไว้ เพื่อให้จุดที่มองอยู่คงที่ตอนซูม
         let ratio = 0;
@@ -1852,9 +2016,9 @@ include "config_ctrl/checksession.php";
         }
       }
 
-      function changeZoom(type, direction, container, anchorClientX) {
+      function changeZoom(type, direction, container, anchorClientX, anchorClientY) {
         const key = type === "daily" ? "zoomDailyIdx" : "zoomTeamIdx";
-        setZoom(type, state[key] + direction, container, anchorClientX);
+        setZoom(type, state[key] + direction, container, anchorClientX, anchorClientY);
       }
 
       function resetZoom(type, container) {
@@ -1862,6 +2026,7 @@ include "config_ctrl/checksession.php";
       }
 
       function initZoomControls() {
+        initSwapControls();
         const configs = [
           { type: "daily", inBtn: els.btnZoomInDaily, outBtn: els.btnZoomOutDaily, resetBtn: els.btnZoomResetDaily, container: els.timelineDailyContainer },
           { type: "team", inBtn: els.btnZoomInTeam, outBtn: els.btnZoomOutTeam, resetBtn: els.btnZoomResetTeam, container: els.timelineTeamContainer },
@@ -1877,7 +2042,7 @@ include "config_ctrl/checksession.php";
               (e) => {
                 if (!(e.ctrlKey || e.metaKey)) return;
                 e.preventDefault();
-                changeZoom(type, e.deltaY < 0 ? 1 : -1, container, e.clientX);
+                changeZoom(type, e.deltaY < 0 ? 1 : -1, container, e.clientX, e.clientY);
               },
               { passive: false }
             );
