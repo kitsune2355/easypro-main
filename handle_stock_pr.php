@@ -16,6 +16,7 @@ include 'config_ctrl/connect.php';
 mysqli_set_charset($connect, 'utf8mb4');
 require_once __DIR__ . '/config_ctrl/stock_pr.php';
 require_once __DIR__ . '/config_ctrl/stock_perm.php';
+require_once __DIR__ . '/config_ctrl/stock_pr_approver.php';
 
 function spr_out($a, $code = 200) { http_response_code($code); echo json_encode($a, JSON_UNESCAPED_UNICODE); exit; }
 function spr_str($v, $max) { $v = trim((string)$v); return function_exists('mb_substr') ? mb_substr($v, 0, $max, 'UTF-8') : substr($v, 0, $max); }
@@ -122,7 +123,18 @@ if ($action === 'defaults') {
     mysqli_stmt_bind_result($st, $rn);
     if (mysqli_stmt_fetch($st) && trim((string)$rn) !== '') $d['req_name'] = (string)$rn;
     mysqli_stmt_close($st);
-    spr_out(['success' => true, 'defaults' => $d]);
+    // ผู้อนุมัติ: มีคนเดียว = คนนั้น · หลายคน = คนที่ผู้ใช้เลือกในใบล่าสุด (ถ้ายังเป็นผู้อนุมัติ)
+    $approvers = spra_list($connect, $ag);
+    $d['approver_id'] = count($approvers) === 1 ? $approvers[0]['id'] : '';
+    if (count($approvers) > 1) {
+        $st = mysqli_prepare($connect, "SELECT approver_id FROM tb_stock_pr WHERE ag_id = ? AND created_by = ? AND approver_id <> '' ORDER BY pr_id DESC LIMIT 1");
+        mysqli_stmt_bind_param($st, 'is', $ag, $me);
+        mysqli_stmt_execute($st);
+        mysqli_stmt_bind_result($st, $lastAp);
+        if (mysqli_stmt_fetch($st) && in_array((string)$lastAp, array_column($approvers, 'id'), true)) $d['approver_id'] = (string)$lastAp;
+        mysqli_stmt_close($st);
+    }
+    spr_out(['success' => true, 'defaults' => $d, 'approvers' => $approvers]);
 }
 
 // ---------- สินค้าในสต็อก (ช่องค้นหาเพิ่มรายการ) ----------
@@ -252,14 +264,32 @@ if ($action === 'get') {
     foreach ($items as &$i) if ($i['pd_id'] && isset($info[$i['pd_id']])) $i += $info[$i['pd_id']];
     unset($i);
     $h['can_edit'] = spr_can_change($h, $canManage, $isAdmin, $me);
-    spr_out(['success' => true, 'pr' => $h, 'items' => $items]);
+    $approvers = spra_list($connect, $ag);
+    if ($h['approver_id'] === null) $h['approver_id'] = count($approvers) === 1 ? $approvers[0]['id'] : '';   // ใบเก่า: ใช้ค่าเดียวกับที่ใบพิมพ์แสดง
+    spr_out(['success' => true, 'pr' => $h, 'items' => $items, 'approvers' => $approvers]);
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') spr_out(['success' => false, 'error' => 'method not allowed'], 405);
 if (!$canManage) spr_out(['success' => false, 'error' => 'ไม่มีสิทธิ์: ตำแหน่งช่างสร้าง แก้ไข หรือยกเลิกใบขอซื้อไม่ได้'], 403);
 
+// ผู้อนุมัติที่เลือก => [id, ชื่อ] · ต้องอยู่ในรายชื่อที่ตั้งไว้ (หรือเป็นคนเดิมของใบที่แก้ไข) · ไม่ได้ส่งมา (หน้าเว็บเวอร์ชันเก่า) = คงค่าเดิม
+function spr_pick_approver($connect, $ag, $in, $old) {
+    $oldId = $old ? $old['approver_id'] : null;
+    $oldName = $old ? $old['approver_name'] : null;
+    $list = spra_list($connect, $ag);
+    if (!array_key_exists('approver_id', $in)) {
+        if (!$old && count($list) === 1) return [$list[0]['id'], spr_str($list[0]['name'], 150)];
+        return [$oldId, $oldName];
+    }
+    $id = trim((string)$in['approver_id']);
+    if ($id === '') return ['', null];
+    if ((string)$oldId === $id) return [$oldId, $oldName];
+    foreach ($list as $a) if ($a['id'] === $id) return [$id, spr_str($a['name'], 150)];
+    spr_out(['success' => false, 'error' => 'ผู้อนุมัติที่เลือกไม่อยู่ในรายชื่อแล้ว กรุณาเลือกใหม่']);
+}
+
 // หัวเอกสาร + รายการจาก JSON — สินค้าในสต็อกเก็บชื่อ/รหัส/หน่วยจากฐานข้อมูล ณ วันที่บันทึก, สินค้านอกสต็อกใช้ค่าที่กรอก
-function spr_parse_input($connect, $ag) {
+function spr_parse_input($connect, $ag, $old = null) {
     $in = json_decode(file_get_contents('php://input'), true);
     if (!is_array($in)) spr_out(['success' => false, 'error' => 'ข้อมูลไม่ถูกต้อง'], 400);
     $head = [
@@ -269,6 +299,7 @@ function spr_parse_input($connect, $ag) {
         'req_name' => spr_str($in['req_name'] ?? '', 150),
     ];
     if ($head['req_name'] === '') spr_out(['success' => false, 'error' => 'กรุณากรอกชื่อผู้ขอซื้อ']);
+    list($head['approver_id'], $head['approver_name']) = spr_pick_approver($connect, $ag, $in, $old);
     $lines = [];
     foreach ((array)($in['items'] ?? []) as $it) {
         $pid = (int)($it['pd_id'] ?? 0);
@@ -328,7 +359,7 @@ function spr_insert_lines($connect, $prId, $lines, $now, $me) {
 
 // ใบเดิม (ตรวจสิทธิ์แก้ไข/ยกเลิก)
 function spr_load_for_change($connect, $ag, $id, $canManage, $isAdmin, $me) {
-    $st = mysqli_prepare($connect, "SELECT pr_id, pr_no, created_by, status FROM tb_stock_pr WHERE pr_id = ? AND ag_id = ? LIMIT 1");
+    $st = mysqli_prepare($connect, "SELECT pr_id, pr_no, created_by, status, approver_id, approver_name FROM tb_stock_pr WHERE pr_id = ? AND ag_id = ? LIMIT 1");
     mysqli_stmt_bind_param($st, 'ii', $id, $ag);
     mysqli_stmt_execute($st);
     $row = mysqli_fetch_assoc(mysqli_stmt_get_result($st));
@@ -349,9 +380,9 @@ if ($action === 'save') {
     for ($try = 0; $try < 5 && !$prId; $try++) {
         mysqli_begin_transaction($connect);
         $prNo = spr_next_no($connect, $ag, $head['pr_date']);
-        $st = mysqli_prepare($connect, "INSERT INTO tb_stock_pr (ag_id, pr_no, pr_date, deliver_date, remark, req_name, status, created_at, created_by, updated_at, updated_by)
-            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)");
-        mysqli_stmt_bind_param($st, 'isssssssss', $ag, $prNo, $head['pr_date'], $head['deliver_date'], $head['remark'], $head['req_name'], $now, $me, $now, $me);
+        $st = mysqli_prepare($connect, "INSERT INTO tb_stock_pr (ag_id, pr_no, pr_date, deliver_date, remark, req_name, approver_id, approver_name, status, created_at, created_by, updated_at, updated_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)");
+        mysqli_stmt_bind_param($st, 'isssssssssss', $ag, $prNo, $head['pr_date'], $head['deliver_date'], $head['remark'], $head['req_name'], $head['approver_id'], $head['approver_name'], $now, $me, $now, $me);
         $ok = @mysqli_stmt_execute($st);
         $err = mysqli_stmt_errno($st);
         $newId = (int)mysqli_insert_id($connect);
@@ -373,11 +404,11 @@ if ($action === 'save') {
 if ($action === 'update') {
     $id = (int)($_GET['id'] ?? 0);
     $row = spr_load_for_change($connect, $ag, $id, $canManage, $isAdmin, $me);
-    list($head, $lines) = spr_parse_input($connect, $ag);
+    list($head, $lines) = spr_parse_input($connect, $ag, $row);
     $now = date('Y-m-d H:i:s');
     mysqli_begin_transaction($connect);
-    $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET pr_date = ?, deliver_date = ?, remark = ?, req_name = ?, updated_at = ?, updated_by = ? WHERE pr_id = ? AND ag_id = ? AND status = 1");
-    mysqli_stmt_bind_param($st, 'ssssssii', $head['pr_date'], $head['deliver_date'], $head['remark'], $head['req_name'], $now, $me, $id, $ag);
+    $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET pr_date = ?, deliver_date = ?, remark = ?, req_name = ?, approver_id = ?, approver_name = ?, updated_at = ?, updated_by = ? WHERE pr_id = ? AND ag_id = ? AND status = 1");
+    mysqli_stmt_bind_param($st, 'ssssssssii', $head['pr_date'], $head['deliver_date'], $head['remark'], $head['req_name'], $head['approver_id'], $head['approver_name'], $now, $me, $id, $ag);
     $ok = mysqli_stmt_execute($st);
     mysqli_stmt_close($st);
     if ($ok) {

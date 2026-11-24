@@ -7,6 +7,7 @@ include_once "config_ctrl/connect.php";
 mysqli_set_charset($connect, 'utf8mb4');
 date_default_timezone_set('Asia/Bangkok');
 require_once __DIR__ . '/config_ctrl/stock_pr.php';
+require_once __DIR__ . '/config_ctrl/stock_pr_approver.php';
 require_once __DIR__ . '/config_ctrl/agency_logo.php';
 
 $ag = (int)($_SESSION['sess_user_agency'] ?? 0);
@@ -40,6 +41,12 @@ if ($st) {
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 function qty_txt($q) { $q = (float)$q; return $q == floor($q) ? number_format($q) : rtrim(rtrim(number_format($q, 2), '0'), '.'); }
 $cancelled = (int)$pr['status'] === 0;
+// ชื่อผู้อนุมัติ: ตามที่เลือกในใบ · ใบเก่าที่ยังไม่มีช่องนี้ (NULL) = ผู้อนุมัติที่ตั้งไว้ ถ้ามีคนเดียว
+$approver = trim((string)($pr['approver_name'] ?? ''));
+if (($pr['approver_id'] ?? null) === null && !$cancelled) {
+    $apList = spra_list($connect, $ag);
+    if (count($apList) === 1) $approver = $apList[0]['name'];
+}
 $printedAt = spr_thai_date(date('Y-m-d')) . ' ' . date('H:i');
 $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
 ?>
@@ -196,7 +203,7 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
     <div>
       <div class="t">ผู้อนุมัติ</div>
       <div class="ln"></div>
-      <div class="nm">( ................................................ )</div>
+      <div class="nm">( <?php echo $approver !== '' ? h($approver) : '................................................'; ?> )</div>
       <div class="dt">วันที่ ......../......../........</div>
     </div>
   </div>

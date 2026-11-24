@@ -225,6 +225,7 @@
                 items: [
                     { label: "รายการอะไหล่และวัสดุ", href: "settings_spares.php", id: "spares" },
                     { label: "คลังสินค้า / ตึก", href: "settings_warehouses.php", id: "warehouses" },
+                    { label: "ผู้อนุมัติ PR", href: "settings_pr_approvers.php", id: "pr_approvers" },
                 ]
             },
             {

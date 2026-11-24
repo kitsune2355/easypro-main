@@ -18,6 +18,8 @@ if (!function_exists('spr_ensure')) {
             deliver_date DATE NULL COMMENT 'จัดส่งภายในวันที่',
             remark TEXT NULL COMMENT 'หมายเหตุท้ายเอกสาร',
             req_name VARCHAR(150) NULL COMMENT 'ผู้ขอซื้อ/ขอจ้าง',
+            approver_id VARCHAR(50) NULL COMMENT 'ผู้อนุมัติ (tb_user.user_id)',
+            approver_name VARCHAR(150) NULL COMMENT 'ชื่อผู้อนุมัติ ณ วันที่บันทึก',
             status TINYINT NOT NULL DEFAULT 1 COMMENT '1 = ใช้งาน, 0 = ยกเลิก',
             cancel_reason VARCHAR(500) NULL COMMENT 'เหตุผลที่ยกเลิก',
             cancelled_at DATETIME NULL,
@@ -50,6 +52,8 @@ if (!function_exists('spr_ensure')) {
         $rs = mysqli_query($connect, "SHOW COLUMNS FROM tb_stock_pr");
         if ($rs) { while ($c = mysqli_fetch_assoc($rs)) $cols[$c['Field']] = true; mysqli_free_result($rs); }
         if ($cols && !isset($cols['cancel_reason'])) mysqli_query($connect, "ALTER TABLE tb_stock_pr ADD COLUMN cancel_reason VARCHAR(500) NULL COMMENT 'เหตุผลที่ยกเลิก' AFTER status, ADD COLUMN cancelled_at DATETIME NULL AFTER cancel_reason, ADD COLUMN cancelled_by VARCHAR(50) NULL AFTER cancelled_at");
+        // ผู้อนุมัติของใบ (จาก settings_pr_approvers.php): NULL = ใบเก่าก่อนมีช่องนี้, '' = ไม่ระบุ
+        if ($cols && !isset($cols['approver_id'])) mysqli_query($connect, "ALTER TABLE tb_stock_pr ADD COLUMN approver_id VARCHAR(50) NULL COMMENT 'ผู้อนุมัติ (tb_user.user_id)' AFTER req_name, ADD COLUMN approver_name VARCHAR(150) NULL COMMENT 'ชื่อผู้อนุมัติ ณ วันที่บันทึก' AFTER approver_id");
     }
 
     // คำนำหน้าเลขที่ของวันที่เอกสาร เช่น 2026-11-10 => PR-6911-

@@ -2038,13 +2038,13 @@ if (targetPdId) {
                 PrManager.lines = [];
                 els.title.innerText = PrManager.editId ? 'แก้ไขใบขอซื้อ (PR)' : 'ใบขอซื้อ (PR)';
                 els.sub.innerText = 'กำลังโหลด...';
-                let head = null;
+                let head = null, approvers = [];
                 if (PrManager.editId) {
                     try {
                         const r = (await axios.get('handle_stock_pr.php', { params: { action: 'get', id: PrManager.editId } })).data;
                         if (!r.success) throw new Error(r.error || 'โหลดใบขอซื้อไม่สำเร็จ');
                         if (!r.pr.can_edit) throw new Error('ใบนี้แก้ไขไม่ได้ (ยกเลิกแล้ว หรือไม่ใช่ผู้สร้างใบ)');
-                        head = r.pr;
+                        head = r.pr; approvers = r.approvers || [];
                         PrManager.lines = r.items.map(it => PrManager.newLine({
                             pd_id: it.pd_id, code: it.pd_code || '', name: it.pd_name || '', unit: it.pd_unit || '', qty: it.qty, note: it.note || '',
                             wh: it.wh || [], stock: it.stock ?? null, min: it.min || 0, free: !it.pd_id
@@ -2112,6 +2112,10 @@ if (targetPdId) {
                             </div>
                         </div>
                         ${field('pr-req', 'ผู้ขอซื้อ/ขอจ้าง *', 'type="text" maxlength="150"')}
+                        <div id="pr-approver-box" class="hidden">
+                            <label class="label-xs" for="pr-approver">ผู้อนุมัติ</label>
+                            <select id="pr-approver" data-no-search class="input-base"></select>
+                        </div>
                         <div>
                             <label class="label-xs" for="pr-remark">หมายเหตุ</label>
                             <textarea id="pr-remark" rows="2" maxlength="2000" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-primary/20" placeholder="เช่น สำรองไว้ใช้งานซ่อมบำรุงประจำเดือน, ต้องการด่วนภายในสัปดาห์นี้"></textarea>
@@ -2120,7 +2124,18 @@ if (targetPdId) {
                 PrManager.renderLines();
                 PrManager.bindForm();
                 const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+                // ผู้อนุมัติ: รายชื่อจากตั้งค่า (settings_pr_approvers.php) · คนเดิมของใบที่ถูกเอาออกจากรายชื่อแล้วยังเลือกไว้ได้
+                const setApprovers = (list, id, name) => {
+                    const opts = list.slice();
+                    if (id && !opts.some(a => a.id === id)) opts.push({ id, name: name || id });
+                    PrManager.hasApprover = opts.length > 0;
+                    document.getElementById('pr-approver-box')?.classList.toggle('hidden', !opts.length);
+                    const el = document.getElementById('pr-approver');
+                    if (el) { el.innerHTML = '<option value="">ไม่ระบุ</option>' + opts.map(a => `<option value="${PrManager.esc(a.id)}">${PrManager.esc(a.name)}</option>`).join(''); el.value = id || ''; }
+                };
+                PrManager.hasApprover = false;
                 if (head) {
+                    setApprovers(approvers, head.approver_id, head.approver_name);
                     set('pr-date', head.pr_date); set('pr-deliver', head.deliver_date); set('pr-req', head.req_name); set('pr-remark', head.remark);
                     els.sub.innerText = `เลขที่ ${head.pr_no} (เลขเดิม)`;
                 } else {
@@ -2129,6 +2144,7 @@ if (targetPdId) {
                         if (!r.success) throw new Error(r.error);
                         set('pr-date', r.defaults.pr_date);
                         set('pr-req', r.defaults.req_name);
+                        setApprovers(r.approvers || [], r.defaults.approver_id);
                         PrManager.nextNo = r.defaults.pr_no;   // เลขที่โดยประมาณ (เลขจริงออกตอนบันทึก)
                     } catch (e) { PrManager.nextNo = ''; }
                     PrManager.updateSub();
@@ -2312,6 +2328,7 @@ if (targetPdId) {
                         ? { pd_id: 0, name: String(l.name).trim(), code: String(l.code).trim(), unit: String(l.unit).trim(), qty: parseFloat(l.qty), note: l.note }
                         : { pd_id: l.pd_id, qty: parseFloat(l.qty), note: l.note })
                 };
+                if (PrManager.hasApprover) body.approver_id = v('pr-approver');
                 const btn = document.getElementById('btnSubmit');
                 if (btn) btn.disabled = true;
                 try {
