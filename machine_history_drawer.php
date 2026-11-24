@@ -147,7 +147,7 @@
                 document.querySelector('#hist-warranty span').innerText = (machine.warranty_date || machine.asset_warranty) 
                     ? window.formatDate(machine.warranty_date || machine.asset_warranty, false) 
                     : 'ไม่มีข้อมูล';
-                document.querySelector('#hist-vendor span').innerText = machine.vendor_name || machine.asset_vendor || 'ไม่มีข้อมูล';
+                document.querySelector('#hist-vendor span').innerText = machine.asset_company || 'ไม่มีข้อมูล';
 
                 // 3. ข้อมูลสถานที่
                 let locArr = [];

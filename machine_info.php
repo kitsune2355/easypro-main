@@ -681,7 +681,7 @@ include "config_ctrl/checksession.php";
             { 
                 headerName: "ประเภท", 
                 field: "type_name",
-                width: 200, 
+                width: 160, 
                 filter: 'agSetColumnFilter',
                 filterParams: getFilterParams('type_name'),
                 cellRenderer: params => {
@@ -700,6 +700,7 @@ include "config_ctrl/checksession.php";
                 headerName: "รายละเอียด", 
                 field: "machine_name", 
                 flex: 1,
+                minWidth: 220,
                 filter: 'agTextColumnFilter',
                 cellRenderer: p => `<div class="leading-tight py-2"><div class="font-bold text-slate-800">${p.value}</div><div class="text-[10px] text-slate-400 italic">S/N: ${p.data.serial}</div></div>`
             },
@@ -730,7 +731,7 @@ include "config_ctrl/checksession.php";
                 filter: DateRangeFilter,
                 valueFormatter: params => params.value ? window.formatDate(params.value, false) : '-',
                 sortable: true,
-                width: 150
+                width: 135
             },
             {
                 headerName: 'วันที่สร้าง', 
@@ -1118,6 +1119,7 @@ include "config_ctrl/checksession.php";
                         location: data.location,
                         floor: data.floor,
                         room: data.room,
+                        asset_ins: (data.asset_ins && data.asset_ins !== '-') ? String(data.asset_ins).slice(0, 10) : '',
                         status: data.status,
                         install_date: data.install_date || '',
                         warranty: data.warranty,

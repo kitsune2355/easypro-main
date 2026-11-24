@@ -1281,7 +1281,7 @@ renderPermissions(json.data);
 					  ถึง
 					  ${item.end_date ? escapeHtml(formatThaiDate(item.end_date)) : '-'}
 					</span>
-					${item.contract_rounds > 1 ? `<span class="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-100" title="จำนวนรอบสัญญา ${item.contract_rounds} รอบ">ต่อสัญญา ${item.contract_rounds - 1} ครั้ง</span>` : ''}
+					${item.contract_rounds > 1 ? `<span class="ml-1 shrink-0 whitespace-nowrap text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-100" title="จำนวนรอบสัญญา ${item.contract_rounds} รอบ">ต่อสัญญา ${item.contract_rounds - 1} ครั้ง</span>` : ''}
 				  </div>` : ''}
 			
 			  ${item.address ? `
@@ -1554,7 +1554,7 @@ document.querySelectorAll(".perm-check:checked")
           <span class="shrink-0 mt-0.5 w-12 text-[10px] font-bold text-slate-500">รอบที่ ${r.round}</span>
           <div class="min-w-0 flex-1">
             <div class="text-[11px] font-semibold text-slate-700">${escapeHtml(formatThaiDate(r.start_date))} – ${escapeHtml(formatThaiDate(r.end_date))}
-              <span class="ml-1 text-[9.5px] font-bold px-1.5 py-0.5 rounded border ${st[1]}">${st[0]}</span></div>
+              <span class="ml-1 inline-block whitespace-nowrap text-[9.5px] font-bold px-1.5 py-0.5 rounded border ${st[1]}">${st[0]}</span></div>
             ${extra ? `<div class="text-[10px] text-slate-500 truncate" title="${escapeHtml(extra)}">${escapeHtml(extra)}</div>` : ''}
           </div>
           <button type="button" onclick="contractForm('edit', ${r.ac_id})" class="shrink-0 p-1 rounded text-slate-400 hover:text-easy-primary hover:bg-sky-50" title="แก้ไขรอบนี้" aria-label="แก้ไขรอบที่ ${r.round}"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
@@ -1983,7 +1983,7 @@ document.querySelectorAll(".perm-check:checked")
     return `<div class="am-grid am-r" data-ag="${a.ag_id}" data-tab="overview">
       <div class="min-w-0">
         <div class="am-name" title="${esc(a.name)}">${esc(a.name)}</div>
-        <div class="am-meta">${esc(a.code || '-')} · ผู้ใช้ ${nf(a.users)} คน${ctrMeta(a)}${a.enabled ? '' : ' · ปิดใช้งาน'}</div>
+        <div class="am-meta" onmouseenter="this.title = this.textContent">${esc(a.code || '-')} · ผู้ใช้ ${nf(a.users)} คน${ctrMeta(a)}${a.enabled ? '' : ' · ปิดใช้งาน'}</div>
       </div>
       <div><span class="am-state"><span class="am-dot" style="background:${st[1]}"></span>${st[0]}</span></div>
       <div class="am-col-ago"><div class="am-ago ${idleDays > 14 ? 'old' : ''}" title="${esc(thDT(a.last))}">${esc(ago(a.last))}</div></div>

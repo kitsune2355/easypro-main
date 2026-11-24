@@ -278,7 +278,7 @@ include "config_ctrl/checksession.php";
                 title: 'ยืนยันการบันทึก?', text: `พบข้อมูลที่ต้องการบันทึก ${changed.length} รายการ`,
                 icon: 'question', showCancelButton: true, confirmButtonColor: '#006B9F', confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก'
             });
-            if (!result.isConfirmed) return;
+            if (!result.isConfirmed) { updateCounter(); return; }   // ยกเลิก => ยังมีรายการรอบันทึก
             try {
                 Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                 const r = await (await fetch('handle_pm_approve.php?action=setting_save', {
@@ -290,6 +290,7 @@ include "config_ctrl/checksession.php";
                     render();
                     Swal.fire({ title: 'บันทึกสำเร็จ!', icon: 'success', timer: 1500, showConfirmButton: false });
                 } else {
+                    updateCounter();
                     Swal.fire('ข้อผิดพลาด', r.error || 'ไม่สามารถบันทึกได้', 'error');
                 }
             } catch (e) {
