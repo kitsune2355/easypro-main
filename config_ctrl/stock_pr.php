@@ -88,6 +88,28 @@ if (!function_exists('spr_ensure')) {
         return (string)$name !== '' ? (string)$name : (string)$uid;
     }
 
+    // ชื่อในใบเป็น ชื่อ-นามสกุล: ใบเก็บแค่ชื่อ (บัญชีตอนนั้นยังไม่มีนามสกุล) แล้วเติมนามสกุลในบัญชีภายหลัง => ใช้ชื่อเต็มของบัญชี
+    function spr_full_name($connect, $name, $uid) {
+        $name = trim(preg_replace('/\s+/u', ' ', (string)$name));
+        if ($name === '' || (string)$uid === '' || spr_has_surname($name)) return $name;
+        $full = spr_user_name($connect, $uid);
+        return strpos($full, $name . ' ') === 0 ? trim(preg_replace('/\s+/u', ' ', $full)) : $name;
+    }
+    // มีทั้งชื่อและนามสกุล (เว้นวรรคคั่น)
+    function spr_has_surname($name) { return (bool)preg_match('/\S\s+\S/u', trim((string)$name)); }
+
+    // สถานะของใบ: cancelled = ยกเลิก · approved = ผู้อนุมัติลงนามแล้ว · pending = รออนุมัติ
+    function spr_state($row) {
+        if ((int)$row['status'] !== 1) return 'cancelled';
+        return trim((string)($row['ap_signed_by'] ?? '')) !== '' ? 'approved' : 'pending';
+    }
+    // เงื่อนไข SQL ของสถานะ (ตาราง h)
+    function spr_state_sql($connect, $state) {
+        if ($state === 'cancelled') return 'h.status <> 1';
+        $signed = spr_has_sign($connect) ? "COALESCE(h.ap_signed_by, '') <> ''" : '0 = 1';
+        return $state === 'approved' ? "(h.status = 1 AND $signed)" : "(h.status = 1 AND NOT ($signed))";
+    }
+
     // ช่องลงนามที่ผู้ใช้ที่ล็อกอินเซ็นได้ ['req' => bool, 'ap' => bool] (ไม่ดูว่าเซ็นไปแล้วหรือยัง)
     //  ผู้ขอซื้อ : ผู้สร้างใบ / ผู้ดูแลระบบ (ตำแหน่งช่างไม่ได้ — เหมือนสิทธิ์แก้ไขใบ)
     //  ผู้อนุมัติ: คนที่ระบุในใบ · ใบไม่ระบุ = คนใดก็ได้ในรายชื่อผู้อนุมัติของหน่วยงาน · super_admin ได้เสมอ (ชื่อในใบเปลี่ยนเป็นผู้เซ็น)

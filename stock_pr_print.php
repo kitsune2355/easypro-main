@@ -48,12 +48,19 @@ if (($pr['approver_id'] ?? null) === null && !$cancelled) {
     $apList = spra_list($connect, $ag);
     if (count($apList) === 1) $approver = $apList[0]['name'];
 }
+// ในวงเล็บเป็น ชื่อ-นามสกุล
+$approver = spr_full_name($connect, $approver, $pr['approver_id'] ?? '');
+$reqName = spr_full_name($connect, $pr['req_name'], $pr['created_by']);
+$STATE = ['approved' => ['อนุมัติ', 'st-ok'], 'pending' => ['รออนุมัติ', 'st-wait'], 'cancelled' => ['ยกเลิก', 'st-void']][spr_state($pr)];
 // ลงนามบนหน้านี้ (ลายเซ็นเก็บในใบ — handle_stock_pr.php?action=sign)
 $me = (string)($_SESSION['sess_user_id_es'] ?? '');
 $level = (string)($_SESSION['sess_user_level_es'] ?? '');
 $signRights = spr_sign_rights($connect, $ag, $pr, $me, $level);
 // ชื่อที่จะลงในช่องผู้อนุมัติ: ใบของผู้อนุมัติคนนี้ = ชื่อในใบ · นอกนั้น = ผู้ที่ล็อกอิน (super_admin / ใบไม่ระบุผู้อนุมัติ)
-$apSignName = $signRights['ap'] ? ((string)$pr['approver_id'] === $me && $approver !== '' ? $approver : spr_user_name($connect, $me)) : '';
+$apMine = (string)($pr['approver_id'] ?? '') === $me;
+$apSignName = $signRights['ap'] ? spr_user_name($connect, $me) : '';
+$apLock = spr_has_surname($apSignName);   // บัญชีมีนามสกุลแล้ว = ใช้ชื่อในบัญชี
+if (!$apLock && $apMine && $approver !== '') $apSignName = $approver;
 function sign_state($slot) {
     global $pr, $signRights, $me, $level;
     $by = (string)($pr[$slot . '_signed_by'] ?? '');
@@ -63,7 +70,8 @@ function sign_state($slot) {
         'img' => $by !== '' ? (string)$pr[$slot . '_sign'] : '',
         'at' => $by !== '' && $t ? date('d/m/', $t) . (date('Y', $t) + 543) : '',
         'can_sign' => $by === '' && $signRights[$slot],
-        'can_unsign' => $by !== '' && (int)$pr['status'] === 1 && ($level === 'super_admin' || $by === $me),
+        'can_unsign' => $by !== '' && (int)$pr['status'] === 1 && ($level === 'super_admin' || $by === $me)
+            && ($slot === 'ap' || spr_state($pr) !== 'approved'),   // อนุมัติแล้ว ลบลายเซ็นผู้ขอไม่ได้
     ];
 }
 $printedAt = spr_thai_date(date('Y-m-d')) . ' ' . date('H:i');
@@ -91,6 +99,10 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
   .bar .grow b { color: var(--ink); }
   .bar button { height: 36px; padding: 0 16px; border: 0; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
   .btn { background: var(--brand); color: #fff; }
+  .st { display: inline-block; padding: 1px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; }
+  .st-ok { background: #d1fae5; color: #047857; }
+  .st-wait { background: #fef3c7; color: #b45309; }
+  .st-void { background: #fee2e2; color: #b91c1c; }
   .btn-sign { background: #e0f2fe; color: #075985; border: 1px solid #7dd3fc !important; }
   .btn-ghost { background: #fff; color: var(--muted); border: 1px solid var(--line) !important; }
 
@@ -152,6 +164,9 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
   .sgd h2 { margin: 0; font-size: 18px; color: var(--brand); }
   .sgd p { margin: 2px 0 10px; color: var(--muted); }
   .sgd p b { color: var(--ink); }
+  .sgd-lb { display: block; margin-bottom: 3px; font-weight: 600; }
+  .sgd input { width: 100%; height: 42px; margin-bottom: 10px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; font-size: 16px; }
+  .sgd input[readonly] { background: var(--soft); color: var(--muted); }
   .sgd canvas { display: block; width: 100%; height: 200px; border: 1.5px dashed #94a3b8; border-radius: 10px; background: #fff; touch-action: none; cursor: crosshair; }
   .sgd .err { min-height: 20px; margin-top: 6px; color: #b91c1c; font-size: 12.5px; }
   .sgd .acts { display: flex; gap: 8px; margin-top: 6px; }
@@ -224,7 +239,7 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
 </head>
 <body>
 <div class="bar">
-  <div class="grow"><b><?php echo h($pr['pr_no']); ?></b> · ใบขออนุมัติจัดซื้อ<?php echo $cancelled ? ' · <span style="color:#b91c1c">ยกเลิกแล้ว</span>' : ''; ?></div>
+  <div class="grow"><b><?php echo h($pr['pr_no']); ?></b> <span class="st <?php echo $STATE[1]; ?>"><?php echo $STATE[0]; ?></span> <span class="bar-t">ใบขออนุมัติจัดซื้อ</span></div>
   <button type="button" class="btn-ghost" onclick="window.close()">ปิด</button>
   <div class="bar-acts">
   <?php foreach (['req' => 'เซ็นผู้ขอซื้อ', 'ap' => 'เซ็นผู้อนุมัติ'] as $k => $lb): $sg = sign_state($k); if ($sg['can_sign']): ?>
@@ -253,7 +268,7 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
   <div class="info">
     <div><small>วันที่เอกสาร</small><b><?php echo h(spr_thai_date($pr['pr_date'])); ?></b></div>
     <div><small>จัดส่งภายในวันที่</small><b><?php echo !empty($pr['deliver_date']) ? h(spr_thai_date($pr['deliver_date'])) : '-'; ?></b></div>
-    <div><small>ผู้ขอซื้อ/ขอจ้าง</small><b><?php echo h($pr['req_name']); ?></b></div>
+    <div><small>ผู้ขอซื้อ/ขอจ้าง</small><b><?php echo h($reqName); ?></b></div>
     <div><small>จำนวนรายการ</small><b><?php echo count($items); ?> รายการ</b></div>
   </div>
 
@@ -289,7 +304,7 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
       <div class="t">ผู้ขอซื้อ/ขอจ้าง</div>
       <?php $sg = sign_state('req'); ?>
       <div class="ln"><?php if ($sg['img'] !== ''): ?><img src="<?php echo h($sg['img']); ?>" alt="ลายเซ็นผู้ขอซื้อ/ขอจ้าง"><?php endif; ?></div>
-      <div class="nm">( <?php echo h($pr['req_name']); ?> )</div>
+      <div class="nm">( <?php echo h($reqName); ?> )</div>
       <div class="dt">วันที่ <?php echo $sg['at'] !== '' ? h($sg['at']) : '......../......../........'; ?></div>
       <?php if ($sg['can_sign']): ?><button type="button" class="sg-btn" data-sign="req">ลงนาม</button>
       <?php elseif ($sg['can_unsign']): ?><button type="button" class="sg-btn sg-del" data-unsign="req">ลบลายเซ็น</button><?php endif; ?>
@@ -311,7 +326,9 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
 <div class="sgd" id="sgd" hidden role="dialog" aria-modal="true" aria-labelledby="sgd-t">
   <div class="sgd-box">
     <h2 id="sgd-t"></h2>
-    <p>ลงนามในชื่อ <b id="sgd-n"></b> · <?php echo h($pr['pr_no']); ?> (<?php echo count($items); ?> รายการ)</p>
+    <p><?php echo h($pr['pr_no']); ?> · <?php echo count($items); ?> รายการ</p>
+    <label class="sgd-lb" for="sgd-n">ชื่อ-นามสกุล</label>
+    <input type="text" id="sgd-n" maxlength="150" autocomplete="name" placeholder="ชื่อ นามสกุล">
     <canvas id="sgd-c"></canvas>
     <div class="err" id="sgd-e" role="alert"></div>
     <div class="acts">
@@ -327,7 +344,7 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
 <script>
 // ลงนาม / ลบลายเซ็น — บันทึกแล้วโหลดหน้าใหม่
 (function () {
-  var PR = <?php echo json_encode(['id' => $id, 'ver' => (string)$pr['updated_at'], 'names' => ['req' => (string)$pr['req_name'], 'ap' => $apSignName], 'old' => $approver], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+  var PR = <?php echo json_encode(['id' => $id, 'ver' => (string)$pr['updated_at'], 'names' => ['req' => $reqName, 'ap' => $apSignName], 'lock' => ['req' => spr_state($pr) === 'approved' && spr_has_surname($reqName), 'ap' => $apLock], 'old' => $apMine ? '' : $approver], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>;
   var dlg = document.getElementById('sgd'), $ = function (x) { return document.getElementById(x); }, pad = null, slot = '';
   function reload() { location.replace('stock_pr_print.php?id=' + PR.id); }
   function post(action, body, done) {
@@ -350,12 +367,13 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
     if (!window.SignaturePad) { alert('โหลดช่องเซ็นไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วรีเฟรชหน้า'); return; }
     slot = s;
     $('sgd-t').textContent = s === 'ap' ? 'ลงนามผู้อนุมัติ' : 'ลงนามผู้ขอซื้อ/ขอจ้าง';
-    $('sgd-n').textContent = PR.names[s] || '-';
-    $('sgd-e').textContent = s === 'ap' && PR.old && PR.old !== PR.names.ap ? 'ชื่อผู้อนุมัติในใบจะเปลี่ยนจาก ' + PR.old + ' เป็น ' + PR.names.ap : '';
+    $('sgd-n').value = PR.names[s] || '';
+    $('sgd-n').readOnly = !!PR.lock[s];
+    $('sgd-e').textContent = s === 'ap' && PR.old ? 'ชื่อผู้อนุมัติในใบจะเปลี่ยนจาก ' + PR.old + ' เป็น ' + PR.names.ap : '';
     dlg.hidden = false;
     pad = new SignaturePad($('sgd-c'), { penColor: 'rgb(15, 23, 92)', minWidth: 1, maxWidth: 2.8 });
     fit();
-    $('sgd-ok').focus();
+    if (!/\S\s+\S/.test($('sgd-n').value)) $('sgd-n').focus(); else $('sgd-ok').focus();
   }
   // ตัดขอบว่างรอบเส้น และย่อ — รูปเล็ก เห็นเส้นเต็มช่องในใบพิมพ์
   function trimmed() {
@@ -378,7 +396,7 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
     if (b) { open(b.getAttribute('data-sign')); return; }
     b = e.target.closest('[data-unsign]');
     if (b) {
-      if (!confirm('ลบลายเซ็นช่องนี้?')) return;
+      if (!confirm(b.getAttribute('data-unsign') === 'ap' ? 'ลบลายเซ็นผู้อนุมัติ?\nใบนี้จะกลับเป็น "รออนุมัติ" และแก้ไข/ยกเลิกได้' : 'ลบลายเซ็นช่องนี้?')) return;
       b.disabled = true;
       post('unsign', { id: PR.id, slot: b.getAttribute('data-unsign') }, function (err) { if (err) { b.disabled = false; alert(err); } else reload(); });
     }
@@ -387,10 +405,12 @@ $foot = $pr['pr_no'] . ' · พิมพ์เมื่อ ' . $printedAt;
   $('sgd-clear').onclick = function () { pad.clear(); $('sgd-e').textContent = ''; };
   $('sgd-x').onclick = close;
   $('sgd-ok').onclick = function () {
+    var name = $('sgd-n').value.trim();
+    if (!/\S\s+\S/.test(name)) { $('sgd-e').textContent = 'กรุณากรอกชื่อ-นามสกุล (เว้นวรรคระหว่างชื่อกับนามสกุล)'; $('sgd-n').focus(); return; }
     if (pad.isEmpty() || tooSmall()) { $('sgd-e').textContent = 'กรุณาลงลายมือชื่อ'; return; }
     var btn = $('sgd-ok');
     btn.disabled = true;
-    post('sign', { id: PR.id, slot: slot, sign: trimmed(), ver: PR.ver }, function (err) { if (err) { btn.disabled = false; $('sgd-e').textContent = err; } else reload(); });
+    post('sign', { id: PR.id, slot: slot, name: name, sign: trimmed(), ver: PR.ver }, function (err) { if (err) { btn.disabled = false; $('sgd-e').textContent = err; } else reload(); });
   };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !dlg.hidden) close(); });
   window.addEventListener('resize', function () { if (!dlg.hidden) fit(); });

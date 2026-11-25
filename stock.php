@@ -874,12 +874,10 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                             </div>`
                     },
                     {
-                        headerName: 'สถานะ', field: 'status', width: 120, pinned: 'right',
+                        headerName: 'สถานะ', colId: 'status', field: 'state', width: 130, pinned: 'right',
                         filter: 'agSetColumnFilter',
-                        filterParams: { values: ['1', '0'], valueFormatter: p => String(p.value) === '1' ? 'ใช้งาน' : 'ยกเลิก', suppressMiniFilter: true, buttons: ['reset'] },
-                        cellRenderer: p => p.data ? (p.data.status
-                            ? '<div class="flex items-center h-full"><span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">ใช้งาน</span></div>'
-                            : '<div class="flex items-center h-full"><span class="text-[11px] px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 font-bold">ยกเลิก</span></div>') : ''
+                        filterParams: { values: ['pending', 'approved', 'cancelled'], valueFormatter: p => PrManager.stateOf(p.value).text, suppressMiniFilter: true, buttons: ['reset'] },
+                        cellRenderer: p => p.data ? `<div class="flex items-center h-full"><span class="text-[11px] px-2 py-0.5 rounded-full font-bold ${PrManager.stateOf(p.data.state).cls}">${PrManager.stateOf(p.data.state).text}</span></div>` : ''
                     },
                     {
                         headerName: '', field: 'pr_id', width: 120, pinned: 'right', sortable: false, filter: false, suppressMovable: true,
@@ -1239,7 +1237,7 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                     const colDef = params.column.getColDef();
                     if (colDef.field === 'pd_price') return 'ราคา (บาท)';
                     if (colDef.field === 'pd_qty') return 'จำนวนคงเหลือ';
-                    if (State.selectedMenuId === 'report-pr' && colDef.field === 'status') return 'สถานะ';
+                    if (State.selectedMenuId === 'report-pr' && colDef.field === 'state') return 'สถานะ';
                     return colDef.headerName || colDef.field;
                 },
 
@@ -1289,7 +1287,7 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
 
                     // จัดการรูปแบบวันที่ (โค้ดเดิม)
                     if (State.selectedMenuId === 'report-pr' && colId === 'status') {
-                        return Number(value) === 1 ? 'ใช้งาน' : `ยกเลิก${params.node?.data?.cancel_reason ? ' (' + params.node.data.cancel_reason + ')' : ''}`;
+                        return PrManager.stateOf(value).text + (value === 'cancelled' && params.node?.data?.cancel_reason ? ' (' + params.node.data.cancel_reason + ')' : '');
                     }
                     if ((colId === 'trans_date' || colId === 'adj_date' || colId === 'pr_date' || colId === 'deliver_date') && value) {
                         return new Date(value).toLocaleDateString('th-TH', { 
@@ -1989,8 +1987,14 @@ if (targetPdId) {
             seq: 0,
             esc: v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
 
+            // สถานะของใบ: รออนุมัติ / อนุมัติ (ผู้อนุมัติลงนามแล้ว) / ยกเลิก
+            stateOf: s => ({ approved: { text: 'อนุมัติ', cls: 'bg-emerald-50 text-emerald-700' }, cancelled: { text: 'ยกเลิก', cls: 'bg-rose-50 text-rose-600' } }[s] || { text: 'รออนุมัติ', cls: 'bg-amber-50 text-amber-700' }),
+
             // พิมพ์ / ลงนาม: เปิดใบในแท็บใหม่ ให้ผู้ใช้เลือกเองว่าจะเซ็นหรือพิมพ์ (stock_pr_print.php)
-            print: (id) => window.open('stock_pr_print.php?id=' + encodeURIComponent(id), '_blank'),
+            print: (id) => {
+                window.open('stock_pr_print.php?id=' + encodeURIComponent(id), '_blank');
+                window.addEventListener('focus', () => PrManager.refreshList(), { once: true });   // กลับจากแท็บใบพิมพ์ => สถานะล่าสุด
+            },
 
             // ปุ่ม "สร้างใบขอซื้อ" ในเมนูใบขอซื้อ => ไปที่รายการสินค้าเพื่อเลือก
             startNew: () => {
@@ -2043,7 +2047,7 @@ if (targetPdId) {
                     try {
                         const r = (await axios.get('handle_stock_pr.php', { params: { action: 'get', id: PrManager.editId } })).data;
                         if (!r.success) throw new Error(r.error || 'โหลดใบขอซื้อไม่สำเร็จ');
-                        if (!r.pr.can_edit) throw new Error('ใบนี้แก้ไขไม่ได้ (ยกเลิกแล้ว หรือไม่ใช่ผู้สร้างใบ)');
+                        if (!r.pr.can_edit) throw new Error('ใบนี้แก้ไขไม่ได้ (อนุมัติแล้ว ยกเลิกแล้ว หรือไม่ใช่ผู้สร้างใบ)');
                         head = r.pr; approvers = r.approvers || [];
                         PrManager.lines = r.items.map(it => PrManager.newLine({
                             pd_id: it.pd_id, code: it.pd_code || '', name: it.pd_name || '', unit: it.pd_unit || '', qty: it.qty, note: it.note || '',
@@ -2111,7 +2115,7 @@ if (targetPdId) {
                                 </div>
                             </div>
                         </div>
-                        ${field('pr-req', 'ผู้ขอซื้อ/ขอจ้าง *', 'type="text" maxlength="150"')}
+                        ${field('pr-req', 'ผู้ขอซื้อ/ขอจ้าง (ชื่อ-นามสกุล) *', 'type="text" maxlength="150" placeholder="ชื่อ นามสกุล"')}
                         <div id="pr-approver-box" class="hidden">
                             <label class="label-xs" for="pr-approver">ผู้อนุมัติ</label>
                             <select id="pr-approver" data-no-search class="input-base"></select>
@@ -3609,8 +3613,8 @@ if (targetPdId) {
                     <article class="ms-card p-3 ${d.status ? '' : 'opacity-70'}">
                         <div class="flex items-start justify-between gap-2">
                             <div><div class="text-[14px] font-bold ${d.status ? 'text-sky-700' : 'text-slate-400 line-through'}">${esc(d.pr_no)}</div>
-                                <div class="text-[11.5px] text-slate-500">${thDate(d.pr_date)} · ${esc(d.req_name || '-')}</div></div>
-                            <span class="flex-none rounded-full px-2 py-0.5 text-[11px] font-bold ${d.status ? 'bg-sky-50 text-sky-700' : 'bg-rose-50 text-rose-600'}">${d.status ? d.n_items + ' รายการ' : 'ยกเลิก'}</span>
+                                <div class="text-[11.5px] text-slate-500">${thDate(d.pr_date)} · ${esc(d.req_name || '-')} · ${d.n_items} รายการ</div></div>
+                            <span class="flex-none rounded-full px-2 py-0.5 text-[11px] font-bold ${PrManager.stateOf(d.state).cls}">${PrManager.stateOf(d.state).text}</span>
                         </div>
                         ${d.remark ? `<div class="mt-1.5 text-[12.5px] text-slate-600">${esc(d.remark)}</div>` : ''}
                         <div class="mt-2 rounded-xl border border-slate-100 px-2.5">${(d.items || []).map(it => `<div class="flex items-start justify-between gap-2 py-1.5 border-b border-slate-100 last:border-0">

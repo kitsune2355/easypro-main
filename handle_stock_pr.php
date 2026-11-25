@@ -6,9 +6,10 @@
 //  GET  ?action=get&id=                        ใบขอซื้อ + รายการ (ใช้ตอนแก้ไข)
 //  POST ?action=save   (JSON)                  บันทึกใบใหม่ => ออกเลขที่
 //  POST ?action=update (JSON, pr_id)           แก้ไขใบ (เลขที่เดิม) — ผู้สร้าง / admin / super_admin, เฉพาะใบที่ยังไม่ยกเลิก
-//  POST ?action=sign   (JSON: id, slot req|ap, sign = PNG data URL, ver = updated_at ตอนเปิดใบ)   ลงลายเซ็น (spr_sign_rights)
+//  สถานะของใบ (state): pending = รออนุมัติ · approved = อนุมัติ (ผู้อนุมัติลงนามแล้ว — แก้ไข/ยกเลิกไม่ได้) · cancelled = ยกเลิก
+//  POST ?action=sign   (JSON: id, slot req|ap, name = ชื่อ-นามสกุล, sign = PNG data URL, ver = updated_at ตอนเปิดใบ)   ลงลายเซ็น (spr_sign_rights)
 //  POST ?action=unsign (JSON: id, slot)        ลบลายเซ็น — ผู้ที่เซ็นเอง / super_admin
-//       แก้ไขใบ (update) = ล้างลายเซ็นทั้งสองช่อง เพราะเนื้อหาไม่ใช่ที่เซ็นไว้แล้ว
+//       แก้ไขใบ (update) ที่ยังไม่อนุมัติ = ล้างลายเซ็นผู้ขอ เพราะเนื้อหาไม่ใช่ที่เซ็นไว้แล้ว
 //  POST ?action=cancel (id, reason)            ยกเลิกใบ (ต้องระบุเหตุผล) — ผู้สร้าง / admin / super_admin
 //  รายการในใบ: สินค้าในสต็อก { pd_id, qty, note } หรือสินค้านอกสต็อก { pd_id: 0, name, code, unit, qty, note }
 //  ตำแหน่ง "ช่าง" ดูและพิมพ์ได้ แต่ บันทึก / แก้ไข / ยกเลิก ไม่ได้ (config_ctrl/stock_perm.php)
@@ -35,9 +36,9 @@ $action = $_GET['action'] ?? '';
 $isAdmin = in_array($level, ['admin', 'super_admin'], true);
 $canManage = stock_can_manage($connect);
 
-// สิทธิ์แก้ไข/ยกเลิกใบ
+// สิทธิ์แก้ไข/ยกเลิกใบ (อนุมัติแล้ว = ไม่ได้ทุกคน ต้องลบลายเซ็นผู้อนุมัติก่อน)
 function spr_can_change($row, $canManage, $isAdmin, $me) {
-    return $canManage && (int)$row['status'] === 1 && ($isAdmin || (string)$row['created_by'] === $me);
+    return $canManage && spr_state($row) === 'pending' && ($isAdmin || (string)$row['created_by'] === $me);
 }
 
 // คงเหลือ / จุดสั่งซื้อรวมทุกคลัง (เฉพาะคลังที่เปิดใช้งาน) ของสินค้าที่ระบุ — [pd_id => [stock, min, wh[]]]
@@ -65,7 +66,7 @@ function spr_stock_info($connect, $ag, $ids) {
 }
 
 // เงื่อนไข SQL ของตัวกรองหัวคอลัมน์ 1 เงื่อนไข (เฉพาะคอลัมน์ที่อนุญาต) — เติมพารามิเตอร์ใน $types / $params
-function spr_filter_sql($col, $c, &$types, &$params) {
+function spr_filter_sql($connect, $col, $c, &$types, &$params) {
     $textCols = ['pr_no' => 'h.pr_no', 'req_name' => 'h.req_name', 'remark' => 'h.remark'];
     $dateCols = ['pr_date' => 'h.pr_date', 'deliver_date' => 'h.deliver_date'];
     $ft = (string)($c['filterType'] ?? '');
@@ -102,9 +103,9 @@ function spr_filter_sql($col, $c, &$types, &$params) {
         return "$f " . ($ops[$type] ?? '=') . " ?";
     }
     if ($ft === 'set' && $col === 'status') {
-        $vals = array_values(array_intersect(array_map('strval', (array)($c['values'] ?? [])), ['0', '1']));
+        $vals = array_values(array_intersect(array_map('strval', (array)($c['values'] ?? [])), ['pending', 'approved', 'cancelled']));
         if (!$vals) return '1 = 0';   // ไม่ได้เลือกสถานะใดเลย
-        return 'h.status IN (' . implode(',', array_map('intval', $vals)) . ')';
+        return '(' . implode(' OR ', array_map(function ($v) use ($connect) { return spr_state_sql($connect, $v); }, $vals)) . ')';
     }
     return '';
 }
@@ -182,7 +183,7 @@ if ($action === 'list') {
             $join = (isset($f['operator']) && strtoupper($f['operator']) === 'OR') ? ' OR ' : ' AND ';
             $parts = [];
             foreach ($conds as $c) {
-                $sql = spr_filter_sql($col, $c, $types, $params);
+                $sql = spr_filter_sql($connect, $col, $c, $types, $params);
                 if ($sql !== '') $parts[] = $sql;
             }
             if ($parts) $where .= ' AND (' . implode($join, $parts) . ')';
@@ -190,7 +191,7 @@ if ($action === 'list') {
     }
 
     // เรียงตามหัวคอลัมน์ (ag-Grid) — เฉพาะคอลัมน์ที่อนุญาต · ค่าเริ่มต้น: วันที่ขอซื้อล่าสุดก่อน
-    $sortCols = ['pr_no' => 'h.pr_no', 'pr_date' => 'h.pr_date', 'req_name' => 'h.req_name', 'deliver_date' => 'h.deliver_date', 'status' => 'h.status', 'remark' => 'h.remark'];
+    $sortCols = ['pr_no' => 'h.pr_no', 'pr_date' => 'h.pr_date', 'req_name' => 'h.req_name', 'deliver_date' => 'h.deliver_date', 'status' => 'CASE WHEN ' . spr_state_sql($connect, 'pending') . ' THEN 0 WHEN ' . spr_state_sql($connect, 'approved') . ' THEN 1 ELSE 2 END', 'remark' => 'h.remark'];
     $order = [];
     foreach ((array)json_decode((string)($_GET['sort'] ?? ''), true) as $so) {
         $cid = is_array($so) ? (string)($so['colId'] ?? '') : '';
@@ -205,6 +206,7 @@ if ($action === 'list') {
     mysqli_stmt_close($st);
     $sql = "SELECT h.pr_id, h.pr_no, h.pr_date, h.deliver_date, h.req_name, h.remark, h.status, h.created_by, h.created_at,
                    h.cancel_reason, h.cancelled_at, h.cancelled_by,
+                   " . (spr_has_sign($connect) ? 'h.ap_signed_by' : "'' AS ap_signed_by") . ",
                    (SELECT COUNT(*) FROM tb_stock_pr_item i WHERE i.pr_id = h.pr_id) AS n_items
             FROM tb_stock_pr h $where ORDER BY $order LIMIT $per OFFSET $off";
     $st = mysqli_prepare($connect, $sql);
@@ -216,7 +218,9 @@ if ($action === 'list') {
         $r['pr_id'] = (int)$r['pr_id'];
         $r['status'] = (int)$r['status'];
         $r['n_items'] = (int)$r['n_items'];
+        $r['state'] = spr_state($r);
         $r['can_edit'] = $r['can_cancel'] = spr_can_change($r, $canManage, $isAdmin, $me);
+        unset($r['ap_signed_by']);
         $r['items'] = [];
         $rows[] = $r;
     }
@@ -284,7 +288,7 @@ if ($action === 'sign' || $action === 'unsign') {
     if (!spr_has_sign($connect)) spr_out(['success' => false, 'error' => 'ฐานข้อมูลยังไม่รองรับลายเซ็น — ให้ผู้ดูแลรัน sql/2026-11-24_stock_pr_sign.sql']);
     $id = (int)($in['id'] ?? 0);
     $slot = ($in['slot'] ?? '') === 'ap' ? 'ap' : 'req';
-    $st = mysqli_prepare($connect, "SELECT pr_id, status, created_by, updated_at, approver_id, approver_name, req_signed_by, ap_signed_by FROM tb_stock_pr WHERE pr_id = ? AND ag_id = ? LIMIT 1");
+    $st = mysqli_prepare($connect, "SELECT pr_id, status, created_by, updated_at, req_name, approver_id, approver_name, req_signed_by, ap_signed_by FROM tb_stock_pr WHERE pr_id = ? AND ag_id = ? LIMIT 1");
     mysqli_stmt_bind_param($st, 'ii', $id, $ag);
     mysqli_stmt_execute($st);
     $pr = mysqli_fetch_assoc(mysqli_stmt_get_result($st));
@@ -294,6 +298,7 @@ if ($action === 'sign' || $action === 'unsign') {
     $signedBy = (string)$pr[$slot . '_signed_by'];
 
     if ($action === 'unsign') {
+        if ($slot === 'req' && (string)$pr['ap_signed_by'] !== '') spr_out(['success' => false, 'error' => 'ใบนี้อนุมัติแล้ว ลบลายเซ็นผู้ขอซื้อไม่ได้']);
         if ($signedBy === '') spr_out(['success' => false, 'error' => 'ช่องนี้ยังไม่มีลายเซ็น']);
         if ($level !== 'super_admin' && $signedBy !== $me) spr_out(['success' => false, 'error' => 'ลบได้เฉพาะลายเซ็นของตัวเอง'], 403);
         $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET {$slot}_sign = NULL, {$slot}_signed_at = NULL, {$slot}_signed_by = NULL WHERE pr_id = ? AND ag_id = ? AND status = 1 AND {$slot}_signed_by = ?");
@@ -316,16 +321,22 @@ if ($action === 'sign' || $action === 'unsign') {
     if (!$info || $info[2] !== IMAGETYPE_PNG || $info[0] > 3000 || $info[1] > 3000) spr_out(['success' => false, 'error' => 'ลายเซ็นไม่ถูกต้อง กรุณาเซ็นใหม่']);
 
     $now = date('Y-m-d H:i:s');
+    // ชื่อ-นามสกุลในวงเล็บ: ผู้อนุมัติที่บัญชีมีนามสกุลแล้วใช้ชื่อในบัญชีเสมอ (แก้เป็นคนอื่นไม่ได้) · นอกนั้นใช้ชื่อที่กรอกตอนลงนาม
+    $name = spr_str(preg_replace('/\s+/u', ' ', (string)($in['name'] ?? '')), 150);
+    $myName = spr_user_name($connect, $me);
+    if ($slot === 'ap' && spr_has_surname($myName)) $name = trim(preg_replace('/\s+/u', ' ', $myName));
+    // อนุมัติแล้ว: ผู้ขอเซ็นตามหลังได้ แต่เปลี่ยนชื่อผู้ขอไม่ได้ (ยกเว้นชื่อเดิมยังไม่มีนามสกุล)
+    $reqFull = spr_full_name($connect, $pr['req_name'], $pr['created_by']);
+    if ($slot === 'req' && (string)$pr['ap_signed_by'] !== '' && spr_has_surname($reqFull)) $name = $reqFull;
+    if (!spr_has_surname($name)) spr_out(['success' => false, 'error' => 'กรุณากรอกชื่อ-นามสกุล (เว้นวรรคระหว่างชื่อกับนามสกุล)']);
     if ($slot === 'ap') {
-        // ชื่อผู้อนุมัติ = ผู้ที่เซ็นจริง (คนเดิมของใบ => คงชื่อที่เก็บไว้)
-        $name = (string)$pr['approver_id'] === $me && trim((string)$pr['approver_name']) !== '' ? (string)$pr['approver_name'] : spr_user_name($connect, $me);
         $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET ap_sign = ?, ap_signed_at = ?, ap_signed_by = ?, approver_id = ?, approver_name = ?
             WHERE pr_id = ? AND ag_id = ? AND status = 1 AND ap_signed_by IS NULL AND COALESCE(updated_at, '') = ?");
         mysqli_stmt_bind_param($st, 'sssssiis', $sign, $now, $me, $me, $name, $id, $ag, $ver);
     } else {
-        $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET req_sign = ?, req_signed_at = ?, req_signed_by = ?
+        $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET req_sign = ?, req_signed_at = ?, req_signed_by = ?, req_name = ?
             WHERE pr_id = ? AND ag_id = ? AND status = 1 AND req_signed_by IS NULL AND COALESCE(updated_at, '') = ?");
-        mysqli_stmt_bind_param($st, 'sssiis', $sign, $now, $me, $id, $ag, $ver);
+        mysqli_stmt_bind_param($st, 'ssssiis', $sign, $now, $me, $name, $id, $ag, $ver);
     }
     mysqli_stmt_execute($st);
     $n = mysqli_stmt_affected_rows($st);
@@ -422,13 +433,14 @@ function spr_insert_lines($connect, $prId, $lines, $now, $me) {
 
 // ใบเดิม (ตรวจสิทธิ์แก้ไข/ยกเลิก)
 function spr_load_for_change($connect, $ag, $id, $canManage, $isAdmin, $me) {
-    $st = mysqli_prepare($connect, "SELECT pr_id, pr_no, created_by, status, approver_id, approver_name FROM tb_stock_pr WHERE pr_id = ? AND ag_id = ? LIMIT 1");
+    $st = mysqli_prepare($connect, "SELECT pr_id, pr_no, created_by, status, approver_id, approver_name, " . (spr_has_sign($connect) ? 'ap_signed_by' : "'' AS ap_signed_by") . " FROM tb_stock_pr WHERE pr_id = ? AND ag_id = ? LIMIT 1");
     mysqli_stmt_bind_param($st, 'ii', $id, $ag);
     mysqli_stmt_execute($st);
     $row = mysqli_fetch_assoc(mysqli_stmt_get_result($st));
     mysqli_stmt_close($st);
     if (!$row) spr_out(['success' => false, 'error' => 'ไม่พบใบขอซื้อ'], 404);
     if ((int)$row['status'] !== 1) spr_out(['success' => false, 'error' => 'ใบนี้ถูกยกเลิกแล้ว']);
+    if (spr_state($row) === 'approved') spr_out(['success' => false, 'error' => 'ใบนี้อนุมัติแล้ว แก้ไขหรือยกเลิกไม่ได้']);
     if (!spr_can_change($row, $canManage, $isAdmin, $me)) spr_out(['success' => false, 'error' => 'แก้ไข/ยกเลิกได้เฉพาะผู้สร้างใบ หรือผู้ดูแลระบบ'], 403);
     return $row;
 }
@@ -470,6 +482,12 @@ if ($action === 'update') {
     list($head, $lines) = spr_parse_input($connect, $ag, $row);
     $now = date('Y-m-d H:i:s');
     mysqli_begin_transaction($connect);
+    // ล็อกแถวแล้วตรวจอีกครั้ง — กันผู้อนุมัติเซ็นพร้อมกับที่กดบันทึก
+    if (spr_has_sign($connect)) {
+        $rs = mysqli_query($connect, "SELECT status, ap_signed_by FROM tb_stock_pr WHERE pr_id = " . (int)$id . " FOR UPDATE");
+        $cur = $rs ? mysqli_fetch_assoc($rs) : null;
+        if (!$cur || spr_state($cur) !== 'pending') { mysqli_rollback($connect); spr_out(['success' => false, 'error' => 'ใบนี้อนุมัติหรือยกเลิกไปแล้ว แก้ไขไม่ได้']); }
+    }
     $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET pr_date = ?, deliver_date = ?, remark = ?, req_name = ?, approver_id = ?, approver_name = ?, updated_at = ?, updated_by = ? WHERE pr_id = ? AND ag_id = ? AND status = 1");
     mysqli_stmt_bind_param($st, 'ssssssssii', $head['pr_date'], $head['deliver_date'], $head['remark'], $head['req_name'], $head['approver_id'], $head['approver_name'], $now, $me, $id, $ag);
     $ok = mysqli_stmt_execute($st);
@@ -495,11 +513,14 @@ if ($action === 'cancel') {
     if ($reason === '') spr_out(['success' => false, 'error' => 'กรุณาระบุเหตุผลที่ยกเลิก']);
     spr_load_for_change($connect, $ag, $id, $canManage, $isAdmin, $me);
     $now = date('Y-m-d H:i:s');
-    $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET status = 0, cancel_reason = ?, cancelled_at = ?, cancelled_by = ?, updated_at = ?, updated_by = ? WHERE pr_id = ? AND ag_id = ?");
+    // ผู้อนุมัติลงนามแล้ว => ยกเลิกไม่ได้ (ตรวจในคำสั่งเดียวกัน กันผู้อนุมัติเซ็นพร้อมกับที่กดยกเลิก)
+    $st = mysqli_prepare($connect, "UPDATE tb_stock_pr SET status = 0, cancel_reason = ?, cancelled_at = ?, cancelled_by = ?, updated_at = ?, updated_by = ? WHERE pr_id = ? AND ag_id = ? AND status = 1"
+        . (spr_has_sign($connect) ? " AND COALESCE(ap_signed_by, '') = ''" : ''));
     mysqli_stmt_bind_param($st, 'sssssii', $reason, $now, $me, $now, $me, $id, $ag);
     mysqli_stmt_execute($st);
+    $n = mysqli_stmt_affected_rows($st);
     mysqli_stmt_close($st);
-    spr_out(['success' => true]);
+    spr_out($n > 0 ? ['success' => true] : ['success' => false, 'error' => 'ใบนี้ผู้อนุมัติลงนามแล้ว ยกเลิกไม่ได้']);
 }
 
 spr_out(['success' => false, 'error' => 'unknown action'], 400);
