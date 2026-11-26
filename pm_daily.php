@@ -530,7 +530,8 @@
     // switchTab('daily', opts) — เปิดจากหน้าภาพรวม: กรองสถานะที่ต้องการ
     window.initDailyTab = function (opts) {
         if (opts && opts.filter) { filter = opts.filter; if (opts.filter === 'overdue') $('pmd-overdue').checked = true; }
-        load(!!summary && !(opts && opts.filter));
+        if (opts && /^\d{4}-\d{2}-\d{2}$/.test(opts.date || '')) $('pmd-date').value = opts.date;   // เปิดจากแจ้งเตือน PM => วันที่กำหนดทำ
+        load(!!summary && !(opts && (opts.filter || opts.date)));
     };
 })();
 </script>

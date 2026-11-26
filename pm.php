@@ -696,6 +696,13 @@ $pmCanApprove = $pmApproveOn
             let tabOpts;
             try { tabOpts = JSON.parse(localStorage.getItem('pmTabOpts') || 'null') || undefined; localStorage.removeItem('pmTabOpts'); } catch (e) { tabOpts = undefined; }
 
+            // เปิดจากแจ้งเตือน PM (?pm_date=YYYY-MM-DD) => หน้างาน > งานที่ต้องทำ ของวันที่กำหนดทำ
+            const pmDate = new URLSearchParams(window.location.search).get('pm_date') || '';
+            if (/^\d{4}-\d{2}-\d{2}$/.test(pmDate)) {
+                window.switchTab('daily', Object.assign({}, tabOpts, { date: pmDate }));
+                return;
+            }
+
             // สลับไปยังแท็บที่เคยเปิดไว้
             window.switchTab(savedTab, tabOpts);
         });

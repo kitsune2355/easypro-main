@@ -1332,55 +1332,15 @@ $stockCanManage = stock_can_manage($connect);   // ตำแหน่ง "ช่
                     
                     lucide.createIcons();
 
-                    // 1. อ่านค่าพารามิเตอร์จาก URL
-const urlParams = new URLSearchParams(window.location.search);
-const targetPdId = urlParams.get('pd_id');
-const targetWhId = urlParams.get('wh_id');
-
-if (targetPdId) {
-    // 2. หน่วงเวลาเล็กน้อยเพื่อให้ Grid โหลดข้อมูลและเรนเดอร์ UI ให้เสร็จก่อน
-    setTimeout(() => {
-        let targetNode = null;
-        let targetData = null;
-
-        // 3. วนลูปหา Row ใน ag-Grid ที่มี pd_id และ wh_id ตรงกับที่เราต้องการ
-        // (หมายเหตุ: เปลี่ยน gridOptions.api เป็นชื่อตัวแปร api grid ของคุณ เช่น State.gridApi)
-        if (gridOptions && gridOptions.api) {
-            gridOptions.api.forEachNode((node) => {
-                // เช็คว่าถ้ามีการส่ง wh_id มา ต้องตรงทั้งคู่ แต่ถ้าไม่มี เอาแค่ pd_id
-                const matchPd = node.data.pd_id == targetPdId;
-                const matchWh = targetWhId ? (node.data.wh_id == targetWhId) : true;
-                
-                if (matchPd && matchWh) {
-                    targetNode = node;
-                    targetData = node.data;
-                }
-            });
-        }
-
-        if (targetNode && targetData) {
-            // --- ทำการโฟกัสและไฮไลท์สี ---
-            
-            // ก. เลื่อนหน้าจอ (Scroll) ของตารางไปหาแถวนั้นให้อยู่ตรงกลางจอ
-            gridOptions.api.ensureIndexVisible(targetNode.rowIndex, 'middle');
-            
-            // ข. ทำการ Select แถวนั้น (ขึ้นแถบสีไฮไลท์ค้างไว้)
-            targetNode.setSelected(true);
-            
-            // ค. ทำให้เซลล์ในแถวนั้น "กระพริบสี" (Flash) เพื่อดึงดูดสายตาทันที
-            gridOptions.api.flashCells({ rowNodes: [targetNode] });
-
-            // ง. สั่งเปิด Drawer ทันที (แก้ชื่อฟังก์ชันให้ตรงกับของคุณ)
-            DrawerManager.openEditDrawer(targetData); 
-
-            // จ. ลบพารามิเตอร์ออกจาก URL เพื่อไม่ให้ทำงานซ้ำเวลาผู้ใช้กดรีเฟรชหน้า (F5)
-            const newUrl = window.location.pathname; 
-            window.history.replaceState({}, document.title, newUrl);
-        } else {
-            console.warn(`ไม่พบข้อมูล pd_id: ${targetPdId}, wh_id: ${targetWhId} ในตารางนี้`);
-        }
-    }, 800); // ตั้งเวลาดีเลย์ 0.8 วิ (ปรับเพิ่มลดได้ตามความเร็วในการโหลดข้อมูลของระบบ)
-}
+                    // เปิดจากแจ้งเตือนสต็อกเหลือน้อย (?pd_id=[&wh_id=]) => เปิดหน้าต่างสินค้านั้นเลย
+                    //  (เดิมหาแถวจาก gridOptions ซึ่งไม่มีตัวแปรนี้ => error เงียบ ไม่เปิดอะไร · ตารางโหลดจาก server ทีละหน้า หาแถวไม่ได้อยู่แล้ว)
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const targetPdId = urlParams.get('pd_id');
+                    if (targetPdId) {
+                        const targetWhId = urlParams.get('wh_id');
+                        setTimeout(() => DrawerManager.open('stock', parseInt(targetPdId, 10), targetWhId ? parseInt(targetWhId, 10) : null), 300);
+                        window.history.replaceState({}, document.title, window.location.pathname);   // รีเฟรชแล้วไม่เปิดซ้ำ
+                    }
                     
                 } catch (error) {
                     console.error("Initialization failed:", error);

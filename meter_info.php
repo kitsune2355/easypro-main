@@ -366,6 +366,8 @@ include "config_ctrl/checksession.php";
         let gridApi = null;
         let currentCat = 'wt';
         let currentMeterId = null;
+        let pendingMeterId = '';   // มิเตอร์ที่ต้องเลือกหลังโหลดรายการ (จากลิงก์แจ้งเตือน ?mt_id=)
+        let scrollToMeter = false;
         let currentMeterList = [];
         let allRounds = [];
         let isPhotoDeleted = false;
@@ -809,6 +811,11 @@ include "config_ctrl/checksession.php";
                 renderSidebar();
                 
                 if (currentMeterList.length > 0) {
+                    // เปิดจากแจ้งเตือน (?mt_id=) => เลือกมิเตอร์ตัวนั้น (ครั้งเดียว — ล้างเมื่อเจอ เผื่อรายการแรกที่โหลดเป็นมิเตอร์คนละประเภท)
+                    if (pendingMeterId) {
+                        const target = currentMeterList.find(m => String(m.id) === pendingMeterId);
+                        if (target) { currentMeterId = target.id; pendingMeterId = ''; scrollToMeter = true; }
+                    }
                     const exists = currentMeterList.find(m => m.id === currentMeterId);
                     if (!exists) {
                         currentMeterId = currentMeterList[0].id;
@@ -816,6 +823,10 @@ include "config_ctrl/checksession.php";
                     renderSidebar(); 
                     const selected = currentMeterList.find(m => m.id === currentMeterId);
                     selectMeter(selected);
+                    if (scrollToMeter) {   // มิเตอร์จากแจ้งเตือนอาจอยู่ท้ายรายการ => เลื่อนให้เห็น
+                        scrollToMeter = false;
+                        document.querySelector(`#meter-list [data-mid="${String(currentMeterId)}"]`)?.scrollIntoView({ block: 'center' });
+                    }
                 } else {
                     currentMeterId = null;
                     renderSidebar();
@@ -983,6 +994,7 @@ include "config_ctrl/checksession.php";
             const createItem = (m, isMobile) => {
                 const div = document.createElement('div');
                 div.className = `p-3 rounded-xl cursor-pointer transition-all border border-transparent hover:bg-secondary/5 hover:border-secondary ${currentMeterId === m.id ? 'border-primary' : ''}`;
+                div.dataset.mid = m.id;
                 div.onclick = () => {
                     selectMeter(m);
                     if(isMobile) toggleMobileDropdown();
@@ -1696,6 +1708,7 @@ include "config_ctrl/checksession.php";
                 let notiTab = params.get('tab') || 'wt';
                 let notiMonth = params.get('month');
                 let notiYear = params.get('year');
+                pendingMeterId = String(params.get('mt_id') || '');
 
                 // ค้นหา Dropdown อัตโนมัติ
                 let monthSelect = document.getElementById('month') || document.querySelector('select[id*="month"]') || document.querySelector('select[name*="month"]');

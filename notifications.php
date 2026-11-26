@@ -155,7 +155,9 @@ include "config_ctrl/checksession.php";
                                 await markAsRead(item.id);
                             }
                             
-                            if (window.parent && window.parent.navigate) {
+                            if (window.parent && typeof window.parent.openNotification === 'function') {
+                                window.parent.openNotification(item);   // นำทางแบบเดียวกับกระดิ่ง (main.php)
+                            } else if (window.parent && window.parent.navigate) {
                                 switch(item.type) {
                                     case 'repair_request':
                                     case 'repair_completed':

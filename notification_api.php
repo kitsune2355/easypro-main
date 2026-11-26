@@ -195,7 +195,7 @@ switch ($action) {
                        ta.area_name AS building_name,
                        tac.ac_name AS floor_name,
                        tar.ar_name AS room_name,
-                       tm.mt_name
+                       tm.mt_name, pe.event_date AS pm_event_date
                 FROM notifications n
                 LEFT JOIN repair_requests rep ON n.related_id = rep.id AND n.type IN ('repair_request', 'repair_completed', 'repair_hold', 'repair_parts_arrived')
                 LEFT JOIN tb_meter tm ON n.related_id = tm.mt_id AND n.type = 'meter_exceeded'
@@ -269,7 +269,7 @@ switch ($action) {
                 $link_url = "maintenance_info.php?id=" . $row['related_id'];
             } elseif ($row['type'] === 'meter_exceeded') {
                 $title_text = '🚨 ค่ามิเตอร์เกินกำหนด';
-                $link_url = "meter_info.php?" . $row['rp_format'];
+                $link_url = "meter_info.php?" . $row['rp_format'] . "&mt_id=" . (int)$row['related_id'];   // mt_id: หน้ามิเตอร์เลือกมิเตอร์ที่แจ้งเตือน (ไม่ใช่ตัวแรกในรายการ)
                 $title_display = $title_text;
             } elseif ($row['type'] === 'low_stock') {
                 $title_text = '⚠️ สต็อกสินค้าเหลือน้อย';
@@ -278,11 +278,11 @@ switch ($action) {
             } elseif ($row['type'] === 'pm_advance_alert') { 
                 $title_text = '📅 กำหนดการบำรุงรักษา (PM)';
                 $title_display = $title_text;
-                $link_url = "pm.php"; 
-            } elseif ($row['type'] === 'pm_today_alert') { 
+                $link_url = "pm.php" . (!empty($row['pm_event_date']) ? "?pm_date=" . substr($row['pm_event_date'], 0, 10) : "");   // แท็บงานที่ต้องทำ วันที่กำหนดทำ
+            } elseif ($row['type'] === 'pm_today_alert') {
                 $title_text = '🚀 แจ้งเตือน PM';
                 $title_display = $title_text;
-                $link_url = "pm.php"; 
+                $link_url = "pm.php" . (!empty($row['pm_event_date']) ? "?pm_date=" . substr($row['pm_event_date'], 0, 10) : "");
             }
             
             // จัดการ Detail Text

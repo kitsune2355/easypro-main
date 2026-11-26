@@ -820,6 +820,35 @@ window.navigate = function(href, queryString) {
     renderMenu(href);
 };
 
+// คลิกแจ้งเตือน (กระดิ่ง / แจ้งเตือนของระบบปฏิบัติการ / หน้าการแจ้งเตือนทั้งหมด) => เปิดรายการนั้นตรง ๆ
+//  ส่ง query ไปกับ navigate() เสมอ: ถ้าหน้าที่เปิดอยู่เป็นไฟล์เดียวกัน (เช่น อยู่หน้าแจ้งซ่อมแล้วคลิกแจ้งซ่อมอีกใบ) iframe จะโหลดใหม่
+window.openNotification = function(item) {
+    if (!item) return;
+    const id = encodeURIComponent(item.related_id || '');
+    const qs = function(url) { const i = String(url || '').indexOf('?'); return i >= 0 ? String(url).slice(i) : ''; };
+    switch (item.type) {
+        case 'repair_request':
+        case 'repair_completed':
+        case 'repair_hold':            // พักงานซ่อม
+        case 'repair_parts_arrived':   // อะไหล่ของงานที่พักเข้าคลังแล้ว
+            sessionStorage.setItem('_edit_id', item.related_id);
+            navigate('maintenance_info.php', '?id=' + id);
+            break;
+        case 'meter_exceeded':         // tab / เดือน / ปี / mt_id
+            navigate('meter_info.php', qs(item.url));
+            break;
+        case 'low_stock':              // เปิดหน้าต่างสินค้า
+            navigate('stock.php', '?pd_id=' + id);
+            break;
+        case 'pm_advance_alert':
+        case 'pm_today_alert':         // งานที่ต้องทำ ของวันที่กำหนดทำ (?pm_date=)
+            navigate('pm.php', qs(item.url));
+            break;
+        default:
+            navigate('dashboard.php');
+    }
+};
+
 if (toggleBtn) {
     toggleBtn.addEventListener('click', function() {
         if (sidebar.classList.contains('sidebar-expanded')) {
@@ -1202,36 +1231,7 @@ function renderNotifications(data, isAppend) {
                 notifDropdown.classList.add('hidden');
             }
 
-            switch(item.type) {
-                case 'repair_request':
-                case 'repair_completed':
-                case 'repair_hold':            // พักงานซ่อม
-                case 'repair_parts_arrived':   // อะไหล่ของงานที่พักเข้าคลังแล้ว
-                    sessionStorage.setItem('_edit_id', item.related_id);
-                    navigate('maintenance_info.php');
-                    break;
-
-                case 'meter_exceeded':
-                    if (item.url && item.url !== '#') {
-                        navigate(item.url); 
-                    } else {
-                        navigate('meter_info.php');
-                    }
-                    break;
-                    
-                case 'low_stock':
-                    window.parent.navigate('stock.php');
-                    break;
-                
-                case 'pm_advance_alert':
-                case 'pm_today_alert':
-                    navigate('pm.php'); 
-                    break;
-                        
-                default:
-                    navigate('dashboard.php'); 
-                    break;
-            }
+            window.openNotification(item);
 
             if (typeof markAsRead === 'function' && !item.isRead) {
                 markAsRead(item.id);
@@ -1308,23 +1308,7 @@ async function fetchNotifications(isAppend = false) {
                                 event.preventDefault();
                                 window.focus(); // ดึงหน้าต่างเบราว์เซอร์ขึ้นมาด้านหน้า
                                 
-                                // เช็ค Type เพื่อนำทางไปยังหน้าจอที่ถูกต้อง
-                                if(['repair_request', 'repair_completed', 'repair_hold', 'repair_parts_arrived'].includes(item.type)){
-                                    sessionStorage.setItem('_edit_id', item.related_id);
-                                    if(typeof navigate === 'function') navigate('maintenance_info.php');
-                                } else if (item.type === 'meter_exceeded') {
-                                    if (item.url && item.url !== '#') {
-                                        if(typeof navigate === 'function') navigate(item.url);
-                                    } else {
-                                        if(typeof navigate === 'function') navigate('meter_info.php');
-                                    }
-                                } else if (item.type === 'low_stock') {
-                                    if(typeof navigate === 'function') navigate('stock.php');
-                                } else if (item.type === 'pm_advance_alert' || item.type === 'pm_today_alert') {
-                                    if(typeof navigate === 'function') navigate('pm.php');
-                                } else {
-                                    if(typeof navigate === 'function') navigate('dashboard.php');
-                                }
+                                window.openNotification(item);   // นำทางแบบเดียวกับคลิกในกระดิ่ง
                             };
                         }
                     }
