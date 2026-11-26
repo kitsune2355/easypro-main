@@ -227,8 +227,21 @@ include "config_ctrl/checksession.php";
         $('logo-meta').textContent = has ? [logo.width && logo.height ? `${logo.width} × ${logo.height} px` : '', fmtKB(logo.bytes)].filter(Boolean).join(' · ') : '';
     }
 
+    // เรียก API — server ตอบไม่ใช่ JSON (เช่น หน้า error / Warning ของ PHP) => แปลงเป็นข้อความที่อ่านได้
+    async function api(action, body) {
+        const res = await fetch('handle_agency_logo.php?action=' + action, body ? { method: 'POST', body } : undefined);
+        const txt = await res.text();
+        try { return JSON.parse(txt); } catch (e) {
+            const d = document.createElement('div'); d.innerHTML = txt;
+            const s = (d.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+            throw new Error('server ตอบกลับผิดรูปแบบ (HTTP ' + res.status + ')' + (s ? ': ' + s : ''));
+        }
+    }
+    const fail = (e) => Swal.fire({ icon: 'error', title: 'ข้อผิดพลาด', text: e.message });   // text: ไม่ตีความ HTML
+
     async function load() {
-        const r = await (await fetch('handle_agency_logo.php?action=get')).json();
+        let r;
+        try { r = await api('get'); } catch (e) { fail(e); return; }
         if (!r.success) { Swal.fire('ข้อผิดพลาด', r.error || 'โหลดข้อมูลไม่สำเร็จ', 'error'); return; }
         canEdit = !!r.can_edit;
         if (r.size_min) $('sz').min = r.size_min;
@@ -251,11 +264,11 @@ include "config_ctrl/checksession.php";
         const fd = new FormData(); fd.append('logo', file);
         Swal.fire({ title: 'กำลังอัปโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         try {
-            const r = await (await fetch('handle_agency_logo.php?action=upload', { method: 'POST', body: fd })).json();
+            const r = await api('upload', fd);
             if (!r.success) throw new Error(r.error || 'อัปโหลดไม่สำเร็จ');
             show(r.logo);
             Swal.fire({ icon: 'success', title: 'บันทึกโลโก้แล้ว', text: 'ใบพิมพ์ทุกใบจะแสดงโลโก้นี้', timer: 1800, showConfirmButton: false });
-        } catch (e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); }
+        } catch (e) { fail(e); }
         $('file').value = '';
     }
 
@@ -269,8 +282,10 @@ include "config_ctrl/checksession.php";
         e.preventDefault(); e.stopPropagation();   // ปุ่มอยู่ใน label ของ dropzone — ไม่ให้เปิดหน้าต่างเลือกไฟล์
         const c = await Swal.fire({ title: 'ลบโลโก้หน่วยงาน?', text: 'ใบพิมพ์จะแสดงเฉพาะโลโก้ PROACTIVE', icon: 'warning', showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#dc2626' });
         if (!c.isConfirmed) return;
-        const r = await (await fetch('handle_agency_logo.php?action=delete', { method: 'POST' })).json();
-        if (r.success) show(null); else Swal.fire('ข้อผิดพลาด', r.error || 'ลบไม่สำเร็จ', 'error');
+        try {
+            const r = await api('delete', new FormData());
+            if (r.success) show(null); else fail(new Error(r.error || 'ลบไม่สำเร็จ'));
+        } catch (e) { fail(e); }
     });
 
     // ตำแหน่ง / ขนาด
@@ -289,11 +304,11 @@ include "config_ctrl/checksession.php";
         const fd = new FormData(); Object.keys(DEF).forEach((k) => fd.append(k, cur[k]));
         $('btn-opt-save').disabled = true;
         try {
-            const r = await (await fetch('handle_agency_logo.php?action=settings', { method: 'POST', body: fd })).json();
+            const r = await api('settings', fd);
             if (!r.success) throw new Error(r.error || 'บันทึกไม่สำเร็จ');
             saved = { pos: r.pos, size: r.size, align: r.align, gap: r.gap }; cur = Object.assign({}, saved); render();
             Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', text: 'ใบพิมพ์ทุกใบจะใช้การจัดวางโลโก้นี้', timer: 1600, showConfirmButton: false });
-        } catch (e) { Swal.fire('ข้อผิดพลาด', e.message, 'error'); render(); }
+        } catch (e) { fail(e); render(); }
     });
 
     load();
