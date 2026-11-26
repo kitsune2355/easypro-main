@@ -13,6 +13,35 @@ if (!empty($u)) {
 // 3. เรียกใช้งาน QR Code API
 // ecc=H = ระดับแก้ไขข้อผิดพลาดสูงสุด (30%) เพื่อให้ QR ยังสแกนได้แม้มีโลโก้บังตรงกลาง
 $qr_image_url = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&ecc=H&data=" . urlencode($target_autologin_url);
+
+// 4. โลโก้หน่วยงาน (ตั้งที่ ตั้งค่าข้อมูล → โลโก้หน่วยงาน ใช้ร่วมกับใบพิมพ์) + ชื่อหน่วยงาน จากผู้ใช้ใน ?u=
+//    ยังไม่ได้ตั้ง / หาไม่เจอ / ต่อฐานข้อมูลไม่ได้ => แสดงเฉพาะโลโก้ EasyPro เหมือนเดิม
+$ag_logo = '';
+$ag_name = '';
+$ag_diag = 'no-user-param';   // สาเหตุที่ไม่แสดงโลโก้ (ดูได้จาก View Source: <!-- agency-logo: ... -->)
+if ($u !== '') {
+    $ag_diag = 'db-error';
+    try {
+        include_once __DIR__ . "/config_ctrl/connect.php";
+        require_once __DIR__ . "/config_ctrl/agency_logo.php";
+        if (!empty($connect)) {
+            $st = mysqli_prepare($connect, "SELECT a.ag_id, a.ag_contract FROM tb_user u JOIN tb_agency a ON a.ag_id = u.user_agency WHERE u.user_id = ? LIMIT 1");
+            if ($st) {
+                mysqli_stmt_bind_param($st, 's', $u);
+                mysqli_stmt_execute($st);
+                mysqli_stmt_bind_result($st, $ag_id_qr, $ag_contract_qr);
+                $ag_diag = 'user-or-agency-not-found';
+                if (mysqli_stmt_fetch($st)) $ag_name = (string)$ag_contract_qr;
+                mysqli_stmt_close($st);
+                if (!empty($ag_id_qr)) {
+                    $p = agl_path($connect, $ag_id_qr);
+                    if ($p !== '') { $ag_logo = $p . '?v=' . @filemtime(__DIR__ . '/' . $p); $ag_diag = 'ok ag=' . (int)$ag_id_qr; }
+                    else $ag_diag = 'no-logo-set-or-file-missing ag=' . (int)$ag_id_qr;
+                }
+            }
+        }
+    } catch (Throwable $e) { /* แสดงหน้าได้ตามปกติ */ }
+}
 ?>
 <!DOCTYPE html>
 <html lang="th">
@@ -64,9 +93,22 @@ $qr_image_url = "https://api.qrserver.com/v1/create-qr-code/?size=220x220&ecc=H&
             
             <div class="relative z-10">
                 <!--<img src="../es/images.png" alt="EasyPro" onerror="this.style.display='none';" class="h-14 mx-auto mb-4"/>-->
+                <!-- agency-logo: <?php echo htmlspecialchars($ag_diag, ENT_QUOTES, 'UTF-8'); ?> -->
+                <?php if ($ag_logo !== ''): ?>
+                <!-- โลโก้หน่วยงาน คู่กับโลโก้ระบบ -->
+                <div class="flex items-center justify-center gap-4 mb-4">
+                    <img src="<?php echo htmlspecialchars($ag_logo, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($ag_name ?: 'โลโก้หน่วยงาน', ENT_QUOTES, 'UTF-8'); ?>" onerror="this.style.display='none';" class="h-16 max-w-[180px] object-contain"/>
+                    <span class="w-px h-10 bg-gray-200"></span>
+                    <img src="../es/pro.png" alt="EasyPro" onerror="this.style.display='none';" class="h-12 object-contain"/>
+                </div>
+                <?php else: ?>
 				<img src="../es/pro.png" alt="EasyPro" onerror="this.style.display='none';" class="h-14 mx-auto mb-4"/>
- 
+                <?php endif; ?>
+
                 <h2 class="text-2xl font-bold text-gray-900 mb-1">ระบบแจ้งซ่อมออนไลน์</h2>
+                <?php if ($ag_name !== ''): ?>
+                <p class="text-sm font-medium text-easy-primary mb-1"><?php echo htmlspecialchars($ag_name, ENT_QUOTES, 'UTF-8'); ?></p>
+                <?php endif; ?>
                 
                 <?php if (empty($u)): ?>
                     <p class="text-red-500 text-sm mb-6 mt-2 font-medium">
