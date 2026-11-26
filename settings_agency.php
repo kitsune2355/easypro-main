@@ -59,6 +59,9 @@ include "config_ctrl/checksession.php";
         td.row-new-cell { background-color: #f0fdf4 !important; color: #166534 !important; }
         td.cell-edited { background-color: #fffbeb !important; color: #92400e !important; }
 
+        /* popup เพิ่มอาคาร / ชั้น / ห้อง */
+        #aa-hot td.aa-bad { background-color: #fff1f2 !important; }
+
         /* ปรับขนาด padding ของสถานะให้บางลง */
         .status-active { color: #0369a1; padding: 4px; font-weight: 600; }
         .status-inactive { color: #64748b; padding: 4px; font-weight: 600; }
@@ -749,34 +752,128 @@ include "config_ctrl/checksession.php";
 
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').classList.toggle('open'); }
 
-        window.addNewBuilding = async function() {
-            const { value: name } = await Swal.fire({ 
-                title: 'สร้างอาคารใหม่', 
-                input: 'text', 
-                showCancelButton: true,
-                inputValidator: (value) => { if (!value) return 'กรุณาระบุชื่ออาคาร!'; }
-            });
+        // ---------- เพิ่มอาคาร: popup ตารางแบบ Excel (กรอกหลายชื่อ / วางจาก Excel ได้) ----------
+        //  1 แถว = 1 อาคาร · ชื่อที่มีอยู่แล้ว = ข้าม · ชั้น/ห้องเพิ่มในตารางหลัก หรือปุ่มนำเข้า Excel
+        //  ตรวจและบันทึกผ่าน handle_settings_import.php (entity=areas) — ชุดเดียวกับปุ่มนำเข้า Excel
+        let aaHot = null, aaData = [];   // aaData = ข้อมูลจริงของตาราง (getSourceData() คืนสำเนา)
+        const AA_API = 'handle_settings_import.php?entity=areas&action=';
+        const aaClean = s => String(s || '').replace(/\s+/g, ' ').trim();
+        const aaRows = () => aaData.map((r, i) => ({ i, v: { building: aaClean(r.building), floor: '', room: '' } })).filter(x => x.v.building);
+        async function aaApi(action, rows) {
+            const res = await fetch(AA_API + action, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify({ rows, mode: 'skip' }) });
+            const txt = await res.text();
+            let d;
+            try { d = JSON.parse(txt); } catch (e) { throw new Error('เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง: ' + txt.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)); }
+            if (!d.success) throw new Error(d.error || 'ทำรายการไม่สำเร็จ');
+            return d;
+        }
+        function aaClose(force) {
+            if (!force && aaRows().length && !confirm('ปิดหน้าต่างนี้? ข้อมูลที่กรอกไว้จะหายไป')) return;
+            if (aaHot) { aaHot.destroy(); aaHot = null; }
+            const m = document.getElementById('aa-modal'); if (m) m.remove();
+        }
+        function aaCount() {
+            const n = aaRows().length;
+            document.getElementById('aa-count').textContent = n ? `กรอกแล้ว ${n} อาคาร` : 'ยังไม่ได้กรอก';
+        }
 
-            if (name) { 
-                try {
-                    const response = await fetch('handle_agency.php?action=add_building', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ area_name: name, ag_id: AG_ID, user_id: USER_ID })
-                    });
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        const newId = result.area_id; 
-                        database[newId] = { name: name, rooms: [] }; 
-                        renderSidebar(); 
-                        selectBuilding(newId);
-                        Swal.fire({ title: 'เพิ่มอาคารสำเร็จ', icon: 'success', timer: 1000, showConfirmButton: false });
-                    } else {
-                        Swal.fire('เกิดข้อผิดพลาด', result.error || 'ไม่สามารถเพิ่มอาคารได้', 'error');
-                    }
-                } catch (error) { console.error(error); }
-            }
+        window.addNewBuilding = function () {
+            if (document.getElementById('aa-modal')) return;
+            const m = document.createElement('div');
+            m.id = 'aa-modal';
+            m.className = 'fixed inset-0 z-[1050] bg-slate-900/40 flex items-center justify-center p-2 sm:p-4';
+            m.innerHTML = `
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[92vh]">
+                    <div class="flex items-start justify-between gap-3 px-4 sm:px-5 pt-4 pb-3 border-b border-slate-100">
+                        <div>
+                            <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-building text-[#006B9F] mr-1"></i> เพิ่มอาคาร</h3>
+                            <p class="text-[11px] text-slate-500 mt-1 leading-relaxed">1 แถว = 1 อาคาร · คัดลอกรายชื่อจาก Excel แล้ววางด้วย <b>Ctrl+V</b> ได้ · คลิกขวาเพื่อแทรก/ลบแถว · ชั้นและห้องเพิ่มได้ในตารางของแต่ละอาคารหลังบันทึก</p>
+                        </div>
+                        <button type="button" id="aa-x" class="shrink-0 w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="px-2 sm:px-4 py-3 flex-1 min-h-0"><div id="aa-hot" class="w-full overflow-hidden"></div></div>
+                    <div class="flex flex-wrap items-center gap-2 px-4 sm:px-5 py-3 border-t border-slate-100">
+                        <span id="aa-count" class="w-full sm:w-auto text-[11px] text-slate-500 sm:mr-auto"></span>
+                        <button type="button" id="aa-more" class="mr-auto sm:mr-0 h-8 px-3 rounded-md text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50"><i class="fa-solid fa-plus mr-1"></i>เพิ่ม 10 แถว</button>
+                        <button type="button" id="aa-cancel" class="h-8 px-3 rounded-md text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">ยกเลิก</button>
+                        <button type="button" id="aa-save" class="h-8 px-4 rounded-md text-xs font-semibold text-white bg-[#006B9F] hover:bg-[#04506f] shadow-sm"><i class="fa-solid fa-floppy-disk mr-1"></i>บันทึก</button>
+                    </div>
+                </div>`;
+            document.body.appendChild(m);
+
+            const narrow = window.innerWidth < 640;
+            aaHot = new Handsontable(document.getElementById('aa-hot'), {
+                data: (aaData = Array.from({ length: 12 }, () => ({}))),
+                colHeaders: ['ชื่ออาคาร *'],
+                columns: [{ data: 'building', type: 'text' }],
+                cells(row) {
+                    const r = aaData[this.instance.toPhysicalRow(row)] || {};
+                    return { className: r._bad ? 'aa-bad' : '' };   // แถวที่ผิด = สีแดง (ต้องคืน '' เพื่อล้าง class เดิมของช่อง)
+                },
+                rowHeaders: true, minSpareRows: 1, stretchH: 'all', height: Math.max(240, Math.min(470, window.innerHeight - (narrow ? 330 : 260))),
+                contextMenu: ['row_above', 'row_below', 'remove_row', '---------', 'undo', 'redo', '---------', 'copy', 'cut'],
+                outsideClickDeselects: false,
+                licenseKey: 'non-commercial-and-evaluation',
+                afterChange(changes, src) {
+                    if (src === 'loadData') return;
+                    // แก้แถวแล้ว ล้างสีแดงของแถวนั้น
+                    (changes || []).forEach(([row]) => { const r = aaData[this.toPhysicalRow(row)]; if (r) delete r._bad; });
+                    this.render(); aaCount();
+                },
+                afterRemoveRow: aaCount
+            });
+            aaCount();
+            setTimeout(() => aaHot.selectCell(0, 0), 50);
+
+            document.getElementById('aa-x').onclick = () => aaClose();
+            document.getElementById('aa-cancel').onclick = () => aaClose();
+            m.addEventListener('mousedown', e => { if (e.target === m) aaClose(); });
+            document.getElementById('aa-more').onclick = () => aaHot.alter('insert_row_below', aaHot.countRows() - 1, 10);
+            document.getElementById('aa-save').onclick = aaSave;
         };
+
+        async function aaSave() {
+            aaHot.getActiveEditor() && aaHot.getActiveEditor().isOpened() && aaHot.getActiveEditor().finishEditing();
+            const rows = aaRows();
+            if (!rows.length) { Swal.fire('ยังไม่มีข้อมูล', 'กรอกชื่ออาคารอย่างน้อย 1 แถว', 'warning'); return; }
+            const btn = document.getElementById('aa-save');
+            btn.disabled = true;
+            try {
+                const d = await aaApi('preview', rows.map(x => x.v));
+                aaData.forEach(r => delete r._bad);
+                const bad = [], esc = t => String(t).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+                let nNew = 0, nOld = 0;
+                d.rows.forEach((res, k) => {
+                    if (res.status === 'new') nNew++;
+                    else if (res.status !== 'error') nOld++;   // มีอยู่แล้ว = ข้าม
+                    else {
+                        aaData[rows[k].i]._bad = true;
+                        // "ซ้ำกับแถวที่ N ในไฟล์" => เลขแถวในตารางนี้
+                        bad.push('แถว ' + (rows[k].i + 1) + ': ' + (res.errors || []).map(e => e.replace(/แถวที่ (\d+) ในไฟล์/, (s, n) => 'แถวที่ ' + ((rows[+n - 1] || {}).i + 1))).join(' · '));
+                    }
+                });
+                aaHot.render();
+                if (bad.length) {
+                    Swal.fire({ icon: 'warning', title: 'ข้อมูลยังไม่ถูกต้อง', html: '<div class="text-left text-sm leading-relaxed">' + bad.slice(0, 10).map(esc).join('<br>')
+                        + (bad.length > 10 ? '<br>… และอีก ' + (bad.length - 10) + ' แถว' : '') + '<div class="mt-2 text-xs text-slate-500">แก้หรือลบแถวสีแดง แล้วกดบันทึกอีกครั้ง</div></div>' });
+                    return;
+                }
+                if (!nNew) { Swal.fire('ไม่มีอาคารใหม่', 'ชื่ออาคารที่กรอกมีอยู่แล้วทั้งหมด', 'info'); return; }
+
+                Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                const c = await aaApi('commit', rows.map(x => x.v));
+                const first = rows.find((x, k) => d.rows[k].status === 'new').v.building;
+                aaClose(true);
+                await fetchDatabase(false);
+                const id = Object.keys(database).find(k => aaClean(database[k].name) === first);
+                if (id && !Object.keys(editedCells).length) selectBuilding(id);   // ตารางหลักมีที่แก้ค้าง = ไม่สลับอาคาร
+                Swal.fire({ title: 'บันทึกเรียบร้อย', text: `เพิ่ม ${c.inserted} อาคาร` + (nOld ? ` · ข้าม ${nOld} ชื่อที่มีอยู่แล้ว` : ''), timerProgressBar: true, icon: 'success', timer: 1800, showConfirmButton: false });
+            } catch (e) {
+                Swal.fire('ข้อผิดพลาด', e.message, 'error');
+            } finally {
+                const b = document.getElementById('aa-save'); if (b) b.disabled = false;
+            }
+        }
 
         window.editBuildingName = async function(id, currentName) {
             const { value: newName } = await Swal.fire({
