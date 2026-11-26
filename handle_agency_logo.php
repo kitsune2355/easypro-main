@@ -9,7 +9,10 @@
 ini_set('display_errors', '0');
 ob_start();
 $GLOBALS['agl_warn'] = '';
-set_error_handler(function ($no, $msg) { $GLOBALS['agl_warn'] = $msg; return true; });
+set_error_handler(function ($no, $msg) {   // เก็บเฉพาะ Warning ขึ้นไป — Notice/Deprecated (เช่น ตัวแปรใน connect.php) ไม่เกี่ยวกับสาเหตุ
+    if (!($no & (E_NOTICE | E_USER_NOTICE | E_DEPRECATED | E_USER_DEPRECATED | E_STRICT))) $GLOBALS['agl_warn'] = $msg;
+    return true;
+});
 register_shutdown_function(function () {
     $e = error_get_last();
     if (!$e || !in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) return;
@@ -23,6 +26,7 @@ header('Content-Type: application/json; charset=utf-8');
 include 'config_ctrl/connect.php';
 mysqli_set_charset($connect, 'utf8mb4');
 require_once __DIR__ . '/config_ctrl/agency_logo.php';
+$GLOBALS['agl_warn'] = '';   // ข้อความจาก connect.php ไม่เกี่ยวกับงานอัปโหลด
 
 function agl_out($a, $code = 200) {
     while (ob_get_level()) ob_end_clean();
