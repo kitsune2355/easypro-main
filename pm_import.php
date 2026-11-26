@@ -153,7 +153,8 @@ include_once "config_ctrl/checksession.php";
                 <li>ลบงาน PM ของแผนในแถวที่เลือก <b>ตามประเภทเครื่องจักรและแบบการลบที่เลือก</b> (ขั้นที่ 2 ด้านล่าง) — แผนที่ไม่เหลืองานเลยจะถูกลบ</li>
                 <li>ถ้าลบเฉพาะ <b class="text-red-600">งานที่ยังไม่ทำ</b> — งานที่ทำแล้วเก็บไว้ครบ และแผนนั้นจะถูกปิดใช้งาน</li>
                 <li>ถ้าลบ <b class="text-red-600">งานที่ทำแล้ว</b> — ลบใบงาน ผลตรวจ รูป ลายเซ็น ผลประเมินด้วย และ<b>คืนสต็อกอะไหล่</b>ที่ใบงานตัดไป</li>
-                <li><b class="text-amber-700">ไม่ลบเช็คชีต</b> — เช็คชีตที่ไม่มีแผนใช้แล้วจะถูกล้างประเภทเครื่องจักร (จุดตรวจยังอยู่ นำกลับมาใช้ได้ที่แท็บสร้างเช็คชีต)</li>
+                <li><b class="text-red-600">ลบเช็คชีตที่สร้างในรอบที่เลือก</b> (แถว "สร้างเช็คชีต") พร้อมจุดตรวจและไฟล์แนบ เมื่อไม่มีแผนหรือใบงานใช้แล้ว — ติ๊กทั้งแถวสร้างเช็คชีตและแถวบันทึกแผนของการนำเข้าครั้งนั้น</li>
+                <li><b class="text-amber-700">เช็คชีตที่สร้างไว้ก่อน</b> (สร้างเอง / รอบอื่น) ไม่ลบ — ถ้าไม่มีแผนใช้แล้วจะถูกล้างประเภทเครื่องจักร</li>
             </ul>
             <div class="mt-1 text-red-600 font-medium">ลบแล้วกู้คืนไม่ได้</div>
         </div>
@@ -209,7 +210,7 @@ include_once "config_ctrl/checksession.php";
 
 <script>
 pmLazy('import', function() {   // โหลดเมื่อเปิดแท็บครั้งแรก (ดู pmLazy ใน pm.php)
-    const STATUS_TEXT = { ok: 'พร้อมนำเข้า', not_found: 'ไม่พบในระบบ', no_schedule: 'ไม่มีกำหนดการ', duplicate: 'แถวซ้ำ' };
+    const STATUS_TEXT = { ok: 'พร้อมนำเข้า', not_found: 'ไม่พบในระบบ', no_schedule: 'ไม่มีกำหนดการ', duplicate: 'แถวซ้ำ', sheet_only: 'เช็คชีตอย่างเดียว' };
     const DAY_OPTIONS = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
     const WEEKDAYS = ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.'];
 
@@ -311,6 +312,8 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             ['วิธีกรอก Template นำเข้าแผน PM'],
             [''],
             ['1. Name', 'ชื่อเช็คชีต (เครื่องที่มี Name เดียวกันในประเภทเดียวกันจะใช้เช็คชีตเดียวกัน)'],
+            ['', 'เครื่องที่ใช้หลายเช็คชีต (เช่น รายเดือน กับ รายปี คนละชุดจุดตรวจ) => ใส่เครื่องเดิมหลายแถว แถวละ Name'],
+            ['', 'เช็คชีตที่ยังไม่มีเครื่องจักร => ใส่ Name + ตัวอักษรในช่องสัปดาห์ เว้น CODE ว่าง (สร้างเช็คชีตอย่างเดียว ไม่มีแผน)'],
             ['2. CODE', 'เลขครุภัณฑ์ ต้องตรงกับในระบบ (ใส่รายการเครื่องของหน่วยงานไว้ให้แล้ว)'],
             ['3. Location', 'ตำแหน่งที่ตั้ง'],
             ['4. ช่องสัปดาห์ 1-' + NW, 'เดือนละ 4 สัปดาห์ (' + label(first) + ' – ' + label(last) + ' ตามระยะเวลาสัญญา) ใส่ตัวอักษรในสัปดาห์ที่ต้องทำ PM'],
@@ -395,12 +398,13 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
         for (let i = h + 1; i < rows.length; i++) {
             const r = rows[i];
             const code = String(r[codeCol] ?? '').trim();
-            if (!code) continue;
             const cells = {};   // ช่องสัปดาห์ 0..NW-1 (เดือนละ 4 ช่อง) => ตัวอักษร
             for (let k = 0; k < NW; k++) {
                 const v = String(r[weekCol + k] ?? '').trim().toUpperCase();
                 if (/^[A-Z*]$/.test(v)) cells[k] = v;
             }
+            // ไม่มี CODE: มี Name + ตัวอักษรความถี่ => สร้างเช็คชีตอย่างเดียว (ยังไม่มีเครื่องจักร) · อื่น ๆ (แถวว่าง / ท้ายฟอร์ม) ข้าม
+            if (!code && !(String(r[nameCol] ?? '').trim() && Object.keys(cells).length)) continue;
             parsedRows.push({
                 row: i + 1,
                 name: String(r[nameCol] ?? '').trim(),
@@ -443,8 +447,9 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             statTile('ไม่พบในระบบ', s.not_found, 'text-rose-600') +
             statTile('เช็คชีตใหม่', s.sheets_new, 'text-sky-700') +
             statTile('ใช้เช็คชีตเดิม', s.sheets_reused, 'text-slate-600');
-        $('imp-create-btn').disabled = s.matched === 0;
-        $('imp-create-btn').classList.toggle('opacity-50', s.matched === 0);
+        const nothing = s.matched === 0 && !s.sheets_new;   // มีแต่แถวเช็คชีตอย่างเดียว ก็สร้างเช็คชีตได้
+        $('imp-create-btn').disabled = nothing;
+        $('imp-create-btn').classList.toggle('opacity-50', nothing);
 
         renderSheetTable(data.sheets);
 
@@ -456,7 +461,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             { headerName: 'เครื่องในระบบ', field: 'machine' },
             { headerName: 'เช็คชีต', field: 'sheets', flex: 2, valueFormatter: p => (p.value || []).join(', ') },
             { headerName: 'สถานะ', field: 'status', maxWidth: 150, valueFormatter: p => STATUS_TEXT[p.value] || p.value,
-              cellClass: p => p.value === 'ok' ? 'text-emerald-600' : (p.value === 'not_found' ? 'text-rose-600' : 'text-amber-600') },
+              cellClass: p => p.value === 'ok' ? 'text-emerald-600' : (p.value === 'not_found' ? 'text-rose-600' : (p.value === 'sheet_only' ? 'text-sky-700' : 'text-amber-600')) },
             { headerName: 'หมายเหตุ', field: 'message', flex: 2 }
         ];
 
@@ -496,7 +501,7 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             return `<tr class="border-t border-slate-100 align-top">
                 <td class="px-3 py-2 font-medium text-slate-800">${escHtml(s.name)}
                     <div class="text-[11px] font-normal text-slate-400">ใน Excel: ${escHtml((s.letters || []).join(', '))}</div></td>
-                <td class="px-3 py-2">${escHtml(s.group_name)}</td>
+                <td class="px-3 py-2">${s.ass_type_id ? escHtml(s.group_name) : '<span class="text-slate-400">ไม่ระบุประเภท (ยังไม่มีเครื่องจักร)</span>'}</td>
                 <td class="px-3 py-2">${s.machines}</td>
                 <td class="px-3 py-2 ${isNew ? 'text-sky-700 font-medium' : 'text-slate-500'}">${isNew ? 'สร้างใหม่' : 'ใช้เช็คชีตเดิม'}</td>
                 <td class="px-3 py-2" id="imp-items-${i}">${isNew ? itemsCell(i) : `<span class="text-[11px] text-slate-400">ใช้จุดตรวจของเช็คชีตเดิม</span>`}</td>
@@ -1230,7 +1235,7 @@ pmLazy('import', function () {
         const r = await post('preview').catch(() => ({ success: false, error: 'เชื่อมต่อไม่สำเร็จ' }));
         if (!r.success) { Swal.fire('ข้อผิดพลาด', r.error, 'error'); return; }
         const s = r.summary;
-        if (!s.pending_del && !s.done_del && !s.delete_plans && !s.deactivate_plans && !s.clear_sheets) { Swal.fire('ไม่มีรายการที่ลบได้', 'ตามประเภทและแบบการลบที่เลือก ไม่มีงานที่ต้องลบ', 'info'); return; }
+        if (!s.pending_del && !s.done_del && !s.delete_plans && !s.deactivate_plans && !s.clear_sheets && !s.delete_sheets) { Swal.fire('ไม่มีรายการที่ลบได้', 'ตามประเภทและแบบการลบที่เลือก ไม่มีงานที่ต้องลบ', 'info'); return; }
         const row = (icon, text) => `<li class="flex gap-2 items-start"><span>${icon}</span><span>${text}</span></li>`;
         const types = selectedTypes().length === document.querySelectorAll('.bd-type').length ? 'ทุกประเภท' : TYPES.filter(t => selectedTypes().includes(t.id)).map(t => esc(t.name)).join(', ');
         const html = `<div class="text-left text-[13px] text-slate-500 mb-3">${MODE_TEXT[s.mode]} · ประเภท: ${types}</div>
@@ -1240,7 +1245,9 @@ pmLazy('import', function () {
             ${s.spare_items ? row('📦', `คืนสต็อกอะไหล่ ${fmt(s.spare_items)} รายการ (รวม ${fmt(s.spare_qty)} หน่วย) ที่ใบงานเหล่านี้ตัดไป`) : ''}
             ${s.delete_plans ? row('🗑️', `ลบแผน PM <b class="text-red-600">${fmt(s.delete_plans)}</b> แผน (ไม่เหลืองานแล้ว)`) : ''}
             ${s.deactivate_plans ? row('⏸️', `ปิดใช้งาน ${fmt(s.deactivate_plans)} แผน (ยังมีงานที่ทำแล้ว ${fmt(s.done_keep)} รายการ เก็บไว้)`) : ''}
-            ${s.clear_sheets ? row('🏷️', `ล้างประเภทเครื่องจักรของเช็คชีต <b class="text-amber-600">${fmt(s.clear_sheets)}</b> ชุด (ไม่ลบเช็คชีต จุดตรวจยังอยู่)`) : ''}
+            ${s.delete_sheets ? row('🗑️', `ลบเช็คชีตที่สร้างในรอบนี้ <b class="text-red-600">${fmt(s.delete_sheets)}</b> ชุด (จุดตรวจ อะไหล่ ไฟล์แนบ)`) : ''}
+            ${s.clear_sheets ? row('🏷️', `ล้างประเภทเครื่องจักรของเช็คชีตที่สร้างไว้ก่อน <b class="text-amber-600">${fmt(s.clear_sheets)}</b> ชุด (ไม่ลบ จุดตรวจยังอยู่)`) : ''}
+            ${s.keep_sheets ? row('📋', `คงเช็คชีต ${fmt(s.keep_sheets)} ชุดไว้ (ยังมีแผนหรือใบงานใช้อยู่)`) : ''}
         </ul>
         ${s.done_del ? '<div class="mt-3 text-left text-[13px] text-red-700 bg-red-50 border border-red-100 rounded-lg p-2.5"><b>คำเตือน:</b> งานที่ทำแล้วจะหายจากประวัติและรายงาน PM ทั้งหมด</div>' : ''}
         <p class="text-[13px] text-slate-500 mt-4">ลบแล้วกู้คืนไม่ได้ — พิมพ์คำว่า <b class="text-red-600">ลบ</b> เพื่อยืนยัน</p>`;
@@ -1260,6 +1267,7 @@ pmLazy('import', function () {
             t.spare_items ? `คืนสต็อกอะไหล่ ${fmt(t.spare_items)} รายการ` : '',
             t.delete_plans ? `ลบแผน ${fmt(t.delete_plans)} แผน` : '',
             t.deactivate_plans ? `ปิดใช้งาน ${fmt(t.deactivate_plans)} แผน` : '',
+            t.delete_sheets ? `ลบเช็คชีต ${fmt(t.delete_sheets)} ชุด` : '',
             t.clear_sheets ? `ล้างประเภทเครื่องจักรของเช็คชีต ${fmt(t.clear_sheets)} ชุด` : ''
         ].filter(Boolean).join('<br>') });
         load();

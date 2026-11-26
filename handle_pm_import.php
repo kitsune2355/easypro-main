@@ -258,15 +258,19 @@ function analyzeRows($connect, $ag_id, $rows, $maxCell = 47) {
     }
 
     $existingSheets = [];
-    foreach (fetchAll($connect, "SELECT id, name, ass_type_id FROM pm_checksheets WHERE ag_id = ?", "s", [$ag_id]) as $c) {
+    $existingByName = [];   // ชื่อ => id (ใช้กับแถวเช็คชีตอย่างเดียว ที่ไม่รู้ประเภทเครื่องจักร)
+    foreach (fetchAll($connect, "SELECT id, name, ass_type_id FROM pm_checksheets WHERE ag_id = ? ORDER BY id", "s", [$ag_id]) as $c) {
         $existingSheets[$c['ass_type_id'] . '|' . $c['name']] = (int)$c['id'];
+        $nk = mb_strtolower(trim($c['name']));
+        if (!isset($existingByName[$nk])) $existingByName[$nk] = (int)$c['id'];
     }
 
     $sheets = [];
     $pairs = [];   // เครื่อง × เช็คชีต
     $result = [];
     $seenCodes = [];
-    $stats = ['rows' => 0, 'matched' => 0, 'not_found' => 0, 'no_schedule' => 0, 'duplicate' => 0];
+    $sheetOnly = [];   // ชื่อ => แถว: แถวที่ไม่มี CODE (ยังไม่มีเครื่องจักร) => สร้างเช็คชีตอย่างเดียว ไม่มีแผน
+    $stats = ['rows' => 0, 'matched' => 0, 'not_found' => 0, 'no_schedule' => 0, 'duplicate' => 0, 'sheet_only' => 0];
 
     foreach ($rows as $r) {
         $stats['rows']++;
@@ -275,14 +279,33 @@ function analyzeRows($connect, $ag_id, $rows, $maxCell = 47) {
         $out = ['row' => $r['row'] ?? null, 'name' => $name, 'code' => $r['code'] ?? '', 'location' => $r['location'] ?? '',
                 'machine' => '', 'group' => '', 'status' => 'ok', 'message' => '', 'sheets' => []];
 
-        if (isset($seenCodes[$code])) {
+        if ($code === '') {   // หน้าเว็บส่งมาเฉพาะแถวที่มี Name + ตัวอักษรความถี่
+            $nk = mb_strtolower($name);
+            if ($name === '' || isset($sheetOnly[$nk])) {
+                $out['status'] = 'duplicate';
+                $out['message'] = $name === '' ? 'ไม่มี Name' : 'Name ซ้ำกับแถว ' . $sheetOnly[$nk]['row'];
+                $stats['duplicate']++;
+            } else {
+                $sheetOnly[$nk] = ['row' => $r['row'] ?? '?', 'name' => $name, 'idx' => count($result)];
+                $out['status'] = 'sheet_only';
+                $out['message'] = 'ไม่มีเครื่องจักร — สร้างเช็คชีตอย่างเดียว (ยังไม่มีแผน)';
+                $out['sheets'][] = $name;
+                $stats['sheet_only']++;
+            }
+            $result[] = $out;
+            continue;
+        }
+
+        // ซ้ำ = เลขครุภัณฑ์ + Name (เช็คชีต) เดียวกัน — เครื่องเดียวใส่หลายแถวได้ถ้าคนละเช็คชีต (เช่น Jockey Pump รายสัปดาห์ / รายเดือน)
+        $dupKey = $code . '|' . mb_strtolower($name);
+        if (isset($seenCodes[$dupKey])) {
             $out['status'] = 'duplicate';
-            $out['message'] = 'เลขครุภัณฑ์ซ้ำกับแถว ' . $seenCodes[$code];
+            $out['message'] = 'เลขครุภัณฑ์และ Name ซ้ำกับแถว ' . $seenCodes[$dupKey];
             $stats['duplicate']++;
             $result[] = $out;
             continue;
         }
-        $seenCodes[$code] = $r['row'] ?? '?';
+        $seenCodes[$dupKey] = $r['row'] ?? '?';
 
         if (!isset($machines[$code])) {
             $out['status'] = 'not_found';
@@ -328,6 +351,16 @@ function analyzeRows($connect, $ag_id, $rows, $maxCell = 47) {
         $pairs[] = ['machine' => $m, 'location' => $r['location'] ?? '', 'sheet_key' => $key, 'cells' => $cells,
                     'letters' => implode(', ', array_map(function ($l) use ($LETTER_LABEL) { return $l . (isset($LETTER_LABEL[$l]) ? ' (' . $LETTER_LABEL[$l] . ')' : ''); }, array_keys($counts)))];
         $result[] = $out;
+    }
+
+    // แถวเช็คชีตอย่างเดียว: ถ้า Name นี้มีเครื่องจักรในไฟล์อยู่แล้ว => ใช้เช็คชีตนั้น ไม่สร้างเพิ่ม
+    //  ไม่มี => สร้างเช็คชีตไม่ระบุประเภทเครื่องจักร (กำหนดประเภทภายหลังที่แท็บสร้างเช็คชีต) หรือใช้เช็คชีตชื่อเดียวกันที่มีอยู่แล้ว
+    $namesInFile = [];
+    foreach ($sheets as $s) $namesInFile[mb_strtolower($s['name'])] = true;
+    foreach ($sheetOnly as $nk => $so) {
+        if (isset($namesInFile[$nk])) { $result[$so['idx']]['message'] = 'ใช้เช็คชีตชื่อเดียวกันกับแถวอื่นในไฟล์'; continue; }
+        $sheets['|' . $so['name']] = ['key' => '|' . $so['name'], 'name' => $so['name'], 'ass_type_id' => null,
+                                     'group_name' => '', 'letters' => [], 'existing_id' => $existingByName[$nk] ?? null, 'machines' => 0];
     }
 
     $stats['sheets_new'] = count(array_filter($sheets, function ($s) { return !$s['existing_id']; }));

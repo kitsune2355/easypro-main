@@ -196,7 +196,11 @@ function bd_plan($connect, $ag, $keys, $types, $mode) {
     foreach (bd_rows($connect, "SELECT DISTINCT checksheet_id AS c FROM pm_work_records WHERE checksheet_id IN ($inC) AND id NOT IN ($inDelR)") as $r) $usedBy[(int)$r['c']] = 1;
     $typed = [];
     foreach (bd_rows($connect, "SELECT id FROM pm_checksheets WHERE id IN ($inC) AND ass_type_id IS NOT NULL AND ass_type_id <> 0") as $r) $typed[(int)$r['id']] = 1;
-    $clearSheets = array_values(array_filter($candSheets, function ($id) use ($usedBy, $typed) { return !isset($usedBy[$id]) && isset($typed[$id]); }));
+    // เช็คชีตที่สร้างในรอบที่เลือก และไม่มีแผน/งาน/ใบงานใช้แล้ว => ลบทั้งชุด (จุดตรวจ อะไหล่ ไฟล์แนบ ลบตาม)
+    // เช็คชีตอื่นที่แผนในรอบนี้เคยใช้ (สร้างเองที่แท็บสร้างเช็คชีต / รอบอื่น) => ไม่ลบ ล้างประเภทเครื่องจักรเหมือนเดิม
+    $createdSet = array_flip($sheetIdsCreated);
+    $deleteSheets = array_values(array_filter($candSheets, function ($id) use ($usedBy, $createdSet) { return !isset($usedBy[$id]) && isset($createdSet[$id]); }));
+    $clearSheets = array_values(array_filter($candSheets, function ($id) use ($usedBy, $typed, $createdSet) { return !isset($usedBy[$id]) && isset($typed[$id]) && !isset($createdSet[$id]); }));
     $keepSheets = array_values(array_filter($candSheets, function ($id) use ($usedBy) { return isset($usedBy[$id]); }));
 
     // อะไหล่ที่ตัดสต็อกไปแล้ว (คืนเมื่อลบใบงาน)
@@ -214,6 +218,7 @@ function bd_plan($connect, $ag, $keys, $types, $mode) {
         'done_keep' => $doneKeep,
         'delete_records' => $delRecords,
         'spares' => $spares,
+        'delete_sheets' => $deleteSheets,
         'clear_sheets' => $clearSheets,
         'keep_sheets' => $keepSheets,
     ];
@@ -232,6 +237,7 @@ function bd_summary($p) {
         'records_del' => count($p['delete_records']),
         'spare_items' => count($p['spares']),
         'spare_qty' => $qty,
+        'delete_sheets' => count($p['delete_sheets']),
         'clear_sheets' => count($p['clear_sheets']),
         'keep_sheets' => count($p['keep_sheets']),
     ];
@@ -263,6 +269,12 @@ if ($action === 'delete') {
                       AND NOT EXISTS (SELECT 1 FROM pm_checksheet_files cf WHERE cf.file_path = s.file_path)
                       AND NOT EXISTS (SELECT 1 FROM pm_work_record_files_snapshot o WHERE o.file_path = s.file_path AND o.work_record_id NOT IN ($in))") as $r) $files[] = $r['f'];
         }
+        // ไฟล์ของเช็คชีตที่จะลบ: ไฟล์แนบ + รูปประกอบจุดตรวจ (ลบไฟล์จริงเฉพาะที่ไม่มีที่อื่นใช้ — ตรวจหลัง commit)
+        foreach (array_chunk($p['delete_sheets'], 2000) as $chunk) {
+            $in = bd_in($chunk);
+            foreach (bd_rows($connect, "SELECT file_path AS f FROM pm_checksheet_files WHERE checksheet_id IN ($in) AND file_path <> ''") as $r) $files[] = $r['f'];
+            foreach (bd_rows($connect, "SELECT illustration_path AS f FROM pm_checksheet_items WHERE checksheet_id IN ($in) AND illustration_path <> ''") as $r) $files[] = $r['f'];
+        }
 
         mysqli_begin_transaction($connect);
         $agEsc = mysqli_real_escape_string($connect, $ag);
@@ -292,7 +304,10 @@ if ($action === 'delete') {
         foreach (array_chunk($p['deactivate_plans'], 2000) as $chunk) {   // เหลือแต่งานที่ทำแล้ว => ปิดใช้งาน ไม่สร้างกำหนดการใหม่
             if (!mysqli_query($connect, "UPDATE pm_plans SET status = 0, updated_at = NOW() WHERE ag_id = '$agEsc' AND id IN (" . bd_in($chunk) . ")")) throw new Exception(mysqli_error($connect));
         }
-        foreach (array_chunk($p['clear_sheets'], 2000) as $chunk) {   // ไม่ลบเช็คชีต — ล้างประเภทเครื่องจักรเท่านั้น
+        foreach (array_chunk($p['delete_sheets'], 2000) as $chunk) {   // จุดตรวจ / อะไหล่ / ไฟล์แนบของเช็คชีต ลบตาม (ON DELETE CASCADE)
+            if (!mysqli_query($connect, "DELETE FROM pm_checksheets WHERE ag_id = '$agEsc' AND id IN (" . bd_in($chunk) . ")")) throw new Exception(mysqli_error($connect));
+        }
+        foreach (array_chunk($p['clear_sheets'], 2000) as $chunk) {   // เช็คชีตที่ไม่ได้สร้างในรอบนี้ — ไม่ลบ ล้างประเภทเครื่องจักรเท่านั้น
             if (!mysqli_query($connect, "UPDATE pm_checksheets SET ass_type_id = NULL, updated_at = NOW(), updated_by = '$meEsc' WHERE ag_id = '$agEsc' AND id IN (" . bd_in($chunk) . ")")) throw new Exception(mysqli_error($connect));
         }
         mysqli_commit($connect);
