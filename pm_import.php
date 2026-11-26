@@ -824,8 +824,8 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
     });
 
     // ---------- ขั้นที่ 2: ตารางกรอกแผน ----------
-    function rowMulti(row) {
-        const f = freqByDesc(hot.getDataAtRowProp(row, 'freq'));
+    function rowMulti(row, inst) {
+        const f = freqByDesc((inst || hot).getDataAtRowProp(row, 'freq'));
         return f ? String(f.dropdownmultiselect ?? '') : '';
     }
 
@@ -887,7 +887,8 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             }
         };
 
-        if (hot) hot.destroy();
+        // นำเข้ารอบถัดไปในหน้าเดิม: ทำลายตารางรอบก่อนแล้วล้างตัวแปร (ระหว่างสร้างตารางใหม่ cells() ถูกเรียกก่อน hot ได้ค่าใหม่)
+        if (hot) { hot.destroy(); hot = null; }
         // หัวตารางเหมือน Template: Name / CODE / Location + เดือนละ 4 สัปดาห์ แล้วต่อด้วยข้อมูลแผน PM
         const weekCols = Array.from({ length: NW }, (_, k) => ({
             data: 'w' + k, readOnly: true, className: 'imp-week' + (k % 4 === 3 ? ' imp-month-end' : '')
@@ -915,16 +916,17 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
                 { data: 'note', readOnly: true, className: 'text-amber-600' }
             ],
             cells: function(row, col, prop) {
-                if (!hot) return {};
+                const inst = this.instance;   // ตารางของเซลล์นี้เอง (ไม่ใช้ hot ซึ่งอาจยังเป็นตารางรอบก่อน)
+                if (!inst || inst.isDestroyed) return {};
                 if (typeof prop === 'string' && /^w\d+$/.test(prop)) {
                     const k = +prop.slice(1);
                     let cls = 'imp-week' + (k % 4 === 3 ? ' imp-month-end' : '');
-                    if (k === startWeekIdx(hot.getDataAtRowProp(row, 'start_date'))) cls += ' imp-start';
-                    else if (hot.getDataAtRowProp(row, prop)) cls += ' imp-mark';
+                    if (k === startWeekIdx(inst.getDataAtRowProp(row, 'start_date'))) cls += ' imp-start';
+                    else if (inst.getDataAtRowProp(row, prop)) cls += ' imp-mark';
                     return { className: cls };
                 }
                 if (prop !== 'days') return {};
-                const multi = rowMulti(row);
+                const multi = rowMulti(row, inst);
                 if (multi === '5') return { readOnly: true, className: 'imp-disabled' };
                 return ['2', '6', '31'].includes(multi) ? { readOnly: false, className: 'imp-input' } : { readOnly: true, className: 'imp-disabled' };
             },
