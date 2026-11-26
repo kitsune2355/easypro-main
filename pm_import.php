@@ -823,10 +823,27 @@ pmLazy('import', function() {   // โหลดเมื่อเปิดแท
             attachState = {};
             itemState = {};
             renderPlanTable(d.plan_rows);
+            clearStep1();
         } catch (e) {
             Swal.fire('ข้อผิดพลาด', e.message, 'error');
         }
     });
+
+    // สร้างเช็คชีตแล้ว => ล้างขั้นที่ 1 (ไฟล์ ชีต สถิติ ตารางเช็คชีต) เหลือแต่ตารางกำหนดแผน — กันกดสร้างซ้ำ / แก้จุดตรวจที่ไม่มีผลแล้ว
+    //  คง impHeadMonths + ปี ไว้ (ตารางแผนใช้คำนวณคอลัมน์เดือน) · นำเข้าไฟล์ใหม่ได้ทันที
+    function clearStep1() {
+        workbook = null;
+        parsedRows = [];
+        sheetList = [];
+        $('imp-file').value = '';
+        const sel = $('imp-sheet');
+        sel.innerHTML = '';
+        sel.disabled = true;
+        $('imp-preview').classList.add('hidden');
+        $('imp-sheet-body').innerHTML = '';
+        $('imp-stats').innerHTML = '';
+        if (rowGridApi) rowGridApi.setGridOption('rowData', []);
+    }
 
     // ---------- ขั้นที่ 2: ตารางกรอกแผน ----------
     function rowMulti(row, inst) {
