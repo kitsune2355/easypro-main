@@ -216,6 +216,19 @@
         renderDetail();
     }
 
+    // ผลจุดตรวจของใบงาน: ปกติ (Pass) / ผิดปกติ (Fail) / ไม่เกี่ยวข้อง (N/A) — ชี้ที่ "ผิดปกติ" เพื่อดูชื่อจุดตรวจ
+    function resultChips(x) {
+        const pass = +x.n_pass || 0, fail = +x.n_fail || 0, na = +x.n_na || 0;
+        if (!pass && !fail && !na) return '';
+        const chip = (cls, icon, text, title) => `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${cls}"${title ? ` title="${esc(title)}"` : ''}><i class="fas ${icon}"></i>${text}</span>`;
+        return `<div class="flex flex-wrap items-center gap-1.5 mt-1">
+            ${chip('bg-emerald-50 text-emerald-700', 'fa-circle-check', 'ปกติ ' + pass)}
+            ${fail ? chip('bg-red-50 text-red-700 ring-1 ring-red-200 cursor-help', 'fa-triangle-exclamation', 'ผิดปกติ ' + fail, 'จุดที่ผิดปกติ:\n' + (x.fail_points || '')) : chip('bg-slate-50 text-slate-500', 'fa-triangle-exclamation', 'ผิดปกติ 0')}
+            ${na ? chip('bg-slate-100 text-slate-600', 'fa-minus', 'N/A ' + na) : ''}
+            <span class="text-[11px] text-slate-400">จาก ${pass + fail + na} จุด</span>
+        </div>`;
+    }
+
     let itemsCache = {};
     async function loadItems(i) {
         const box = document.querySelector(`#ap-detail [data-items="${i}"]`);
@@ -234,6 +247,7 @@
                 <div class="min-w-0">
                     <div class="font-semibold text-slate-800 truncate">${esc(x.machine_code || '-')} <span class="font-normal text-slate-600">${esc(x.machine_name || '')}</span></div>
                     <div class="text-xs text-slate-500 truncate">${esc(x.doc_no || '')} · ผู้ตรวจ ${esc(x.inspector_name || '-')} · ทำ ${esc(thDate(x.actual_date))}${x.location ? ' · ' + esc(x.location) : ''}</div>
+                    ${resultChips(x)}
                     ${ok && x.approve_comment ? `<div class="text-xs text-slate-500 truncate">หมายเหตุ: ${esc(x.approve_comment)}</div>` : ''}
                 </div>
                 <div>${ok ? `<span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold text-xs whitespace-nowrap" title="${esc(x.approver_name || '')} · ${esc(thDateTime(x.approved_at))}"><i class="fas fa-check"></i> ตรวจรับแล้ว</span>

@@ -140,7 +140,11 @@ if ($action === 'items') {
     }
     if (($_GET['pending'] ?? '') === '1') $where .= " AND e.approval_status = 0";
     $rows = ap_all($connect, "SELECT e.id, e.event_date, e.approval_status, e.approved_at, e.completed_at, wr.doc_no, wr.machine_code, wr.machine_name, wr.location,
-                wr.actual_date, wr.inspector_name, wr.checksheet_name, a.approver_name, a.comment AS approve_comment, a.signature_path AS approve_signature
+                wr.actual_date, wr.inspector_name, wr.checksheet_name, a.approver_name, a.comment AS approve_comment, a.signature_path AS approve_signature,
+                (SELECT SUM(i.result_status = 'Pass') FROM pm_work_record_items i WHERE i.work_record_id = wr.id) AS n_pass,
+                (SELECT SUM(i.result_status = 'Fail') FROM pm_work_record_items i WHERE i.work_record_id = wr.id) AS n_fail,
+                (SELECT SUM(i.result_status = 'N/A') FROM pm_work_record_items i WHERE i.work_record_id = wr.id) AS n_na,
+                (SELECT GROUP_CONCAT(i.check_point ORDER BY i.sort_order, i.id SEPARATOR '\n') FROM pm_work_record_items i WHERE i.work_record_id = wr.id AND i.result_status = 'Fail') AS fail_points
             FROM pm_plan_events e
             JOIN pm_work_records wr ON wr.id = e.work_record_id
             LEFT JOIN pm_work_approvals a ON a.id = e.approval_id
