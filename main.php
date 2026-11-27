@@ -118,6 +118,20 @@ $rolePerms = array();
         
         .sidebar-expanded { width: 240px; }
         .sidebar-collapsed { width: 70px; }
+        /* พรีวิวเมนูเมื่อชี้ (sidebar แบบย่อ) */
+        #menu-preview { position: fixed; z-index: 9990; width: 260px; background: #1e293b; color: #e2e8f0; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 12px 32px rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08); pointer-events: none;
+            opacity: 0; transform: translateX(-6px); transition: opacity .12s ease, transform .12s ease; visibility: hidden; }
+        #menu-preview.show { opacity: 1; transform: none; visibility: visible; }
+        #menu-preview .mp-head { padding: 10px 12px 8px; }
+        #menu-preview .mp-title { font-size: 13px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 6px; }
+        #menu-preview .mp-cur { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 9999px; background: rgba(56,189,248,.2); color: #7dd3fc; }
+        #menu-preview .mp-sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+        #menu-preview .mp-img { display: block; width: 100%; height: 150px; object-fit: cover; object-position: top left; background: #fff; }
+        #menu-preview .mp-empty { height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+            background: rgba(255,255,255,.04); color: #94a3b8; font-size: 11px; text-align: center; padding: 0 16px; }
+        #menu-preview .mp-empty svg { width: 32px; height: 32px; color: #94a3b8; }
+        #menu-preview .mp-foot { font-size: 11px; color: #94a3b8; padding: 7px 12px; border-top: 1px solid rgba(255,255,255,.06); }
 
         /* ===== ขนาดตัวอักษรทั้งโปรแกรม (เมนู การแสดงผล) — --fs = ตัวคูณ (1 = ปกติ) =====
            หน้าใน iframe: ขยายด้วย transform แล้วลดขนาดกรอบลงตามสัดส่วน => หน้าข้างในเห็นพื้นที่เล็กลง จัดหน้าใหม่ได้เอง (เหมือนซูมเบราว์เซอร์)
@@ -607,7 +621,7 @@ function renderMenu(activeHref) {
     container.innerHTML = menuItems.map(function(item) {
         const isActive = item.href === activeHref;
         return '' +
-        '<a href="#' + item.href + '" ' +
+        '<a href="#' + item.href + '" data-href="' + item.href + '" ' +
         'onclick="navigate(\'' + item.href + '\')" ' +
         'class="menu-link flex items-center gap-3 p-2.5 rounded-lg transition-all group ' + 
         (shouldCollapse ? 'justify-center' : 'justify-start') + ' ' + 
@@ -628,6 +642,161 @@ function renderMenu(activeHref) {
         lucide.createIcons();
     }
 }
+
+// ===== พรีวิวเมนูเมื่อชี้ (เฉพาะ sidebar แบบย่อ บนจอคอม) — แบบแท็บของเบราว์เซอร์ =====
+//  ภาพ = ภาพย่อของหน้านั้นตอนเปิดล่าสุด (จับภาพหลังโหลดเสร็จ ตอนเครื่องว่าง · เก็บใน sessionStorage ของแท็บนี้)
+//  ยังไม่เคยเปิด => ไอคอน + คำอธิบายสั้น ๆ
+(function () {
+    const DESC = {
+        'dashboard.php': 'ภาพรวมงานซ่อม พลังงาน และ PM',
+        'maintenance_request.php': 'แจ้งซ่อมใหม่',
+        'maintenance_info.php': 'รายการแจ้งซ่อม ติดตามและปิดงาน',
+        'work_history.php': 'ประวัติงานของช่างแต่ละคน',
+        'meter_info.php': 'บันทึกและดูค่ามิเตอร์ น้ำ / ไฟ / TOU',
+        'machine_info.php': 'ทะเบียนอุปกรณ์เครื่องจักร',
+        'stock.php': 'สต็อกอะไหล่ รับเข้า ปรับยอด ขอซื้อ',
+        'pm.php': 'แผน PM เช็คชีต งานที่ต้องทำ รายงาน',
+        'display_settings.php': 'ขนาดตัวอักษรและการแสดงผล',
+        'tutorial.php': 'คู่มือการใช้งานระบบ',
+        'settings.php': 'ตั้งค่าข้อมูลพื้นฐานของหน่วยงาน',
+    };
+    const KEY = 'easypro_preview_';
+    const MAX_AGE = 2 * 60 * 1000;     // จับภาพหน้าเดิมซ้ำได้เมื่อเกิน 2 นาที
+    const MAX_NODES = 8000;            // หน้าที่ใหญ่มาก => ไม่จับภาพ (กันหน้าค้าง)
+    const shots = {};                  // href => { src, at }
+
+    const read = function (href) {
+        if (shots[href]) return shots[href];
+        try { const v = JSON.parse(sessionStorage.getItem(KEY + href) || 'null'); if (v && v.src) return (shots[href] = v); } catch (e) { /* โหมดส่วนตัว */ }
+        return null;
+    };
+    const save = function (href, src) {
+        shots[href] = { src: src, at: Date.now() };
+        try { sessionStorage.setItem(KEY + href, JSON.stringify(shots[href])); } catch (e) { /* เต็ม / โหมดส่วนตัว: เก็บในหน่วยความจำ */ }
+    };
+
+    // html2canvas-pro (รองรับสี color()/oklch ของ CSS ใหม่ — html2canvas 1.4.1 จับภาพหน้าที่มีตาราง AG Grid ไม่ได้)
+    //  โหลดเมื่อจะจับภาพครั้งแรก · เก็บตัวฟังก์ชันไว้เอง (หน้าอื่นอาจโหลด html2canvas รุ่นเก่ามาทับตัวแปรกลาง)
+    let h2c = null, h2cLoading = null;
+    const loadH2c = function () {
+        if (h2c) return Promise.resolve(h2c);
+        if (!h2cLoading) h2cLoading = new Promise(function (ok, fail) {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/html2canvas-pro@2.6.4/dist/html2canvas-pro.min.js';
+            s.onload = function () { h2c = window.html2canvas; h2c ? ok(h2c) : fail(); };
+            s.onerror = fail;
+            document.head.appendChild(s);
+        });
+        return h2cLoading;
+    };
+    // จับภาพเฉพาะตอนผู้ใช้ไม่ได้ใช้งาน (ไม่ขยับเมาส์ / พิมพ์ / เลื่อน 1.5 วินาที) — การจับภาพใช้ ~0.1–0.7 วินาที
+    let lastActive = Date.now();
+    const touch = function () { lastActive = Date.now(); };
+    ['pointermove', 'keydown', 'wheel', 'pointerdown'].forEach(function (ev) { window.addEventListener(ev, touch, { passive: true, capture: true }); });
+
+    // สาเหตุที่ไม่ได้ภาพ => Console (F12) ขึ้นต้น [menu-preview]
+    const why = function (msg, e) { try { console.info('[menu-preview] ' + msg, e || ''); } catch (x) {} };
+    let busy = false, loadedAt = 0;
+    let card = null, hoverLink = null, show = function () {};   // กำหนดค่าจริงด้านล่าง (การ์ดพรีวิว)
+    const capture = function (reason) {
+        if (busy) return;
+        if (document.hidden || window.innerWidth <= 768) return;
+        let win, doc, href;
+        try { win = iframe.contentWindow; doc = win.document; href = (win.location.pathname.split('/').pop() || ''); } catch (e) { why('อ่านหน้าใน iframe ไม่ได้', e); return; }
+        if (!menuItems.some(function (m) { return m.href === href; })) return;
+        const old = read(href);
+        if (old && Date.now() - old.at < MAX_AGE) return;
+        if (!doc.body) return;
+        const n = doc.getElementsByTagName('*').length;
+        if (n > MAX_NODES) { why(href + ': หน้าใหญ่เกิน (' + n + ' element) ไม่จับภาพ'); return; }
+        busy = true;
+        const w = iframe.clientWidth, h = iframe.clientHeight;
+        loadH2c().then(function (fn) {
+            return fn(doc.documentElement, {
+                x: win.scrollX, y: win.scrollY, width: w, height: h, windowWidth: w, windowHeight: h,
+                scale: 320 / w, logging: false, useCORS: true, backgroundColor: '#ffffff', imageTimeout: 3000,
+            });
+        }).then(function (c) {
+            save(href, c.toDataURL('image/jpeg', 0.7));
+            why(href + ': จับภาพแล้ว (' + reason + ')');
+            // การ์ดของหน้านี้เปิดค้างอยู่ (ชี้ก่อนจับภาพเสร็จ) => แสดงภาพเลย
+            if (hoverLink && hoverLink.dataset.href === href && card.classList.contains('show')) show(hoverLink);
+        }).catch(function (e) { why(href + ': จับภาพไม่สำเร็จ', e); }).then(function () { busy = false; });
+    };
+    // จังหวะจับภาพ:
+    //  1) หลังหน้าโหลด 2.5 วินาที รอผู้ใช้หยุดขยับ 0.8 วินาที (รอได้ถึง ~8 วินาที แล้วจับเลย)
+    //  2) เมาส์ออกจากเนื้อหาหน้า (มักไปที่ sidebar เพื่อดูพรีวิว / เปลี่ยนหน้า) => จับทันทีถ้ายังไม่มีภาพล่าสุด
+    let loadSeq = 0;
+    const idle = window.requestIdleCallback || function (f) { return setTimeout(f, 0); };
+    iframe.addEventListener('load', function () {
+        const seq = ++loadSeq;
+        loadedAt = Date.now();
+        // เมาส์/คีย์บอร์ดในหน้าที่อยู่ใน iframe ก็นับเป็นการใช้งาน
+        try { ['pointermove', 'keydown', 'wheel', 'pointerdown'].forEach(function (ev) { iframe.contentWindow.addEventListener(ev, touch, { passive: true, capture: true }); }); } catch (e) { /* ต่าง origin */ }
+        let tries = 0;
+        const attempt = function () {
+            if (seq !== loadSeq) return;   // เปลี่ยนหน้าไปแล้ว
+            if (Date.now() - lastActive < 800 && ++tries < 10) { setTimeout(attempt, 800); return; }
+            idle(function () { if (seq === loadSeq) capture('หลังโหลด'); }, { timeout: 1500 });
+        };
+        setTimeout(attempt, 2500);
+    });
+    iframe.addEventListener('mouseleave', function () {
+        if (Date.now() - loadedAt > 1500) capture('เมาส์ออกจากหน้า');
+    });
+
+    // การ์ดพรีวิว
+    card = document.createElement('div');
+    card.id = 'menu-preview';
+    card.setAttribute('role', 'tooltip');
+    document.body.appendChild(card);
+    let showTimer = null;
+    const hide = function () { clearTimeout(showTimer); card.classList.remove('show'); hoverLink = null; };
+    const ago = function (t) {
+        const m = Math.round((Date.now() - t) / 60000);
+        return m < 1 ? 'เมื่อสักครู่' : m < 60 ? m + ' นาทีที่แล้ว' : new Date(t).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+    };
+    show = function (link) {
+        const item = menuItems.find(function (m) { return m.href === link.dataset.href; });
+        if (!item) return;
+        const shot = read(item.href);
+        const cur = frameFile() === item.href;
+        // ยังไม่เคยเปิด => ภาพตัวอย่างจากคู่มือ (manual/img/menu/ ข้อมูลหน่วยงานสาธิต) · ไม่มีไฟล์ => ไอคอน
+        const empty = '<div class="mp-empty"><i data-lucide="' + item.icon + '"></i><span>คลิกเพื่อเปิดหน้านี้</span></div>';
+        card.innerHTML =
+            '<div class="mp-head"><div class="mp-title">' + bnEsc(item.label) + (cur ? ' <span class="mp-cur">หน้าปัจจุบัน</span>' : '') + '</div>' +
+            '<div class="mp-sub">' + bnEsc(DESC[item.href] || item.href) + '</div></div>' +
+            '<img class="mp-img" alt="" src="' + (shot ? shot.src : sampleSrc(item.href)) + '">' +
+            '<div class="mp-foot">' + (shot ? 'ภาพเมื่อ ' + ago(shot.at) : 'ภาพตัวอย่าง · เปิดแล้วจะเป็นภาพจริง') + '</div>';
+        const img = card.querySelector('.mp-img');
+        img.onerror = function () { img.outerHTML = empty; if (window.lucide) lucide.createIcons(); };
+        const r = link.getBoundingClientRect(), sr = sidebar.getBoundingClientRect();
+        card.style.left = (sr.right + 10) + 'px';
+        card.classList.add('show');
+        const top = Math.max(8, Math.min(r.top - 8, window.innerHeight - card.offsetHeight - 8));
+        card.style.top = top + 'px';
+    };
+    // ภาพตัวอย่างของแต่ละเมนู (~20–30KB) — โหลดล่วงหน้าตอนเครื่องว่าง เฉพาะตอน sidebar แบบย่อ (ชี้แล้วขึ้นภาพทันที)
+    function sampleSrc(href) { return 'manual/img/menu/' + href.replace(/\.php$/, '') + '.jpg'; }
+    setTimeout(function () {
+        if (window.innerWidth <= 768 || !sidebar.classList.contains('sidebar-collapsed')) return;
+        idle(function () { menuItems.forEach(function (m) { if (!read(m.href)) (new Image()).src = sampleSrc(m.href); }); }, { timeout: 5000 });
+    }, 4000);
+
+    const container = document.getElementById('menu-container');
+    container.addEventListener('mouseover', function (e) {
+        const link = e.target.closest('.menu-link');
+        if (!link || !link.dataset.href) return;
+        if (window.innerWidth <= 768 || !sidebar.classList.contains('sidebar-collapsed')) { hide(); return; }
+        if (link.contains(e.relatedTarget)) return;
+        clearTimeout(showTimer);
+        hoverLink = link;
+        showTimer = setTimeout(function () { show(link); }, card.classList.contains('show') ? 0 : 250);
+    });
+    container.addEventListener('mouseleave', hide);
+    container.addEventListener('click', hide);
+    window.addEventListener('blur', hide);
+})();
 
 // ===== มือถือ: แถบเมนูด้านล่าง =====
 // ช่องหลัก 2 ช่อง (เลือกตามลำดับความสำคัญจากเมนูที่มีสิทธิ์) + ปุ่มแจ้งซ่อมตรงกลาง + สแกน QR + "เมนู" (ที่เหลือทั้งหมด) — 5 ช่องสมมาตร
