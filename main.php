@@ -118,7 +118,7 @@ $rolePerms = array();
         
         .sidebar-expanded { width: 240px; }
         .sidebar-collapsed { width: 70px; }
-        /* พรีวิวเมนูเมื่อชี้ (sidebar แบบย่อ) */
+        /* พรีวิวเมนูเมื่อชี้ (จอคอม) */
         #menu-preview { position: fixed; z-index: 9990; width: 260px; background: #1e293b; color: #e2e8f0; border-radius: 12px; overflow: hidden;
             box-shadow: 0 12px 32px rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.08); pointer-events: none;
             opacity: 0; transform: translateX(-6px); transition: opacity .12s ease, transform .12s ease; visibility: hidden; }
@@ -643,7 +643,7 @@ function renderMenu(activeHref) {
     }
 }
 
-// ===== พรีวิวเมนูเมื่อชี้ (เฉพาะ sidebar แบบย่อ บนจอคอม) — แบบแท็บของเบราว์เซอร์ =====
+// ===== พรีวิวเมนูเมื่อชี้ (จอคอม · sidebar แบบย่อและแบบขยาย) — แบบแท็บของเบราว์เซอร์ =====
 //  ภาพ = ภาพย่อของหน้านั้นตอนเปิดล่าสุด (จับภาพหลังโหลดเสร็จ ตอนเครื่องว่าง · เก็บใน sessionStorage ของแท็บนี้)
 //  ยังไม่เคยเปิด => ไอคอน + คำอธิบายสั้น ๆ
 (function () {
@@ -776,10 +776,10 @@ function renderMenu(activeHref) {
         const top = Math.max(8, Math.min(r.top - 8, window.innerHeight - card.offsetHeight - 8));
         card.style.top = top + 'px';
     };
-    // ภาพตัวอย่างของแต่ละเมนู (~20–30KB) — โหลดล่วงหน้าตอนเครื่องว่าง เฉพาะตอน sidebar แบบย่อ (ชี้แล้วขึ้นภาพทันที)
+    // ภาพตัวอย่างของแต่ละเมนู (~20–30KB) — โหลดล่วงหน้าตอนเครื่องว่าง บนจอคอม (ชี้แล้วขึ้นภาพทันที)
     function sampleSrc(href) { return 'manual/img/menu/' + href.replace(/\.php$/, '') + '.jpg'; }
     setTimeout(function () {
-        if (window.innerWidth <= 768 || !sidebar.classList.contains('sidebar-collapsed')) return;
+        if (window.innerWidth <= 768) return;
         idle(function () { menuItems.forEach(function (m) { if (!read(m.href)) (new Image()).src = sampleSrc(m.href); }); }, { timeout: 5000 });
     }, 4000);
 
@@ -787,7 +787,7 @@ function renderMenu(activeHref) {
     container.addEventListener('mouseover', function (e) {
         const link = e.target.closest('.menu-link');
         if (!link || !link.dataset.href) return;
-        if (window.innerWidth <= 768 || !sidebar.classList.contains('sidebar-collapsed')) { hide(); return; }
+        if (window.innerWidth <= 768) { hide(); return; }   // จอคอม — ทั้ง sidebar แบบย่อและแบบขยาย
         if (link.contains(e.relatedTarget)) return;
         clearTimeout(showTimer);
         hoverLink = link;
